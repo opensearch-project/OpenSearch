@@ -28,6 +28,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
  * <p>
  * Writeable TaskResourceUsage objects are used to represent resource usage
  * information of running tasks.
+ *
+ * @opensearch.internal
  */
 public class TaskResourceUsage implements Writeable, ToXContentFragment {
     private static final ParseField CPU_TIME_IN_NANOS = new ParseField("cpu_time_in_nanos");

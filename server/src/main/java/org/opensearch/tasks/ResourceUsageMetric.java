@@ -8,6 +8,11 @@
 
 package org.opensearch.tasks;
 
+/**
+ * Information about resource usage
+ *
+ * @opensearch.internal
+ */
 public class ResourceUsageMetric {
     private final ResourceStats stats;
     private final long value;

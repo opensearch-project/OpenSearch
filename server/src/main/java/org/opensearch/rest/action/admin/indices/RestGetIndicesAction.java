@@ -53,6 +53,8 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 
 /**
  * The REST handler for get index and head index APIs.
+ *
+ * @opensearch.api
  */
 public class RestGetIndicesAction extends BaseRestHandler {
 

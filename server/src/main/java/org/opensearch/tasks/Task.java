@@ -50,6 +50,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Current task information
+ *
+ * @opensearch.internal
  */
 public class Task {
 

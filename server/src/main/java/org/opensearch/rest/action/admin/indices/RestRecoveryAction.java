@@ -49,6 +49,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * REST handler to report on index recoveries.
+ *
+ * @opensearch.api
  */
 public class RestRecoveryAction extends BaseRestHandler {
 

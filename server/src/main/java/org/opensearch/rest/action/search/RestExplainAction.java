@@ -52,6 +52,8 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
  * Rest action for computing a score explanation for specific documents.
+ *
+ * @opensearch.api
  */
 public class RestExplainAction extends BaseRestHandler {
 

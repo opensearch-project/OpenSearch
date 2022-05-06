@@ -31,6 +31,11 @@
 
 package org.opensearch.snapshots;
 
+/**
+ * Exception thrown when there is an aborted snapshot
+ *
+ * @opensearch.internal
+ */
 public final class AbortedSnapshotException extends RuntimeException {
     public AbortedSnapshotException() {
         super("aborted");

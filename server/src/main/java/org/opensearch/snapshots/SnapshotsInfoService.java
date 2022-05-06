@@ -32,6 +32,11 @@
 
 package org.opensearch.snapshots;
 
+/**
+ * Base interface for shard information
+ *
+ * @opensearch.internal
+ */
 @FunctionalInterface
 public interface SnapshotsInfoService {
     SnapshotShardSizeInfo snapshotShardSizes();

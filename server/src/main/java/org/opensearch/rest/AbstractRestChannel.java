@@ -47,6 +47,11 @@ import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toSet;
 
+/**
+ * Base REST channel
+ *
+ * @opensearch.api
+ */
 public abstract class AbstractRestChannel implements RestChannel {
 
     private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';

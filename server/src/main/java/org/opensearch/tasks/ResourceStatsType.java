@@ -8,7 +8,11 @@
 
 package org.opensearch.tasks;
 
-/** Defines the different types of resource stats. */
+/**
+ * Defines the different types of resource stats.
+ *
+ * @opensearch.internal
+ */
 public enum ResourceStatsType {
     // resource stats of the worker thread reported directly from runnable.
     WORKER_STATS("worker_stats", false);

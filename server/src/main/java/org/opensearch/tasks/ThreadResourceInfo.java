@@ -13,6 +13,8 @@ package org.opensearch.tasks;
  * <p>
  * It captures the resource usage information about a particular execution of thread
  * for a specific stats type like worker_stats or response_stats etc.,
+ *
+ * @opensearch.internal
  */
 public class ThreadResourceInfo {
     private volatile boolean isActive = true;

@@ -48,6 +48,11 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 import static org.opensearch.rest.RestStatus.ACCEPTED;
 
+/**
+ * Transport action to delete dangling index
+ *
+ * @opensearch.api
+ */
 public class RestDeleteDanglingIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteDanglingIndexAction.class);
