@@ -116,7 +116,7 @@ public class Reconfigurator {
     ) {
         assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
         logger.trace(
-            "{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
+            "{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentClusterManager={}",
             this,
             currentConfig,
             liveNodes,

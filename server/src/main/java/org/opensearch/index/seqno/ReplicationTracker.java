@@ -1179,7 +1179,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             // check that the master does not fabricate new in-sync entries out of thin air once we are in primary mode
             assert !primaryMode
                 || inSyncAllocationIds.stream().allMatch(inSyncId -> checkpoints.containsKey(inSyncId) && checkpoints.get(inSyncId).inSync)
-                : "update from master in primary mode contains in-sync ids "
+                : "update from cluster-manager in primary mode contains in-sync ids "
                     + inSyncAllocationIds
                     + " that have no matching entries in "
                     + checkpoints;
@@ -1197,7 +1197,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 for (String initializingId : initializingAllocationIds) {
                     if (checkpoints.containsKey(initializingId) == false) {
                         final boolean inSync = inSyncAllocationIds.contains(initializingId);
-                        assert inSync == false : "update from master in primary mode has "
+                        assert inSync == false : "update from cluster-manager in primary mode has "
                             + initializingId
                             + " as in-sync but it does not exist locally";
                         final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;

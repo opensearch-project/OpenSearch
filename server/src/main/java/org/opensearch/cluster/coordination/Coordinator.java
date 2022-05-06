@@ -1238,14 +1238,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 if (mode != Mode.LEADER || getCurrentTerm() != clusterChangedEvent.state().term()) {
                     logger.debug(
                         () -> new ParameterizedMessage(
-                            "[{}] failed publication as node is no longer master for term {}",
+                            "[{}] failed publication as node is no longer cluster-manager for term {}",
                             clusterChangedEvent.source(),
                             clusterChangedEvent.state().term()
                         )
                     );
                     publishListener.onFailure(
                         new FailedToCommitClusterStateException(
-                            "node is no longer master for term " + clusterChangedEvent.state().term() + " while handling publication"
+                            "node is no longer cluster-manager for term "
+                                + clusterChangedEvent.state().term()
+                                + " while handling publication"
                         )
                     );
                     return;

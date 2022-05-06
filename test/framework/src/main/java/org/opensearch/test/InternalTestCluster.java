@@ -836,7 +836,7 @@ public final class InternalTestCluster extends TestCluster {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested
         }
-        throw new AssertionError("No non-master client found");
+        throw new AssertionError("No non-cluster-manager client found");
     }
 
     /**
