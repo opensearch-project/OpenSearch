@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Manager for connecting to remote nodes
+ *
+ * @opensearch.internal
+ */
 public class RemoteConnectionManager implements ConnectionManager {
 
     private final String clusterAlias;

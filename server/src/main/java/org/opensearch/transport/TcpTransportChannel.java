@@ -40,6 +40,11 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Channel for a TCP connection
+ *
+ * @opensearch.internal
+ */
 public final class TcpTransportChannel implements TransportChannel {
 
     private final AtomicBoolean released = new AtomicBoolean();

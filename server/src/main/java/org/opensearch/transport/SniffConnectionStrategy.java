@@ -74,6 +74,11 @@ import java.util.stream.Stream;
 
 import static org.opensearch.common.settings.Setting.intSetting;
 
+/**
+ * Sniff for initial seed nodes
+ *
+ * @opensearch.internal
+ */
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     /**

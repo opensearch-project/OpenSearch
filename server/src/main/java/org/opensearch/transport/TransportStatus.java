@@ -32,6 +32,11 @@
 
 package org.opensearch.transport;
 
+/**
+ * Status for transport activity
+ *
+ * @opensearch.internal
+ */
 public final class TransportStatus {
 
     private static final byte STATUS_REQRES = 1 << 0;
