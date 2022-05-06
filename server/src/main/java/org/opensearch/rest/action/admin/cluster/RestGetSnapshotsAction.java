@@ -49,6 +49,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Returns information about snapshot
+ *
+ * @opensearch.api
  */
 public class RestGetSnapshotsAction extends BaseRestHandler {
 

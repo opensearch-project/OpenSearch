@@ -45,6 +45,11 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get pending cluster tasks
+ *
+ * @opensearch.api
+ */
 public class RestPendingClusterTasksAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPendingClusterTasksAction.class);

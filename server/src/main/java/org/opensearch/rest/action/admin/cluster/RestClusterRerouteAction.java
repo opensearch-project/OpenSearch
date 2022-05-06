@@ -58,6 +58,11 @@ import java.util.Set;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to reroute documents
+ *
+ * @opensearch.api
+ */
 public class RestClusterRerouteAction extends BaseRestHandler {
     private static final ObjectParser<ClusterRerouteRequest, Void> PARSER = new ObjectParser<>("cluster_reroute");
     static {

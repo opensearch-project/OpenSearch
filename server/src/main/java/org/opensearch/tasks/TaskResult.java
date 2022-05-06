@@ -61,6 +61,8 @@ import static org.opensearch.common.xcontent.XContentHelper.convertToMap;
 /**
  * Information about a running task or a task that stored its result. Running tasks just have a {@link #getTask()} while
  * tasks with stored result will have either a {@link #getError()} or {@link #getResponse()}.
+ *
+ * @opensearch.internal
  */
 public final class TaskResult implements Writeable, ToXContentObject {
     private final boolean completed;

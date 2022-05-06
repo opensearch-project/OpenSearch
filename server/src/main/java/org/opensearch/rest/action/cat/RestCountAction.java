@@ -53,6 +53,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to count documents in an index
+ *
+ * @opensearch.api
+ */
 public class RestCountAction extends AbstractCatAction {
 
     @Override

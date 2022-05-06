@@ -47,6 +47,11 @@ import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to simulate an index template
+ *
+ * @opensearch.api
+ */
 public class RestSimulateIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSimulateIndexTemplateAction.class);

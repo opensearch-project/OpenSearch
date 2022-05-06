@@ -44,6 +44,8 @@ import java.io.IOException;
 
 /**
  * Task id that consists of node id and id of the task on the node
+ *
+ * @opensearch.internal
  */
 public final class TaskId implements Writeable {
 

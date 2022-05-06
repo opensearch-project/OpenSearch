@@ -47,6 +47,11 @@ import java.util.List;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to put component template
+ *
+ * @opensearch.api
+ */
 public class RestPutComponentTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutComponentTemplateAction.class);

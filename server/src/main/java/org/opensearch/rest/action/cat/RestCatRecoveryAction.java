@@ -60,6 +60,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  * RestRecoveryAction provides information about the status of replica recovery
  * in a string format, designed to be used at the command line. An Index can
  * be specified to limit output to a particular index or indices.
+ *
+ * @opensearch.api
  */
 public class RestCatRecoveryAction extends AbstractCatAction {
 

@@ -50,6 +50,8 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
  * Creates a new snapshot
+ *
+ * @opensearch.api
  */
 public class RestCreateSnapshotAction extends BaseRestHandler {
 

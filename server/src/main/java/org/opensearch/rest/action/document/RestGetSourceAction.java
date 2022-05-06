@@ -60,6 +60,8 @@ import static org.opensearch.rest.RestStatus.OK;
 
 /**
  * The REST handler for get source and head source APIs.
+ *
+ * @opensearch.api
  */
 public class RestGetSourceAction extends BaseRestHandler {
 

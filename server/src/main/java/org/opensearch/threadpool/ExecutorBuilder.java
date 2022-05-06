@@ -44,7 +44,7 @@ import java.util.List;
  *
  * @param <U> the underlying type of the executor settings
  *
- *           @opensearch.internal
+ * @opensearch.internal
  */
 public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
 

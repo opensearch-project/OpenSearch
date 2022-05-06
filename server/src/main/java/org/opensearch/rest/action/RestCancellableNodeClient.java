@@ -58,6 +58,8 @@ import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.T
 /**
  * A {@linkplain Client} that cancels tasks executed locally when the provided {@link HttpChannel}
  * is closed before completion.
+ *
+ * @opensearch.api
  */
 public class RestCancellableNodeClient extends FilterClient {
     private static final Map<HttpChannel, CloseListener> httpChannels = new ConcurrentHashMap<>();

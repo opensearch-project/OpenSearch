@@ -45,6 +45,11 @@ import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * Transport action to delete component template
+ *
+ * @opensearch.api
+ */
 public class RestDeleteComponentTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteComponentTemplateAction.class);
