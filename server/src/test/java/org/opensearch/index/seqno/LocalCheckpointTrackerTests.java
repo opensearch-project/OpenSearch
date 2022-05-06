@@ -332,57 +332,57 @@ public class LocalCheckpointTrackerTests extends OpenSearchTestCase {
         assertThat(tracker.hasProcessed(seqNo), equalTo(seqNo <= localCheckpoint || seqNos.contains(seqNo)));
     }
 
-    public void testFastForwardProcessedNoPersistentUpdate() {
+    public void testFastForwardPersistedNoProcessedUpdate() {
         // base case with no persistent checkpoint update
         long seqNo1;
-        assertThat(tracker.getProcessedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         seqNo1 = tracker.generateSeqNo();
         assertThat(seqNo1, equalTo(0L));
-        tracker.fastForwardProcessedSeqNo(seqNo1);
-        assertThat(tracker.getProcessedCheckpoint(), equalTo(-1L));
+        tracker.fastForwardPersistedSeqNo(seqNo1);
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(-1L));
     }
 
-    public void testFastForwardProcessedPersistentUpdate() {
-        // base case with persistent checkpoint update
+    public void testFastForwardPersistedProcessedUpdate() {
+        // base case with processed checkpoint update
         long seqNo1;
-        assertThat(tracker.getProcessedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         seqNo1 = tracker.generateSeqNo();
         assertThat(seqNo1, equalTo(0L));
 
-        tracker.markSeqNoAsPersisted(seqNo1);
-        assertThat(tracker.getPersistedCheckpoint(), equalTo(0L));
-        tracker.fastForwardProcessedSeqNo(seqNo1);
+        tracker.markSeqNoAsProcessed(seqNo1);
         assertThat(tracker.getProcessedCheckpoint(), equalTo(0L));
+        tracker.fastForwardPersistedSeqNo(seqNo1);
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(0L));
         assertThat(tracker.hasProcessed(0L), equalTo(true));
         assertThat(tracker.hasProcessed(atLeast(1)), equalTo(false));
 
         // idempotent case
-        tracker.fastForwardProcessedSeqNo(seqNo1);
-        assertThat(tracker.getProcessedCheckpoint(), equalTo(0L));
+        tracker.fastForwardPersistedSeqNo(seqNo1);
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(0L));
         assertThat(tracker.hasProcessed(0L), equalTo(true));
         assertThat(tracker.hasProcessed(atLeast(1)), equalTo(false));
 
     }
 
-    public void testFastForwardProcessedPersistentUpdate2() {
+    public void testFastForwardPersistedProcessedUpdate2() {
         long seqNo1, seqNo2;
-        assertThat(tracker.getProcessedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         seqNo1 = tracker.generateSeqNo();
         seqNo2 = tracker.generateSeqNo();
         assertThat(seqNo1, equalTo(0L));
         assertThat(seqNo2, equalTo(1L));
-        tracker.markSeqNoAsPersisted(seqNo1);
-        tracker.markSeqNoAsPersisted(seqNo2);
-        assertThat(tracker.getProcessedCheckpoint(), equalTo(-1L));
-        assertThat(tracker.getPersistedCheckpoint(), equalTo(1L));
-
-        tracker.fastForwardProcessedSeqNo(seqNo2);
+        tracker.markSeqNoAsProcessed(seqNo1);
+        tracker.markSeqNoAsProcessed(seqNo2);
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(-1L));
         assertThat(tracker.getProcessedCheckpoint(), equalTo(1L));
+
+        tracker.fastForwardPersistedSeqNo(seqNo2);
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(1L));
         assertThat(tracker.hasProcessed(seqNo1), equalTo(true));
         assertThat(tracker.hasProcessed(seqNo2), equalTo(true));
 
-        tracker.fastForwardProcessedSeqNo(seqNo1);
-        assertThat(tracker.getProcessedCheckpoint(), equalTo(1L));
+        tracker.fastForwardPersistedSeqNo(seqNo1);
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(1L));
         assertThat(tracker.hasProcessed(between(0, 1)), equalTo(true));
         assertThat(tracker.hasProcessed(atLeast(2)), equalTo(false));
         assertThat(tracker.getMaxSeqNo(), equalTo(1L));

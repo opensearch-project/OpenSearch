@@ -153,13 +153,13 @@ public class LocalCheckpointTracker {
      *
      * @param seqNo the sequence number to mark as processed
      */
-    public synchronized void fastForwardProcessedSeqNo(final long seqNo) {
+    public synchronized void fastForwardPersistedSeqNo(final long seqNo) {
         advanceMaxSeqNo(seqNo);
-        final long currentProcessedCheckpoint = processedCheckpoint.get();
-        if (shouldUpdateSeqNo(seqNo, currentProcessedCheckpoint, persistedCheckpoint) == false) {
+        final long currentPersistedCheckpoint = persistedCheckpoint.get();
+        if (shouldUpdateSeqNo(seqNo, currentPersistedCheckpoint, processedCheckpoint) == false) {
             return;
         }
-        processedCheckpoint.compareAndSet(currentProcessedCheckpoint, seqNo);
+        persistedCheckpoint.compareAndSet(currentPersistedCheckpoint, seqNo);
     }
 
     private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final LongObjectHashMap<CountedBitSet> bitSetMap) {
