@@ -75,6 +75,11 @@ import static org.opensearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.opensearch.rest.RestStatus.NOT_ACCEPTABLE;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * OpenSearch REST controller
+ *
+ * @opensearch.api
+ */
 public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);

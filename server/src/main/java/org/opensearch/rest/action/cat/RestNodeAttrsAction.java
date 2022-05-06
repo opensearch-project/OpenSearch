@@ -55,6 +55,11 @@ import java.util.Map;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to get node attributes
+ *
+ * @opensearch.api
+ */
 public class RestNodeAttrsAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodeAttrsAction.class);

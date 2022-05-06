@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Transport action to delete data stream
+ *
+ * @opensearch.api
+ */
 public class RestDeleteDataStreamAction extends BaseRestHandler {
 
     @Override

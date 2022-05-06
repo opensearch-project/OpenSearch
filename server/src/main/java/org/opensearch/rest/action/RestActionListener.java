@@ -43,6 +43,8 @@ import java.io.IOException;
 /**
  * An action listener that requires {@link #processResponse(Object)} to be implemented
  * and will automatically handle failures.
+ *
+ * @opensearch.api
  */
 public abstract class RestActionListener<Response> implements ActionListener<Response> {
 

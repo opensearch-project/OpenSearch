@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Thrown if requested snapshot doesn't exist
+ *
+ * @opensearch.internal
  */
 public class SnapshotMissingException extends SnapshotException {
 

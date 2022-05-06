@@ -67,6 +67,11 @@ import java.util.stream.Collectors;
 import static org.opensearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 
+/**
+ * REST Request
+ *
+ * @opensearch.api
+ */
 public class RestRequest implements ToXContent.Params {
 
     // tchar pattern as defined by RFC7230 section 3.2.6

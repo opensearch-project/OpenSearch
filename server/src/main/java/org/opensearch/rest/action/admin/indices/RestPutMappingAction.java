@@ -53,6 +53,11 @@ import static org.opensearch.client.Requests.putMappingRequest;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to put mapping
+ *
+ * @opensearch.api
+ */
 public class RestPutMappingAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutMappingAction.class);

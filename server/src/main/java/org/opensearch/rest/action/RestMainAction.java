@@ -51,6 +51,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.HEAD;
 
+/**
+ * Main OpenSearch Transport action
+ *
+ * @opensearch.api
+ */
 public class RestMainAction extends BaseRestHandler {
 
     @Override

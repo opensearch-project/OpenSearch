@@ -66,6 +66,8 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 
 /**
  * The REST handler for get alias and head alias APIs.
+ *
+ * @opensearch.api
  */
 public class RestGetAliasesAction extends BaseRestHandler {
 

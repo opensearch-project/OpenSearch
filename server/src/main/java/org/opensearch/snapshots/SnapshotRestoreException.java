@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Snapshot restore exception
+ *
+ * @opensearch.internal
  */
 public class SnapshotRestoreException extends SnapshotException {
     public SnapshotRestoreException(final String repositoryName, final String snapshotName, final String message) {

@@ -50,6 +50,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get node info
+ *
+ * @opensearch.api
+ */
 public class RestNodesInfoAction extends BaseRestHandler {
     static final Set<String> ALLOWED_METRICS = NodesInfoRequest.Metric.allMetrics();
 

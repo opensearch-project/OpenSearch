@@ -46,6 +46,11 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to list alias(es)
+ *
+ * @opensearch.api
+ */
 public class RestIndicesAliasesAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAliasesAction.class);

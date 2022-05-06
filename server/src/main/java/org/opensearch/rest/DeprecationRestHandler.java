@@ -40,6 +40,8 @@ import java.util.Objects;
 /**
  * {@code DeprecationRestHandler} provides a proxy for any existing {@link RestHandler} so that usage of the handler can be
  * logged using the {@link DeprecationLogger}.
+ *
+ * @opensearch.api
  */
 public class DeprecationRestHandler implements RestHandler {
 

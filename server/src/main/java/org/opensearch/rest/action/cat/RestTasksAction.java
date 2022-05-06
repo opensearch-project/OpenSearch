@@ -62,6 +62,11 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
 
+/**
+ * _cat API action to get tasks information
+ *
+ * @opensearch.api
+ */
 public class RestTasksAction extends AbstractCatAction {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 

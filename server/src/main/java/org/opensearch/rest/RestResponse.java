@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * OpenSearch REST response
+ *
+ * @opensearch.api
+ */
 public abstract class RestResponse {
 
     private Map<String, List<String>> customHeaders;

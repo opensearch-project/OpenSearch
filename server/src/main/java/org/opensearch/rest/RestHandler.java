@@ -43,6 +43,8 @@ import java.util.stream.Collectors;
 
 /**
  * Handler for REST requests
+ *
+ * @opensearch.api
  */
 @FunctionalInterface
 public interface RestHandler {
