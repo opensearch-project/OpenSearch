@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Thrown after failed to connect to all seed nodes of the remote cluster.
+ *
+ * @opensearch.internal
  */
 public class NoSeedNodeLeftException extends OpenSearchException {
 

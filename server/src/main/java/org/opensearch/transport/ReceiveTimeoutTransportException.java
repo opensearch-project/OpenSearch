@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Thrown when receiving a timeout
+ *
+ * @opensearch.internal
+ */
 public class ReceiveTimeoutTransportException extends ActionTransportException {
 
     public ReceiveTimeoutTransportException(DiscoveryNode node, String action, String msg) {

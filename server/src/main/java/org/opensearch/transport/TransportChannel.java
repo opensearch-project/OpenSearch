@@ -41,6 +41,8 @@ import java.io.IOException;
 
 /**
  * A transport channel allows to send a response to a request on the channel.
+ *
+ * @opensearch.internal
  */
 public interface TransportChannel {
 

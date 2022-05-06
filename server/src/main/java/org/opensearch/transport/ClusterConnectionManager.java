@@ -55,6 +55,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This class manages node connections within a cluster. The connection is opened by the underlying transport.
  * Once the connection is opened, this class manages the connection. This includes closing the connection when
  * the connection manager is closed.
+ *
+ * @opensearch.internal
  */
 public class ClusterConnectionManager implements ConnectionManager {
 

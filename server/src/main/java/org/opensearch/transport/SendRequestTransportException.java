@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Thrown when an error occurs while sending a request
+ *
+ * @opensearch.internal
+ */
 public class SendRequestTransportException extends ActionTransportException implements OpenSearchWrapperException {
 
     public SendRequestTransportException(DiscoveryNode node, String action, Throwable cause) {
