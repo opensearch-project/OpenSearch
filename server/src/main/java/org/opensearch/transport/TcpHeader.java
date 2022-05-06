@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Header for TCP messages
+ *
+ * @opensearch.internal
+ */
 public class TcpHeader {
 
     public static final Version VERSION_WITH_HEADER_SIZE = LegacyESVersion.V_7_6_0;

@@ -34,6 +34,11 @@ package org.opensearch.transport;
 
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Options for transport requests
+ *
+ * @opensearch.internal
+ */
 public class TransportRequestOptions {
 
     private final TimeValue timeout;
