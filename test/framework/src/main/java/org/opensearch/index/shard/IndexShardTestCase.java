@@ -434,7 +434,20 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexEventListener indexEventListener,
         IndexingOperationListener... listeners
     ) throws IOException {
-        return newShard(routing, shardPath, indexMetadata, storeProvider, indexReaderWrapper, engineFactory, engineConfigFactory, globalCheckpointSyncer, retentionLeaseSyncer, indexEventListener, SegmentReplicationCheckpointPublisher.EMPTY, listeners);
+        return newShard(
+            routing,
+            shardPath,
+            indexMetadata,
+            storeProvider,
+            indexReaderWrapper,
+            engineFactory,
+            engineConfigFactory,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            indexEventListener,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            listeners
+        );
     }
 
     /**
@@ -465,8 +478,21 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName())
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("{ \"properties\": {} }").build();
-        return newShard(shardRouting, shardPath, metadata, null, null, new InternalEngineFactory(), new EngineConfigFactory(new IndexSettings(metadata, metadata.getSettings())), () -> {}, RetentionLeaseSyncer.EMPTY, EMPTY_EVENT_LISTENER, checkpointPublisher);
+            .putMapping("{ \"properties\": {} }")
+            .build();
+        return newShard(
+            shardRouting,
+            shardPath,
+            metadata,
+            null,
+            null,
+            new InternalEngineFactory(),
+            new EngineConfigFactory(new IndexSettings(metadata, metadata.getSettings())),
+            () -> {},
+            RetentionLeaseSyncer.EMPTY,
+            EMPTY_EVENT_LISTENER,
+            checkpointPublisher
+        );
     }
 
     /**
