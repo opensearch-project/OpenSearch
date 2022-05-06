@@ -176,6 +176,17 @@ public abstract class Engine implements Closeable {
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
 
+    /**
+     * Reads the current stored history ID from commit data.
+     */
+    String loadHistoryUUID(Map<String, String> commitData) {
+        final String uuid = commitData.get(HISTORY_UUID_KEY);
+        if (uuid == null) {
+            throw new IllegalStateException("commit doesn't contain history uuid");
+        }
+        return uuid;
+    }
+
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
 
