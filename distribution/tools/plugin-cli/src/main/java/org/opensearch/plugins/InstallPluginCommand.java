@@ -374,7 +374,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 stagingHash
             );
         } else {
-            baseUrl = String.format(Locale.ROOT, "https://artifacts.opensearch.org/releases/plugins/%s/%s", pluginId, version);
+            baseUrl = String.format(
+                Locale.ROOT,
+                "https://artifacts.opensearch.org/releases/plugins/%s/%s",
+                pluginId,
+                Build.CURRENT.getQualifiedVersion()
+            );
         }
         final String platformUrl = String.format(
             Locale.ROOT,
