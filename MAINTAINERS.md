@@ -9,6 +9,7 @@
 | Anas Alkouz | [anasalkouz](https://github.com/anasalkouz) | Amazon |
 | Andrew Ross   | [andrross](https://github.com/andrross)| Amazon |
 | Andriy Redko | [reta](https://github.com/reta) | Aiven |
+| Bukhtawar Khan | [Bukhtawar](https://github.com/Bukhtawar) | Amazon |
 | Charlotte Henkle | [CEHENKLE](https://github.com/CEHENKLE) | Amazon |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock) | Amazon |
 | Himanshu Setia | [setiah](https://github.com/setiah) | Amazon |
