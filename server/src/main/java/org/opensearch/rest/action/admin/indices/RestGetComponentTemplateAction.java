@@ -51,6 +51,11 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * Transport action to get component template
+ *
+ * @opensearch.api
+ */
 public class RestGetComponentTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetComponentTemplateAction.class);

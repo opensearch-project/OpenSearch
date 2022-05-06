@@ -40,6 +40,8 @@ import java.util.Set;
 
 /**
  * Encapsulate multiple handlers for the same path, allowing different handlers for different HTTP verbs.
+ *
+ * @opensearch.api
  */
 final class MethodHandlers {
 

@@ -54,6 +54,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to index a document
+ *
+ * @opensearch.api
+ */
 public class RestIndexAction extends BaseRestHandler {
 
     @Override

@@ -49,6 +49,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
+/**
+ * Transport action to cancel tasks
+ *
+ * @opensearch.api
+ */
 public class RestCancelTasksAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 

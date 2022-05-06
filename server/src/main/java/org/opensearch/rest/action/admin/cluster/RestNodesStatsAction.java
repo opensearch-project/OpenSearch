@@ -55,6 +55,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get nodes stats
+ *
+ * @opensearch.api
+ */
 public class RestNodesStatsAction extends BaseRestHandler {
 
     @Override

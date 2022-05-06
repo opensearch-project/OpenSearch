@@ -87,6 +87,8 @@ import static java.util.Collections.emptyMap;
  * This service runs on data nodes and controls currently running shard snapshots on these nodes. It is responsible for
  * starting and stopping shard level snapshots.
  * See package level documentation of {@link org.opensearch.snapshots} for details.
+ *
+ * @opensearch.internal
  */
 public class SnapshotShardsService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SnapshotShardsService.class);

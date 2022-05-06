@@ -57,6 +57,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to list tasks
+ *
+ * @opensearch.api
+ */
 public class RestListTasksAction extends BaseRestHandler {
 
     private final Supplier<DiscoveryNodes> nodesInCluster;

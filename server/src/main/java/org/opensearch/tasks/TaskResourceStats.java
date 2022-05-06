@@ -26,6 +26,8 @@ import java.util.Objects;
  * <p>
  * Writeable TaskResourceStats objects are used to represent resource
  * snapshot information about currently running task.
+ *
+ * @opensearch.internal
  */
 public class TaskResourceStats implements Writeable, ToXContentFragment {
     private final Map<String, TaskResourceUsage> resourceUsage;

@@ -44,6 +44,11 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Base _cat API endpoint
+ *
+ * @opensearch.api
+ */
 public class RestCatAction extends BaseRestHandler {
 
     private static final String CAT = "=^.^=";

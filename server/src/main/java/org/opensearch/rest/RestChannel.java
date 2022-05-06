@@ -41,6 +41,8 @@ import java.io.IOException;
 
 /**
  * A channel used to construct bytes / builder based outputs, and send responses.
+ *
+ * @opensearch.api
  */
 public interface RestChannel {
 

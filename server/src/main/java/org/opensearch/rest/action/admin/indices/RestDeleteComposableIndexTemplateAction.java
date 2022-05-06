@@ -45,6 +45,11 @@ import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * Transport action to delete composable index template
+ *
+ * @opensearch.api
+ */
 public class RestDeleteComposableIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteComposableIndexTemplateAction.class);

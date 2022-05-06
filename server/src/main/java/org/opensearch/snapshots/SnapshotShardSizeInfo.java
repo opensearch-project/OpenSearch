@@ -36,6 +36,11 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.collect.ImmutableOpenMap;
 
+/**
+ * Information about a snapshot shard size
+ *
+ * @opensearch.internal
+ */
 public class SnapshotShardSizeInfo {
 
     public static final SnapshotShardSizeInfo EMPTY = new SnapshotShardSizeInfo(ImmutableOpenMap.of());

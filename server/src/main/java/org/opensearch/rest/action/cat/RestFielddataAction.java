@@ -51,6 +51,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Cat API class to display information about the size of fielddata fields per node
+ *
+ * @opensearch.api
  */
 public class RestFielddataAction extends AbstractCatAction {
 

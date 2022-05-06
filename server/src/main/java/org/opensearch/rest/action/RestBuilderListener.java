@@ -38,6 +38,8 @@ import org.opensearch.rest.RestResponse;
 
 /**
  * A REST action listener that builds an {@link XContentBuilder} based response.
+ *
+ * @opensearch.api
  */
 public abstract class RestBuilderListener<Response> extends RestResponseListener<Response> {
 

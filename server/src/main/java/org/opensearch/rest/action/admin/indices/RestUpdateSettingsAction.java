@@ -51,6 +51,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.client.Requests.updateSettingsRequest;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to update settings
+ *
+ * @opensearch.api
+ */
 public class RestUpdateSettingsAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestUpdateSettingsAction.class);

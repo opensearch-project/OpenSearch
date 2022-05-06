@@ -10,6 +10,8 @@ package org.opensearch.tasks;
 
 /**
  *  Different resource stats are defined.
+ *
+ *  @opensearch.internal
  */
 public enum ResourceStats {
     CPU("cpu_time_in_nanos"),
