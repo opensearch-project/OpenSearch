@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>
  * It captures the resource usage information like memory, CPU about a particular execution of thread
  * for a specific stats type.
+ *
+ * @opensearch.internal
  */
 public class ResourceUsageInfo {
     private static final Logger logger = LogManager.getLogger(ResourceUsageInfo.class);

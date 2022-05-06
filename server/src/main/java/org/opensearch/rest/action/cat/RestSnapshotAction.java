@@ -56,6 +56,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Cat API class to display information about snapshots
+ *
+ * @opensearch.api
  */
 public class RestSnapshotAction extends AbstractCatAction {
 

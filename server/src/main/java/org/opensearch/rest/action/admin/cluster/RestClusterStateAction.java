@@ -64,6 +64,11 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get cluster state
+ *
+ * @opensearch.api
+ */
 public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;

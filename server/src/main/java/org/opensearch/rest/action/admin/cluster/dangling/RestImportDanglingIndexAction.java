@@ -48,6 +48,11 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestToXContentListener;
 
+/**
+ * Transport action to import dangling index
+ *
+ * @opensearch.api
+ */
 public class RestImportDanglingIndexAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestImportDanglingIndexAction.class);
 

@@ -44,6 +44,11 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * Transport action to delete stored script
+ *
+ * @opensearch.api
+ */
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteStoredScriptAction.class);

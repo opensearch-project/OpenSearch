@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Transport action to create a data stream
+ *
+ * @opensearch.api
+ */
 public class RestCreateDataStreamAction extends BaseRestHandler {
 
     @Override

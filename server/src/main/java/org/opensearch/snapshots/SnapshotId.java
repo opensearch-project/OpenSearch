@@ -43,6 +43,8 @@ import java.util.Objects;
 
 /**
  * SnapshotId - snapshot name + snapshot UUID
+ *
+ * @opensearch.internal
  */
 public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXContentObject {
 

@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * A generic exception that can be thrown by a task when it's cancelled by the task manager API
+ *
+ * @opensearch.internal
  */
 public class TaskCancelledException extends OpenSearchException {
 

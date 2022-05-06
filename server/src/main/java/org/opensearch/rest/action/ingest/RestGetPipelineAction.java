@@ -47,6 +47,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get an ingest pipeline
+ *
+ * @opensearch.api
+ */
 public class RestGetPipelineAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetPipelineAction.class);

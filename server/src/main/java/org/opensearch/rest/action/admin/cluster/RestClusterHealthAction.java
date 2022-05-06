@@ -55,6 +55,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.client.Requests.clusterHealthRequest;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get cluster health
+ *
+ * @opensearch.api
+ */
 public class RestClusterHealthAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterHealthAction.class);

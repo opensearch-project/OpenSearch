@@ -58,6 +58,11 @@ import java.util.Set;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get settings
+ *
+ * @opensearch.api
+ */
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterGetSettingsAction.class);
