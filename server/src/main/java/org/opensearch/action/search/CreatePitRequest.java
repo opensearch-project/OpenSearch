@@ -29,7 +29,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A request to make create point in time against one or more indices.
  */
-public class CreatePITRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class CreatePitRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     // keep alive for pit reader context
     private TimeValue keepAlive;
@@ -43,20 +43,19 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
-    public CreatePITRequest(TimeValue keepAlive, Boolean allowPartialPitCreation, String... indices) {
+    public CreatePitRequest(TimeValue keepAlive, Boolean allowPartialPitCreation, String... indices) {
         this.keepAlive = keepAlive;
         this.allowPartialPitCreation = allowPartialPitCreation;
         this.indices = indices;
     }
 
-    public CreatePITRequest(StreamInput in) throws IOException {
+    public CreatePitRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         keepAlive = in.readTimeValue();
-        routing = in.readOptionalString();
         allowPartialPitCreation = in.readOptionalBoolean();
     }
 
@@ -65,9 +64,9 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
+        out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         out.writeTimeValue(keepAlive);
-        out.writeOptionalString(routing);
         out.writeOptionalBoolean(allowPartialPitCreation);
     }
 
@@ -137,7 +136,7 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
         return indicesOptions;
     }
 
-    public CreatePITRequest indicesOptions(IndicesOptions indicesOptions) {
+    public CreatePitRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
         return this;
     }
@@ -169,7 +168,7 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
     }
 
     @Override
-    public CreatePITRequest indices(String... indices) {
+    public CreatePitRequest indices(String... indices) {
         validateIndices(indices);
         this.indices = indices;
         return this;

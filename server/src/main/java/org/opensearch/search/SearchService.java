@@ -44,7 +44,7 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.action.search.UpdatePITContextRequest;
+import org.opensearch.action.search.UpdatePitContextRequest;
 import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
@@ -1028,7 +1028,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Update PIT reader with pit id, keep alive and created time etc
      */
-    public void updatePitIdAndKeepAlive(UpdatePITContextRequest request, ActionListener<UpdatePitContextResponse> listener) {
+    public void updatePitIdAndKeepAlive(UpdatePitContextRequest request, ActionListener<UpdatePitContextResponse> listener) {
         checkPitKeepAliveLimit(request.getKeepAlive());
         PitReaderContext readerContext = getPitReaderContext(request.getSearchContextId());
         if (readerContext == null) {
@@ -1401,12 +1401,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public PitReaderContext getPitReaderContext(ShardSearchContextId id) {
-        for (Map.Entry<Long, ReaderContext> context : activeReaders.entrySet()) {
-            if (context.getValue() instanceof PitReaderContext) {
-                if (context.getKey() == id.getId()) {
-                    return (PitReaderContext) context.getValue();
-                }
-            }
+        ReaderContext context = activeReaders.get(id.getId());
+        if (context instanceof PitReaderContext) {
+            return (PitReaderContext) context;
         }
         return null;
     }

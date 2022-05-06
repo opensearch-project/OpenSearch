@@ -36,9 +36,9 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.search.CreatePITAction;
-import org.opensearch.action.search.CreatePITRequest;
-import org.opensearch.action.search.CreatePITResponse;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
@@ -153,10 +153,10 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 1000);
         setupIndex(numDocs, numShards);
         int max = randomIntBetween(2, numShards * 3);
-        CreatePITRequest pitRequest = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest pitRequest = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         pitRequest.setIndices(new String[] { "test" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, pitRequest);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, pitRequest);
+        CreatePitResponse pitResponse = execute.get();
         for (String field : new String[] { "_id", "random_int", "static_int" }) {
             int fetchSize = randomIntBetween(10, 100);
 

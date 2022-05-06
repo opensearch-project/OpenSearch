@@ -18,21 +18,21 @@ import java.io.IOException;
 /**
  * Request used to update PIT reader contexts with pitId, keepAlive and creationTime
  */
-public class UpdatePITContextRequest extends TransportRequest {
+public class UpdatePitContextRequest extends TransportRequest {
     private final String pitId;
     private final long keepAlive;
 
     private final long creationTime;
     private final ShardSearchContextId searchContextId;
 
-    public UpdatePITContextRequest(ShardSearchContextId searchContextId, String pitId, long keepAlive, long creationTime) {
+    public UpdatePitContextRequest(ShardSearchContextId searchContextId, String pitId, long keepAlive, long creationTime) {
         this.pitId = pitId;
         this.searchContextId = searchContextId;
         this.keepAlive = keepAlive;
         this.creationTime = creationTime;
     }
 
-    UpdatePITContextRequest(StreamInput in) throws IOException {
+    UpdatePitContextRequest(StreamInput in) throws IOException {
         super(in);
         pitId = in.readString();
         keepAlive = in.readLong();

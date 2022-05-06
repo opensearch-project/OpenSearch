@@ -46,7 +46,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.action.search.UpdatePITContextRequest;
+import org.opensearch.action.search.UpdatePitContextRequest;
 import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
@@ -1443,7 +1443,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
         ShardSearchContextId id = future.actionGet();
         PlainActionFuture<UpdatePitContextResponse> updateFuture = new PlainActionFuture<>();
-        UpdatePITContextRequest updateRequest = new UpdatePITContextRequest(
+        UpdatePitContextRequest updateRequest = new UpdatePitContextRequest(
             id,
             "pitId",
             TimeValue.timeValueMinutes(between(1, 10)).millis(),
@@ -1466,7 +1466,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
         ShardSearchContextId id = future.actionGet();
 
-        UpdatePITContextRequest updateRequest = new UpdatePITContextRequest(
+        UpdatePitContextRequest updateRequest = new UpdatePitContextRequest(
             id,
             "pitId",
             TimeValue.timeValueHours(25).millis(),
@@ -1495,7 +1495,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         SearchService searchService = getInstanceFromNode(SearchService.class);
         ShardSearchContextId id = new ShardSearchContextId("session", 9);
 
-        UpdatePITContextRequest updateRequest = new UpdatePITContextRequest(
+        UpdatePitContextRequest updateRequest = new UpdatePitContextRequest(
             id,
             "pitId",
             TimeValue.timeValueHours(23).millis(),

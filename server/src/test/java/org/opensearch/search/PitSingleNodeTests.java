@@ -46,7 +46,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1))
-            .put(CreatePITController.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(CreatePitController.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .build();
     }
 
@@ -54,10 +54,10 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
             .setSize(2)
@@ -75,12 +75,12 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         createIndex("index1", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index1").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index", "index1" });
         SearchService service = getInstanceFromNode(SearchService.class);
 
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse response = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse response = execute.get();
         assertEquals(4, response.getSuccessfulShards());
         assertEquals(4, service.getActiveContexts());
         service.doClose();
@@ -90,10 +90,10 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
 
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
@@ -110,11 +110,11 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
     public void testCreatePITWithNonExistentIndex() {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index", "index1" });
         SearchService service = getInstanceFromNode(SearchService.class);
 
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
 
         ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
 
@@ -129,9 +129,9 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareClose("index").get();
 
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
 
         ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
 
@@ -146,10 +146,10 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         client().admin().indices().prepareDelete("index").get();
 
         IndexNotFoundException ex = expectThrows(IndexNotFoundException.class, () -> {
@@ -164,7 +164,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         service.doClose();
     }
 
-    public void testIllegalPitId() {
+    public void testInvalidPitId() {
         createIndex("idx");
         String id = "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1";
         IllegalArgumentException e = expectThrows(
@@ -174,17 +174,17 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .setPointInTime(new PointInTimeBuilder(id).setKeepAlive(TimeValue.timeValueDays(1)))
                 .get()
         );
-        assertEquals("Cannot parse id", e.getMessage());
+        assertEquals("invalid id: [" + id + "]", e.getMessage());
     }
 
     public void testPitSearchOnCloseIndex() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
         client().admin().indices().prepareClose("index").get();
@@ -214,10 +214,10 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueMillis(100), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueMillis(100), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
         // since first phase temporary keep alive is set at 1 second in this test file
@@ -240,10 +240,10 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
     public void testSearchWithPitSecondPhaseKeepAliveExpiry() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueSeconds(2), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueSeconds(2), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
         Thread.sleep(1000);
@@ -264,10 +264,10 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
     public void testSearchWithPitKeepAliveExtension() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueSeconds(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueSeconds(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
         client().prepareSearch()
@@ -293,14 +293,14 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         createIndex("index");
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
         SearchService service = getInstanceFromNode(SearchService.class);
 
         for (int i = 0; i < SearchService.MAX_OPEN_PIT_CONTEXT.get(Settings.EMPTY); i++) {
-            client().execute(CreatePITAction.INSTANCE, request).get();
+            client().execute(CreatePitAction.INSTANCE, request).get();
         }
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
 
         assertTrue(
@@ -319,7 +319,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
     public void testOpenPitContextsConcurrently() throws Exception {
         createIndex("index");
         final int maxPitContexts = SearchService.MAX_OPEN_PIT_CONTEXT.get(Settings.EMPTY);
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
         SearchService service = getInstanceFromNode(SearchService.class);
         Thread[] threads = new Thread[randomIntBetween(2, 8)];
@@ -331,7 +331,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                     latch.await();
                     for (;;) {
                         try {
-                            client().execute(CreatePITAction.INSTANCE, request).get();
+                            client().execute(CreatePitAction.INSTANCE, request).get();
                         } catch (ExecutionException e) {
                             assertTrue(
                                 e.getMessage()
@@ -384,10 +384,10 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         // create pit
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueMinutes(2), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueMinutes(2), true);
         request.setIndices(new String[] { "test" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         SearchService service = getInstanceFromNode(SearchService.class);
 
         assertThat(
@@ -537,10 +537,10 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         Thread[] threads = new Thread[5];
         CountDownLatch latch = new CountDownLatch(threads.length);
 

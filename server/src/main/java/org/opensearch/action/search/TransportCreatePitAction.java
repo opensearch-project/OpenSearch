@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * Transport action for creating PIT reader context
  */
-public class TransportCreatePITAction extends HandledTransportAction<CreatePITRequest, CreatePITResponse> {
+public class TransportCreatePitAction extends HandledTransportAction<CreatePitRequest, CreatePitResponse> {
 
     public static final String CREATE_PIT_ACTION = "create_pit";
     private final TransportService transportService;
@@ -39,7 +39,7 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     @Inject
-    public TransportCreatePITAction(
+    public TransportCreatePitAction(
         TransportService transportService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
@@ -47,7 +47,7 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
         TransportSearchAction transportSearchAction,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        super(CreatePITAction.NAME, transportService, actionFilters, in -> new CreatePITRequest(in));
+        super(CreatePitAction.NAME, transportService, actionFilters, in -> new CreatePitRequest(in));
         this.transportService = transportService;
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
@@ -56,8 +56,8 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
     }
 
     @Override
-    protected void doExecute(Task task, CreatePITRequest request, ActionListener<CreatePITResponse> listener) {
-        Runnable runnable = new CreatePITController(
+    protected void doExecute(Task task, CreatePitRequest request, ActionListener<CreatePitResponse> listener) {
+        Runnable runnable = new CreatePitController(
             request,
             searchTransportService,
             clusterService,

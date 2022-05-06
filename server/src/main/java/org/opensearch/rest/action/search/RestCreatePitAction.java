@@ -8,7 +8,7 @@
 
 package org.opensearch.rest.action.search;
 
-import org.opensearch.action.search.CreatePITRequest;
+import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
@@ -27,7 +27,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 /**
  * Rest action for creating PIT context
  */
-public class RestCreatePITAction extends BaseRestHandler {
+public class RestCreatePitAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "create_pit_action";
@@ -38,7 +38,7 @@ public class RestCreatePITAction extends BaseRestHandler {
         boolean allowPartialPitCreation = request.paramAsBoolean("allow_partial_pit_creation", true);
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         TimeValue keepAlive = request.paramAsTime("keep_alive", null);
-        CreatePITRequest createPitRequest = new CreatePITRequest(keepAlive, allowPartialPitCreation, indices);
+        CreatePitRequest createPitRequest = new CreatePitRequest(keepAlive, allowPartialPitCreation, indices);
         createPitRequest.setIndicesOptions(IndicesOptions.fromRequest(request, createPitRequest.indicesOptions()));
         createPitRequest.setPreference(request.param("preference"));
         createPitRequest.setRouting(request.param("routing"));

@@ -35,9 +35,9 @@ package org.opensearch.search.searchafter;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.search.CreatePITAction;
-import org.opensearch.action.search.CreatePITRequest;
-import org.opensearch.action.search.CreatePITResponse;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
@@ -171,10 +171,10 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId("3").setSource("field1", 99)
         );
 
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "test" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         SearchResponse sr = client().prepareSearch()
             .addSort("field1", SortOrder.ASC)
             .setQuery(matchAllQuery())

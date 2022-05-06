@@ -58,8 +58,8 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollRequestBuilder;
 import org.opensearch.action.search.ClearScrollResponse;
-import org.opensearch.action.search.CreatePITRequest;
-import org.opensearch.action.search.CreatePITResponse;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
@@ -328,7 +328,7 @@ public interface Client extends OpenSearchClient, Releasable {
     /**
      * Create point in time for one or more indices
      */
-    void createPit(CreatePITRequest createPITRequest, ActionListener<CreatePITResponse> listener);
+    void createPit(CreatePitRequest createPITRequest, ActionListener<CreatePitResponse> listener);
 
     /**
      * Performs multiple search requests.

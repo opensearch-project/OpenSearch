@@ -11,9 +11,9 @@ package org.opensearch.search;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.ActionFuture;
-import org.opensearch.action.search.CreatePITAction;
-import org.opensearch.action.search.CreatePITRequest;
-import org.opensearch.action.search.CreatePITResponse;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -46,10 +46,10 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
     }
 
     public void testPit() throws Exception {
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         SearchResponse searchResponse = client().prepareSearch("index")
             .setSize(2)
             .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
@@ -59,12 +59,12 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
     }
 
     public void testCreatePitWhileNodeDropWithAllowPartialCreationFalse() throws Exception {
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), false);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), false);
         request.setIndices(new String[] { "index" });
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+                ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
                 assertTrue(ex.getMessage().contains("Failed to execute phase [create_pit]"));
                 assertTrue(ex.getMessage().contains("Partial shards failure"));
@@ -74,13 +74,13 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
     }
 
     public void testCreatePitWhileNodeDropWithAllowPartialCreationTrue() throws Exception {
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-                CreatePITResponse pitResponse = execute.get();
+                ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+                CreatePitResponse pitResponse = execute.get();
                 assertEquals(1, pitResponse.getSuccessfulShards());
                 assertEquals(2, pitResponse.getTotalShards());
                 SearchResponse searchResponse = client().prepareSearch("index")
@@ -95,10 +95,10 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
     }
 
     public void testPitSearchWithNodeDrop() throws Exception {
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
@@ -116,10 +116,10 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
     }
 
     public void testPitSearchWithNodeDropWithPartialSearchResultsFalse() throws Exception {
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {

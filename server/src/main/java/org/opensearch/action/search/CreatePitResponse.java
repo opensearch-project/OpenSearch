@@ -21,7 +21,7 @@ import java.io.IOException;
 /**
  * Create point in time response with point in time id and shard success / failures
  */
-public class CreatePITResponse extends ActionResponse implements StatusToXContentObject {
+public class CreatePitResponse extends ActionResponse implements StatusToXContentObject {
     // point in time id
     private final String id;
     private final int totalShards;
@@ -31,7 +31,7 @@ public class CreatePITResponse extends ActionResponse implements StatusToXConten
     private final ShardSearchFailure[] shardFailures;
     private final long creationTime;
 
-    public CreatePITResponse(SearchResponse searchResponse, long creationTime) {
+    public CreatePitResponse(SearchResponse searchResponse, long creationTime) {
         if (searchResponse.pointInTimeId() == null || searchResponse.pointInTimeId().isEmpty()) {
             throw new IllegalArgumentException("Point in time ID is empty");
         }
@@ -44,7 +44,7 @@ public class CreatePITResponse extends ActionResponse implements StatusToXConten
         this.creationTime = creationTime;
     }
 
-    public CreatePITResponse(StreamInput in) throws IOException {
+    public CreatePitResponse(StreamInput in) throws IOException {
         super(in);
         id = in.readString();
         totalShards = in.readVInt();
@@ -101,14 +101,16 @@ public class CreatePITResponse extends ActionResponse implements StatusToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(id);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
+        out.writeVInt(failedShards);
+        out.writeVInt(skippedShards);
+        out.writeLong(creationTime);
         out.writeVInt(shardFailures.length);
         for (ShardSearchFailure shardSearchFailure : shardFailures) {
             shardSearchFailure.writeTo(out);
         }
-        out.writeString(id);
-        out.writeLong(creationTime);
     }
 
     public String getId() {
