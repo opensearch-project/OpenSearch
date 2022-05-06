@@ -65,6 +65,8 @@ import java.util.function.Function;
  * Each instance of {@link Consumer} uses a new set of {@link TermsEnum} that can be reused during the collection,
  * this is done to avoid creating all segment's {@link TermsEnum} each time we want to access the values of a single
  * segment.
+ *
+ * @opensearch.internal
  */
 public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldData, Accountable {
 

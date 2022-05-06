@@ -36,6 +36,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Base tokenfilter factory used in analysis chain
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent implements TokenFilterFactory {
 
     private final String name;

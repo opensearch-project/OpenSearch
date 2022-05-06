@@ -36,6 +36,8 @@ import java.util.Map;
 
 /**
  * A utility class for handling sequence numbers.
+ *
+ * @opensearch.internal
  */
 public class SequenceNumbers {
 

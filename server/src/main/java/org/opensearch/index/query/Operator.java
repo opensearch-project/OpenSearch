@@ -41,6 +41,11 @@ import org.opensearch.common.util.CollectionUtils;
 import java.io.IOException;
 import java.util.Locale;
 
+/**
+ * Boolean operators
+ *
+ * @opensearch.internal
+ */
 public enum Operator implements Writeable {
     OR,
     AND;

@@ -54,6 +54,8 @@ import java.util.stream.IntStream;
 
 /**
  * Shard snapshot metadata
+ *
+ * @opensearch.internal
  */
 public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 

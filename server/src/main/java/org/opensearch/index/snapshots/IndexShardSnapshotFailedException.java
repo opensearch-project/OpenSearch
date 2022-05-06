@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Thrown when snapshot process is failed on a shard level
+ *
+ * @opensearch.internal
  */
 public class IndexShardSnapshotFailedException extends IndexShardSnapshotException {
     public IndexShardSnapshotFailedException(ShardId shardId, String msg) {

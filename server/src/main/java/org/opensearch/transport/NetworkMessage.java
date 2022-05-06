@@ -38,6 +38,8 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 /**
  * Represents a transport message sent over the network. Subclasses implement serialization and
  * deserialization.
+ *
+ * @opensearch.internal
  */
 public abstract class NetworkMessage {
 

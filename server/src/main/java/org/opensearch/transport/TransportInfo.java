@@ -48,6 +48,11 @@ import java.util.Map;
 
 import static org.opensearch.common.Booleans.parseBoolean;
 
+/**
+ * Transport information
+ *
+ * @opensearch.internal
+ */
 public class TransportInfo implements ReportingService.Info {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportInfo.class);

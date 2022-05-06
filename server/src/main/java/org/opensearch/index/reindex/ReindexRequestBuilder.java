@@ -39,6 +39,11 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Builder for reindex requests
+ *
+ * @opensearch.internal
+ */
 public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
     private final IndexRequestBuilder destination;
 

@@ -42,6 +42,8 @@ import org.apache.lucene.search.similarities.Similarity;
  * A {@link Similarity} that rejects negative scores. This class exists so that users get
  * an error instead of silently corrupt top hits. It should be applied to any custom or
  * scripted similarity.
+ *
+ * @opensearch.internal
  */
 // public for testing
 public final class NonNegativeScoresSimilarity extends Similarity {

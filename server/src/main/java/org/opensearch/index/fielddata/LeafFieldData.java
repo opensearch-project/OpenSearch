@@ -41,6 +41,8 @@ import java.io.IOException;
 
 /**
  * The thread safe {@link org.apache.lucene.index.LeafReader} level cache of the data.
+ *
+ * @opensearch.internal
  */
 public interface LeafFieldData extends Accountable, Releasable {
 

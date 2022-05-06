@@ -46,6 +46,8 @@ import java.util.function.Function;
  * TransportActionProxy allows an arbitrary action to be executed on a defined target node while the initial request is sent to a second
  * node that acts as a request proxy to the target node. This is useful if a node is not directly connected to a target node but is
  * connected to an intermediate node that establishes a transitive connection.
+ *
+ * @opensearch.internal
  */
 public final class TransportActionProxy {
 

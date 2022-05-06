@@ -41,6 +41,8 @@ import java.io.IOException;
 
 /**
  * Exception indicating that one or more requested indices are closed.
+ *
+ * @opensearch.internal
  */
 public class IndexClosedException extends OpenSearchException {
 

@@ -60,6 +60,8 @@ import static org.opensearch.common.geo.GeoUtils.normalizePoint;
 
 /**
  * Utility class that converts geometries into Lucene-compatible form for indexing in a geo_shape field.
+ *
+ * @opensearch.internal
  */
 public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
 

@@ -56,6 +56,8 @@ import java.util.Objects;
  * are simply used to lessen the scores. Documents that match the negativeQuery have their score
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
+ *
+ * @opensearch.internal
  */
 public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
     public static final String NAME = "boosting";

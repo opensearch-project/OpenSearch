@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown when there is an error recovering an Index Shard
+ *
+ * @opensearch.internal
+ */
 public class IndexShardRecoveringException extends IllegalIndexShardStateException {
 
     public IndexShardRecoveringException(ShardId shardId) {

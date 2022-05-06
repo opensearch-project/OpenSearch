@@ -62,6 +62,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 
 /**
  * Response used for actions that index many documents using a scroll request.
+ *
+ * @opensearch.internal
  */
 public class BulkByScrollResponse extends ActionResponse implements ToXContentFragment {
     private TimeValue took;

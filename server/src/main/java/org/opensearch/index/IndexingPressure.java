@@ -45,6 +45,11 @@ import org.opensearch.index.stats.IndexingPressureStats;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Tracks indexing memory pressure
+ *
+ * @opensearch.internal
+ */
 public class IndexingPressure {
 
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES = Setting.memorySizeSetting(

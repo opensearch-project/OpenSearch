@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * A transport binding failure.
+ *
+ * @opensearch.internal
+ */
 public class BindTransportException extends TransportException {
 
     public BindTransportException(StreamInput in) throws IOException {

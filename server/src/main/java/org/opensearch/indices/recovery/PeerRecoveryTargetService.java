@@ -70,6 +70,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.indices.recovery.RecoveriesCollection.RecoveryRef;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -94,6 +95,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * <p>
  * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
+ *
+ * @opensearch.internal
  */
 public class PeerRecoveryTargetService implements IndexEventListener {
 
@@ -521,8 +524,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     return;
                 }
 
-                final RecoveryState.Index indexState = recoveryTarget.state().getIndex();
-                if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
+                final ReplicationLuceneIndex indexState = recoveryTarget.state().getIndex();
+                if (request.sourceThrottleTimeInNanos() != ReplicationLuceneIndex.UNKNOWN) {
                     indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
                 }
 

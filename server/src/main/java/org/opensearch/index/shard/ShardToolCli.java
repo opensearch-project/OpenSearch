@@ -36,6 +36,8 @@ import org.opensearch.cli.Terminal;
 
 /**
  * Class encapsulating and dispatching commands from the {@code opensearch-shard} command line tool
+ *
+ * @opensearch.internal
  */
 public class ShardToolCli extends LoggingAwareMultiCommand {
 

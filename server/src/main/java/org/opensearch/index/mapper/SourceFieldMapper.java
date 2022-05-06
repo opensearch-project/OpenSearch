@@ -60,6 +60,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Internal field mapper for storing source (and recovery source)
+ *
+ * @opensearch.internal
+ */
 public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";

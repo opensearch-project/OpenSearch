@@ -84,6 +84,8 @@ import java.util.concurrent.Executor;
  * Use this cache with care, only components that require that a filter is to be materialized as a {@link BitDocIdSet}
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.opensearch.index.cache.query.QueryCache} should be used instead.
+ *
+ * @opensearch.internal
  */
 public final class BitsetFilterCache extends AbstractIndexComponent
     implements

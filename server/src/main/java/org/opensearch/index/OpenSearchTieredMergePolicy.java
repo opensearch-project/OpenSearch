@@ -44,6 +44,8 @@ import java.util.Map;
  * Wrapper around {@link TieredMergePolicy} which doesn't respect
  * {@link TieredMergePolicy#setMaxMergedSegmentMB(double)} on forced merges.
  * See https://issues.apache.org/jira/browse/LUCENE-7976.
+ *
+ * @opensearch.internal
  */
 final class OpenSearchTieredMergePolicy extends FilterMergePolicy {
 

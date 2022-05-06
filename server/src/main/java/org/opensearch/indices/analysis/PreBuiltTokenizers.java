@@ -37,6 +37,11 @@ import org.opensearch.Version;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
+/**
+ * Pre-built tokenizers for analysis
+ *
+ * @opensearch.internal
+ */
 public enum PreBuiltTokenizers {
 
     STANDARD(CachingStrategy.ONE) {

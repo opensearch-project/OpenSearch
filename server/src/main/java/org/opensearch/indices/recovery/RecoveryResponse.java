@@ -39,6 +39,11 @@ import org.opensearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Response for recovery operations
+ *
+ * @opensearch.internal
+ */
 public final class RecoveryResponse extends TransportResponse {
 
     final List<String> phase1FileNames;

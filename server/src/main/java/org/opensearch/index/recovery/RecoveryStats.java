@@ -45,6 +45,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Recovery related statistics, starting at the shard level and allowing aggregation to
  * indices and node level
+ *
+ * @opensearch.internal
  */
 public class RecoveryStats implements ToXContentFragment, Writeable {
 

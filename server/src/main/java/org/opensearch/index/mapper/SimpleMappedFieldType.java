@@ -42,6 +42,8 @@ import java.util.Map;
 
 /**
  * {@link MappedFieldType} base impl for field types that are neither dates nor ranges.
+ *
+ * @opensearch.internal
  */
 public abstract class SimpleMappedFieldType extends MappedFieldType {
 

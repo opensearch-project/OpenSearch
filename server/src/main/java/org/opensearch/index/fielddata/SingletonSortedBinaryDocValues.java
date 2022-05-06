@@ -37,6 +37,11 @@ import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
+/**
+ * Provider for sorted binary docvalues
+ *
+ * @opensearch.internal
+ */
 final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
 
     private final BinaryDocValues in;

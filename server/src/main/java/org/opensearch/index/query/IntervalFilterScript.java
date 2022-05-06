@@ -38,6 +38,8 @@ import org.opensearch.script.ScriptFactory;
 
 /**
  * Base class for scripts used as interval filters, see {@link IntervalsSourceProvider.IntervalFilter}
+ *
+ * @opensearch.internal
  */
 public abstract class IntervalFilterScript {
 

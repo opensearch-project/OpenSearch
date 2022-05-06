@@ -57,6 +57,8 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
 
 /**
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
+ *
+ * @opensearch.internal
  */
 public class FieldsVisitor extends StoredFieldVisitor {
     private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(IdFieldMapper.NAME, RoutingFieldMapper.NAME));

@@ -65,6 +65,8 @@ import java.util.Objects;
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
  * @see DocValuesType#SORTED_NUMERIC
+ *
+ * @opensearch.internal
  */
 public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {

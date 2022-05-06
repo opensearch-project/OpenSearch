@@ -65,7 +65,8 @@ import java.util.function.Supplier;
  * identical seq# values for two document copies. The primary term is stored as
  * a doc value field without being indexed, since it is only intended for use
  * as a key-value lookup.
-
+ *
+ * @opensearch.internal
  */
 public class SeqNoFieldMapper extends MetadataFieldMapper {
 

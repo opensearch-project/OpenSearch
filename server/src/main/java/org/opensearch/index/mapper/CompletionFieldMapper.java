@@ -90,6 +90,8 @@ import java.util.Set;
  *  against the weighted FST index by the {@link CompletionSuggester}.
  *  This field can also be extended to add search criteria to suggestions
  *  for query-time filtering and boosting (see {@link ContextMappings}
+ *
+ *  @opensearch.internal
  */
 public class CompletionFieldMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "completion";

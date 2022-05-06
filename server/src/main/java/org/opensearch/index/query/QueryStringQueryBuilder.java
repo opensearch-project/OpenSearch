@@ -66,6 +66,8 @@ import java.util.TreeMap;
  * will use the {@link #defaultField(String)} set. The second, when one or more fields are added
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them using Dismax.
+ *
+ * @opensearch.internal
  */
 public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
 

@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  * An exception indicating that a message is sent to a node that is not connected.
  *
- *
+ * @opensearch.internal
  */
 public class NodeNotConnectedException extends ConnectTransportException {
 

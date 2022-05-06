@@ -40,6 +40,11 @@ import org.opensearch.common.lucene.search.function.Functions;
 
 import java.io.IOException;
 
+/**
+ * Foundation builder for an exponential decay
+ *
+ * @opensearch.internal
+ */
 public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<ExponentialDecayFunctionBuilder> {
     public static final String NAME = "exp";
     public static final ScoreFunctionParser<ExponentialDecayFunctionBuilder> PARSER = new DecayFunctionParser<>(

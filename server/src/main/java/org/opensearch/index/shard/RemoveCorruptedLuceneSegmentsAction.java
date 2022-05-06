@@ -43,6 +43,8 @@ import java.io.PrintStream;
 
 /**
  * Removes corrupted Lucene index segments
+ *
+ * @opensearch.internal
  */
 public class RemoveCorruptedLuceneSegmentsAction {
 

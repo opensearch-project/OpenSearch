@@ -73,6 +73,8 @@ import java.util.stream.Stream;
  * engine.
  *
  * @see #ReadOnlyEngine(EngineConfig, SeqNoStats, TranslogStats, boolean, Function, boolean)
+ *
+ * @opensearch.internal
  */
 public class ReadOnlyEngine extends Engine {
 

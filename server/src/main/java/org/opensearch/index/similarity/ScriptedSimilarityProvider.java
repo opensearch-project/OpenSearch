@@ -41,7 +41,11 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.SimilarityScript;
 import org.opensearch.script.SimilarityWeightScript;
 
-/** Provider of scripted similarities. */
+/**
+ * Provider of scripted similarities.
+ *
+ * @opensearch.internal
+ */
 final class ScriptedSimilarityProvider implements TriFunction<Settings, Version, ScriptService, Similarity> {
 
     @Override
