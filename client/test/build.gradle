@@ -29,10 +29,21 @@
  */
 apply plugin: 'opensearch.build'
 
-targetCompatibility = JavaVersion.VERSION_1_8
-sourceCompatibility = JavaVersion.VERSION_1_8
-
 group = "${group}.client.test"
+
+tasks.withType(JavaCompile).getByName('compileJava').configure {
+  javaCompiler = javaToolchains.compilerFor {
+    languageVersion = JavaLanguageVersion.of(8)
+  }
+
+  options.compilerArgs -= '-Xlint:exports'
+  options.compilerArgs -= '-Xlint:module'
+  options.compilerArgs -= '-Xlint:opens'
+  options.compilerArgs -= '-Xlint:removal'
+  options.compilerArgs -= '-Xlint:requires-automatic'
+  options.compilerArgs -= '-Xlint:requires-transitive-automatic'
+  options.compilerArgs -= '-Xlint:preview'
+}
 
 dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"

@@ -33,11 +33,22 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
-targetCompatibility = JavaVersion.VERSION_1_8
-sourceCompatibility = JavaVersion.VERSION_1_8
-
 group = 'org.opensearch.client'
 archivesBaseName = 'opensearch-rest-client'
+
+tasks.withType(JavaCompile).getByName('compileJava').configure {
+  javaCompiler = javaToolchains.compilerFor {
+    languageVersion = JavaLanguageVersion.of(8)
+  }
+
+  options.compilerArgs -= '-Xlint:exports'
+  options.compilerArgs -= '-Xlint:module'
+  options.compilerArgs -= '-Xlint:opens'
+  options.compilerArgs -= '-Xlint:removal'
+  options.compilerArgs -= '-Xlint:requires-automatic'
+  options.compilerArgs -= '-Xlint:requires-transitive-automatic'
+  options.compilerArgs -= '-Xlint:preview'
+}
 
 dependencies {
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -57,7 +68,7 @@ dependencies {
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {
-  //client does not depend on server, so only jdk and http signatures should be checked
+  //client does not depend on shamcreerver, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
 }
 

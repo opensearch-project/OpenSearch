@@ -34,6 +34,7 @@ package org.opensearch.gradle;
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import nebula.plugin.info.InfoBrokerPlugin;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
 import org.opensearch.gradle.precommit.PrecommitTaskPlugin;
@@ -174,7 +175,8 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
                 compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
                 compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
                 // The '--release is available from JDK-9 and above
-                if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_1_8) > 0) {
+                if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_1_8) > 0
+                    && getCompilerLanguageVersionOrDefault(compileTask).compareTo(JavaLanguageVersion.of(8)) > 0) {
                     compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
                 }
             });
@@ -184,6 +186,10 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
                 compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
             });
         });
+    }
+
+    private static JavaLanguageVersion getCompilerLanguageVersionOrDefault(JavaCompile compileTask) {
+        return compileTask.getJavaCompiler().map(c -> c.getMetadata().getLanguageVersion()).getOrElse(JavaLanguageVersion.of(11));
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {
