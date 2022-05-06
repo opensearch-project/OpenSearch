@@ -40,6 +40,11 @@ import org.opensearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 
+/**
+ * Inbound data as a message
+ *
+ * @opensearch.internal
+ */
 public class InboundMessage implements Releasable {
 
     private final Header header;

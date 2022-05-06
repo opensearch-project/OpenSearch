@@ -53,6 +53,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
+/**
+ * OpenSearch Transport Interface
+ *
+ * @opensearch.internal
+ */
 public interface Transport extends LifecycleComponent {
 
     /**

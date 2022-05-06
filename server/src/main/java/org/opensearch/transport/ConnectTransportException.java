@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Transport connection exception
+ *
+ * @opensearch.internal
+ */
 public class ConnectTransportException extends ActionTransportException {
 
     private final DiscoveryNode node;

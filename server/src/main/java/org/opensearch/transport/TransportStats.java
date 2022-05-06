@@ -42,6 +42,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stats for transport activity
+ *
+ * @opensearch.internal
+ */
 public class TransportStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;

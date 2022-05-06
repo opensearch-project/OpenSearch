@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if a node should not disconnect
+ *
+ * @opensearch.internal
+ */
 public class NodeShouldNotConnectException extends NodeNotConnectedException {
 
     public NodeShouldNotConnectException(DiscoveryNode fromNode, DiscoveryNode node) {

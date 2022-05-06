@@ -60,6 +60,11 @@ import java.util.stream.Stream;
 
 import static org.opensearch.common.settings.Setting.intSetting;
 
+/**
+ * Connect through a proxy
+ *
+ * @opensearch.internal
+ */
 public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     /**

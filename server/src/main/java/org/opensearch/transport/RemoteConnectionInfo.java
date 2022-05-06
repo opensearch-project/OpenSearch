@@ -54,6 +54,8 @@ import static java.util.Collections.emptyList;
 /**
  * This class encapsulates all remote cluster information to be rendered on
  * {@code _remote/info} requests.
+ *
+ * @opensearch.internal
  */
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
 

@@ -74,6 +74,8 @@ import static org.opensearch.common.settings.Setting.timeSetting;
 
 /**
  * Basic service for accessing remote clusters via gateway nodes
+ *
+ * @opensearch.internal
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
 

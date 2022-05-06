@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * A failure to handle the response of a transaction action.
+ *
+ * @opensearch.internal
  */
 public class ResponseHandlerFailureTransportException extends TransportException {
 
