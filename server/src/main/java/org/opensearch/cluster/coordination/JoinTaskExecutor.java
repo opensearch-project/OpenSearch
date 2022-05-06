@@ -99,14 +99,19 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
 
         public boolean isBecomeMasterTask() {
-            return reason.equals(BECOME_MASTER_TASK_REASON);
+            return reason.equals(BECOME_MASTER_TASK_REASON) || reason.equals(BECOME_CLUSTER_MANAGER_TASK_REASON);
         }
 
         public boolean isFinishElectionTask() {
             return reason.equals(FINISH_ELECTION_TASK_REASON);
         }
 
+        /**
+         * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #BECOME_CLUSTER_MANAGER_TASK_REASON}
+         */
+        @Deprecated
         private static final String BECOME_MASTER_TASK_REASON = "_BECOME_MASTER_TASK_";
+        private static final String BECOME_CLUSTER_MANAGER_TASK_REASON = "_BECOME_CLUSTER_MANAGER_TASK_";
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
 
@@ -134,7 +139,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         if (joiningNodes.size() == 1 && joiningNodes.get(0).isFinishElectionTask()) {
             return results.successes(joiningNodes).build(currentState);
         } else if (currentNodes.getMasterNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
-            assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask) : "becoming a master but election is not finished "
+            assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask) : "becoming a cluster-manager but election is not finished "
                 + joiningNodes;
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
@@ -142,8 +147,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             newState = becomeMasterAndTrimConflictingNodes(currentState, joiningNodes);
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedMaster() == false) {
-            logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
-            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not master for join request");
+            logger.trace(
+                "processing node joins, but we are not the cluster-manager. current cluster-manager: {}",
+                currentNodes.getMasterNode()
+            );
+            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not cluster-manager for join request");
         } else {
             newState = ClusterState.builder(currentState);
         }
@@ -333,8 +341,20 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         return false;
     }
 
+    /**
+     * a task indicates that the current node should become master
+     * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #newBecomeClusterManagerTask()}
+     */
+    @Deprecated
     public static Task newBecomeMasterTask() {
         return new Task(null, Task.BECOME_MASTER_TASK_REASON);
+    }
+
+    /**
+     * a task indicates that the current node should become cluster-manager
+     */
+    public static Task newBecomeClusterManagerTask() {
+        return new Task(null, Task.BECOME_CLUSTER_MANAGER_TASK_REASON);
     }
 
     /**

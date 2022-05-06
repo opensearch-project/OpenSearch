@@ -1120,7 +1120,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             // The new master will take care of it
                             logger.warn("[{}] failed to create snapshot - no longer a master", snapshot.snapshot().getSnapshotId());
                             userCreateSnapshotListener.onFailure(
-                                new SnapshotException(snapshot.snapshot(), "master changed during snapshot initialization")
+                                new SnapshotException(snapshot.snapshot(), "cluster-manager changed during snapshot initialization")
                             );
                         }
 
@@ -1311,7 +1311,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // state).
                 for (Snapshot snapshot : new HashSet<>(snapshotCompletionListeners.keySet())) {
                     if (endingSnapshots.add(snapshot)) {
-                        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+                        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer cluster-manager"));
                     }
                 }
             }
@@ -2082,7 +2082,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onNoLongerMaster(String source) {
-                failure.addSuppressed(new SnapshotException(snapshot, "no longer master"));
+                failure.addSuppressed(new SnapshotException(snapshot, "no longer cluster-manager"));
                 failSnapshotCompletionListeners(snapshot, failure);
                 failAllListenersOnMasterFailOver(new NotMasterException(source));
                 if (listener != null) {
@@ -2297,7 +2297,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     );
                 }, e -> {
                     if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-                        logger.warn("master failover before deleted snapshot could complete", e);
+                        logger.warn("cluster-manager failover before deleted snapshot could complete", e);
                         // Just pass the exception to the transport handler as is so it is retried on the new master
                         listener.onFailure(e);
                     } else {
@@ -2776,12 +2776,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param e exception that caused us to realize we are not master any longer
      */
     private void failAllListenersOnMasterFailOver(Exception e) {
-        logger.debug("Failing all snapshot operation listeners because this node is not master any longer", e);
+        logger.debug("Failing all snapshot operation listeners because this node is not cluster-manager any longer", e);
         synchronized (currentlyFinalizing) {
             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                 repositoryOperations.clear();
                 for (Snapshot snapshot : new HashSet<>(snapshotCompletionListeners.keySet())) {
-                    failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+                    failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer cluster-manager"));
                 }
                 final Exception wrapped = new RepositoryException("_all", "Failed to update cluster state during repository operation", e);
                 for (Iterator<List<ActionListener<Void>>> iterator = snapshotDeletionListeners.values().iterator(); iterator.hasNext();) {

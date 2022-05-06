@@ -669,7 +669,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // we managed to tell the master we started), mark us as started
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    "{} master marked shard as initializing, but shard has state [{}], resending shard started to {}",
+                    "{} cluster-manager marked shard as initializing, but shard has state [{}], resending shard started to {}",
                     shardRouting.shardId(),
                     state,
                     nodes.getMasterNode()
@@ -679,7 +679,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 shardStateAction.shardStarted(
                     shardRouting,
                     primaryTerm,
-                    "master "
+                    "cluster-manager "
                         + nodes.getMasterNode()
                         + " marked shard as initializing, but shard state is ["
                         + state

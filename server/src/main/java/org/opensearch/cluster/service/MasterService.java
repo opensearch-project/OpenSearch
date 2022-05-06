@@ -233,14 +233,14 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     public static boolean assertMasterUpdateThread() {
-        assert isMasterUpdateThread() : "not called from the master service thread";
+        assert isMasterUpdateThread() : "not called from the cluster-manager service thread";
         return true;
     }
 
     public static boolean assertNotMasterUpdateThread(String reason) {
         assert isMasterUpdateThread() == false : "Expected current thread ["
             + Thread.currentThread()
-            + "] to not be the master service thread. Reason: ["
+            + "] to not be the cluster-manager service thread. Reason: ["
             + reason
             + "]";
         return true;
@@ -249,7 +249,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private void runTasks(TaskInputs taskInputs) {
         final String summary = taskInputs.summary;
         if (!lifecycle.started()) {
-            logger.debug("processing [{}]: ignoring, master service not started", summary);
+            logger.debug("processing [{}]: ignoring, cluster-manager service not started", summary);
             return;
         }
 
@@ -257,7 +257,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final ClusterState previousClusterState = state();
 
         if (!previousClusterState.nodes().isLocalNodeElectedMaster() && taskInputs.runOnlyWhenMaster()) {
-            logger.debug("failing [{}]: local node is no longer master", summary);
+            logger.debug("failing [{}]: local node is no longer cluster-manager", summary);
             taskInputs.onNoLongerMaster();
             return;
         }
@@ -621,7 +621,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 listener.onNoLongerMaster(source);
             } catch (Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage("exception thrown by listener while notifying no longer master from [{}]", source),
+                    () -> new ParameterizedMessage(
+                        "exception thrown by listener while notifying no longer cluster-manager from [{}]",
+                        source
+                    ),
                     e
                 );
             }
