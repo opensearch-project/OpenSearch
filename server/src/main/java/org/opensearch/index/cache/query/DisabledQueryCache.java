@@ -37,6 +37,11 @@ import org.apache.lucene.search.Weight;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * NoOp Implementation for a Disabled query cache
+ *
+ * @opensearch.internal
+ */
 public class DisabledQueryCache extends AbstractIndexComponent implements QueryCache {
 
     public DisabledQueryCache(IndexSettings indexSettings) {

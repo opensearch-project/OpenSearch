@@ -44,6 +44,8 @@ import java.util.Collections;
 
 /**
  * A field mapper that records fields that have been ignored because they were malformed.
+ *
+ * @opensearch.internal
  */
 public final class IgnoredFieldMapper extends MetadataFieldMapper {
 

@@ -106,6 +106,11 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.REOPENED;
 
+/**
+ * Service to update the cluster state for multiple indices
+ *
+ * @opensearch.internal
+ */
 public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(IndicesClusterStateService.class);
 

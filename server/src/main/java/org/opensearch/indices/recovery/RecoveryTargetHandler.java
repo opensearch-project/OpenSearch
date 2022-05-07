@@ -41,6 +41,11 @@ import org.opensearch.index.translog.Translog;
 
 import java.util.List;
 
+/**
+ * Handler for the recovery target
+ *
+ * @opensearch.internal
+ */
 public interface RecoveryTargetHandler {
 
     /**

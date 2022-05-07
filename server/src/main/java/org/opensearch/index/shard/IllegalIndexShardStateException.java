@@ -39,6 +39,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown when an index shard is in an illegal state
+ *
+ * @opensearch.internal
+ */
 public class IllegalIndexShardStateException extends OpenSearchException {
 
     private final IndexShardState currentState;

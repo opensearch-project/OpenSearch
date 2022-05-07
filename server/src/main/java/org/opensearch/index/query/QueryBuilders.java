@@ -53,6 +53,8 @@ import java.util.List;
 
 /**
  * Utility class to create search queries.
+ *
+ * @opensearch.internal
  */
 public final class QueryBuilders {
 

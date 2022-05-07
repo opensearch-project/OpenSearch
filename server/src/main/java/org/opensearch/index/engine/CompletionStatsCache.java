@@ -49,6 +49,11 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.util.function.Supplier;
 
+/**
+ * Cache to store engine completion stats
+ *
+ * @opensearch.internal
+ */
 class CompletionStatsCache implements ReferenceManager.RefreshListener {
 
     private final Supplier<Engine.Searcher> searcherSupplier;

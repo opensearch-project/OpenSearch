@@ -57,6 +57,11 @@ import static java.util.Objects.requireNonNull;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 
+/**
+ * Encapsulates informatoin for remote resources
+ *
+ * @opensearch.internal
+ */
 public class RemoteInfo implements Writeable, ToXContentObject {
     /**
      * Default {@link #socketTimeout} for requests that don't have one set.

@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if the translog is corrupted
+ *
+ * @opensearch.internal
+ */
 public class TranslogCorruptedException extends OpenSearchException {
     public TranslogCorruptedException(String source, String details) {
         super(corruptedMessage(source, details));

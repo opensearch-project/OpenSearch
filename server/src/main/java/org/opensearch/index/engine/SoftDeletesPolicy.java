@@ -48,6 +48,8 @@ import java.util.function.Supplier;
 
 /**
  * A policy that controls how many soft-deleted documents should be retained for peer-recovery and querying history changes purpose.
+ *
+ * @opensearch.internal
  */
 final class SoftDeletesPolicy {
     private final LongSupplier globalCheckpointSupplier;

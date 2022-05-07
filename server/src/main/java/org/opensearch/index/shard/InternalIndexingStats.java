@@ -41,6 +41,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Internal class that maintains relevant indexing statistics / metrics.
  * @see IndexShard
+ *
+ * @opensearch.internal
  */
 final class InternalIndexingStats implements IndexingOperationListener {
     private final StatsHolder totalStats = new StatsHolder();

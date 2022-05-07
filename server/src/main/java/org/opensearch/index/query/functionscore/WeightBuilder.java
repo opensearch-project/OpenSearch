@@ -43,6 +43,8 @@ import java.io.IOException;
 
 /**
  * A query that multiplies the weight to the score.
+ *
+ * @opensearch.internal
  */
 public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     public static final String NAME = "weight";

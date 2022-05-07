@@ -62,6 +62,8 @@ import java.util.TreeMap;
 
 /**
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
+ *
+ * @opensearch.internal
  */
 public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
 

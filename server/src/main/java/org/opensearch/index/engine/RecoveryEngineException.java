@@ -38,6 +38,9 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if there is a problem during recovery
+ */
 public class RecoveryEngineException extends EngineException {
 
     private final int phase;

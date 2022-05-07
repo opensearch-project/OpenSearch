@@ -41,6 +41,8 @@ import java.util.Objects;
 
 /**
  * Contains a list of files participating in a snapshot
+ *
+ * @opensearch.internal
  */
 public class SnapshotFiles {
 

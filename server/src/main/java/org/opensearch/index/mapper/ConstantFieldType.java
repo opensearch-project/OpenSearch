@@ -51,6 +51,8 @@ import java.util.Map;
  * cheap. In particular they should not read data from disk or perform a
  * network call. Furthermore they may only return a {@link MatchAllDocsQuery}
  * or a {@link MatchNoDocsQuery}.
+ *
+ * @opensearch.internal
  */
 public abstract class ConstantFieldType extends MappedFieldType {
 

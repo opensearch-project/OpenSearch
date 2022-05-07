@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Thrown when restore of a shard fails
+ *
+ * @opensearch.internal
  */
 public class IndexShardRestoreFailedException extends IndexShardRestoreException {
     public IndexShardRestoreFailedException(ShardId shardId, String msg) {

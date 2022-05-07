@@ -45,6 +45,11 @@ import org.opensearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Foundation builder for a score function
+ *
+ * @opensearch.internal
+ */
 public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> implements ToXContentFragment, NamedWriteable {
 
     private Float weight;

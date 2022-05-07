@@ -38,6 +38,11 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+/**
+ * A snapshot of translog operations
+ *
+ * @opensearch.internal
+ */
 final class TranslogSnapshot extends BaseTranslogReader {
 
     private final int totalOperations;

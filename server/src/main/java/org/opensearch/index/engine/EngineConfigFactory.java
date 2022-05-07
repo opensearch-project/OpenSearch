@@ -42,6 +42,8 @@ import java.util.function.Supplier;
 
 /**
  * A factory to create an EngineConfig based on custom plugin overrides
+ *
+ * @opensearch.internal
  */
 public class EngineConfigFactory {
     private final CodecServiceFactory codecServiceFactory;

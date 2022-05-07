@@ -61,6 +61,8 @@ import java.util.function.Supplier;
 
 /**
  * A field mapper for boolean fields.
+ *
+ * @opensearch.internal
  */
 public class BooleanFieldMapper extends ParametrizedFieldMapper {
 

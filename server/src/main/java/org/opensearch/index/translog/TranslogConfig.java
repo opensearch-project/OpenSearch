@@ -40,10 +40,12 @@ import org.opensearch.index.shard.ShardId;
 
 import java.nio.file.Path;
 
-/*
+/**
  * Holds all the configuration that is used to create a {@link Translog}.
  * Once {@link Translog} has been created with this object, changes to this
  * object will affect the {@link Translog} instance.
+ *
+ * @opensearch.internal
  */
 public final class TranslogConfig {
 

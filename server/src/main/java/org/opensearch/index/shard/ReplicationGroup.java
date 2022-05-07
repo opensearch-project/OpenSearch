@@ -42,6 +42,8 @@ import java.util.Set;
 
 /**
  * Replication group for a shard. Used by a primary shard to coordinate replication and recoveries.
+ *
+ * @opensearch.internal
  */
 public class ReplicationGroup {
     private final IndexShardRoutingTable routingTable;

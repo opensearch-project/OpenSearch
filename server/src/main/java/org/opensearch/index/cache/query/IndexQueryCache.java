@@ -42,6 +42,8 @@ import org.opensearch.indices.IndicesQueryCache;
 /**
  * The index-level query cache. This class mostly delegates to the node-level
  * query cache: {@link IndicesQueryCache}.
+ *
+ * @opensearch.internal
  */
 public class IndexQueryCache extends AbstractIndexComponent implements QueryCache {
 

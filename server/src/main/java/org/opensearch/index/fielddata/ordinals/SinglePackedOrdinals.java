@@ -45,7 +45,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-public class SinglePackedOrdinals extends Ordinals {
+/**
+ * Packed ordinals for a single field
+ *
+ * @opensearch.internal
+ */
+class SinglePackedOrdinals extends Ordinals {
 
     // ordinals with value 0 indicates no value
     private final PackedInts.Reader reader;

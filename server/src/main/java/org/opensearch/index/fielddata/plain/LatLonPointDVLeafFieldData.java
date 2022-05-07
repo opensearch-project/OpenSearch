@@ -43,6 +43,11 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * LatLonPoint field data
+ *
+ * @opensearch.internal
+ */
 final class LatLonPointDVLeafFieldData extends AbstractLeafGeoPointFieldData {
     private final LeafReader reader;
     private final String fieldName;

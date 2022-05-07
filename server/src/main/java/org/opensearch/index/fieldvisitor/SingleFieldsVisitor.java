@@ -42,6 +42,8 @@ import java.util.List;
 
 /**
  * {@linkplain StoredFieldVisitor} that loads a single field value.
+ *
+ * @opensearch.internal
  */
 public final class SingleFieldsVisitor extends StoredFieldVisitor {
     private final MappedFieldType field;

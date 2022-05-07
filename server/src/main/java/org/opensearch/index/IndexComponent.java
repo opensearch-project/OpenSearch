@@ -32,6 +32,11 @@
 
 package org.opensearch.index;
 
+/**
+ * Actions that can be executed on an Index Component
+ *
+ * @opensearch.internal
+ */
 public interface IndexComponent {
 
     Index index();

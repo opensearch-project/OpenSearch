@@ -46,6 +46,11 @@ import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.Collections;
 
+/**
+ * Utility class that parses geo shapes
+ *
+ * @opensearch.internal
+ */
 public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
     private final GeometryParser geometryParser;
 

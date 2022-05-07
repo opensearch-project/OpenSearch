@@ -56,7 +56,11 @@ import java.util.function.Supplier;
 
 import static org.opensearch.index.mapper.TypeParsers.parseField;
 
-/** Base class for for spatial fields that only support indexing points */
+/**
+ * Base class for for spatial fields that only support indexing points
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
 
     public static class Names extends AbstractGeometryFieldMapper.Names {

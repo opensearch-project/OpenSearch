@@ -55,6 +55,8 @@ import static java.util.Collections.unmodifiableMap;
  * <p>
  * This class is used to find files that were already snapshotted and clear out files that no longer referenced by any
  * snapshots.
+ *
+ * @opensearch.internal
  */
 public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContentFragment {
 

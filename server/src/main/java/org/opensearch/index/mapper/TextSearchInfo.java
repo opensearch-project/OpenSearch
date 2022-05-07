@@ -40,6 +40,8 @@ import org.opensearch.index.similarity.SimilarityProvider;
 
 /**
  * Encapsulates information about how to perform text searches over a field
+ *
+ * @opensearch.internal
  */
 public class TextSearchInfo {
 

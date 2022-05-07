@@ -42,6 +42,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Base class for a TermQueryBuilder
+ *
+ * @opensearch.internal
+ */
 public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 
     public static final ParseField VALUE_FIELD = new ParseField("value");

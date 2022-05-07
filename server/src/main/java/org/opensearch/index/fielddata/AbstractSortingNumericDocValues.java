@@ -42,6 +42,8 @@ import java.util.function.LongConsumer;
  * {@link DocIdSetIterator} APIs. This impl is safe to use for sorting and
  * aggregations, which only use {@link #advanceExact(int)} and
  * {@link #docValueCount()} and {@link #nextValue()}.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractSortingNumericDocValues extends SortingNumericDocValues {
 

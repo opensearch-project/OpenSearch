@@ -52,6 +52,8 @@ import static org.opensearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.c
 
 /**
  * Span query that matches the union of its clauses. Maps to {@link SpanOrQuery}.
+ *
+ * @opensearch.internal
  */
 public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_or";

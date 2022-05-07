@@ -39,6 +39,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * A factory for the pre-built cache
+ *
+ * @opensearch.internal
+ */
 public class PreBuiltCacheFactory {
 
     /**
