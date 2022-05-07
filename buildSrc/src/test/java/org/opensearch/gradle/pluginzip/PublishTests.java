@@ -28,6 +28,8 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import java.io.FileReader;
 import org.gradle.api.tasks.bundling.Zip;
+import java.util.List;
+import java.util.ArrayList;
 
 public class PublishTests extends GradleUnitTestCase {
 
@@ -56,6 +58,7 @@ public class PublishTests extends GradleUnitTestCase {
         writeString(new File(projectDir, "settings.gradle"), "");
         // Generate the build.gradle file
         String buildFileContent = "apply plugin: 'maven-publish' \n"
+            + "apply plugin: 'java' \n"
             + "publishing {\n"
             + "  repositories {\n"
             + "       maven {\n"
@@ -74,10 +77,13 @@ public class PublishTests extends GradleUnitTestCase {
             + "}";
         writeString(new File(projectDir, "build.gradle"), buildFileContent);
         // Execute the task publishPluginZipPublicationToZipStagingRepository
+        List<String> allArguments = new ArrayList<String>();
+        allArguments.add("build");
+        allArguments.add(zipPublishTask);
         GradleRunner runner = GradleRunner.create();
         runner.forwardOutput();
         runner.withPluginClasspath();
-        runner.withArguments(zipPublishTask);
+        runner.withArguments(allArguments);
         runner.withProjectDir(projectDir);
         BuildResult result = runner.build();
         // Check if task publishMavenzipPublicationToZipstagingRepository has ran well
@@ -87,6 +93,7 @@ public class PublishTests extends GradleUnitTestCase {
             new File("build/functionalTest/local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.zip")
                 .exists()
         );
+        assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
         // Parse the maven file and validate the groupID to org.opensearch.plugin
         MavenXpp3Reader reader = new MavenXpp3Reader();
         Model model = reader.read(
