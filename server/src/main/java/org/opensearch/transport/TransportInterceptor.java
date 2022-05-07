@@ -37,6 +37,8 @@ import org.opensearch.common.io.stream.Writeable.Reader;
 
 /**
  * This interface allows plugins to intercept requests on both the sender and the receiver side.
+ *
+ * @opensearch.internal
  */
 public interface TransportInterceptor {
     /**

@@ -42,7 +42,7 @@ import java.io.IOException;
  * A remote exception for an action. A wrapper exception around the actual remote cause and does not fill the
  * stack trace.
  *
- *
+ * @opensearch.internal
  */
 public class RemoteTransportException extends ActionTransportException implements OpenSearchWrapperException {
 

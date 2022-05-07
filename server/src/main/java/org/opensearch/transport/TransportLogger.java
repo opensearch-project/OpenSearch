@@ -43,6 +43,11 @@ import org.opensearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 
+/**
+ * Logs transport activity
+ *
+ * @opensearch.internal
+ */
 public final class TransportLogger {
 
     private static final Logger logger = LogManager.getLogger(TransportLogger.class);

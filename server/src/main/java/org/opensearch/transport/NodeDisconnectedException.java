@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if a node disconnects
+ *
+ * @opensearch.internal
+ */
 public class NodeDisconnectedException extends ConnectTransportException {
 
     public NodeDisconnectedException(DiscoveryNode node, String action) {
