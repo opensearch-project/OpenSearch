@@ -1049,7 +1049,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     public void testOfficialPlugin() throws Exception {
         String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
@@ -1093,7 +1093,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     public void testOfficialPlatformPlugin() throws Exception {
         String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/analysis-icu-"
             + Platforms.PLATFORM_NAME
             + "-"
@@ -1159,7 +1159,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     public void testOfficialChecksumWithoutFilename() throws Exception {
         String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
@@ -1184,7 +1184,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     public void testOfficialShaMissing() throws Exception {
         String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
@@ -1229,7 +1229,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     public void testInvalidShaFileMissingFilename() throws Exception {
         String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
@@ -1254,7 +1254,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     public void testInvalidShaFileMismatchFilename() throws Exception {
         String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
@@ -1279,7 +1279,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     public void testInvalidShaFileContainingExtraLine() throws Exception {
         String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
@@ -1304,7 +1304,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     public void testSha512Mismatch() throws Exception {
         String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
@@ -1349,7 +1349,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testPublicKeyIdMismatchToExpectedPublicKeyId() throws Exception {
         final String icu = "analysis-icu";
         final String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/"
             + icu
             + "-"
@@ -1386,7 +1386,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testFailedSignatureVerification() throws Exception {
         final String icu = "analysis-icu";
         final String url = "https://artifacts.opensearch.org/releases/plugins/analysis-icu/"
-            + Version.CURRENT
+            + Build.CURRENT.getQualifiedVersion()
             + "/"
             + icu
             + "-"
