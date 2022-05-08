@@ -64,15 +64,6 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  */
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = org.opensearch.common.collect.Map.of("_type", value -> {
-        deprecationLogger.deprecate(
-            "conditional-processor__type",
-            "[types removal] Looking up doc types [_type] in scripts is deprecated."
-        );
-        return value;
-    });
-
     static final String TYPE = "conditional";
 
     private final Script condition;
@@ -153,7 +144,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             IngestConditionalScript.Factory factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
             script = factory.newInstance(condition.getParams());
         }
-        return script.execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
+        return script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()));
     }
 
     public Processor getInnerProcessor() {

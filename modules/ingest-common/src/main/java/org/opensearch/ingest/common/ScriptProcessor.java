@@ -64,12 +64,6 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  */
 public final class ScriptProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of("_type", value -> {
-        deprecationLogger.deprecate("script_processor", "[types removal] Looking up doc types [_type] in scripts is deprecated.");
-        return value;
-    });
-
     public static final String TYPE = "script";
 
     private final Script script;
@@ -111,7 +105,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         } else {
             ingestScript = precompiledIngestScript;
         }
-        ingestScript.execute(new DynamicMap(document.getSourceAndMetadata(), PARAMS_FUNCTIONS));
+        ingestScript.execute(document.getSourceAndMetadata());
         CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
         return document;
     }
