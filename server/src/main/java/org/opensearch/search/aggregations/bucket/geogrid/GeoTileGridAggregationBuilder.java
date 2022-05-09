@@ -47,6 +47,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for geotile_grid agg
+ *
+ * @opensearch.internal
+ */
 public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geotile_grid";
     public static final int DEFAULT_PRECISION = 7;

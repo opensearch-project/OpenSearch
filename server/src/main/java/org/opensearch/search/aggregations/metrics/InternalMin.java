@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of min agg
+ *
+ * @opensearch.internal
+ */
 public class InternalMin extends InternalNumericMetricsAggregation.SingleValue implements Min {
     private final double min;
 

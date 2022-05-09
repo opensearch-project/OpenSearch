@@ -46,6 +46,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for min agg
+ *
+ * @opensearch.internal
+ */
 class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {

@@ -54,6 +54,8 @@ import static org.opensearch.common.geo.GeoUtils.normalizeLon;
  *   bits 58..63 -- zoom (0..29)
  *   bits 29..57 -- X tile index (0..2^zoom)
  *   bits  0..28 -- Y tile index (0..2^zoom)
+ *
+ * @opensearch.internal
  */
 public final class GeoTileUtils {
 

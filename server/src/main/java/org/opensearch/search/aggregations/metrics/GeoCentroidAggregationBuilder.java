@@ -50,6 +50,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for geo_centroid agg
+ *
+ * @opensearch.internal
+ */
 public class GeoCentroidAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
     ValuesSource.GeoPoint,
     GeoCentroidAggregationBuilder> {

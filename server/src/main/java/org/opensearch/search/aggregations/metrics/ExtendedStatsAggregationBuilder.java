@@ -51,6 +51,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for extended stats agg
+ *
+ * @opensearch.internal
+ */
 public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
     ValuesSource.Numeric,
     ExtendedStatsAggregationBuilder> {

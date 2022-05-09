@@ -33,6 +33,8 @@ package org.opensearch.search.aggregations.metrics;
 
 /**
  * An aggregation that computes the sum of the values in the current bucket.
+ *
+ * @opensearch.internal
  */
 public interface Sum extends NumericMetricsAggregation.SingleValue {
 

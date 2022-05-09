@@ -37,6 +37,8 @@ import org.opensearch.index.fielddata.MultiGeoPointValues;
 /**
  * Class representing {@link CellValues} that are unbounded by any
  * {@link GeoBoundingBox}.
+ *
+ * @opensearch.internal
  */
 class UnboundedCellValues extends CellValues {
 

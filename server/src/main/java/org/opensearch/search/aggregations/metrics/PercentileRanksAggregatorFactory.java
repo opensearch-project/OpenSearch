@@ -47,6 +47,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * Base Aggregation Factory for ranks aggs
+ *
+ * @opensearch.internal
+ */
 class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double[] percents;

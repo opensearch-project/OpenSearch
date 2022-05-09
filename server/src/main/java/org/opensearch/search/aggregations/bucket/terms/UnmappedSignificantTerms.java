@@ -50,6 +50,8 @@ import static java.util.Collections.emptyList;
 
 /**
  * Result of the running the significant terms aggregation on an unmapped field.
+ *
+ * @opensearch.internal
  */
 public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedSignificantTerms, UnmappedSignificantTerms.Bucket> {
 

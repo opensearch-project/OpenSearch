@@ -32,6 +32,11 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+/**
+ * Base class of a derivitive
+ *
+ * @opensearch.internal
+ */
 public interface Derivative extends SimpleValue {
 
     /**

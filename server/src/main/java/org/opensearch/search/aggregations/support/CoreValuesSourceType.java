@@ -61,6 +61,8 @@ import java.util.function.LongSupplier;
 
 /**
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
+ *
+ * @opensearch.internal
  */
 public enum CoreValuesSourceType implements ValuesSourceType {
 

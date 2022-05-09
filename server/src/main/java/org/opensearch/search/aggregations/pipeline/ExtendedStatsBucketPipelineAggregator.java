@@ -41,6 +41,11 @@ import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into their extended stats
+ *
+ * @opensearch.internal
+ */
 public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
     private final double sigma;
     private double sum = 0;

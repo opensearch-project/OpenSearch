@@ -47,6 +47,8 @@ import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of whole number like a integer, long, or a date.
+ *
+ * @opensearch.internal
  */
 public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> {
     public static final String NAME = "lterms";

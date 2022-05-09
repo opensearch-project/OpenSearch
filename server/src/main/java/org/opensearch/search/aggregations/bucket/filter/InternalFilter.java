@@ -39,6 +39,11 @@ import org.opensearch.search.aggregations.bucket.InternalSingleBucketAggregation
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Implementation of filter agg
+ *
+ * @opensearch.internal
+ */
 public class InternalFilter extends InternalSingleBucketAggregation implements Filter {
     InternalFilter(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
         super(name, docCount, subAggregations, metadata);

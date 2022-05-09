@@ -50,6 +50,8 @@ import java.util.Map;
 /**
  * This factory is used to generate both TDigest and HDRHisto aggregators, depending
  * on the selected method
+ *
+ * @opensearch.internal
  */
 class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
 

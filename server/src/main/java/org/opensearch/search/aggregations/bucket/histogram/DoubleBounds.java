@@ -52,6 +52,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  *
  * This class is similar to {@link LongBounds} used in date histograms, but is using longs to store data. LongBounds and DoubleBounds are
  * not used interchangeably and therefore don't share any common interfaces except for serialization.
+ *
+ * @opensearch.internal
  */
 
 public class DoubleBounds implements ToXContentFragment, Writeable {

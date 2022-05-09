@@ -109,6 +109,8 @@ import java.util.Map;
 
 /**
  * Utility class to create aggregations.
+ *
+ * @opensearch.internal
  */
 public class AggregationBuilders {
 

@@ -34,6 +34,8 @@ package org.opensearch.search.aggregations.metrics;
 
 /**
  * Base class for cardinality related algorithms.
+ *
+ * @opensearch.internal
  */
 abstract class AbstractCardinalityAlgorithm {
 

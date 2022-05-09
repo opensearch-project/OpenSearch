@@ -55,6 +55,11 @@ import java.util.Set;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Aggregation Builder for composite agg
+ *
+ * @opensearch.internal
+ */
 public class CompositeAggregationBuilder extends AbstractAggregationBuilder<CompositeAggregationBuilder> {
     public static final String NAME = "composite";
 

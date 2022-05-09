@@ -44,6 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of cardinality agg
+ *
+ * @opensearch.internal
+ */
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
     private final AbstractHyperLogLogPlusPlus counts;
 

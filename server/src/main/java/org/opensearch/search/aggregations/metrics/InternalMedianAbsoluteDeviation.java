@@ -43,6 +43,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of median absolute deviation agg
+ *
+ * @opensearch.internal
+ */
 public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggregation.SingleValue implements MedianAbsoluteDeviation {
 
     static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {

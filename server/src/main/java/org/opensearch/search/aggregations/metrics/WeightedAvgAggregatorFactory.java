@@ -48,6 +48,11 @@ import java.util.Map;
 
 import static org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder.VALUE_FIELD;
 
+/**
+ * Aggregation Factory for weighted_avg agg
+ *
+ * @opensearch.internal
+ */
 class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     WeightedAvgAggregatorFactory(

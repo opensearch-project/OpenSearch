@@ -36,6 +36,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * An aggregator capable of reporting bucket sizes in milliseconds. Used by RateAggregator for calendar-based buckets.
+ *
+ * @opensearch.internal
  */
 public interface SizedBucketAggregatorBuilder {
     double calendarDivider(TimeUnit timeUnit);

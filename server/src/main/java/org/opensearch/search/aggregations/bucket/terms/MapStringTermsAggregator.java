@@ -68,6 +68,8 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 /**
  * An aggregator of string values that hashes the strings on the fly rather
  * than up front like the {@link GlobalOrdinalsStringTermsAggregator}.
+ *
+ * @opensearch.internal
  */
 public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     private final CollectorSource collectorSource;

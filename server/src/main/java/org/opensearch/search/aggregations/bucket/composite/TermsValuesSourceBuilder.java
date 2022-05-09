@@ -58,6 +58,8 @@ import java.util.function.LongUnaryOperator;
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link ValuesSource} from a {@link Script} or
  * a field name.
+ *
+ * @opensearch.internal
  */
 public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<TermsValuesSourceBuilder> {
 

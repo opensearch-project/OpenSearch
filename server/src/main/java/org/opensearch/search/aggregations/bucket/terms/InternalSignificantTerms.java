@@ -51,6 +51,8 @@ import java.util.Objects;
 
 /**
  * Result of the significant terms aggregation.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalSignificantTerms<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>>
     extends InternalMultiBucketAggregation<A, B>

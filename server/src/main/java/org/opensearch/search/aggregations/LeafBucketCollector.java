@@ -42,6 +42,8 @@ import java.util.stream.StreamSupport;
 
 /**
  * Per-leaf bucket collector.
+ *
+ * @opensearch.internal
  */
 public abstract class LeafBucketCollector implements LeafCollector {
 

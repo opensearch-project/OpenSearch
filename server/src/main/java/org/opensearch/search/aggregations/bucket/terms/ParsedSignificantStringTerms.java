@@ -40,6 +40,11 @@ import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.nio.CharBuffer;
 
+/**
+ * A significant string terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
 
     @Override
