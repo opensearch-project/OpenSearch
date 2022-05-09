@@ -42,6 +42,8 @@ import java.util.Objects;
 
 /**
  * An enum representing the valid sorting options
+ *
+ * @opensearch.internal
  */
 public enum SortBy implements Writeable {
     /** Sort should first be based on score, then document frequency and then the term itself. */

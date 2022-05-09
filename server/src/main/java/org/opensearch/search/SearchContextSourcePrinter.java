@@ -35,6 +35,11 @@ package org.opensearch.search;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.tasks.Task;
 
+/**
+ * Prints the search context source
+ *
+ * @opensearch.internal
+ */
 public class SearchContextSourcePrinter {
     private final SearchContext searchContext;
 

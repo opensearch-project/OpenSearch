@@ -41,6 +41,11 @@ import org.apache.lucene.util.automaton.LevenshteinAutomata;
 
 import java.util.Comparator;
 
+/**
+ * Settings for the direct spell checker
+ *
+ * @opensearch.internal
+ */
 public class DirectSpellcheckerSettings {
 
     // NB: If this changes, make sure to change the default in TermBuilderSuggester

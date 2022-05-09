@@ -68,6 +68,8 @@ import java.util.Set;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( {@code phrase}).
+ *
+ * @opensearch.internal
  */
 public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionBuilder> {
 

@@ -45,6 +45,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Context used during phrase suggestion
+ *
+ * @opensearch.internal
+ */
 class PhraseSuggestionContext extends SuggestionContext {
     static final boolean DEFAULT_COLLATE_PRUNE = false;
     static final boolean DEFAULT_REQUIRE_UNIGRAM = true;

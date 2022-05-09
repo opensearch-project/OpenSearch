@@ -53,6 +53,8 @@ import java.util.Objects;
 
 /**
  * Base class for the different suggestion implementations.
+ *
+ * @opensearch.internal
  */
 public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implements NamedWriteable, ToXContentFragment {
 
