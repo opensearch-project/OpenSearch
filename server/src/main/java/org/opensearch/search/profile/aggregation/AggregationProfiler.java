@@ -40,6 +40,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Main class to profile aggregations
+ *
+ * @opensearch.internal
+ */
 public class AggregationProfiler extends AbstractProfiler<AggregationProfileBreakdown, Aggregator> {
 
     private final Map<List<String>, AggregationProfileBreakdown> profileBreakdownLookup = new HashMap<>();

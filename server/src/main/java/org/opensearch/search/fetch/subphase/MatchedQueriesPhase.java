@@ -48,6 +48,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Fetches queries that match the document during search phase
+ *
+ * @opensearch.internal
+ */
 public final class MatchedQueriesPhase implements FetchSubPhase {
 
     @Override

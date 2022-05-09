@@ -41,6 +41,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * {@linkplain AbstractProfileBreakdown} customized to work with aggregations.
+ *
+ * @opensearch.internal
  */
 public class AggregationProfileBreakdown extends AbstractProfileBreakdown<AggregationTimingType> {
     private final Map<String, Object> extra = new HashMap<>();

@@ -84,6 +84,8 @@ import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsC
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
+ *
+ * @opensearch.internal
  */
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);

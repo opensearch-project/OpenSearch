@@ -40,6 +40,11 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 
+/**
+ * Base class for a profiling tree.
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<?>, E> {
 
     protected ArrayList<PB> breakdowns;

@@ -41,6 +41,11 @@ import org.opensearch.search.fetch.FetchSubPhaseProcessor;
 
 import java.io.IOException;
 
+/**
+ * Fetches the sequence number of the primary term during search phase
+ *
+ * @opensearch.internal
+ */
 public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
 
     @Override

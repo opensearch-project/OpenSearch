@@ -37,6 +37,11 @@ import org.opensearch.script.FieldScript;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Context used for script fields
+ *
+ * @opensearch.internal
+ */
 public class ScriptFieldsContext {
 
     public static class ScriptField {

@@ -43,6 +43,11 @@ import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Internally used for custom scoring
+ *
+ * @opensearch.internal
+ */
 public final class CustomQueryScorer extends QueryScorer {
 
     public CustomQueryScorer(Query query, IndexReader reader, String field, String defaultField) {
