@@ -49,6 +49,8 @@ import java.util.Objects;
 
 /**
  * A sort builder allowing to sort by score.
+ *
+ * @opensearch.internal
  */
 public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 

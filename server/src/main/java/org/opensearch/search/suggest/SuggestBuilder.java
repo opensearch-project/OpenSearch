@@ -57,6 +57,8 @@ import java.util.Objects;
  * <p>
  * Suggesting works by suggesting terms/phrases that appear in the suggest text that are similar compared
  * to the terms in provided text. These suggestions are based on several options described in this class.
+ *
+ * @opensearch.internal
  */
 public class SuggestBuilder implements Writeable, ToXContentObject {
     protected static final ParseField GLOBAL_TEXT_FIELD = new ParseField("text");

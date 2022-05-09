@@ -54,6 +54,8 @@ import static org.opensearch.search.suggest.completion.context.GeoContextMapping
 
 /**
  * Defines the query context for {@link GeoContextMapping}
+ *
+ * @opensearch.internal
  */
 public final class GeoQueryContext implements ToXContentObject {
     public static final String NAME = "geo";

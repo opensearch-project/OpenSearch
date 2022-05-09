@@ -75,6 +75,8 @@ import java.util.Set;
  *  (instead of {@code numShards*numSlices}).
  *  Otherwise the provided field must be a numeric and doc_values must be enabled. In that case a
  *  {@link org.opensearch.search.slice.DocValuesSliceQuery} is used to filter the results.
+ *
+ *  @opensearch.internal
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
 

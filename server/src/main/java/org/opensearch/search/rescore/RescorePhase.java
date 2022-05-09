@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * Rescore phase of a search request, used to run potentially expensive scoring models against the top matching documents.
+ *
+ * @opensearch.internal
  */
 public class RescorePhase {
 

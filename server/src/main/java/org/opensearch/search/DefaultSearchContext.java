@@ -99,6 +99,11 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
+/**
+ * The main search context used during search phase
+ *
+ * @opensearch.internal
+ */
 final class DefaultSearchContext extends SearchContext {
 
     private final ReaderContext readerContext;
