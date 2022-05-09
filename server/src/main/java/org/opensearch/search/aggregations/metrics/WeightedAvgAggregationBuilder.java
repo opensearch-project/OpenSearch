@@ -58,6 +58,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for weighted_avg agg
+ *
+ * @opensearch.internal
+ */
 public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationBuilder.LeafOnly<WeightedAvgAggregationBuilder> {
     public static final String NAME = "weighted_avg";
     public static final ParseField VALUE_FIELD = new ParseField("value");

@@ -56,6 +56,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get indices stats
+ *
+ * @opensearch.api
+ */
 public class RestIndicesStatsAction extends BaseRestHandler {
 
     @Override

@@ -39,6 +39,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 /**
  * A TaskListener that just logs the response at the info level. Used when we
  * need a listener but aren't returning the result to the user.
+ *
+ * @opensearch.internal
  */
 public final class LoggingTaskListener<Response> implements TaskListener<Response> {
     private static final Logger logger = LogManager.getLogger(LoggingTaskListener.class);

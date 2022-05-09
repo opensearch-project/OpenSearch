@@ -42,6 +42,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a max bucket
+ *
+ * @opensearch.internal
+ */
 public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
     private List<String> maxBucketKeys;
     private double maxValue;

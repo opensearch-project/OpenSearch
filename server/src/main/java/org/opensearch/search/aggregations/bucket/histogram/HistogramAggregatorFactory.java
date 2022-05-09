@@ -51,6 +51,8 @@ import java.util.Map;
 /**
  * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
  * field type.
+ *
+ * @opensearch.internal
  */
 public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 

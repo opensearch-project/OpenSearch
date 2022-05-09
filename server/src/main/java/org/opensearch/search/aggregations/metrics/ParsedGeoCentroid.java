@@ -43,6 +43,8 @@ import java.io.IOException;
 
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
+ *
+ * @opensearch.internal
  */
 public class ParsedGeoCentroid extends ParsedAggregation implements GeoCentroid {
     private GeoPoint centroid;

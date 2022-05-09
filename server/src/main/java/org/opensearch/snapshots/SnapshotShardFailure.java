@@ -51,6 +51,8 @@ import java.util.Objects;
 
 /**
  * Stores information about failures that occurred during shard snapshotting process
+ *
+ * @opensearch.internal
  */
 public class SnapshotShardFailure extends ShardOperationFailedException {
 

@@ -74,6 +74,11 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.search.suggest.SuggestBuilders.termSuggestion;
 
+/**
+ * Transport action to perform a search
+ *
+ * @opensearch.api
+ */
 public class RestSearchAction extends BaseRestHandler {
     /**
      * Indicates whether hits.total should be rendered as an integer or an object

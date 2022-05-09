@@ -51,6 +51,8 @@ import java.util.List;
 
 /**
  * Aggregation phase of a search request, used to collect aggregations
+ *
+ * @opensearch.internal
  */
 public class AggregationPhase {
 

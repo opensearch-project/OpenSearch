@@ -42,6 +42,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregator supplier interface for terms agg
+ *
+ * @opensearch.internal
+ */
 interface TermsAggregatorSupplier {
     Aggregator build(
         String name,

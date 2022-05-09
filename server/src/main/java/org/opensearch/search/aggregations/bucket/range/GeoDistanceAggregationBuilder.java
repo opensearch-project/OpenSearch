@@ -65,6 +65,11 @@ import static org.opensearch.search.aggregations.bucket.range.RangeAggregator.Ra
 import static org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range.KEY_FIELD;
 import static org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range.TO_FIELD;
 
+/**
+ * Aggregation Builder for geo_distance agg
+ *
+ * @opensearch.internal
+ */
 public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilder<GeoDistanceAggregationBuilder> {
     public static final String NAME = "geo_distance";
     public static final ValuesSourceRegistry.RegistryKey<GeoDistanceAggregatorSupplier> REGISTRY_KEY =

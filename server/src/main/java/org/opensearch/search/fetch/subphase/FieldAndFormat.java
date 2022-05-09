@@ -49,6 +49,8 @@ import java.util.Objects;
 /**
  * Wrapper around a field name and the format that should be used to
  * display values of this field.
+ *
+ * @opensearch.internal
  */
 public final class FieldAndFormat implements Writeable, ToXContentObject {
     private static final ParseField FIELD_FIELD = new ParseField("field");

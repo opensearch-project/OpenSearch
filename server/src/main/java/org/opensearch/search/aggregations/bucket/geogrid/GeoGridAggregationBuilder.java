@@ -57,6 +57,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+/**
+ * Base Aggregation Builder for geohash_grid and geotile_grid aggs
+ *
+ * @opensearch.internal
+ */
 public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<GeoGridAggregationBuilder> {
     /* recognized field names in JSON */
     static final ParseField FIELD_PRECISION = new ParseField("precision");

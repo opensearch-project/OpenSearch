@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for filters agg
+ *
+ * @opensearch.internal
+ */
 public class FiltersAggregatorFactory extends AggregatorFactory {
 
     private final String[] keys;

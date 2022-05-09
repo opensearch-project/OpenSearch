@@ -44,6 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of geo bounds agg
+ *
+ * @opensearch.internal
+ */
 public class InternalGeoBounds extends InternalAggregation implements GeoBounds {
     public final double top;
     public final double bottom;

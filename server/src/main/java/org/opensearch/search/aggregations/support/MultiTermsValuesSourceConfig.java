@@ -25,6 +25,8 @@ import java.util.Objects;
 
 /**
  * A configuration that used by multi_terms aggregations.
+ *
+ * @opensearch.internal
  */
 public class MultiTermsValuesSourceConfig extends BaseMultiValuesSourceFieldConfig {
     private final ValueType userValueTypeHint;

@@ -36,6 +36,11 @@ import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.io.IOException;
 
+/**
+ * A global agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedGlobal extends ParsedSingleBucketAggregation implements Global {
 
     @Override

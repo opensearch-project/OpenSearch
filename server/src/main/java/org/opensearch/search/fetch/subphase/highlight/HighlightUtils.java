@@ -46,6 +46,11 @@ import java.util.List;
 
 import static java.util.Collections.singleton;
 
+/**
+ * Utility class used during the highlight phase of the search request.
+ *
+ * @opensearch.internal
+ */
 public final class HighlightUtils {
 
     // U+2029 PARAGRAPH SEPARATOR (PS): each value holds a discrete passage for highlighting (unified highlighter)

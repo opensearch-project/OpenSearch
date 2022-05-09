@@ -40,6 +40,8 @@ import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 
 /**
  * Heuristic for that {@link SignificantTerms} uses to pick out significant terms.
+ *
+ * @opensearch.internal
  */
 public abstract class SignificanceHeuristic implements NamedWriteable, ToXContentFragment {
     /**

@@ -51,6 +51,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for geo_tile grid agg
+ *
+ * @opensearch.internal
+ */
 public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int precision;

@@ -58,6 +58,11 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 
+/**
+ * Internal coordination class for composite aggs
+ *
+ * @opensearch.internal
+ */
 public class InternalComposite extends InternalMultiBucketAggregation<InternalComposite, InternalComposite.InternalBucket>
     implements
         CompositeAggregation {

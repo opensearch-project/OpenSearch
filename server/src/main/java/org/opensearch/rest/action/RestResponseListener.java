@@ -38,6 +38,8 @@ import org.opensearch.rest.RestResponse;
 /**
  * A REST enabled action listener that has a basic onFailure implementation, and requires
  * sub classes to only implement {@link #buildResponse(Object)}.
+ *
+ * @opensearch.api
  */
 public abstract class RestResponseListener<Response> extends RestActionListener<Response> {
 

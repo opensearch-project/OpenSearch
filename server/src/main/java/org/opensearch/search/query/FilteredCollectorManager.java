@@ -17,6 +17,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 
+/**
+ * Manager for the FilteredCollector
+ *
+ * @opensearch.internal
+ */
 class FilteredCollectorManager implements CollectorManager<FilteredCollector, ReduceableSearchResult> {
     private final CollectorManager<? extends Collector, ReduceableSearchResult> manager;
     private final Weight filter;

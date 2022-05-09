@@ -44,6 +44,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * A scripted metric result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedScriptedMetric extends ParsedAggregation implements ScriptedMetric {
     private List<Object> aggregation;
 

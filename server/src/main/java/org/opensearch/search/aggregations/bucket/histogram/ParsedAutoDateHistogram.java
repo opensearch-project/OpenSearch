@@ -43,6 +43,11 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 
+/**
+ * A auto date histogram result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<ParsedAutoDateHistogram.ParsedBucket> implements Histogram {
 
     @Override

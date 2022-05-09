@@ -18,6 +18,8 @@ import java.util.Locale;
 
 /**
  * Composite Aggregation Missing bucket order.
+ *
+ * @opensearch.internal
  */
 public enum MissingOrder implements Writeable {
     /**

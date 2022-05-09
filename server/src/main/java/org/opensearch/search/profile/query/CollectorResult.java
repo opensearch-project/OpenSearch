@@ -53,6 +53,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  * Public interface and serialization container for profiled timings of the
  * Collectors used in the search.  Children CollectorResult's may be
  * embedded inside of a parent CollectorResult
+ *
+ * @opensearch.internal
  */
 public class CollectorResult implements ToXContentObject, Writeable {
 

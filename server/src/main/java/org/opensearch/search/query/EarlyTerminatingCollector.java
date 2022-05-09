@@ -43,6 +43,8 @@ import java.io.IOException;
 
 /**
  * A {@link Collector} that early terminates collection after <code>maxCountHits</code> docs have been collected.
+ *
+ * @opensearch.internal
  */
 public class EarlyTerminatingCollector extends FilterCollector {
     static final class EarlyTerminationException extends RuntimeException {

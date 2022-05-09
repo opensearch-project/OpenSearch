@@ -58,6 +58,8 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * Implementations for {@link Bucket} ordering strategies.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalOrder extends BucketOrder {
     // TODO merge the contents of this file into BucketOrder. The way it is now is relic.

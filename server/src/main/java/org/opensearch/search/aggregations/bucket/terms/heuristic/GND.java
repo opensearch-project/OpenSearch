@@ -41,6 +41,11 @@ import java.io.IOException;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * GND significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class GND extends NXYSignificanceHeuristic {
     public static final String NAME = "gnd";
     public static final ConstructingObjectParser<GND, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {

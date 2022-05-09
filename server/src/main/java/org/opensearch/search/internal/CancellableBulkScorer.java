@@ -42,6 +42,8 @@ import java.util.Objects;
 /**
  * A {@link BulkScorer} wrapper that runs a {@link Runnable} on a regular basis
  * so that the query can be interrupted.
+ *
+ * @opensearch.internal
  */
 final class CancellableBulkScorer extends BulkScorer {
 

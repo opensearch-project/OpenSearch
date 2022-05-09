@@ -12,6 +12,8 @@ import java.io.IOException;
 
 /**
  * The search result callback returned by reduce phase of the collector manager.
+ *
+ * @opensearch.internal
  */
 public interface ReduceableSearchResult {
     /**

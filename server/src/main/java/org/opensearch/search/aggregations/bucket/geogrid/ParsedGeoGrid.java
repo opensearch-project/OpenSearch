@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
+/**
+ * A geo grid result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedGeoGrid extends ParsedMultiBucketAggregation<ParsedGeoGridBucket> implements GeoGrid {
 
     @Override

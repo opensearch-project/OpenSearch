@@ -61,6 +61,11 @@ import java.util.function.IntConsumer;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
+/**
+ * Base class to collect all docs into buckets
+ *
+ * @opensearch.internal
+ */
 public abstract class BucketsAggregator extends AggregatorBase {
 
     private final BigArrays bigArrays;

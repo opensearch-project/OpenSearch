@@ -35,6 +35,11 @@ package org.opensearch.search.profile.aggregation;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractInternalProfileTree;
 
+/**
+ * The profiling tree for different levels of agg profiling
+ *
+ * @opensearch.internal
+ */
 public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationProfileBreakdown, Aggregator> {
 
     @Override

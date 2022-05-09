@@ -34,6 +34,11 @@ package org.opensearch.search.aggregations.metrics;
 
 import java.util.Objects;
 
+/**
+ * Implementation of a percentile
+ *
+ * @opensearch.internal
+ */
 public class Percentile {
 
     private final double percent;

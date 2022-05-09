@@ -40,6 +40,11 @@ import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into an average bucket
+ *
+ * @opensearch.internal
+ */
 public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
     private int count = 0;
     private double sum = 0;

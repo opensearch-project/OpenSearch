@@ -43,6 +43,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Search context used during highlighting phase
+ *
+ * @opensearch.internal
+ */
 public class SearchHighlightContext {
 
     private final Map<String, Field> fields;

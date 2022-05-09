@@ -48,6 +48,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * Transport action to delete a document
+ *
+ * @opensearch.api
+ */
 public class RestDeleteAction extends BaseRestHandler {
 
     @Override

@@ -42,6 +42,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base class for all values source agg factories
+ *
+ * @opensearch.internal
+ */
 public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
 
     protected ValuesSourceConfig config;

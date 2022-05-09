@@ -53,6 +53,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.parseTypedKeysO
 
 /**
  * Represents a set of {@link Aggregation}s
+ *
+ * @opensearch.internal
  */
 public class Aggregations implements Iterable<Aggregation>, ToXContentFragment {
 

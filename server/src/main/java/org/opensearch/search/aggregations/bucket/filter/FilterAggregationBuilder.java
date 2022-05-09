@@ -51,6 +51,11 @@ import java.util.Objects;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
+/**
+ * Aggregation Builder for filter agg
+ *
+ * @opensearch.internal
+ */
 public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterAggregationBuilder> {
     public static final String NAME = "filter";
 

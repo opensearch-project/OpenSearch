@@ -39,6 +39,11 @@ import org.opensearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
 
+/**
+ * A value count agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedValueCount extends ParsedAggregation implements ValueCount {
 
     private long valueCount;

@@ -45,6 +45,8 @@ import java.util.function.LongUnaryOperator;
  * matches and then is able to replay a given subset of buckets. Exposes
  * mergeBuckets, which can be invoked by the aggregator when increasing the
  * rounding interval.
+ *
+ * @opensearch.internal
  */
 public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollector {
     public MergingBucketsDeferringCollector(SearchContext context, boolean isGlobal) {

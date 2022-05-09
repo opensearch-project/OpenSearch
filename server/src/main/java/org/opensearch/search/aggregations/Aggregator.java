@@ -54,6 +54,8 @@ import java.util.function.BiConsumer;
  * <p>
  * Be <strong>careful</strong> when adding methods to this class. If possible
  * make sure they have sensible default implementations.
+ *
+ * @opensearch.internal
  */
 public abstract class Aggregator extends BucketCollector implements Releasable {
 

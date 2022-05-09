@@ -47,6 +47,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for range agg
+ *
+ * @opensearch.internal
+ */
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
     public static final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(

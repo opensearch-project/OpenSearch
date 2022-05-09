@@ -36,6 +36,8 @@ import org.opensearch.search.aggregations.Aggregation;
 
 /**
  * A metric aggregation that computes both its final and intermediate states using scripts.
+ *
+ * @opensearch.internal
  */
 public interface ScriptedMetric extends Aggregation {
 

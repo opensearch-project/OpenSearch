@@ -64,6 +64,8 @@ import java.util.Objects;
  * After the deprecated parameters are removed, this class can be simplified greatly.  The legacy options
  * will be removed, and the mutual-exclusion checks can be done in the setters directly removing the need
  * for the enum and the complicated "state machine" logic
+ *
+ * @opensearch.internal
  */
 public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregationBuilder.class);

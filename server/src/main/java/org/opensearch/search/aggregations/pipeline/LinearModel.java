@@ -46,6 +46,8 @@ import java.util.Map;
 /**
  * Calculate a linearly weighted moving average, such that older values are
  * linearly less important.  "Time" is determined by position in collection
+ *
+ * @opensearch.internal
  */
 public class LinearModel extends MovAvgModel {
     public static final String NAME = "linear";

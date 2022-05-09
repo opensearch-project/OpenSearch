@@ -34,6 +34,8 @@ package org.opensearch.tasks;
 
 /**
  * Listener for Task success or failure.
+ *
+ * @opensearch.internal
  */
 public interface TaskListener<Response> {
     /**

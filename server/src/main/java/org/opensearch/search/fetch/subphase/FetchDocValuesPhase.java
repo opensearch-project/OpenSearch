@@ -49,6 +49,8 @@ import java.util.List;
  * Fetch sub phase which pulls data from doc values.
  *
  * Specifying {@code "docvalue_fields": ["field1", "field2"]}
+ *
+ * @opensearch.internal
  */
 public final class FetchDocValuesPhase implements FetchSubPhase {
 

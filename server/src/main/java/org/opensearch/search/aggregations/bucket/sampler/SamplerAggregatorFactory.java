@@ -42,6 +42,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for sampler agg
+ *
+ * @opensearch.internal
+ */
 public class SamplerAggregatorFactory extends AggregatorFactory {
 
     private final int shardSize;

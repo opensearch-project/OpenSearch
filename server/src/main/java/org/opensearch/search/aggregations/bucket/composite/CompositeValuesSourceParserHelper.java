@@ -50,6 +50,11 @@ import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * Helper class for obtaining values source parsers for different aggs
+ *
+ * @opensearch.internal
+ */
 public class CompositeValuesSourceParserHelper {
 
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser) {

@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 
 /**
  * Result of the {@link MultiTermsAggregator}.
+ *
+ * @opensearch.internal
  */
 public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, InternalMultiTerms.Bucket> {
     /**

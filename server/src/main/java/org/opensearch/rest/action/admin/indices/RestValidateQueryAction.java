@@ -56,6 +56,11 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * Transport action to validate a query
+ *
+ * @opensearch.api
+ */
 public class RestValidateQueryAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {

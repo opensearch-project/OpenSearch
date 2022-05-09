@@ -39,6 +39,8 @@ import java.util.List;
 /**
  * A multi bucket aggregation where the buckets are defined by a set of filters (a bucket per filter). Each bucket
  * will collect all documents matching its filter.
+ *
+ * @opensearch.internal
  */
 public interface Filters extends MultiBucketsAggregation {
 

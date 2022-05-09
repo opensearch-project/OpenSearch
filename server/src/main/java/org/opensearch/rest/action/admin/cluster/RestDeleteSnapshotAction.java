@@ -49,6 +49,8 @@ import static org.opensearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Deletes a snapshot
+ *
+ * @opensearch.api
  */
 public class RestDeleteSnapshotAction extends BaseRestHandler {
 

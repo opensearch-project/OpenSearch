@@ -42,6 +42,8 @@ import java.util.function.Function;
 
 /**
  * Content listener that extracts that {@link RestStatus} from the response.
+ *
+ * @opensearch.api
  */
 public class RestStatusToXContentListener<Response extends StatusToXContentObject> extends RestToXContentListener<Response> {
     private final Function<Response, String> extractLocation;

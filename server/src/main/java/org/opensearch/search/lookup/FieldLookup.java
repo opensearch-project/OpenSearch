@@ -37,6 +37,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Look up a field
+ *
+ * @opensearch.internal
+ */
 public class FieldLookup {
 
     // we can cached fieldType completely per name, since its on an index/shard level (the lookup, and it does not change within the scope
