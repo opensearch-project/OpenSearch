@@ -56,6 +56,11 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT;
 
+/**
+ * The context used during query collection
+ *
+ * @opensearch.internal
+ */
 public abstract class QueryCollectorContext {
     private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
         @Override

@@ -34,6 +34,11 @@ package org.opensearch.search.profile.query;
 
 import java.util.Locale;
 
+/**
+ * Different profile levels of the query
+ *
+ * @opensearch.internal
+ */
 public enum QueryTimingType {
     CREATE_WEIGHT,
     BUILD_SCORER,

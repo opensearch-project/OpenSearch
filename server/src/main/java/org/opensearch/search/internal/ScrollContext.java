@@ -36,7 +36,11 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.search.Scroll;
 
-/** Wrapper around information that needs to stay around when scrolling. */
+/**
+ * Wrapper around information that needs to stay around when scrolling.
+ *
+ * @opensearch.internal
+ */
 public final class ScrollContext {
     public TotalHits totalHits = null;
     public float maxScore = Float.NaN;

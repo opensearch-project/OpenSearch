@@ -67,6 +67,8 @@ import static org.opensearch.common.xcontent.ObjectParser.fromList;
  * are summarized to show only selected snippets ("fragments") containing search terms.
  *
  * @see org.opensearch.search.builder.SearchSourceBuilder#highlight()
+ *
+ * @opensearch.internal
  */
 public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> {
     /** default for whether to highlight fields based on the source even if stored separately */

@@ -38,6 +38,11 @@ import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;
 
+/**
+ * The collector for the agg profiles
+ *
+ * @opensearch.internal
+ */
 public class ProfilingLeafBucketCollector extends LeafBucketCollector {
 
     private LeafBucketCollector delegate;

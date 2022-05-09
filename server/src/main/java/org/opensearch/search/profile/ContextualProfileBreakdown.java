@@ -11,6 +11,8 @@ package org.opensearch.search.profile;
 /**
  * Provide contextual profile breakdowns which are associated with freestyle context. Used when concurrent
  * search over segments is activated and each collector needs own non-shareable profile breakdown instance.
+ *
+ * @opensearch.internal
  */
 public abstract class ContextualProfileBreakdown<T extends Enum<T>> extends AbstractProfileBreakdown<T> {
     public ContextualProfileBreakdown(Class<T> clazz) {
