@@ -97,6 +97,7 @@ public final class EngineConfig {
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
+    private boolean isReadOnlyReplica;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -171,7 +172,8 @@ public final class EngineConfig {
         LongSupplier globalCheckpointSupplier,
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
-        TombstoneDocSupplier tombstoneDocSupplier
+        TombstoneDocSupplier tombstoneDocSupplier,
+        boolean isReadOnlyReplica
     ) {
         this(
             shardId,
@@ -196,7 +198,8 @@ public final class EngineConfig {
             globalCheckpointSupplier,
             retentionLeasesSupplier,
             primaryTermSupplier,
-            tombstoneDocSupplier
+            tombstoneDocSupplier,
+            isReadOnlyReplica
         );
     }
 
@@ -226,7 +229,8 @@ public final class EngineConfig {
         LongSupplier globalCheckpointSupplier,
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
-        TombstoneDocSupplier tombstoneDocSupplier
+        TombstoneDocSupplier tombstoneDocSupplier,
+        boolean isReadOnlyReplica
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -266,6 +270,7 @@ public final class EngineConfig {
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
         this.tombstoneDocSupplier = tombstoneDocSupplier;
+        this.isReadOnlyReplica = isReadOnlyReplica;
     }
 
     /**
@@ -458,6 +463,16 @@ public final class EngineConfig {
      */
     public LongSupplier getPrimaryTermSupplier() {
         return primaryTermSupplier;
+    }
+
+    /**
+     * Returns if this replica should be wired as a read only.
+     * This is used for Segment Replication where the engine implementation used is dependent on
+     * if the shard is a primary/replica.
+     * @return true if this engine should be wired as read only.
+     */
+    public boolean isReadOnlyReplica() {
+        return isReadOnlyReplica;
     }
 
     /**

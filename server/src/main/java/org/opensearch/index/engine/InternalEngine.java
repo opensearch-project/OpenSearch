@@ -49,6 +49,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.apache.lucene.search.BooleanClause;
@@ -2093,6 +2094,23 @@ public class InternalEngine extends TranslogAwareEngine {
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
+    }
+
+    @Override
+    public SegmentInfos getLatestSegmentInfos() {
+        OpenSearchDirectoryReader reader = null;
+        try {
+            reader = externalReaderManager.internalReaderManager.acquire();
+            return ((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos();
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        } finally {
+            try {
+                externalReaderManager.internalReaderManager.release(reader);
+            } catch (IOException e) {
+                throw new EngineException(shardId, e.getMessage(), e);
+            }
+        }
     }
 
     @Override
