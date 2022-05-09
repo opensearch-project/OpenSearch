@@ -49,6 +49,8 @@ import java.io.IOException;
 
 /**
  * Regular expression options for completion suggester
+ *
+ * @opensearch.internal
  */
 public class RegexOptions implements ToXContentFragment, Writeable {
     static final ParseField REGEX_OPTIONS = new ParseField("regex");

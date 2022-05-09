@@ -43,7 +43,7 @@ import java.util.Locale;
 /**
  * A sorting order.
  *
- *
+ * @opensearch.internal
  */
 public enum SortOrder implements Writeable {
     /**

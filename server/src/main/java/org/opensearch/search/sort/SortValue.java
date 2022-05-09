@@ -45,6 +45,8 @@ import java.util.List;
 
 /**
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
+ *
+ * @opensearch.internal
  */
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
     /**

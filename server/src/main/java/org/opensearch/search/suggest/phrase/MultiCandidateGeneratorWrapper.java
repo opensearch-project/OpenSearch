@@ -39,7 +39,12 @@ import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSe
 import java.io.IOException;
 import java.util.Arrays;
 
-//TODO public for tests
+/**
+ * Wrapper for a multi-candidate generator
+ *
+ * @opensearch.internal
+ */
+// TODO public for tests
 public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
 
     private final CandidateGenerator[] candidateGenerator;

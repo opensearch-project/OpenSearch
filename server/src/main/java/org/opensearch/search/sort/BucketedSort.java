@@ -92,6 +92,8 @@ import static java.util.Collections.emptyList;
  * (like {@link BigArrays#overSize(long)}) to get amortized linear number
  * of allocations and to play well with our paged arrays.
  * </p>
+ *
+ * @opensearch.internal
  */
 public abstract class BucketedSort implements Releasable {
     /**

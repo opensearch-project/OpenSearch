@@ -38,6 +38,11 @@ import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 
 import java.io.IOException;
 
+/**
+ * Scorer implementation based on a laplace computation
+ *
+ * @opensearch.internal
+ */
 final class LaplaceScorer extends WordScorer {
     private double alpha;
 

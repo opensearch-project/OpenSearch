@@ -45,6 +45,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Spell checker based on a noisy channel
+ *
+ * @opensearch.internal
+ */
 final class NoisyChannelSpellChecker {
     public static final double REAL_WORD_LIKELIHOOD = 0.95d;
     public static final int DEFAULT_TOKEN_LIMIT = 10;

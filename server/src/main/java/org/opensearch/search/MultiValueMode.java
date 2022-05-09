@@ -58,6 +58,8 @@ import java.util.Locale;
 
 /**
  * Defines what values to pick in the case a document contains multiple values for a particular field.
+ *
+ * @opensearch.internal
  */
 public enum MultiValueMode implements Writeable {
     /**
