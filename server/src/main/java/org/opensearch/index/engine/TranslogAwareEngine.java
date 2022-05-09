@@ -47,11 +47,14 @@ public abstract class TranslogAwareEngine extends Engine {
             customTranslogDeletionPolicy = engineConfig.getCustomTranslogDeletionPolicyFactory()
                 .create(engineConfig.getIndexSettings(), engineConfig.retentionLeasesSupplier());
         }
-        translogDeletionPolicy = Objects.requireNonNullElseGet(customTranslogDeletionPolicy, () -> new DefaultTranslogDeletionPolicy(
-            engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
-            engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
-            engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
-        ));
+        translogDeletionPolicy = Objects.requireNonNullElseGet(
+            customTranslogDeletionPolicy,
+            () -> new DefaultTranslogDeletionPolicy(
+                engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
+                engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
+            )
+        );
         try {
             store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
             translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(), seqNo -> {

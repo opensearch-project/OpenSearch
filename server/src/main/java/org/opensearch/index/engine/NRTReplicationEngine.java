@@ -50,25 +50,26 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             readerManager = new NRTReplicationReaderManager(OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId));
-            final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(this.lastCommittedSegmentInfos.getUserData().entrySet());
+            final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+                this.lastCommittedSegmentInfos.getUserData().entrySet()
+            );
             this.localCheckpointTracker = new LocalCheckpointTracker(commitInfo.maxSeqNo, commitInfo.localCheckpoint);
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager.addListener(completionStatsCache);
         } catch (IOException e) {
-                IOUtils.closeWhileHandlingException(store::decRef, translog);
+            IOUtils.closeWhileHandlingException(store::decRef, translog);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
         }
     }
 
-    public synchronized void updateSegments(final SegmentInfos infos, long seqNo)
-        throws IOException {
+    public synchronized void updateSegments(final SegmentInfos infos, long seqNo) throws IOException {
         try {
             store.incRef();
             // Update the current infos reference on the Engine's reader.
             readerManager.updateSegments(infos);
 
             // only update the persistedSeqNo and "lastCommitted" infos reference if the incoming segments have a higher
-            // generation.  We can still refresh with incoming SegmentInfos that are not part of a commit point.
+            // generation. We can still refresh with incoming SegmentInfos that are not part of a commit point.
             if (infos.getGeneration() > lastCommittedSegmentInfos.getGeneration()) {
                 this.lastCommittedSegmentInfos = infos;
                 localCheckpointTracker.fastForwardPersistedSeqNo(seqNo);
@@ -106,12 +107,7 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
-        IndexResult indexResult = new IndexResult(
-            index.version(),
-            index.primaryTerm(),
-            index.seqNo(),
-            false
-        );
+        IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
         addIndexOperationToTranslog(index, indexResult);
         indexResult.setTook(System.nanoTime() - index.startTime());
         indexResult.freeze();
@@ -121,12 +117,7 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
-        DeleteResult deleteResult = new DeleteResult(
-            delete.version(),
-            delete.primaryTerm(),
-            delete.seqNo(),
-            true
-        );
+        DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
         addDeleteOperationToTranslog(delete, deleteResult);
         deleteResult.setTook(System.nanoTime() - delete.startTime());
         deleteResult.freeze();
@@ -161,7 +152,13 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange, boolean accurateCount) throws IOException {
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean accurateCount
+    ) throws IOException {
         throw new UnsupportedOperationException("Not implemented");
     }
 
@@ -169,7 +166,6 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNumber) throws IOException {
         return 0;
     }
-
 
     @Override
     public boolean hasCompleteOperationHistory(String reason, long startingSeqNo) {
@@ -229,9 +225,15 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {}
 
-
     @Override
-    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) throws EngineException, IOException {}
+    public void forceMerge(
+        boolean flush,
+        int maxNumSegments,
+        boolean onlyExpungeDeletes,
+        boolean upgrade,
+        boolean upgradeOnlyAncientSegments,
+        String forceMergeUUID
+    ) throws EngineException, IOException {}
 
     @Override
     public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
@@ -323,9 +325,6 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
 
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
-        return new SoftDeletesDirectoryReaderWrapper(
-            DirectoryReader.open(store.directory()),
-            Lucene.SOFT_DELETES_FIELD
-        );
+        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
     }
 }

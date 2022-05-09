@@ -10,11 +10,9 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.hamcrest.MatcherAssert;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.Queries;
-import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -29,8 +27,10 @@ public class NRTReplicationEngineTest extends EngineTestCase {
 
     public void testCreateEngine() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        try (final Store nrtEngineStore = createStore();
-             final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore);) {
+        try (
+            final Store nrtEngineStore = createStore();
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore);
+        ) {
             final SegmentInfos latestSegmentInfos = nrtEngine.getLatestSegmentInfos();
             final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
             assertEquals(latestSegmentInfos.version, lastCommittedSegmentInfos.version);
@@ -44,9 +44,16 @@ public class NRTReplicationEngineTest extends EngineTestCase {
     public void testEngineWritesOpsToTranslog() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
-        try (final Store nrtEngineStore = createStore();
-             final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore);) {
-            List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
+        try (
+            final Store nrtEngineStore = createStore();
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore);
+        ) {
+            List<Engine.Operation> operations = generateHistoryOnReplica(
+                between(1, 500),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
             for (Engine.Operation op : operations) {
                 applyOperation(engine, op);
                 applyOperation(nrtEngine, op);
@@ -70,10 +77,15 @@ public class NRTReplicationEngineTest extends EngineTestCase {
     public void testUpdateSegments() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
-        try (final Store nrtEngineStore = createStore();
-             final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore);) {
+        try (
+            final Store nrtEngineStore = createStore();
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore);
+        ) {
             // add docs to the primary engine.
-            List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean()).stream().filter(op -> op.operationType().equals(Engine.Operation.TYPE.INDEX)).collect(Collectors.toList());
+            List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean())
+                .stream()
+                .filter(op -> op.operationType().equals(Engine.Operation.TYPE.INDEX))
+                .collect(Collectors.toList());
             for (Engine.Operation op : operations) {
                 applyOperation(engine, op);
                 applyOperation(nrtEngine, op);
@@ -116,7 +128,15 @@ public class NRTReplicationEngineTest extends EngineTestCase {
     private NRTReplicationEngine buildNrtReplicaEngine(AtomicLong globalCheckpoint, Store store) throws IOException {
         Lucene.cleanLuceneIndex(store.directory());
         final Path translogDir = createTempDir();
-        final EngineConfig replicaConfig = config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+        final EngineConfig replicaConfig = config(
+            defaultSettings,
+            store,
+            translogDir,
+            NoMergePolicy.INSTANCE,
+            null,
+            null,
+            globalCheckpoint::get
+        );
         if (Lucene.indexExists(store.directory()) == false) {
             store.createEmpty(replicaConfig.getIndexSettings().getIndexVersionCreated().luceneVersion);
             final String translogUuid = Translog.createEmptyTranslog(

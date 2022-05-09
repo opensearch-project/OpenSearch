@@ -18,7 +18,6 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;

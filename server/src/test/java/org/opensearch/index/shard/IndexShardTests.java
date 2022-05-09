@@ -4399,10 +4399,8 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(replicaShard.getEngine().config().isReadOnlyReplica());
         assertEquals(replicaShard.getEngine().getClass(), NRTReplicationEngine.class);
 
-
         closeShards(primaryShard, replicaShard);
     }
-
 
     public void testCloseShardWhileEngineIsWarming() throws Exception {
         CountDownLatch warmerStarted = new CountDownLatch(1);

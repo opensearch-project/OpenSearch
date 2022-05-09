@@ -514,7 +514,8 @@ public class InternalEngine extends TranslogAwareEngine {
         flush(false, true);
         translog.trimUnreferencedReaders();
     }
-        // Package private for testing purposes only
+
+    // Package private for testing purposes only
     boolean hasSnapshottedCommits() {
         return combinedDeletionPolicy.hasSnapshottedCommits();
     }
@@ -542,7 +543,6 @@ public class InternalEngine extends TranslogAwareEngine {
     public long getWritingBytes() {
         return indexWriter.getFlushingBytes() + versionMap.getRefreshingBytes();
     }
-
 
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
         boolean success = false;
