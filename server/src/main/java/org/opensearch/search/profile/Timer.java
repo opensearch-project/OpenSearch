@@ -45,6 +45,8 @@ package org.opensearch.search.profile;
  *    timer.stop();
  *  }
  *  </pre>
+ *
+ *  @opensearch.internal
  */
 public class Timer {
 

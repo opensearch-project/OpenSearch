@@ -48,6 +48,8 @@ import java.util.Objects;
  * A Profiler is associated with every Search, not per Search-Request. E.g. a
  * request may execute two searches (query + global agg).  A Profiler just
  * represents one of those
+ *
+ * @opensearch.internal
  */
 public final class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown<QueryTimingType>, Query> {
 

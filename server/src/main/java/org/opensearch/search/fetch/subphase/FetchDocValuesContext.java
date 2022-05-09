@@ -41,6 +41,8 @@ import java.util.function.Function;
 
 /**
  * All the required context to pull a field from the doc values.
+ *
+ * @opensearch.internal
  */
 public class FetchDocValuesContext {
     private final List<FieldAndFormat> fields;

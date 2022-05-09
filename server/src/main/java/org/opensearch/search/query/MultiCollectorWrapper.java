@@ -22,6 +22,8 @@ import java.util.List;
 /**
  * Wraps MultiCollector and provide access to underlying collectors.
  * Please check out https://github.com/apache/lucene/pull/455.
+ *
+ * @opensearch.internal
  */
 public class MultiCollectorWrapper implements Collector {
     private final MultiCollector delegate;

@@ -44,6 +44,11 @@ import org.opensearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Internal builder used during source score lookup
+ *
+ * @opensearch.internal
+ */
 public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
     private final MappedFieldType fieldType;

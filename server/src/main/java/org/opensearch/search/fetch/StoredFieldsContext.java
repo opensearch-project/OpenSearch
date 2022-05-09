@@ -50,6 +50,8 @@ import java.util.Objects;
 
 /**
  * Context used to fetch the {@code stored_fields}.
+ *
+ * @opensearch.internal
  */
 public class StoredFieldsContext implements Writeable {
     public static final String _NONE_ = "_none_";

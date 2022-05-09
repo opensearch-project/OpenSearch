@@ -19,6 +19,8 @@ import java.util.LinkedList;
 /**
  * The extension point which allows to plug in custom search implementation to be
  * used at {@link QueryPhase}.
+ *
+ * @opensearch.internal
  */
 public interface QueryPhaseSearcher {
     /**

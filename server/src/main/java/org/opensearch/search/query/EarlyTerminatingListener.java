@@ -11,6 +11,8 @@ package org.opensearch.search.query;
 /**
  * Early termination event listener. It is used during concurrent segment search
  * to propagate the early termination intent.
+ *
+ * @opensearch.internal
  */
 public interface EarlyTerminatingListener {
     /**

@@ -51,6 +51,8 @@ import java.util.Set;
 /**
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
+ *
+ * @opensearch.internal
  */
 public class FieldFetcher {
     public static FieldFetcher create(QueryShardContext context, SearchLookup searchLookup, Collection<FieldAndFormat> fieldAndFormats) {
