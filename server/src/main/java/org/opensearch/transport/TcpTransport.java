@@ -109,6 +109,11 @@ import static org.opensearch.common.transport.NetworkExceptionHelper.isCloseConn
 import static org.opensearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
+/**
+ * The TCP Transport layer
+ *
+ * @opensearch.internal
+ */
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
 

@@ -47,6 +47,11 @@ import java.util.ArrayDeque;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
+/**
+ * Decompresses data over the transport wire
+ *
+ * @opensearch.internal
+ */
 public class TransportDecompressor implements Closeable {
 
     private final Inflater inflater;

@@ -42,6 +42,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * Future for transporting data
+ *
+ * @opensearch.internal
+ */
 public class PlainTransportFuture<V extends TransportResponse> extends BaseFuture<V>
     implements
         TransportFuture<V>,

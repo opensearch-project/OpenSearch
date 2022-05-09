@@ -40,6 +40,8 @@ import java.net.InetSocketAddress;
  * This is a tcp channel representing a server channel listening for new connections. It is the server
  * channel abstraction used by the {@link TcpTransport} and {@link TransportService}. All tcp transport
  * implementations must return server channels that adhere to the required method contracts.
+ *
+ * @opensearch.internal
  */
 public interface TcpServerChannel extends CloseableChannel {
 

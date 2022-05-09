@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Thrown if there is an error serializing data for transport
+ *
+ * @opensearch.internal
+ */
 public class TransportSerializationException extends TransportException {
 
     public TransportSerializationException(StreamInput in) throws IOException {

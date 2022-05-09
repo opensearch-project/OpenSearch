@@ -48,6 +48,11 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/**
+ * Aggregates inbound data
+ *
+ * @opensearch.internal
+ */
 public class InboundAggregator implements Releasable {
 
     private final Supplier<CircuitBreaker> circuitBreaker;
