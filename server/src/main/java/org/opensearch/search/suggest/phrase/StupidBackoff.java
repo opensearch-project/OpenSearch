@@ -55,6 +55,8 @@ import java.util.Objects;
  * href="http://en.wikipedia.org/wiki/N-gram#Smoothing_techniques">N-Gram
  * Smoothing</a> for details.
  * </p>
+ *
+ * @opensearch.internal
  */
 public final class StupidBackoff extends SmoothingModel {
     /**

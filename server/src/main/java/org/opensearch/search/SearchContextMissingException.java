@@ -40,6 +40,11 @@ import org.opensearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
 
+/**
+ * Error thrown if no search context is available
+ *
+ * @opensearch.internal
+ */
 public class SearchContextMissingException extends OpenSearchException {
 
     private final ShardSearchContextId contextId;

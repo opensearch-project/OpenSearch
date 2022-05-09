@@ -41,6 +41,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Main error thrown if there is a problem during parsing a query
+ *
+ * @opensearch.internal
+ */
 public class SearchParseException extends SearchException {
 
     public static final int UNKNOWN_POSITION = -1;

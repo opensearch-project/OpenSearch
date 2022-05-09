@@ -77,6 +77,8 @@ import static org.opensearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
+ *
+ * @opensearch.internal
  */
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptSortBuilder.class);

@@ -75,6 +75,8 @@ import static org.opensearch.geometry.utils.Geohash.stringEncode;
  *
  * {@link GeoQueryContext} defines the options for constructing
  * a unit of query context for this context type
+ *
+ * @opensearch.internal
  */
 public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
 
