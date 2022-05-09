@@ -60,6 +60,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * Aggregate all docs that match multiple filters.
+ *
+ * @opensearch.internal
+ */
 public class FiltersAggregator extends BucketsAggregator {
 
     public static final ParseField FILTERS_FIELD = new ParseField("filters");

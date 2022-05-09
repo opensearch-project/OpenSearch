@@ -66,6 +66,7 @@ import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBui
 /**
  * Aggregation for adjacency matrices.
  *
+ * @opensearch.internal
  */
 public class AdjacencyMatrixAggregator extends BucketsAggregator {
 

@@ -39,6 +39,11 @@ import org.opensearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
 
+/**
+ * A cardinality agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedCardinality extends ParsedAggregation implements Cardinality {
 
     private long cardinalityValue;

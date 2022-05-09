@@ -51,6 +51,11 @@ import static org.opensearch.common.geo.GeoBoundingBox.LON_FIELD;
 import static org.opensearch.common.geo.GeoBoundingBox.TOP_LEFT_FIELD;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * A geo bounds agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
 
     // A top of Double.NEGATIVE_INFINITY yields an empty xContent, so the bounding box is null

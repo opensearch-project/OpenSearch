@@ -88,6 +88,8 @@ import java.util.stream.StreamSupport;
  * or because of summing to zero).  Pipeline aggs in particular are not well supported
  * by these helpers since most share InternalSimpleValue and it's not clear which pipeline
  * generated the value.
+ *
+ * @opensearch.internal
  */
 public class AggregationInspectionHelper {
     public static <A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>> boolean hasValue(InternalTerms<A, B> agg) {

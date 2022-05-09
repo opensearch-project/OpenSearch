@@ -36,6 +36,8 @@ import org.opensearch.common.Rounding;
 
 /**
  * An aggregator capable of reporting bucket sizes in milliseconds. Used by RateAggregator for calendar-based buckets.
+ *
+ * @opensearch.internal
  */
 public interface SizedBucketAggregator {
     double bucketSize(long bucket, Rounding.DateTimeUnit unit);

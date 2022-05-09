@@ -45,6 +45,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+/**
+ * Aggregator that defers collecting docs based on some metric
+ *
+ * @opensearch.internal
+ */
 public abstract class DeferableBucketAggregator extends BucketsAggregator {
     /**
      * Wrapper that records collections. Non-null if any aggregations have

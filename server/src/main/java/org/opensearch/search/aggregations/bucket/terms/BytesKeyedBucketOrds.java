@@ -41,6 +41,8 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 
 /**
  * Maps {@link BytesRef} bucket keys to bucket ordinals.
+ *
+ * @opensearch.internal
  */
 public abstract class BytesKeyedBucketOrds implements Releasable {
     /**

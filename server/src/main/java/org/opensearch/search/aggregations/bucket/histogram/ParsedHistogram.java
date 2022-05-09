@@ -39,6 +39,11 @@ import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * A histogram result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedHistogram extends ParsedMultiBucketAggregation<ParsedHistogram.ParsedBucket> implements Histogram {
 
     @Override

@@ -40,6 +40,11 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 
+/**
+ * A significant rare  result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedStringRareTerms extends ParsedRareTerms {
     @Override
     public String getType() {

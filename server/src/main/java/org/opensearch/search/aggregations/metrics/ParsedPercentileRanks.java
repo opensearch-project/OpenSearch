@@ -32,6 +32,11 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+/**
+ * A percentiles agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 abstract class ParsedPercentileRanks extends ParsedPercentiles implements PercentileRanks {
 
     @Override

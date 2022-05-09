@@ -54,6 +54,8 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 /**
  * A {@link SingleDimensionValuesSource} for global ordinals.
+ *
+ * @opensearch.internal
  */
 class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;

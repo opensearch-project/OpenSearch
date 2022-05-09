@@ -48,6 +48,8 @@ import java.util.Objects;
 
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
+ *
+ * @opensearch.internal
  */
 public class InternalGeoCentroid extends InternalAggregation implements GeoCentroid {
     private final GeoPoint centroid;

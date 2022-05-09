@@ -55,6 +55,8 @@ import static org.opensearch.search.aggregations.bucket.missing.MissingOrder.fro
 
 /**
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
+ *
+ * @opensearch.internal
  */
 public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSourceBuilder<AB>> implements Writeable, ToXContentFragment {
 

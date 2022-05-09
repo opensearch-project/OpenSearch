@@ -39,6 +39,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for min_bucket
+ *
+ * @opensearch.internal
+ */
 public class MinBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<MinBucketPipelineAggregationBuilder> {
     public static final String NAME = "min_bucket";
 

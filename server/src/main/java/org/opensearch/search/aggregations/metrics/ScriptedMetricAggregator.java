@@ -56,6 +56,11 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 
+/**
+ * Aggregate all docs based on a value script
+ *
+ * @opensearch.internal
+ */
 class ScriptedMetricAggregator extends MetricsAggregator {
     /**
      * Estimated cost to maintain a bucket. Since this aggregator uses

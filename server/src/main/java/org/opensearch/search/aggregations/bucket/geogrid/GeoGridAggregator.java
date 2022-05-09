@@ -54,6 +54,8 @@ import java.util.Map;
 
 /**
  * Aggregates data expressed as longs (for efficiency's sake) but formats results as aggregation-specific strings.
+ *
+ * @opensearch.internal
  */
 public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends BucketsAggregator {
 

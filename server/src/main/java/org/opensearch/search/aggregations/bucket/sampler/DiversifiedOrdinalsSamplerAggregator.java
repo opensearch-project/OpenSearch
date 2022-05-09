@@ -52,6 +52,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Aggregate all docs that match the diversified ordinal sample
+ *
+ * @opensearch.internal
+ */
 public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
 
     private ValuesSource.Bytes.WithOrdinals.FieldData valuesSource;

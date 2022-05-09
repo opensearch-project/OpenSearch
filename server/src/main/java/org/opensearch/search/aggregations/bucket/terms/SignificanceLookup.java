@@ -60,6 +60,8 @@ import java.io.IOException;
 
 /**
  * Looks up values used for {@link SignificanceHeuristic}s.
+ *
+ * @opensearch.internal
  */
 class SignificanceLookup {
     /**

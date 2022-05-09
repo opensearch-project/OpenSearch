@@ -55,6 +55,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for significant text agg
+ *
+ * @opensearch.internal
+ */
 public class SignificantTextAggregationBuilder extends AbstractAggregationBuilder<SignificantTextAggregationBuilder> {
     public static final String NAME = "significant_text";
 

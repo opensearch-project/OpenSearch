@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Implementation of an unmapped sampler
+ *
+ * @opensearch.internal
+ */
 public class UnmappedSampler extends InternalSampler {
     public static final String NAME = "unmapped_sampler";
 

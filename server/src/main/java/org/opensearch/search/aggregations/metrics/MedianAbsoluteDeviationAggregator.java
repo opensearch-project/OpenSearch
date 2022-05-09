@@ -53,6 +53,11 @@ import java.util.Objects;
 
 import static org.opensearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation;
 
+/**
+ * Aggregate all docs into a median absolute deviation
+ *
+ * @opensearch.internal
+ */
 public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ValuesSource.Numeric valuesSource;

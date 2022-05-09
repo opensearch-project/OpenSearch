@@ -54,6 +54,8 @@ import java.util.List;
 /**
  * A set of static helpers to simplify working with aggregation buckets, in
  * particular providing utilities that help pipeline aggregations.
+ *
+ * @opensearch.internal
  */
 public class BucketHelpers {
 

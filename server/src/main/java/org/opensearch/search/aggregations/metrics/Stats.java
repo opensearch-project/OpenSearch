@@ -33,6 +33,8 @@ package org.opensearch.search.aggregations.metrics;
 
 /**
  * Statistics over a set of values (either aggregated over field data or scripts)
+ *
+ * @opensearch.internal
  */
 public interface Stats extends NumericMetricsAggregation.MultiValue {
 

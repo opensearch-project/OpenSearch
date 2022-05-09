@@ -48,6 +48,8 @@ import static java.util.Collections.emptyList;
 
 /**
  * Result of the {@link TermsAggregator} when the field is unmapped.
+ *
+ * @opensearch.internal
  */
 public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bucket> {
     public static final String NAME = "umterms";

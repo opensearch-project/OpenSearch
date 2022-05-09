@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of extended stats agg
+ *
+ * @opensearch.internal
+ */
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
     enum Metrics {
 

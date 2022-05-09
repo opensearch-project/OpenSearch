@@ -37,6 +37,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A geo distance range agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedGeoDistance extends ParsedRange {
 
     @Override

@@ -40,6 +40,11 @@ import java.util.Map;
 
 import static org.opensearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
+/**
+ * Base factory to instantiate an internal aggregator
+ *
+ * @opensearch.internal
+ */
 public abstract class AggregatorFactory {
     protected final String name;
     protected final AggregatorFactory parent;

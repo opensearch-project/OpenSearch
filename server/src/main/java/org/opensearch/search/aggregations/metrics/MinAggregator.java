@@ -56,6 +56,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Aggregate all docs into a min value
+ *
+ * @opensearch.internal
+ */
 class MinAggregator extends NumericMetricsAggregator.SingleValue {
     private static final int MAX_BKD_LOOKUPS = 1024;
 

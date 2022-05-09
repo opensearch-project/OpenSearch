@@ -86,6 +86,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
+/**
+ * Main aggregator that aggregates docs from mulitple aggregations
+ *
+ * @opensearch.internal
+ */
 final class CompositeAggregator extends BucketsAggregator {
     private final int size;
     private final List<String> sourceNames;

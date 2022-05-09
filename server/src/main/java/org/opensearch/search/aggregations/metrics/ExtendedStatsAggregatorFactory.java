@@ -47,6 +47,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for extended_stats agg
+ *
+ * @opensearch.internal
+ */
 class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double sigma;

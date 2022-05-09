@@ -55,6 +55,8 @@ import static org.opensearch.search.aggregations.bucket.histogram.DoubleBounds.g
 /**
  * Base class for functionality shared between aggregators for this
  * {@code histogram} aggregation.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     protected final DocValueFormat formatter;

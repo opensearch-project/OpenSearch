@@ -48,6 +48,8 @@ import java.util.Iterator;
 
 /**
  * {@link LongValues} implementation which is based on a script
+ *
+ * @opensearch.internal
  */
 public class ScriptLongValues extends AbstractSortingNumericDocValues implements ScorerAware {
 

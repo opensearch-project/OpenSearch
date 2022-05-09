@@ -40,6 +40,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base Aggregator supplier interface for diversified sampling aggs
+ *
+ * @opensearch.internal
+ */
 public interface DiversifiedAggregatorSupplier {
     Aggregator build(
         String name,

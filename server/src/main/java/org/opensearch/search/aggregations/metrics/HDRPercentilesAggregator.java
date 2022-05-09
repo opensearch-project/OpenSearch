@@ -41,6 +41,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a single HDR percentile
+ *
+ * @opensearch.internal
+ */
 class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
 
     HDRPercentilesAggregator(

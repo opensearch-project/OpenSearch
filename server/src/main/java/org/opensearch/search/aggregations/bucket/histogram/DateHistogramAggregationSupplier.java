@@ -44,6 +44,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregator supplier interface for date_histogram agg
+ *
+ * @opensearch.internal
+ */
 @FunctionalInterface
 public interface DateHistogramAggregationSupplier {
     Aggregator build(

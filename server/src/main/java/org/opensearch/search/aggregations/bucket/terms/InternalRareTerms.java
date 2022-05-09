@@ -50,6 +50,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of rare terms
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B extends InternalRareTerms.Bucket<B>> extends
     InternalMultiBucketAggregation<A, B>
     implements

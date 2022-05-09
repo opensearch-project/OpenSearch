@@ -57,6 +57,11 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Aggregate all docs into a max value
+ *
+ * @opensearch.internal
+ */
 class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource.Numeric valuesSource;

@@ -40,6 +40,11 @@ import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a sum bucket
+ *
+ * @opensearch.internal
+ */
 public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
     private double sum = 0;
 
