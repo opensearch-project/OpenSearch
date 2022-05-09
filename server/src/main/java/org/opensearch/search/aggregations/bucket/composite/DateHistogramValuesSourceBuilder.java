@@ -69,6 +69,8 @@ import java.util.function.LongConsumer;
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
  * a field name using the provided interval.
+ *
+ * @opensearch.internal
  */
 public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder>
     implements

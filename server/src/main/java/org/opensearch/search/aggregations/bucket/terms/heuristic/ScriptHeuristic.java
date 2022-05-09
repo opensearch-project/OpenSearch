@@ -48,6 +48,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Script significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class ScriptHeuristic extends SignificanceHeuristic {
     public static final String NAME = "script_heuristic";
     public static final ConstructingObjectParser<ScriptHeuristic, Void> PARSER = new ConstructingObjectParser<>(

@@ -46,6 +46,11 @@ import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * A binary range agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinaryRange.ParsedBucket> implements Range {
 
     @Override

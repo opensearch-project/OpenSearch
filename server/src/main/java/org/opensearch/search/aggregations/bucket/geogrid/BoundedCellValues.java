@@ -39,6 +39,8 @@ import org.opensearch.index.fielddata.MultiGeoPointValues;
  * according to whether they are within the specified {@link GeoBoundingBox}.
  *
  * The specified bounding box is assumed to be bounded.
+ *
+ * @opensearch.internal
  */
 class BoundedCellValues extends CellValues {
 

@@ -43,6 +43,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base class for MultiValuesSource aggregator factories
+ *
+ * @opensearch.internal
+ */
 public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFactory {
 
     protected final Map<String, ValuesSourceConfig> configs;

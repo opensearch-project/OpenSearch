@@ -41,6 +41,8 @@ import java.util.Arrays;
 
 /**
  * A key that is composed of multiple {@link Comparable} values.
+ *
+ * @opensearch.internal
  */
 class CompositeKey implements Writeable {
     private final Comparable[] values;

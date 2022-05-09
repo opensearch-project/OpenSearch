@@ -46,6 +46,8 @@ import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is a String.
+ *
+ * @opensearch.internal
  */
 public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bucket> {
     public static final String NAME = "sterms";

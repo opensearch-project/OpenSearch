@@ -57,6 +57,8 @@ import java.util.function.LongConsumer;
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link HistogramValuesSource} from another numeric values source
  * using the provided interval.
+ *
+ * @opensearch.internal
  */
 public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<HistogramValuesSourceBuilder> {
     @FunctionalInterface

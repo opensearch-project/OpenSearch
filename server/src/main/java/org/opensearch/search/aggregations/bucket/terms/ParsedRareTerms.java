@@ -47,6 +47,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+/**
+ * A rare term result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedRareTerms extends ParsedMultiBucketAggregation<ParsedRareTerms.ParsedBucket> implements RareTerms {
     @Override
     public List<? extends RareTerms.Bucket> getBuckets() {

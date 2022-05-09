@@ -43,6 +43,8 @@ import org.opensearch.common.util.IntArray;
  *
  * This structure expects all the added values to be distinct and therefore there are no checks
  * if an element has been previously added.
+ *
+ * @opensearch.internal
  */
 final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implements Releasable {
 

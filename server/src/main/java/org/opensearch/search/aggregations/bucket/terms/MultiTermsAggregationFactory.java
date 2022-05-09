@@ -34,6 +34,8 @@ import static org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregat
 
 /**
  * Factory of {@link MultiTermsAggregator}.
+ *
+ * @opensearch.internal
  */
 public class MultiTermsAggregationFactory extends AggregatorFactory {
 

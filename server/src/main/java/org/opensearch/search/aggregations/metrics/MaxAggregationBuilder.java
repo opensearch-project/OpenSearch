@@ -50,6 +50,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for max agg
+ *
+ * @opensearch.internal
+ */
 public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MaxAggregationBuilder> {
     public static final String NAME = "max";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(

@@ -69,6 +69,8 @@ import static java.lang.Long.min;
  * {@link Rounding}.
  *
  * @see Rounding
+ *
+ * @opensearch.internal
  */
 class DateRangeHistogramAggregator extends BucketsAggregator {
 

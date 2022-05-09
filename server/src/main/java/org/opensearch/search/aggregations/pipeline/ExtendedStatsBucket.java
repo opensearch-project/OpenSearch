@@ -36,5 +36,7 @@ import org.opensearch.search.aggregations.metrics.ExtendedStats;
 
 /**
  * Extended Statistics over a set of buckets
+ *
+ * @opensearch.internal
  */
 public interface ExtendedStatsBucket extends ExtendedStats {}

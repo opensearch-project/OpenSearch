@@ -50,6 +50,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of percentiles pipeline
+ *
+ * @opensearch.internal
+ */
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;

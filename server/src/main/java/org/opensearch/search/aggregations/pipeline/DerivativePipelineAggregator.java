@@ -52,6 +52,11 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
+/**
+ * Aggregate all docs into a derivative value
+ *
+ * @opensearch.internal
+ */
 public class DerivativePipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final GapPolicy gapPolicy;

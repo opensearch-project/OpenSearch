@@ -45,6 +45,8 @@ import java.util.Map;
 
 /**
  * Calculate a simple unweighted (arithmetic) moving average
+ *
+ * @opensearch.internal
  */
 public class SimpleModel extends MovAvgModel {
     public static final String NAME = "simple";

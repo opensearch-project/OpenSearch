@@ -70,6 +70,11 @@ import org.opensearch.search.sort.SortAndFormats;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into the top hits
+ *
+ * @opensearch.internal
+ */
 class TopHitsAggregator extends MetricsAggregator {
 
     private static class Collectors {

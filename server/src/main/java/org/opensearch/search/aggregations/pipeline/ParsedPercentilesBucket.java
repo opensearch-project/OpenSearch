@@ -41,6 +41,11 @@ import org.opensearch.search.aggregations.metrics.Percentiles;
 import java.io.IOException;
 import java.util.Map.Entry;
 
+/**
+ * A percentiles bucket agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedPercentilesBucket extends ParsedPercentiles implements Percentiles {
 
     @Override

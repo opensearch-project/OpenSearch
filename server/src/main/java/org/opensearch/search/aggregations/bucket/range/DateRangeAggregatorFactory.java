@@ -40,6 +40,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for date_range agg
+ *
+ * @opensearch.internal
+ */
 public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<RangeAggregator.Range> {
 
     public DateRangeAggregatorFactory(

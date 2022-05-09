@@ -43,6 +43,8 @@ import java.util.Objects;
 
 /**
  * Class to encapsulate a set of ValuesSource objects labeled by field name
+ *
+ * @opensearch.internal
  */
 public abstract class MultiValuesSource<VS extends ValuesSource> {
     protected Map<String, VS> values;

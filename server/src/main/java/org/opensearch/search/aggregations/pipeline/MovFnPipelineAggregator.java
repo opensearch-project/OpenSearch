@@ -69,6 +69,8 @@ import static org.opensearch.search.aggregations.pipeline.BucketHelpers.resolveB
  *  - holtWintersMovAvg
  *
  *  The user can also define any arbitrary logic via their own scripting, or combine with the above methods.
+ *
+ * @opensearch.internal
  */
 public class MovFnPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;

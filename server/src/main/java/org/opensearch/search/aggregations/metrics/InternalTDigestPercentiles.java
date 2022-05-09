@@ -38,6 +38,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
+/**
+ * Implementation of TDigest percentiles agg
+ *
+ * @opensearch.internal
+ */
 public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentiles implements Percentiles {
     public static final String NAME = "tdigest_percentiles";
 

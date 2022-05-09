@@ -53,6 +53,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregator supplier interface for an internal variable width histogram agg
+ *
+ * @opensearch.internal
+ */
 public class InternalVariableWidthHistogram extends InternalMultiBucketAggregation<
     InternalVariableWidthHistogram,
     InternalVariableWidthHistogram.Bucket> implements Histogram, HistogramFactory {

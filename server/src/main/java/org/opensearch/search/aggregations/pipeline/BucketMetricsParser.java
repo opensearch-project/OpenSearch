@@ -45,6 +45,8 @@ import java.util.Map;
 
 /**
  * A parser for parsing requests for a {@link BucketMetricsPipelineAggregator}
+ *
+ * @opensearch.internal
  */
 public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
 

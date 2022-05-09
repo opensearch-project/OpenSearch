@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Parses extended stats values
+ *
+ * @opensearch.internal
+ */
 public class ExtendedStatsBucketParser extends BucketMetricsParser {
     static final ParseField SIGMA = new ParseField("sigma");
 

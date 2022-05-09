@@ -68,6 +68,8 @@ import java.util.TreeSet;
 /**
  * Defines the include/exclude regular expression filtering for string terms aggregation. In this filtering logic,
  * exclusion has precedence, where the {@code include} is evaluated first and then the {@code exclude}.
+ *
+ * @opensearch.internal
  */
 public class IncludeExclude implements Writeable, ToXContentFragment {
     public static final ParseField INCLUDE_FIELD = new ParseField("include");

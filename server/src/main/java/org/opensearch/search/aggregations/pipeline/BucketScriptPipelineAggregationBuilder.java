@@ -56,6 +56,11 @@ import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Par
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
+/**
+ * Aggregation Builder for bucket_script agg
+ *
+ * @opensearch.internal
+ */
 public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketScriptPipelineAggregationBuilder> {
     public static final String NAME = "bucket_script";
 

@@ -37,6 +37,8 @@ import org.opensearch.index.mapper.MappedFieldType;
 /**
  * Used by all field data based aggregators. This determine the context of the field data the aggregators are operating
  * in. It holds both the field names and the index field datas that are associated with them.
+ *
+ * @opensearch.internal
  */
 public class FieldContext {
 

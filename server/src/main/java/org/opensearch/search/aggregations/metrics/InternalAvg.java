@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of internal agg
+ *
+ * @opensearch.internal
+ */
 public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue implements Avg {
     private final double sum;
     private final long count;

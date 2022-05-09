@@ -57,6 +57,8 @@ import java.util.Objects;
 
 /**
  * Implementation of {@link Histogram}.
+ *
+ * @opensearch.internal
  */
 public final class InternalHistogram extends InternalMultiBucketAggregation<InternalHistogram, InternalHistogram.Bucket>
     implements

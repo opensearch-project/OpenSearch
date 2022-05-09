@@ -40,6 +40,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A derivative agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedDerivative extends ParsedSimpleValue implements Derivative {
 
     private double normalizedValue;

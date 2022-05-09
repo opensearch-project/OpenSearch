@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
 
+/**
+ * Base field configuration class for multi values
+ *
+ * @opensearch.internal
+ */
 public class MultiValuesSourceFieldConfig extends BaseMultiValuesSourceFieldConfig {
     private final QueryBuilder filter;
 

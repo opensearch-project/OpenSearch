@@ -42,6 +42,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base aggregator to aggregate all docs into a single metric
+ *
+ * @opensearch.internal
+ */
 public abstract class MetricsAggregator extends AggregatorBase {
     protected MetricsAggregator(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);

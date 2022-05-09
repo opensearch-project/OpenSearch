@@ -43,6 +43,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregator supplier interface for ip_range agg
+ *
+ * @opensearch.internal
+ */
 public interface IpRangeAggregatorSupplier {
 
     Aggregator build(

@@ -33,6 +33,8 @@ package org.opensearch.search.aggregations.metrics;
 
 /**
  * An aggregation that computes the maximum of the values in the current bucket.
+ *
+ * @opensearch.internal
  */
 public interface Max extends NumericMetricsAggregation.SingleValue {
 

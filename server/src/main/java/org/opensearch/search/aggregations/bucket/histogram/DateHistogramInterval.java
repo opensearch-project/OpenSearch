@@ -46,6 +46,8 @@ import java.util.Objects;
 
 /**
  * The interval the date histogram is based on.
+ *
+ * @opensearch.internal
  */
 public class DateHistogramInterval implements Writeable, ToXContentFragment {
 

@@ -51,6 +51,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Aggregate all docs that match the diversified numeric sample
+ *
+ * @opensearch.internal
+ */
 public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
 
     private ValuesSource.Numeric valuesSource;

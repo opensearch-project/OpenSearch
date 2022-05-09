@@ -39,6 +39,8 @@ import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
  *
  * @param <T> {@link Bucket} of the same type that also implements {@link KeyComparable}.
  * @see BucketOrder#key(boolean)
+ *
+ * @opensearch.internal
  */
 public interface KeyComparable<T extends Bucket & KeyComparable<T>> {
 
