@@ -57,16 +57,19 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
 
     @Override
     protected void doExecute(Task task, CreatePitRequest request, ActionListener<CreatePitResponse> listener) {
-        Runnable runnable = new CreatePitController(
-            request,
-            searchTransportService,
-            clusterService,
-            transportSearchAction,
-            namedWriteableRegistry,
-            task,
-            listener
-        );
-        runnable.run();
+        Thread t = new Thread(() -> {
+            CreatePitController controller = new CreatePitController(
+                request,
+                searchTransportService,
+                clusterService,
+                transportSearchAction,
+                namedWriteableRegistry,
+                task,
+                listener
+            );
+            controller.execute();
+        });
+        t.start();
     }
 
     public static class CreateReaderContextRequest extends TransportRequest {

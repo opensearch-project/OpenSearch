@@ -91,7 +91,12 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.builder().put("number_of_shards", numberOfShards).put("index.max_slices_per_scroll", 10000))
+                .setSettings(
+                    Settings.builder()
+                        .put("number_of_shards", numberOfShards)
+                        .put("index.max_slices_per_scroll", 10000)
+                        .put("index.max_slices_per_pit", 10000)
+                )
                 .setMapping(mapping)
         );
         ensureGreen();

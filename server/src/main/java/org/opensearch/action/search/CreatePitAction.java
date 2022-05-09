@@ -15,7 +15,7 @@ import org.opensearch.action.ActionType;
  */
 public class CreatePitAction extends ActionType<CreatePitResponse> {
     public static final CreatePitAction INSTANCE = new CreatePitAction();
-    public static final String NAME = "indices:data/write/pit";
+    public static final String NAME = "indices:data/read/pit";
 
     private CreatePitAction() {
         super(NAME, CreatePitResponse::new);

@@ -126,9 +126,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         clusterServiceMock = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
 
-        final Settings keepAliveSettings = Settings.builder()
-            .put(CreatePitController.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.getKey(), 30000)
-            .build();
+        final Settings keepAliveSettings = Settings.builder().put(CreatePitController.PIT_CREATE_PHASE_KEEP_ALIVE.getKey(), 30000).build();
         when(clusterServiceMock.getSettings()).thenReturn(keepAliveSettings);
 
         when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
@@ -190,8 +188,6 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
             createPitListener
         );
 
-        CreatePitResponse createPITResponse = new CreatePitResponse(searchResponse, System.currentTimeMillis());
-
         ActionListener<CreatePitResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
             @Override
             public void onResponse(CreatePitResponse createPITResponse) {
@@ -205,8 +201,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         }, latch);
 
         StepListener<SearchResponse> createListener = new StepListener<>();
-
-        controller.executeUpdatePitId(request, createListener, updatelistener);
+        controller.executeCreatePit(createListener, updatelistener);
         createListener.onResponse(searchResponse);
         latch.await();
         assertEquals(3, updateNodesInvoked.size());
@@ -277,7 +272,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
         StepListener<SearchResponse> createListener = new StepListener<>();
 
-        controller.executeUpdatePitId(request, createListener, updatelistener);
+        controller.executeCreatePit(createListener, updatelistener);
         createListener.onFailure(new Exception("Exception occurred in phase 1"));
         latch.await();
         assertEquals(0, updateNodesInvoked.size());
@@ -339,7 +334,6 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
             createPitListener
         );
 
-        CreatePitResponse createPITResponse = new CreatePitResponse(searchResponse, System.currentTimeMillis());
         CountDownLatch latch = new CountDownLatch(1);
 
         ActionListener<CreatePitResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
@@ -355,7 +349,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         }, latch);
 
         StepListener<SearchResponse> createListener = new StepListener<>();
-        controller.executeUpdatePitId(request, createListener, updatelistener);
+        controller.executeCreatePit(createListener, updatelistener);
         createListener.onResponse(searchResponse);
         latch.await();
         assertEquals(3, updateNodesInvoked.size());
@@ -408,7 +402,6 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
             createPitListener
         );
 
-        CreatePitResponse createPITResponse = new CreatePitResponse(searchResponse, System.currentTimeMillis());
         CountDownLatch latch = new CountDownLatch(1);
 
         ActionListener<CreatePitResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
@@ -424,7 +417,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         }, latch);
 
         StepListener<SearchResponse> createListener = new StepListener<>();
-        controller.executeUpdatePitId(request, createListener, updatelistener);
+        controller.executeCreatePit(createListener, updatelistener);
         createListener.onResponse(searchResponse);
         latch.await();
         assertEquals(3, updateNodesInvoked.size());

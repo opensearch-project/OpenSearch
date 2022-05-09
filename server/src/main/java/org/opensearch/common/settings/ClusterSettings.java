@@ -465,7 +465,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.ALLOW_EXPENSIVE_QUERIES,
                 SearchService.MAX_OPEN_PIT_CONTEXT,
                 SearchService.MAX_PIT_KEEPALIVE_SETTING,
-                CreatePitController.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING,
+                CreatePitController.PIT_CREATE_PHASE_KEEP_ALIVE,
                 MultiBucketConsumerService.MAX_BUCKET_SETTING,
                 SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,

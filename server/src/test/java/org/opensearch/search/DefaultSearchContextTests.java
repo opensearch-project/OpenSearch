@@ -67,6 +67,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.LegacyReaderContext;
+import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -134,10 +135,12 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         int maxResultWindow = randomIntBetween(50, 100);
         int maxRescoreWindow = randomIntBetween(50, 100);
         int maxSlicesPerScroll = randomIntBetween(50, 100);
+        int maxSlicesPerPit = randomIntBetween(50, 100);
         Settings settings = Settings.builder()
             .put("index.max_result_window", maxResultWindow)
             .put("index.max_slices_per_scroll", maxSlicesPerScroll)
             .put("index.max_rescore_window", maxRescoreWindow)
+            .put("index.max_slices_per_pit", maxSlicesPerPit)
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
@@ -400,6 +403,48 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             assertTrue(query1 instanceof MatchNoDocsQuery || query2 instanceof MatchNoDocsQuery);
 
             readerContext.close();
+
+            ReaderContext pitReaderContext = new PitReaderContext(
+                newContextId(),
+                indexService,
+                indexShard,
+                searcherSupplier.get(),
+                1000,
+                true
+            );
+            DefaultSearchContext context5 = new DefaultSearchContext(
+                pitReaderContext,
+                shardSearchRequest,
+                target,
+                null,
+                bigArrays,
+                null,
+                timeout,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor
+            );
+            int numSlicesForPit = maxSlicesPerPit + randomIntBetween(1, 100);
+            when(sliceBuilder.getMax()).thenReturn(numSlicesForPit);
+            context5.sliceBuilder(sliceBuilder);
+
+            exception = expectThrows(IllegalArgumentException.class, () -> context5.preProcess(false));
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "The number of slices ["
+                        + numSlicesForPit
+                        + "] is too large. It must "
+                        + "be less than ["
+                        + maxSlicesPerPit
+                        + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_SLICES_PER_PIT.getKey()
+                        + "] index level setting."
+                )
+            );
+            pitReaderContext.close();
             threadPool.shutdown();
         }
     }

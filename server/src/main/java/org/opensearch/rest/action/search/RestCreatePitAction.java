@@ -28,6 +28,9 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  * Rest action for creating PIT context
  */
 public class RestCreatePitAction extends BaseRestHandler {
+    public static String ALLOW_PARTIAL_PIT_CREATION = "allow_partial_pit_creation";
+    public static String KEEP_ALIVE = "keep_alive";
+
     @Override
     public String getName() {
         return "create_pit_action";
@@ -35,9 +38,9 @@ public class RestCreatePitAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        boolean allowPartialPitCreation = request.paramAsBoolean("allow_partial_pit_creation", true);
+        boolean allowPartialPitCreation = request.paramAsBoolean(ALLOW_PARTIAL_PIT_CREATION, true);
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        TimeValue keepAlive = request.paramAsTime("keep_alive", null);
+        TimeValue keepAlive = request.paramAsTime(KEEP_ALIVE, null);
         CreatePitRequest createPitRequest = new CreatePitRequest(keepAlive, allowPartialPitCreation, indices);
         createPitRequest.setIndicesOptions(IndicesOptions.fromRequest(request, createPitRequest.indicesOptions()));
         createPitRequest.setPreference(request.param("preference"));

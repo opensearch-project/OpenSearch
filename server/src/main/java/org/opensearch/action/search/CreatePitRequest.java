@@ -17,6 +17,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 
@@ -29,7 +31,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A request to make create point in time against one or more indices.
  */
-public class CreatePitRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class CreatePitRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
     // keep alive for pit reader context
     private TimeValue keepAlive;
@@ -172,5 +174,22 @@ public class CreatePitRequest extends ActionRequest implements IndicesRequest.Re
         validateIndices(indices);
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("keep_alive", keepAlive);
+        builder.field("allow_partial_pit_creation", allowPartialPitCreation);
+        if (indices != null) {
+            builder.startArray("indices");
+            for (String index : indices) {
+                builder.value(index);
+            }
+            builder.endArray();
+        }
+        if (indicesOptions != null) {
+            indicesOptions.toXContent(builder, params);
+        }
+        return builder;
     }
 }

@@ -227,11 +227,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * This setting defines the maximum number of active PIT reader contexts in the node , since each PIT context
-     * has a resource cost attached to it
+     * has a resource cost attached to it. This setting is less than scroll since users are
+     * encouraged to share the PIT details.
      */
     public static final Setting<Integer> MAX_OPEN_PIT_CONTEXT = Setting.intSetting(
         "search.max_open_pit_context",
-        500,
+        300,
         0,
         Property.Dynamic,
         Property.NodeScope
