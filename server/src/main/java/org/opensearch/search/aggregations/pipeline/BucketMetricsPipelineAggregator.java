@@ -50,6 +50,8 @@ import java.util.Map;
 /**
  * A class of sibling pipeline aggregations which calculate metrics across the
  * buckets of a sibling aggregation
+ *
+ * @opensearch.internal
  */
 public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAggregator {
 

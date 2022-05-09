@@ -40,6 +40,8 @@ package org.opensearch.search.aggregations.metrics;
  * truncation and rounding. These errors can lead to numerical instability.
  *
  * @see <a href="http://en.wikipedia.org/wiki/Kahan_summation_algorithm">Kahan Summation Algorithm</a>
+ *
+ * @opensearch.internal
  */
 public class CompensatedSum {
 

@@ -50,6 +50,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into their basic descriptive statistics
+ *
+ * @opensearch.internal
+ */
 class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     final ValuesSource.Numeric valuesSource;

@@ -33,5 +33,7 @@ package org.opensearch.search.aggregations.bucket;
 
 /**
  * A bucket aggregator that doesn't create new buckets.
+ *
+ * @opensearch.internal
  */
 public interface SingleBucketAggregator {}

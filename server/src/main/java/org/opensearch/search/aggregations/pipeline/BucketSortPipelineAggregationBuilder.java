@@ -60,6 +60,8 @@ import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Par
  * aggregation. The bucket {@code _key}, {@code _count} or sub-aggregations may be used as sort
  * keys. Parameters {@code from} and {@code size} may also be set in order to truncate the
  * result bucket list.
+ *
+ * @opensearch.internal
  */
 public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketSortPipelineAggregationBuilder> {
     public static final String NAME = "bucket_sort";

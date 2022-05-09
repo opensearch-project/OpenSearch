@@ -45,6 +45,8 @@ import java.util.function.ToLongFunction;
 
 /**
  * A {@link SortedDocsProducer} that can sort documents based on numerics indexed in the provided field.
+ *
+ * @opensearch.internal
  */
 class PointsSortedDocsProducer extends SortedDocsProducer {
     private final ToLongFunction<byte[]> bucketFunction;

@@ -45,6 +45,8 @@ import java.io.IOException;
 
 /**
  * A {@link SortedDocsProducer} that can sort documents based on terms indexed in the provided field.
+ *
+ * @opensearch.internal
  */
 class TermsSortedDocsProducer extends SortedDocsProducer {
     TermsSortedDocsProducer(String field) {

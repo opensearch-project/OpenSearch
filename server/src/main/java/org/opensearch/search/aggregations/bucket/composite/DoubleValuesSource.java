@@ -50,6 +50,8 @@ import java.io.IOException;
 
 /**
  * A {@link SingleDimensionValuesSource} for doubles.
+ *
+ * @opensearch.internal
  */
 class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     private final CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc;

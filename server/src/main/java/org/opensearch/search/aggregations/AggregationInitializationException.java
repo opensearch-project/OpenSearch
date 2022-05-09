@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Thrown when failing to execute an aggregation
+ *
+ * @opensearch.internal
  */
 public class AggregationInitializationException extends OpenSearchException {
 

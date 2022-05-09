@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
  * directly instantiate this class, instead get an already-configured copy from {@link QueryShardContext#getValuesSourceRegistry()}, or (in
  * the case of some test scenarios only) directly from {@link SearchModule#getValuesSourceRegistry()}
  *
+ * @opensearch.internal
  */
 public class ValuesSourceRegistry {
 

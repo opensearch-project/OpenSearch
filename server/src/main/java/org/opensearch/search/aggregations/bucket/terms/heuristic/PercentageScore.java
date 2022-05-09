@@ -42,6 +42,11 @@ import org.opensearch.index.query.QueryShardException;
 
 import java.io.IOException;
 
+/**
+ * Percentage score significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class PercentageScore extends SignificanceHeuristic {
     public static final String NAME = "percentage";
     public static final ObjectParser<PercentageScore, Void> PARSER = new ObjectParser<>(NAME, PercentageScore::new);

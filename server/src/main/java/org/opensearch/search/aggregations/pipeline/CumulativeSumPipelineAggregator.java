@@ -52,6 +52,11 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
+/**
+ * Aggregate all docs into a cumulative sum bucket
+ *
+ * @opensearch.internal
+ */
 public class CumulativeSumPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
 

@@ -40,6 +40,11 @@ import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.nio.CharBuffer;
 
+/**
+ * A string result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedStringTerms extends ParsedTerms {
 
     @Override

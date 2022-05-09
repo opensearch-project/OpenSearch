@@ -39,6 +39,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for avg_bucket agg
+ *
+ * @opensearch.internal
+ */
 public class AvgBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<AvgBucketPipelineAggregationBuilder> {
     public static final String NAME = "avg_bucket";
 

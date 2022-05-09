@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Base aggregation to aggregate all docs into a single numeric metric
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalNumericMetricsAggregation extends InternalAggregation {
 
     private static final DocValueFormat DEFAULT_FORMAT = DocValueFormat.RAW;

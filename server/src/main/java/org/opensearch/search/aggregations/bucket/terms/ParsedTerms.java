@@ -50,6 +50,11 @@ import java.util.function.Supplier;
 import static org.opensearch.search.aggregations.bucket.terms.InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME;
 import static org.opensearch.search.aggregations.bucket.terms.InternalTerms.SUM_OF_OTHER_DOC_COUNTS;
 
+/**
+ * A terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTerms.ParsedBucket> implements Terms {
 
     protected long docCountErrorUpperBound;

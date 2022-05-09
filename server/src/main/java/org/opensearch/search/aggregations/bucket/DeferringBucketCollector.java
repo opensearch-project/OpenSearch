@@ -48,6 +48,8 @@ import java.util.Iterator;
 /**
  * A {@link BucketCollector} that records collected doc IDs and buckets and
  * allows to replay a subset of the collected buckets.
+ *
+ * @opensearch.internal
  */
 public abstract class DeferringBucketCollector extends BucketCollector {
 

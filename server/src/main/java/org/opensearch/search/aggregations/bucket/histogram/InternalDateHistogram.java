@@ -60,6 +60,8 @@ import java.util.Objects;
 
 /**
  * Implementation of {@link Histogram}.
+ *
+ * @opensearch.internal
  */
 public final class InternalDateHistogram extends InternalMultiBucketAggregation<InternalDateHistogram, InternalDateHistogram.Bucket>
     implements

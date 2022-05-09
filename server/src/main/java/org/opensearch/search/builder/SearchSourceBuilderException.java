@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Error thrown on source builders during search phase
+ *
+ * @opensearch.internal
+ */
 public class SearchSourceBuilderException extends OpenSearchException {
 
     public SearchSourceBuilderException(String msg) {

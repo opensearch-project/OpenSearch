@@ -53,6 +53,8 @@ import static java.util.Collections.unmodifiableList;
  * Represents a grid of cells where each cell's location is determined by a specific geo hashing algorithm.
  * All geo-grid hash-encoding in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends InternalMultiBucketAggregation<
     InternalGeoGrid,

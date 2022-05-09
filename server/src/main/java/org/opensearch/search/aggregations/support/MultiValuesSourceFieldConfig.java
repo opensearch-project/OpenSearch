@@ -53,6 +53,11 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
 
+/**
+ * Base field configuration class for multi values
+ *
+ * @opensearch.internal
+ */
 public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject {
     private final String fieldName;
     private final Object missing;

@@ -42,6 +42,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for composite agg
+ *
+ * @opensearch.internal
+ */
 class CompositeAggregationFactory extends AggregatorFactory {
     private final int size;
     private final CompositeValuesSourceConfig[] sources;
