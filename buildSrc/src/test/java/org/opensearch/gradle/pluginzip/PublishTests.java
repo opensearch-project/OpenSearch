@@ -13,25 +13,42 @@ import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.gradle.api.Project;
 import org.opensearch.gradle.test.GradleUnitTestCase;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 import java.io.IOException;
 import org.gradle.api.publish.maven.tasks.PublishToMavenRepository;
 import java.io.File;
-import org.gradle.testkit.runner.BuildResult;
 import java.io.FileWriter;
 import java.io.Writer;
-import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
-import static org.junit.Assert.assertEquals;
 import java.nio.file.Files;
+
+import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
+
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import java.io.FileReader;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.internal.impldep.org.junit.After;
+
 import java.util.List;
 import java.util.ArrayList;
 
 public class PublishTests extends GradleUnitTestCase {
+    private TemporaryFolder projectDir;
+
+    @Before
+    public void setUp() throws IOException {
+        projectDir = new TemporaryFolder();
+        projectDir.create();
+    }
+
+    @After
+    public void tearDown() {
+        projectDir.delete();
+    }
 
     @Test
     public void testZipPublish() throws IOException, XmlPullParserException {
@@ -50,12 +67,11 @@ public class PublishTests extends GradleUnitTestCase {
         assertTrue(project.getTasks().getNames().contains(zipPublishTask));
         assertNotNull("Task to generate: ", project.getTasks().getByName(zipPublishTask));
         // Run Gradle functional tests, but calling a build.gradle file, that resembles the plugin publish behavior
-        File projectDir = new File("build/functionalTest");
+
         // Create a sample plugin zip file
-        File sampleZip = new File("build/functionalTest/sample-plugin.zip");
-        Files.createDirectories(projectDir.toPath());
+        File sampleZip = new File(projectDir.getRoot(), "sample-plugin.zip");
         Files.createFile(sampleZip.toPath());
-        writeString(new File(projectDir, "settings.gradle"), "");
+        writeString(projectDir.newFile("settings.gradle"), "");
         // Generate the build.gradle file
         String buildFileContent = "apply plugin: 'maven-publish' \n"
             + "apply plugin: 'java' \n"
@@ -75,7 +91,7 @@ public class PublishTests extends GradleUnitTestCase {
             + "         }\n"
             + "   }\n"
             + "}";
-        writeString(new File(projectDir, "build.gradle"), buildFileContent);
+        writeString(projectDir.newFile("build.gradle"), buildFileContent);
         // Execute the task publishPluginZipPublicationToZipStagingRepository
         List<String> allArguments = new ArrayList<String>();
         allArguments.add("build");
@@ -84,20 +100,22 @@ public class PublishTests extends GradleUnitTestCase {
         runner.forwardOutput();
         runner.withPluginClasspath();
         runner.withArguments(allArguments);
-        runner.withProjectDir(projectDir);
+        runner.withProjectDir(projectDir.getRoot());
         BuildResult result = runner.build();
         // Check if task publishMavenzipPublicationToZipstagingRepository has ran well
         assertEquals(SUCCESS, result.task(":" + zipPublishTask).getOutcome());
         // check if the zip has been published to local staging repo
         assertTrue(
-            new File("build/functionalTest/local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.zip")
+            new File(projectDir.getRoot(), "local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.zip")
                 .exists()
         );
         assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
         // Parse the maven file and validate the groupID to org.opensearch.plugin
         MavenXpp3Reader reader = new MavenXpp3Reader();
         Model model = reader.read(
-            new FileReader("build/functionalTest/local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.pom")
+            new FileReader(
+                new File(projectDir.getRoot(), "local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.pom")
+            )
         );
         assertEquals(model.getGroupId(), "org.opensearch.plugin");
     }
