@@ -70,6 +70,11 @@ import org.opensearch.search.suggest.SuggestionSearchContext;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Context used during a filtered search
+ *
+ * @opensearch.internal
+ */
 public abstract class FilteredSearchContext extends SearchContext {
 
     private final SearchContext in;

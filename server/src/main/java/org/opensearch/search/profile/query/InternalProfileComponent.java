@@ -10,6 +10,11 @@ package org.opensearch.search.profile.query;
 
 import java.util.Collection;
 
+/**
+ * Container for an agg profiling component
+ *
+ * @opensearch.internal
+ */
 public interface InternalProfileComponent {
     /**
      * @return profile component name

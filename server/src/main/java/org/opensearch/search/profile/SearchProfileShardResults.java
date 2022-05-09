@@ -57,6 +57,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 /**
  * A container class to hold all the profile results across all shards.  Internally
  * holds a map of shard ID -&gt; Profiled results
+ *
+ * @opensearch.internal
  */
 public final class SearchProfileShardResults implements Writeable, ToXContentFragment {
     private static final String SEARCHES_FIELD = "searches";

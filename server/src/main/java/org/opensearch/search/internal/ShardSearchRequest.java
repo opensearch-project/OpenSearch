@@ -81,6 +81,8 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
  * Shard level request that represents a search.
  * It provides all the methods that the {@link SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
+ *
+ * @opensearch.internal
  */
 public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
     private final String clusterAlias;

@@ -38,6 +38,11 @@ import org.opensearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
+/**
+ * Thrown if there are any errors in the DFS phase
+ *
+ * @opensearch.internal
+ */
 public class DfsPhaseExecutionException extends SearchException {
 
     public DfsPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable t) {

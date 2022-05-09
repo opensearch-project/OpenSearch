@@ -40,6 +40,11 @@ import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 
+/**
+ * Scroll fetch result
+ *
+ * @opensearch.internal
+ */
 public final class ScrollQueryFetchSearchResult extends SearchPhaseResult {
 
     private final QueryFetchSearchResult result;

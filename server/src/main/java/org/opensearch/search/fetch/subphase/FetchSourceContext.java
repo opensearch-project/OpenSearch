@@ -54,6 +54,8 @@ import java.util.function.Function;
 
 /**
  * Context used to fetch the {@code _source}.
+ *
+ * @opensearch.internal
  */
 public class FetchSourceContext implements Writeable, ToXContentObject {
 

@@ -40,6 +40,8 @@ import org.opensearch.index.mapper.MappedFieldType;
 /**
  * Direct Subclass of Lucene's org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder
  * that corrects offsets for broken analysis chains.
+ *
+ * @opensearch.internal
  */
 public class SimpleFragmentsBuilder extends org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder {
     protected final MappedFieldType fieldType;
