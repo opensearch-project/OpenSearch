@@ -29,7 +29,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.cluster.ClusterServiceRequest;
+import org.opensearch.cluster.CreateComponentResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -61,12 +64,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
+    public static final String REQUEST_EXTENSION_CREATE_COMPONENT = "internal:discovery/createcomponent";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
     private final Path extensionsPath;
     final Set<DiscoveryExtension> extensionsSet;
     Set<DiscoveryExtension> extensionsInitializedSet;
     TransportService transportService;
+    ClusterService clusterService;
 
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
@@ -74,7 +79,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.transportService = null;
         this.extensionsSet = new HashSet<DiscoveryExtension>();
         this.extensionsInitializedSet = new HashSet<DiscoveryExtension>();
-
+        this.clusterService = null;
         /*
          * Now Discover extensions
          */
@@ -84,6 +89,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     public void setTransportService(TransportService transportService) {
         this.transportService = transportService;
+    }
+
+    public void setClusterService(ClusterService clusterService) {
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -195,6 +204,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
+    CreateComponentResponse handleCreateComponentRequest(ClusterServiceRequest clusterServiceRequest) {
+        // Read enum
+        logger.info("Create Component State Request");
+        CreateComponentResponse createComponentResponse = new CreateComponentResponse(clusterService);
+        return createComponentResponse;
+    }
+
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
         for (DiscoveryNode extensionNode : extensionsSet) {
             onIndexModule(indexModule, extensionNode);
@@ -211,6 +227,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             @Override
             public void handleResponse(IndicesModuleNameResponse response) {
                 logger.info("ACK Response" + response);
+                transportService.registerRequestHandler(
+                    REQUEST_EXTENSION_CREATE_COMPONENT,
+                    ThreadPool.Names.GENERIC,
+                    false,
+                    false,
+                    ClusterServiceRequest::new,
+                    ((request, channel, task) -> channel.sendResponse(handleCreateComponentRequest(request)))
+                );
                 inProgressIndexNameLatch.countDown();
             }
 
