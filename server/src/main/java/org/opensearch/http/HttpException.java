@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown on HTTP requests
+ *
+ * @opensearch.internal
+ */
 public class HttpException extends OpenSearchException {
 
     public HttpException(String message) {

@@ -36,6 +36,7 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -47,7 +48,14 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * Transport action to delete index
+ *
+ * @opensearch.api
+ */
 public class RestDeleteIndexAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteIndexAction.class);
 
     @Override
     public List<Route> routes() {
@@ -63,7 +71,8 @@ public class RestDeleteIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));
-        deleteIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexRequest.masterNodeTimeout()));
+        deleteIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteIndexRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(deleteIndexRequest, request, deprecationLogger, getName());
         deleteIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteIndexRequest.indicesOptions()));
         return channel -> client.admin().indices().delete(deleteIndexRequest, new RestToXContentListener<>(channel));
     }

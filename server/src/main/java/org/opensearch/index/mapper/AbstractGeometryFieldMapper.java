@@ -62,6 +62,8 @@ import java.util.function.Function;
 
 /**
  * Base field mapper class for all spatial field types
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
 

@@ -43,6 +43,8 @@ import java.util.Objects;
 /**
  * Named analyzer is an analyzer wrapper around an actual analyzer ({@link #analyzer} that is associated
  * with a name ({@link #name()}.
+ *
+ * @opensearch.internal
  */
 public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
 

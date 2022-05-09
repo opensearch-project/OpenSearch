@@ -64,6 +64,8 @@ import java.util.stream.Collectors;
 
 /**
  * Information about a snapshot
+ *
+ * @opensearch.internal
  */
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
 

@@ -48,6 +48,11 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to list cluster_manager information
+ *
+ * @opensearch.api
+ */
 public class RestMasterAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMasterAction.class);
@@ -106,17 +111,17 @@ public class RestMasterAction extends AbstractCatAction {
         DiscoveryNodes nodes = state.getState().nodes();
 
         table.startRow();
-        DiscoveryNode master = nodes.get(nodes.getMasterNodeId());
-        if (master == null) {
+        DiscoveryNode clusterManager = nodes.get(nodes.getMasterNodeId());
+        if (clusterManager == null) {
             table.addCell("-");
             table.addCell("-");
             table.addCell("-");
             table.addCell("-");
         } else {
-            table.addCell(master.getId());
-            table.addCell(master.getHostName());
-            table.addCell(master.getHostAddress());
-            table.addCell(master.getName());
+            table.addCell(clusterManager.getId());
+            table.addCell(clusterManager.getHostName());
+            table.addCell(clusterManager.getHostAddress());
+            table.addCell(clusterManager.getName());
         }
         table.endRow();
 

@@ -55,6 +55,14 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to execute a synced flush
+ *
+ * @opensearch.api
+ *
+ * @deprecated remove since synced flush is removed
+ */
+@Deprecated
 public class RestSyncedFlushAction extends BaseRestHandler {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestSyncedFlushAction.class);

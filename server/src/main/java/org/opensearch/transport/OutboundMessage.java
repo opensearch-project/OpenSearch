@@ -43,6 +43,11 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import java.io.IOException;
 import java.util.Set;
 
+/**
+ * Outbound data as a message
+ *
+ * @opensearch.internal
+ */
 abstract class OutboundMessage extends NetworkMessage {
 
     private final Writeable message;

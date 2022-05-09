@@ -136,7 +136,7 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
         boolean verbose = randomBoolean();
         Settings settingsWithPath = Settings.builder().put(internalCluster().getDefaultSettings()).put(settings).build();
         Matcher<String> matcher = allOf(
-            containsString(NodeRepurposeCommand.noMasterMessage(expectedIndexCount, expectedShardCount, 0)),
+            containsString(NodeRepurposeCommand.noClusterManagerMessage(expectedIndexCount, expectedShardCount, 0)),
             NodeRepurposeCommandTests.conditionalNot(containsString("test-repurpose"), verbose == false)
         );
         NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher, verbose);

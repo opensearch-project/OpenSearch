@@ -37,6 +37,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Represent shard snapshot status
+ *
+ * @opensearch.internal
  */
 public class IndexShardSnapshotStatus {
 

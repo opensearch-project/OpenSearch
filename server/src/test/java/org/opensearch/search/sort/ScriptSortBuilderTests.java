@@ -43,7 +43,7 @@ import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.opensearch.index.mapper.TypeFieldMapper;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -344,7 +344,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new TermQuery(new Term(TypeFieldMapper.NAME, "__path")), nested.getInnerQuery());
+        assertEquals(new TermQuery(new Term(NestedPathFieldMapper.NAME, "path")), nested.getInnerQuery());
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).setNestedPath("path")
             .setNestedFilter(QueryBuilders.matchAllQuery());

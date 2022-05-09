@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Thrown for any transport errors
+ *
+ * @opensearch.internal
+ */
 public class TransportException extends OpenSearchException {
     public TransportException(Throwable cause) {
         super(cause);

@@ -127,4 +127,3 @@ setup:
   - match:  {test_index_2.mappings.t1.full_name: t1 }
   - match:  {test_index_2.mappings.t2.full_name: t2 }
   - length: {test_index_2.mappings: 2}
-

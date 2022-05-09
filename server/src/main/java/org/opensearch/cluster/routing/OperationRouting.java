@@ -54,6 +54,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Routes cluster operations
+ *
+ * @opensearch.internal
+ */
 public class OperationRouting {
 
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING = Setting.boolSetting(

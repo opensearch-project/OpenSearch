@@ -125,7 +125,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void waitForNewMasterAndRetry(
+        protected void waitForNewClusterManagerAndRetry(
             String actionName,
             ClusterStateObserver observer,
             TransportRequest request,
@@ -133,7 +133,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
             Predicate<ClusterState> changePredicate
         ) {
             onBeforeWaitForNewMasterAndRetry.run();
-            super.waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
+            super.waitForNewClusterManagerAndRetry(actionName, observer, request, listener, changePredicate);
             onAfterWaitForNewMasterAndRetry.run();
         }
     }

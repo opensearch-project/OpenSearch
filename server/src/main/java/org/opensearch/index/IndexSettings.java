@@ -46,6 +46,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 
@@ -68,6 +69,8 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIEL
  * the latest updated settings instance. Classes that need to listen to settings updates can register
  * a settings consumer at index creation via {@link IndexModule#addSettingsUpdateConsumer(Setting, Consumer)} that will
  * be called for each settings update.
+ *
+ * @opensearch.internal
  */
 public final class IndexSettings {
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
@@ -530,6 +533,7 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
+    private final ReplicationType replicationType;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -681,6 +685,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
+        replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -913,6 +918,13 @@ public final class IndexSettings {
      */
     public int getNumberOfReplicas() {
         return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null);
+    }
+
+    /**
+     * Returns true if segment replication is enabled on the index.
+     */
+    public boolean isSegRepEnabled() {
+        return ReplicationType.SEGMENT.equals(replicationType);
     }
 
     /**

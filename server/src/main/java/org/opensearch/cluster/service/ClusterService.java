@@ -56,6 +56,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.Map;
 
+/**
+ * Main Cluster Service
+ *
+ * @opensearch.internal
+ */
 public class ClusterService extends AbstractLifecycleComponent {
     private final MasterService masterService;
 
@@ -207,7 +212,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Add a listener for on/off local node master events
+     * Add a listener for on/off local node cluster-manager events
      */
     public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
         clusterApplierService.addLocalNodeMasterListener(listener);

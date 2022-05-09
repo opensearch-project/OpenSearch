@@ -50,6 +50,7 @@ import org.opensearch.test.VersionUtils;
 
 import java.util.HashSet;
 
+import static org.hamcrest.Matchers.is;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
@@ -197,5 +198,15 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertTrue(taskResult.isSuccess());
 
         assertThat(result.resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
+    }
+
+    /**
+     * Validate isBecomeMasterTask() can identify "become cluster manager task" properly
+     */
+    public void testIsBecomeClusterManagerTask() {
+        JoinTaskExecutor.Task joinTaskOfMaster = JoinTaskExecutor.newBecomeMasterTask();
+        assertThat(joinTaskOfMaster.isBecomeMasterTask(), is(true));
+        JoinTaskExecutor.Task joinTaskOfClusterManager = JoinTaskExecutor.newBecomeClusterManagerTask();
+        assertThat(joinTaskOfClusterManager.isBecomeMasterTask(), is(true));
     }
 }

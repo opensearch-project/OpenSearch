@@ -39,6 +39,8 @@ import org.opensearch.threadpool.ThreadPool;
  * This component is responsible for execution of persistent tasks.
  *
  * It abstracts away the execution of tasks and greatly simplifies testing of PersistentTasksNodeService
+ *
+ * @opensearch.internal
  */
 public class NodePersistentTasksExecutor {
 

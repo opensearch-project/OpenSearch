@@ -176,8 +176,8 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             }
 
         } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
-            // TODO Maybe just clear out non-ongoing snapshot recoveries is the node is master eligible, so that we don't
-            // have to repopulate the data over and over in an unstable master situation?
+            // TODO Maybe just clear out non-ongoing snapshot recoveries is the node is cluster-manager eligible, so that we don't
+            // have to repopulate the data over and over in an unstable cluster-manager situation?
             synchronized (mutex) {
                 // information only needed on current master
                 knownSnapshotShards = ImmutableOpenMap.of();

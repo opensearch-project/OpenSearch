@@ -20,6 +20,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Cumulative shard indexing pressure stats
+ *
+ * @opensearch.internal
+ */
 public class ShardIndexingPressureStats implements Writeable, ToXContentFragment {
 
     private final Map<ShardId, IndexingPressurePerShardStats> shardIndexingPressureStore;

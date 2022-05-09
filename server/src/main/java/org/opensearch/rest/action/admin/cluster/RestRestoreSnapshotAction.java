@@ -34,6 +34,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -47,8 +48,12 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
  * Restores a snapshot
+ *
+ * @opensearch.api
  */
 public class RestRestoreSnapshotAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestRestoreSnapshotAction.class);
 
     @Override
     public List<Route> routes() {
@@ -63,7 +68,10 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RestoreSnapshotRequest restoreSnapshotRequest = restoreSnapshotRequest(request.param("repository"), request.param("snapshot"));
-        restoreSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", restoreSnapshotRequest.masterNodeTimeout()));
+        restoreSnapshotRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", restoreSnapshotRequest.masterNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(restoreSnapshotRequest, request, deprecationLogger, getName());
         restoreSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         request.applyContentParser(p -> restoreSnapshotRequest.source(p.mapOrdered()));
         return channel -> client.admin().cluster().restoreSnapshot(restoreSnapshotRequest, new RestToXContentListener<>(channel));

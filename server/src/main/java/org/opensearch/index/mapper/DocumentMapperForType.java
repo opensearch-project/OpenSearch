@@ -32,6 +32,14 @@
 
 package org.opensearch.index.mapper;
 
+/**
+ * Document mapper used for types
+ *
+ * @opensearch.internal
+ *
+ * @deprecated types are being removed
+ */
+@Deprecated
 public class DocumentMapperForType {
     private final DocumentMapper documentMapper;
     private final Mapping mapping;

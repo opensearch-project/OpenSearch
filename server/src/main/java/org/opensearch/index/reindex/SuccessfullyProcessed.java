@@ -35,6 +35,8 @@ package org.opensearch.index.reindex;
 /**
  * Implemented by {@link WorkerBulkByScrollTaskState} and {@link BulkByScrollTask.Status} to consistently implement
  * {@link #getSuccessfullyProcessed()}.
+ *
+ * @opensearch.internal
  */
 public interface SuccessfullyProcessed {
     /**

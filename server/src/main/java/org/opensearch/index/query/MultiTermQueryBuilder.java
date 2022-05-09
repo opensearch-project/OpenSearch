@@ -31,6 +31,11 @@
 
 package org.opensearch.index.query;
 
+/**
+ * Base interface for multi term queries
+ *
+ * @opensearch.internal
+ */
 public interface MultiTermQueryBuilder extends QueryBuilder {
     /**
      * Get the field name for this query.

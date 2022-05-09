@@ -38,6 +38,11 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Base action request
+ *
+ * @opensearch.internal
+ */
 public abstract class ActionRequest extends TransportRequest {
 
     public ActionRequest() {

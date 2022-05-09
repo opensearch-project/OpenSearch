@@ -70,6 +70,8 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.indices.recovery.RecoveriesCollection.RecoveryRef;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
@@ -93,6 +95,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * <p>
  * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
+ *
+ * @opensearch.internal
  */
 public class PeerRecoveryTargetService implements IndexEventListener {
 
@@ -215,7 +219,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final String actionName;
         final TransportRequest requestToSend;
         final StartRecoveryRequest startRequest;
-        final RecoveryState.Timer timer;
+        final ReplicationTimer timer;
         try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
             if (recoveryRef == null) {
                 logger.trace("not running recovery with id [{}] - can not find it (probably finished)", recoveryId);
@@ -520,8 +524,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     return;
                 }
 
-                final RecoveryState.Index indexState = recoveryTarget.state().getIndex();
-                if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
+                final ReplicationLuceneIndex indexState = recoveryTarget.state().getIndex();
+                if (request.sourceThrottleTimeInNanos() != ReplicationLuceneIndex.UNKNOWN) {
                     indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
                 }
 
@@ -622,9 +626,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         private final long recoveryId;
         private final StartRecoveryRequest request;
-        private final RecoveryState.Timer timer;
+        private final ReplicationTimer timer;
 
-        private RecoveryResponseHandler(final StartRecoveryRequest request, final RecoveryState.Timer timer) {
+        private RecoveryResponseHandler(final StartRecoveryRequest request, final ReplicationTimer timer) {
             this.recoveryId = request.recoveryId();
             this.request = request;
             this.timer = timer;

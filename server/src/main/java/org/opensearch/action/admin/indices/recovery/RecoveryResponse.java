@@ -46,6 +46,8 @@ import java.util.Map;
 
 /**
  * Information regarding the recovery state of indices and their associated shards.
+ *
+ * @opensearch.internal
  */
 public class RecoveryResponse extends BroadcastResponse {
 

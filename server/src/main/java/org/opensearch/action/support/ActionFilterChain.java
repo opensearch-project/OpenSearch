@@ -39,6 +39,8 @@ import org.opensearch.tasks.Task;
 
 /**
  * A filter chain allowing to continue and process the transport action request
+ *
+ * @opensearch.internal
  */
 public interface ActionFilterChain<Request extends ActionRequest, Response extends ActionResponse> {
 

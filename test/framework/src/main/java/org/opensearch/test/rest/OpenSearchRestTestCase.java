@@ -136,7 +136,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * Convert the entity from a {@link Response} into a map of maps.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (
             XContentParser parser = xContentType.xContent()
@@ -154,7 +154,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * Convert the entity from a {@link Response} into a list of maps.
      */
     public static List<Object> entityAsList(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (
             XContentParser parser = xContentType.xContent()
@@ -824,8 +824,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        // TODO: set the method argument to 'true' after PR https://github.com/opensearch-project/OpenSearch/pull/2683 merged.
-        builder.setStrictDeprecationMode(false);
+        builder.setStrictDeprecationMode(true);
         return builder.build();
     }
 
@@ -1083,7 +1082,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
-        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(
             entityContentType.xContent(),
             response.getEntity().getContent(),

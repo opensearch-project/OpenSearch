@@ -36,6 +36,7 @@ import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -47,7 +48,14 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to put a pipeline
+ *
+ * @opensearch.api
+ */
 public class RestPutPipelineAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutPipelineAction.class);
 
     @Override
     public List<Route> routes() {
@@ -63,7 +71,8 @@ public class RestPutPipelineAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
         PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), sourceTuple.v2(), sourceTuple.v1());
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.masterNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(request, restRequest, deprecationLogger, getName());
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().putPipeline(request, new RestToXContentListener<>(channel));
     }

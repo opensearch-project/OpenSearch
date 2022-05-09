@@ -36,6 +36,8 @@ import java.io.IOException;
 
 /**
  * Per-segment histogram values.
+ *
+ * @opensearch.internal
  */
 public abstract class HistogramValues {
 

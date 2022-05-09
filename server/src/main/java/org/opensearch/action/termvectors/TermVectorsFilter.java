@@ -45,6 +45,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Filter the term vector (doc frequency, positions, offsets) for a
+ * document.
+ *
+ * @opensearch.internal
+ */
 public class TermVectorsFilter {
     public static final int DEFAULT_MAX_QUERY_TERMS = 25;
     public static final int DEFAULT_MIN_TERM_FREQ = 0;

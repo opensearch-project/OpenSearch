@@ -63,6 +63,8 @@ import java.util.stream.Collectors;
  * Primary terms are updated on primary initialization or when an active primary fails.
  *
  * Allocation ids are added for shards that become active and removed for shards that stop being active.
+ *
+ * @opensearch.internal
  */
 public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRoutingChangesObserver {
     private final Map<ShardId, Updates> shardChanges = new HashMap<>();

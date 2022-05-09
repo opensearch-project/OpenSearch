@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.alias;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
+/**
+ * Transport action for listing index aliases
+ *
+ * @opensearch.internal
+ */
 public class IndicesAliasesAction extends ActionType<AcknowledgedResponse> {
 
     public static final IndicesAliasesAction INSTANCE = new IndicesAliasesAction();

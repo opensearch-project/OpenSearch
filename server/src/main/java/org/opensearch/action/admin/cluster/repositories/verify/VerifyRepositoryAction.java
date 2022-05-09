@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Verify repository action
+ *
+ * @opensearch.internal
  */
 public class VerifyRepositoryAction extends ActionType<VerifyRepositoryResponse> {
 

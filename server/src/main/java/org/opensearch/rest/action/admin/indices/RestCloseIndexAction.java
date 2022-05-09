@@ -37,6 +37,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -48,7 +49,14 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to close index
+ *
+ * @opensearch.api
+ */
 public class RestCloseIndexAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCloseIndexAction.class);
 
     @Override
     public List<Route> routes() {
@@ -63,7 +71,8 @@ public class RestCloseIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
+        closeIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", closeIndexRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(closeIndexRequest, request, deprecationLogger, getName());
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");

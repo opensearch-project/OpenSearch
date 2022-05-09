@@ -32,6 +32,11 @@
 
 package org.opensearch.action;
 
+/**
+ * Threading model
+ *
+ * @opensearch.internal
+ */
 public enum ThreadingModel {
     NONE((byte) 0),
     OPERATION((byte) 1),

@@ -55,33 +55,33 @@ public class NodeSelectorTests extends RestClientTestCase {
         assertEquals(expected, nodes);
     }
 
-    public void testNotMasterOnly() {
-        Node masterOnly = dummyNode(true, false, false);
+    public void testNotClusterManagerOnly() {
+        Node clusterManagerOnly = dummyNode(true, false, false);
         Node all = dummyNode(true, true, true);
-        Node masterAndData = dummyNode(true, true, false);
-        Node masterAndIngest = dummyNode(true, false, true);
+        Node clusterManagerAndData = dummyNode(true, true, false);
+        Node clusterManagerAndIngest = dummyNode(true, false, true);
         Node coordinatingOnly = dummyNode(false, false, false);
         Node ingestOnly = dummyNode(false, false, true);
         Node data = dummyNode(false, true, randomBoolean());
         List<Node> nodes = new ArrayList<>();
-        nodes.add(masterOnly);
+        nodes.add(clusterManagerOnly);
         nodes.add(all);
-        nodes.add(masterAndData);
-        nodes.add(masterAndIngest);
+        nodes.add(clusterManagerAndData);
+        nodes.add(clusterManagerAndIngest);
         nodes.add(coordinatingOnly);
         nodes.add(ingestOnly);
         nodes.add(data);
         Collections.shuffle(nodes, getRandom());
         List<Node> expected = new ArrayList<>(nodes);
-        expected.remove(masterOnly);
-        NodeSelector.SKIP_DEDICATED_MASTERS.select(nodes);
+        expected.remove(clusterManagerOnly);
+        NodeSelector.SKIP_DEDICATED_CLUSTER_MANAGERS.select(nodes);
         assertEquals(expected, nodes);
     }
 
-    private static Node dummyNode(boolean master, boolean data, boolean ingest) {
+    private static Node dummyNode(boolean clusterManager, boolean data, boolean ingest) {
         final Set<String> roles = new TreeSet<>();
-        if (master) {
-            roles.add("master");
+        if (clusterManager) {
+            roles.add("cluster_manager");
         }
         if (data) {
             roles.add("data");
@@ -97,5 +97,34 @@ public class NodeSelectorTests extends RestClientTestCase {
             new Roles(roles),
             Collections.<String, List<String>>emptyMap()
         );
+    }
+
+    /*
+     * Validate SKIP_DEDICATED_CLUSTER_MANAGERS can filter both the deprecated "master" role and the new "cluster_manager" role.
+     * The test is a modified copy of the above testNotClusterManagerOnly().
+     */
+    public void testDeprecatedNotMasterOnly() {
+        Node clusterManagerOnly = dummyNode(true, false, false);
+        Node all = dummyNode(true, true, true);
+        Node data = dummyNode(false, true, randomBoolean());
+        Node deprecatedMasterOnly = new Node(
+            new HttpHost("dummy"),
+            Collections.emptySet(),
+            randomAsciiAlphanumOfLength(5),
+            randomAsciiAlphanumOfLength(5),
+            new Roles(Collections.singleton("master")),
+            Collections.emptyMap()
+        );
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(clusterManagerOnly);
+        nodes.add(all);
+        nodes.add(data);
+        nodes.add(deprecatedMasterOnly);
+        Collections.shuffle(nodes, getRandom());
+        List<Node> expected = new ArrayList<>(nodes);
+        expected.remove(clusterManagerOnly);
+        expected.remove(deprecatedMasterOnly);
+        NodeSelector.SKIP_DEDICATED_CLUSTER_MANAGERS.select(nodes);
+        assertEquals(expected, nodes);
     }
 }

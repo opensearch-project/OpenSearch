@@ -38,6 +38,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for unregister repository request
+ *
+ * @opensearch.internal
  */
 public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
     DeleteRepositoryRequest,

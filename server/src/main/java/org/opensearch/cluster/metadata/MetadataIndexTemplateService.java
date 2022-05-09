@@ -97,6 +97,8 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
 
 /**
  * Service responsible for submitting index templates updates
+ *
+ * @opensearch.internal
  */
 public class MetadataIndexTemplateService {
 

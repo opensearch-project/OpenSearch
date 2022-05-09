@@ -55,6 +55,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 
 /**
  * Represents a failure to search on a specific shard.
+ *
+ * @opensearch.internal
  */
 public class ShardSearchFailure extends ShardOperationFailedException {
 

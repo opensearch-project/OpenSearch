@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Transport Request for retrieving status of upgrading an Index
+ *
+ * @opensearch.internal
+ */
 public class UpgradeStatusRequest extends BroadcastRequest<UpgradeStatusRequest> {
 
     public UpgradeStatusRequest() {

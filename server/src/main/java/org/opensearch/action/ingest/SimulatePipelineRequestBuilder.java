@@ -37,6 +37,11 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 
+/**
+ * Transport request builder to simulate a pipeline
+ *
+ * @opensearch.internal
+ */
 public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<SimulatePipelineRequest, SimulatePipelineResponse> {
 
     /**

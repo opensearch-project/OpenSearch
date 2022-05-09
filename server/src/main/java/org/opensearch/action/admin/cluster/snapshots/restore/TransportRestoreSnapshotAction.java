@@ -50,6 +50,8 @@ import java.io.IOException;
 
 /**
  * Transport action for restore snapshot operation
+ *
+ * @opensearch.internal
  */
 public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<RestoreSnapshotRequest, RestoreSnapshotResponse> {
     private final RestoreService restoreService;

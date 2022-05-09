@@ -34,6 +34,7 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -50,7 +51,14 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * Transport action to get component template
+ *
+ * @opensearch.api
+ */
 public class RestGetComponentTemplateAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetComponentTemplateAction.class);
 
     @Override
     public List<Route> routes() {
@@ -72,7 +80,8 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(request.param("name"));
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
-        getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
+        getRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(getRequest, request, deprecationLogger, getName());
 
         final boolean implicitAll = getRequest.name() == null;
 

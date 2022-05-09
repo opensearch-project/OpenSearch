@@ -42,6 +42,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Stats about a repository
+ *
+ * @opensearch.internal
+ */
 public class RepositoryStats implements Writeable {
 
     public static final RepositoryStats EMPTY_STATS = new RepositoryStats(Collections.emptyMap());

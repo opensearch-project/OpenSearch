@@ -53,6 +53,8 @@ import java.util.Objects;
 /**
  * Match query is a query that analyzes the text and constructs a query as the
  * result of the analysis.
+ *
+ * @opensearch.internal
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 

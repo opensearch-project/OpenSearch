@@ -49,6 +49,8 @@ import java.util.Set;
 
 /**
  * Builder for {@link IntervalQuery}
+ *
+ * @opensearch.internal
  */
 public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuilder> {
 

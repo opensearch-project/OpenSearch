@@ -44,6 +44,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+/**
+ * Transport Header
+ *
+ * @opensearch.internal
+ */
 public class Header {
 
     private static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";

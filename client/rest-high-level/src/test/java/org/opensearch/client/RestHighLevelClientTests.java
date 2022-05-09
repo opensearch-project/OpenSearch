@@ -284,6 +284,20 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         }
     }
 
+    public void testNullableActionListener() {
+        ActionRequest request = new ActionRequest() {
+            @Override
+            public ActionRequestValidationException validate() {
+                return null;
+            }
+        };
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> restHighLevelClient.performRequestAsync(request, null, RequestOptions.DEFAULT, null, null, null)
+        );
+    }
+
     public void testParseEntity() throws IOException {
         {
             IllegalStateException ise = expectThrows(IllegalStateException.class, () -> restHighLevelClient.parseEntity(null, null));

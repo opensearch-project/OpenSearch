@@ -38,6 +38,11 @@ import org.opensearch.common.collect.CopyOnWriteHashMap;
 
 import java.util.Map;
 
+/**
+ * Analysis chain for field names
+ *
+ * @opensearch.internal
+ */
 public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
 
     private final Map<String, Analyzer> analyzers;

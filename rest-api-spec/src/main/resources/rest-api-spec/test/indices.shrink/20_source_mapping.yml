@@ -3,7 +3,7 @@
     - skip:
         version: " - 6.9.99"
         reason: expects warnings that pre-7.0.0 will not send
-        features: [warnings, arbitrary_key]
+        features: [warnings, arbitrary_key, allowed_warnings]
 
     - do:
         nodes.info:
@@ -60,6 +60,8 @@
 
     # now we do the actual shrink
     - do:
+        allowed_warnings:
+          - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
         indices.shrink:
           index: "source"
           target: "target"

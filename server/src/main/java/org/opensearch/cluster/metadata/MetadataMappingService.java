@@ -69,6 +69,8 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
 
 /**
  * Service responsible for submitting mapping changes
+ *
+ * @opensearch.internal
  */
 public class MetadataMappingService {
 

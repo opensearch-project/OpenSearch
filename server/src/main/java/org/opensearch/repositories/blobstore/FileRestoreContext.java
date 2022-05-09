@@ -61,6 +61,8 @@ import static java.util.Collections.unmodifiableMap;
  * restore from some form of a snapshot. It will setup a new store, identify files that need to be copied
  * for the source, and perform the copies. Implementers must implement the functionality of opening the
  * underlying file streams for snapshotted lucene file.
+ *
+ * @opensearch.internal
  */
 public abstract class FileRestoreContext {
 

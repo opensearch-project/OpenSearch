@@ -39,7 +39,9 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
 /**
- * Base request builder for master node operations
+ * Base request builder for cluster-manager node operations
+ *
+ * @opensearch.internal
  */
 public abstract class MasterNodeOperationRequestBuilder<
     Request extends MasterNodeRequest<Request>,
@@ -53,7 +55,7 @@ public abstract class MasterNodeOperationRequestBuilder<
     }
 
     /**
-     * Sets the master node timeout in case the master has not yet been discovered.
+     * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setMasterNodeTimeout(TimeValue timeout) {
@@ -62,7 +64,7 @@ public abstract class MasterNodeOperationRequestBuilder<
     }
 
     /**
-     * Sets the master node timeout in case the master has not yet been discovered.
+     * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setMasterNodeTimeout(String timeout) {

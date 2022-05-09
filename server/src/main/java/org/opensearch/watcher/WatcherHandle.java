@@ -32,6 +32,11 @@
 
 package org.opensearch.watcher;
 
+/**
+ * Handle to a watcher
+ *
+ * @opensearch.internal
+ */
 public class WatcherHandle<W extends ResourceWatcher> {
 
     private final ResourceWatcherService.ResourceMonitor monitor;

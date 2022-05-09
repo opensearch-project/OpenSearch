@@ -499,7 +499,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             + "\"reason\":\"baz\","
             + "\"caused_by\":{"
             + "\"type\":\"cluster_block_exception\","
-            + "\"reason\":\"blocked by: [SERVICE_UNAVAILABLE/2/no master];\""
+            + "\"reason\":\"blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];\""
             + "}"
             + "}"
             + "},"
@@ -537,7 +537,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         cause = (OpenSearchException) cause.getCause();
         assertEquals(
             cause.getMessage(),
-            "OpenSearch exception [type=cluster_block_exception, reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"
+            "OpenSearch exception [type=cluster_block_exception, reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"
         );
     }
 
@@ -1034,7 +1034,8 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             case 0:
                 actual = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
                 expected = new OpenSearchException(
-                    "OpenSearch exception [type=cluster_block_exception, " + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"
+                    "OpenSearch exception [type=cluster_block_exception, "
+                        + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"
                 );
                 break;
             case 1: // Simple opensearch exception with headers (other metadata of type number are not parsed)

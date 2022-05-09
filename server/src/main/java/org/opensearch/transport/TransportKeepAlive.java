@@ -56,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Implements the scheduling and sending of keep alive pings. Client channels send keep alive pings to the
  * server and server channels respond. Pings are only sent at the scheduled time if the channel did not send
  * and receive a message since the last ping.
+ *
+ * @opensearch.internal
  */
 final class TransportKeepAlive implements Closeable {
 

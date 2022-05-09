@@ -40,6 +40,11 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Transport action for OpenSearch Node Liveness
+ *
+ * @opensearch.internal
+ */
 public final class TransportLivenessAction implements TransportRequestHandler<LivenessRequest> {
 
     private final ClusterService clusterService;

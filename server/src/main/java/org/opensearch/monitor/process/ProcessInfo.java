@@ -40,6 +40,11 @@ import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 
+/**
+ * Holds information for monitoring the process
+ *
+ * @opensearch.internal
+ */
 public class ProcessInfo implements ReportingService.Info {
 
     private final long refreshInterval;

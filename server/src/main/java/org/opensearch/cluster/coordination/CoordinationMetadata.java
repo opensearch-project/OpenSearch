@@ -52,6 +52,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Metadata for cluster coordination
+ *
+ * @opensearch.internal
+ */
 public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
     public static final CoordinationMetadata EMPTY_METADATA = builder().build();
@@ -350,8 +355,8 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
     public static class VotingConfiguration implements Writeable, ToXContentFragment {
 
         public static final VotingConfiguration EMPTY_CONFIG = new VotingConfiguration(Collections.emptySet());
-        public static final VotingConfiguration MUST_JOIN_ELECTED_MASTER = new VotingConfiguration(
-            Collections.singleton("_must_join_elected_master_")
+        public static final VotingConfiguration MUST_JOIN_ELECTED_CLUSTER_MANAGER = new VotingConfiguration(
+            Collections.singleton("_must_join_elected_cluster_manager_")
         );
 
         private final Set<String> nodeIds;

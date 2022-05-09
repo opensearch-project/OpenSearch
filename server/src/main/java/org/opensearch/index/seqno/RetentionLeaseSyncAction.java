@@ -74,6 +74,8 @@ import java.util.Objects;
 /**
  * Write action responsible for syncing retention leases to replicas. This action is deliberately a write action so that if a replica misses
  * a retention lease sync then that shard will be marked as stale.
+ *
+ * @opensearch.internal
  */
 public class RetentionLeaseSyncAction extends TransportWriteAction<
     RetentionLeaseSyncAction.Request,

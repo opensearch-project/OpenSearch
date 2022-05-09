@@ -64,6 +64,8 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
 
 /**
  * Service responsible for submitting add and remove aliases requests
+ *
+ * @opensearch.internal
  */
 public class MetadataIndexAliasesService {
 

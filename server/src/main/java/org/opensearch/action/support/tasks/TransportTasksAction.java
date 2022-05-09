@@ -73,6 +73,8 @@ import static java.util.Collections.emptyList;
 
 /**
  * The base class for transport actions that are interacting with currently running tasks.
+ *
+ * @opensearch.internal
  */
 public abstract class TransportTasksAction<
     OperationTask extends Task,

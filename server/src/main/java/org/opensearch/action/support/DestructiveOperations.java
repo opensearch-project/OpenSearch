@@ -39,6 +39,8 @@ import org.opensearch.common.settings.Settings;
 
 /**
  * Helper for dealing with destructive operations and wildcard usage.
+ *
+ * @opensearch.internal
  */
 public final class DestructiveOperations {
 

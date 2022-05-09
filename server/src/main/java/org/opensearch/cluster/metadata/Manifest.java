@@ -55,6 +55,8 @@ import java.util.stream.Collectors;
  * When new version of metadata is written it's assigned some generation long value.
  * Global metadata generation could be obtained by calling {@link #getGlobalGeneration()}.
  * Index metadata generation could be obtained by calling {@link #getIndexGenerations()}.
+ *
+ * @opensearch.internal
  */
 public class Manifest implements ToXContentFragment {
     // TODO revisit missing and unknown constants once Zen2 BWC is ready

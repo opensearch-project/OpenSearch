@@ -64,6 +64,8 @@ import java.util.stream.Collectors;
  * between terms) we immediately delay all operations to a queue, obtain all available permits, and wait for outstanding operations to drain
  * and return their permits. Delayed operations will acquire permits and be completed after the operation that blocked all operations has
  * completed.
+ *
+ * @opensearch.internal
  */
 final class IndexShardOperationPermits implements Closeable {
 

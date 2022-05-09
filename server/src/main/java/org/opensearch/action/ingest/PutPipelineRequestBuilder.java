@@ -38,6 +38,11 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 
+/**
+ * Transport request builder to put a pipeline
+ *
+ * @opensearch.internal
+ */
 public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, AcknowledgedResponse> {
 
     public PutPipelineRequestBuilder(OpenSearchClient client, PutPipelineAction action) {

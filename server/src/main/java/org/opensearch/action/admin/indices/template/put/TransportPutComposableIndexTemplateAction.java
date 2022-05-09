@@ -50,6 +50,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * An action for putting a composable index template into the cluster state
+ *
+ * @opensearch.internal
+ */
 public class TransportPutComposableIndexTemplateAction extends TransportMasterNodeAction<
     PutComposableIndexTemplateAction.Request,
     AcknowledgedResponse> {

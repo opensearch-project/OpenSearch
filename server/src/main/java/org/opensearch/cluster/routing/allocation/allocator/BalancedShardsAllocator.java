@@ -90,6 +90,8 @@ import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
  * <p>
  * These parameters are combined in a {@link WeightFunction} that allows calculation of node weights which
  * are used to re-balance shards based on global as well as per-index factors.
+ *
+ * @opensearch.internal
  */
 public class BalancedShardsAllocator implements ShardsAllocator {
 

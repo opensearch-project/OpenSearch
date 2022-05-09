@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if an index is not found
+ *
+ * @opensearch.internal
+ */
 public final class IndexNotFoundException extends ResourceNotFoundException {
     /**
      * Construct with a custom message.

@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * A request to get node tasks
+ *
+ * @opensearch.internal
  */
 public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
 

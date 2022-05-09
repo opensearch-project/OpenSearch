@@ -34,6 +34,11 @@ package org.opensearch.cluster.block;
 
 import java.util.EnumSet;
 
+/**
+ * What level to block the cluster
+ *
+ * @opensearch.internal
+ */
 public enum ClusterBlockLevel {
     READ,
     WRITE,

@@ -45,6 +45,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Provides the name and settings for an analyzer
+ *
+ * @opensearch.internal
+ */
 public class NameOrDefinition implements Writeable, ToXContentFragment {
     // exactly one of these two members is not null
     public final String name;

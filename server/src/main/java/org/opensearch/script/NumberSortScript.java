@@ -36,6 +36,11 @@ import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.search.lookup.SearchLookup;
 
+/**
+ * Script for number sorts
+ *
+ * @opensearch.internal
+ */
 public abstract class NumberSortScript extends AbstractSortScript {
 
     public static final String[] PARAMETERS = {};

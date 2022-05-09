@@ -39,6 +39,8 @@ import java.util.List;
 /**
  * The {@link PlainShardIterator} is a {@link ShardsIterator} which iterates all
  * shards or a given {@link ShardId shard id}
+ *
+ * @opensearch.internal
  */
 public class PlainShardIterator extends PlainShardsIterator implements ShardIterator {
 

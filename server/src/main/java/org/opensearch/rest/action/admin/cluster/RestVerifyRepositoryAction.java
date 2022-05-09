@@ -34,6 +34,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -45,7 +46,14 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.client.Requests.verifyRepositoryRequest;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to verify a repository
+ *
+ * @opensearch.api
+ */
 public class RestVerifyRepositoryAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestVerifyRepositoryAction.class);
 
     @Override
     public List<Route> routes() {
@@ -60,7 +68,10 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         VerifyRepositoryRequest verifyRepositoryRequest = verifyRepositoryRequest(request.param("repository"));
-        verifyRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", verifyRepositoryRequest.masterNodeTimeout()));
+        verifyRepositoryRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", verifyRepositoryRequest.masterNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(verifyRepositoryRequest, request, deprecationLogger, getName());
         verifyRepositoryRequest.timeout(request.paramAsTime("timeout", verifyRepositoryRequest.timeout()));
         return channel -> client.admin().cluster().verifyRepository(verifyRepositoryRequest, new RestToXContentListener<>(channel));
     }

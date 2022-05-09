@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+ * Exception thrown if an alias is not found
+ *
+ * @opensearch.api
+ */
 public class AliasesNotFoundException extends ResourceNotFoundException {
 
     public AliasesNotFoundException(String... names) {

@@ -51,6 +51,11 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
+/**
+ * Foundation type parsers
+ *
+ * @opensearch.internal
+ */
 public class TypeParsers {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeParsers.class);
 

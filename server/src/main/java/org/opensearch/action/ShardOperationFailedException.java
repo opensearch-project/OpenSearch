@@ -42,6 +42,7 @@ import java.util.Objects;
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
  *
+ * @opensearch.internal
  */
 public abstract class ShardOperationFailedException implements Writeable, ToXContentObject {
 

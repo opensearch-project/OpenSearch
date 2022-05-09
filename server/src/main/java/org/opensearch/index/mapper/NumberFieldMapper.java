@@ -77,7 +77,11 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-/** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
+/**
+ * A {@link FieldMapper} for numeric types: byte, short, int, long, float and double.
+ *
+ * @opensearch.internal
+ */
 public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);

@@ -40,6 +40,8 @@ import java.io.IOException;
 /**
  * This exception is thrown if the File system is reported unhealthy by @{@link org.opensearch.monitor.fs.FsHealthService}
  * and this nodes needs to be removed from the cluster
+ *
+ * @opensearch.internal
  */
 
 public class NodeHealthCheckFailureException extends OpenSearchException {

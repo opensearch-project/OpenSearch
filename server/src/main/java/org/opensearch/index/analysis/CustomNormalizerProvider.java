@@ -43,6 +43,8 @@ import java.util.Map;
  * A custom normalizer that is built out of a char and token filters. On the
  * contrary to analyzers, it does not support tokenizers and only supports a
  * subset of char and token filters.
+ *
+ * @opensearch.internal
  */
 public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
 

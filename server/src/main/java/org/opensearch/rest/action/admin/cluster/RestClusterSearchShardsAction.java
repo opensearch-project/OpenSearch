@@ -49,6 +49,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to search shards
+ *
+ * @opensearch.api
+ */
 public class RestClusterSearchShardsAction extends BaseRestHandler {
 
     @Override

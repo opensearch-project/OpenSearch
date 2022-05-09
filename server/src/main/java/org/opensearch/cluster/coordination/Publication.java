@@ -52,6 +52,11 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+/**
+ * Publication task
+ *
+ * @opensearch.internal
+ */
 public abstract class Publication {
 
     protected final Logger logger = LogManager.getLogger(getClass());

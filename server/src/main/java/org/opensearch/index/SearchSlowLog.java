@@ -53,6 +53,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+/**
+ * The search time slow log implementation
+ *
+ * @opensearch.internal
+ */
 public final class SearchSlowLog implements SearchOperationListener {
     private static final Charset UTF_8 = Charset.forName("UTF-8");
 

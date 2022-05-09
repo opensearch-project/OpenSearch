@@ -41,7 +41,7 @@ import java.io.IOException;
 /**
  * An exception indicating that node is closed.
  *
- *
+ * @opensearch.internal
  */
 public class NodeClosedException extends OpenSearchException {
 

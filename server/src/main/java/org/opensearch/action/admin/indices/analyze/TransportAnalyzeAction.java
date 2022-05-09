@@ -82,6 +82,8 @@ import java.util.TreeMap;
 
 /**
  * Transport action used to execute analyze requests
+ *
+ * @opensearch.internal
  */
 public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAction.Request, AnalyzeAction.Response> {
 

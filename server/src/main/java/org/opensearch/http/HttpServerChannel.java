@@ -36,6 +36,11 @@ import org.opensearch.common.network.CloseableChannel;
 
 import java.net.InetSocketAddress;
 
+/**
+ * Http server channel
+ *
+ * @opensearch.internal
+ */
 public interface HttpServerChannel extends CloseableChannel {
 
     /**

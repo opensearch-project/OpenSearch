@@ -59,6 +59,8 @@ import java.util.Objects;
  * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
  * a Wildcard term should not start with one of the wildcards {@code *} or
  * {@code ?}.
+ *
+ * @opensearch.internal
  */
 public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "wildcard";

@@ -50,6 +50,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action to get field mappings.
+ *
+ * @opensearch.internal
+ */
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetMappingsAction.class);

@@ -50,6 +50,8 @@ import java.util.stream.StreamSupport;
 
 /**
  * A listener that allows to track progress of the {@link SearchAction}.
+ *
+ * @opensearch.api
  */
 public abstract class SearchProgressListener {
     private static final Logger logger = LogManager.getLogger(SearchProgressListener.class);

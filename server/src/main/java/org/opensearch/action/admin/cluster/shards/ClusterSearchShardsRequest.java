@@ -44,6 +44,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport request for searching shards
+ *
+ * @opensearch.internal
+ */
 public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSearchShardsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;

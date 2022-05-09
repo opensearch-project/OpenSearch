@@ -56,6 +56,8 @@ import java.util.stream.Collectors;
 
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
+ *
+ * @opensearch.internal
  */
 public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject {
     private static final ParseField INDICES_FIELD = new ParseField("indices");

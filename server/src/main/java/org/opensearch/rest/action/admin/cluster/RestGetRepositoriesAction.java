@@ -35,6 +35,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.rest.BaseRestHandler;
@@ -52,8 +53,12 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Returns repository information
+ *
+ * @opensearch.api
  */
 public class RestGetRepositoriesAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetRepositoriesAction.class);
 
     private final SettingsFilter settingsFilter;
 
@@ -75,7 +80,10 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         GetRepositoriesRequest getRepositoriesRequest = getRepositoryRequest(repositories);
-        getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
+        getRepositoriesRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.masterNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request, deprecationLogger, getName());
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         settingsFilter.addFilterSettingParams(request);
         return channel -> client.admin().cluster().getRepositories(getRepositoriesRequest, new RestToXContentListener<>(channel));

@@ -36,6 +36,7 @@ import org.opensearch.action.admin.indices.template.post.SimulateTemplateAction;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -46,7 +47,14 @@ import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to simulate a template
+ *
+ * @opensearch.api
+ */
 public class RestSimulateTemplateAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSimulateTemplateAction.class);
+
     @Override
     public List<Route> routes() {
         return Arrays.asList(new Route(POST, "/_index_template/_simulate"), new Route(POST, "/_index_template/_simulate/{name}"));
@@ -58,7 +66,7 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SimulateTemplateAction.Request simulateRequest = new SimulateTemplateAction.Request();
         simulateRequest.templateName(request.param("name"));
         if (request.hasContent()) {
@@ -71,7 +79,8 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
 
             simulateRequest.indexTemplateRequest(indexTemplateRequest);
         }
-        simulateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", simulateRequest.masterNodeTimeout()));
+        simulateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", simulateRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(simulateRequest, request, deprecationLogger, getName());
 
         return channel -> client.execute(SimulateTemplateAction.INSTANCE, simulateRequest, new RestToXContentListener<>(channel));
     }

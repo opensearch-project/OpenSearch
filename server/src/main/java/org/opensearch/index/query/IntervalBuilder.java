@@ -57,6 +57,8 @@ import java.util.List;
 
 /**
  * Constructs an IntervalsSource based on analyzed text
+ *
+ * @opensearch.internal
  */
 public class IntervalBuilder {
 

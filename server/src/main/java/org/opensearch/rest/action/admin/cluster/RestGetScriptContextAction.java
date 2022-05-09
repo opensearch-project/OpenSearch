@@ -45,6 +45,11 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get script context
+ *
+ * @opensearch.api
+ */
 public class RestGetScriptContextAction extends BaseRestHandler {
 
     @Override

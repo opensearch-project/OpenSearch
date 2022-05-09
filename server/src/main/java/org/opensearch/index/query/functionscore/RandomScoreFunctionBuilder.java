@@ -49,6 +49,8 @@ import java.util.Objects;
 
 /**
  * A function that computes a random score for the matched documents
+ *
+ * @opensearch.internal
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RandomScoreFunctionBuilder.class);

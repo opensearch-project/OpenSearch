@@ -220,7 +220,7 @@ public class FieldAliasMapperValidationTests extends OpenSearchTestCase {
             ObjectMapper.Nested.NO,
             ObjectMapper.Dynamic.FALSE,
             emptyMap(),
-            Settings.EMPTY
+            SETTINGS
         );
     }
 
@@ -232,7 +232,7 @@ public class FieldAliasMapperValidationTests extends OpenSearchTestCase {
             ObjectMapper.Nested.newNested(),
             ObjectMapper.Dynamic.FALSE,
             emptyMap(),
-            Settings.EMPTY
+            SETTINGS
         );
     }
 }

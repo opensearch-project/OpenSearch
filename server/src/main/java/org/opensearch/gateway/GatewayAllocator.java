@@ -63,6 +63,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+/**
+ * Allocator for the gateway
+ *
+ * @opensearch.internal
+ */
 public class GatewayAllocator implements ExistingShardsAllocator {
 
     public static final String ALLOCATOR_NAME = "gateway_allocator";

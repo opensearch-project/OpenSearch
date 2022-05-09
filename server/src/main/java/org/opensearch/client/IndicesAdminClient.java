@@ -36,8 +36,6 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -60,9 +58,6 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsRequest;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
@@ -137,6 +132,8 @@ import org.opensearch.common.Nullable;
  * Administrative actions/operations against indices.
  *
  * @see AdminClient#indices()
+ *
+ * @opensearch.internal
  */
 public interface IndicesAdminClient extends OpenSearchClient {
 
@@ -162,34 +159,6 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * Indices exists.
      */
     IndicesExistsRequestBuilder prepareExists(String... indices);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     * @param request The types exists request
-     * @return The result future
-     */
-    @Deprecated
-    ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     * @param request  The types exists
-     * @param listener A listener to be notified with a result
-     */
-    @Deprecated
-    void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     */
-    @Deprecated
-    TypesExistsRequestBuilder prepareTypesExists(String... index);
 
     /**
      * Indices stats.
@@ -594,26 +563,6 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * Get specific index aliases that exists in particular indices and / or by name.
      */
     GetAliasesRequestBuilder prepareGetAliases(String... aliases);
-
-    /**
-     * Allows to check to existence of aliases from indices.
-     */
-    AliasesExistRequestBuilder prepareAliasesExist(String... aliases);
-
-    /**
-     * Check to existence of index aliases.
-     *
-     * @param request The result future
-     */
-    ActionFuture<AliasesExistResponse> aliasesExist(GetAliasesRequest request);
-
-    /**
-     * Check the existence of specified index aliases.
-     *
-     * @param request  The index aliases request
-     * @param listener A listener to be notified with a result
-     */
-    void aliasesExist(GetAliasesRequest request, ActionListener<AliasesExistResponse> listener);
 
     /**
      * Get index metadata for particular indices.

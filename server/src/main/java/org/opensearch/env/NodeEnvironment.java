@@ -107,6 +107,8 @@ import static java.util.Collections.unmodifiableSet;
 
 /**
  * A component that holds all data paths for a single node.
+ *
+ * @opensearch.internal
  */
 public final class NodeEnvironment implements Closeable {
     public static class NodePath {
@@ -289,7 +291,7 @@ public final class NodeEnvironment implements Closeable {
         NodeLock nodeLock = null;
 
         try {
-            sharedDataPath = environment.sharedDataFile();
+            sharedDataPath = environment.sharedDataDir();
             IOException lastException = null;
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
 

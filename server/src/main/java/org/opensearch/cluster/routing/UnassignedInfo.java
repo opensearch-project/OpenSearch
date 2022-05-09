@@ -62,6 +62,8 @@ import java.util.function.Predicate;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
+ *
+ * @opensearch.internal
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
@@ -301,7 +303,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.reason = Reason.values()[(int) in.readByte()];
         this.unassignedTimeMillis = in.readLong();
         // As System.nanoTime() cannot be compared across different JVMs, reset it to now.
-        // This means that in master fail-over situations, elapsed delay time is forgotten.
+        // This means that in cluster-manager fail-over situations, elapsed delay time is forgotten.
         this.unassignedTimeNanos = System.nanoTime();
         this.delayed = in.readBoolean();
         this.message = in.readOptionalString();

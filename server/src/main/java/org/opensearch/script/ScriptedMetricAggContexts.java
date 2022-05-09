@@ -47,6 +47,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Contexts for scripted metric aggregations
+ *
+ * @opensearch.internal
+ */
 public class ScriptedMetricAggContexts {
 
     public abstract static class InitScript {

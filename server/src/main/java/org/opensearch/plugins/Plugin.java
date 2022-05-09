@@ -86,6 +86,8 @@ import java.util.function.UnaryOperator;
  * <li>{@link SearchPlugin}
  * <li>{@link ReloadablePlugin}
  * </ul>
+ *
+ * @opensearch.api
  */
 public abstract class Plugin implements Closeable {
 

@@ -62,6 +62,8 @@ import java.util.Collections;
  * in-flight writes to an index have been completed prior to the response being returned. These actions
  * are done in multiple cluster state updates (at least two). See also {@link TransportVerifyShardIndexBlockAction}
  * for the eventual delegation for shard-level verification.
+ *
+ * @opensearch.internal
  */
 public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddIndexBlockRequest, AddIndexBlockResponse> {
 

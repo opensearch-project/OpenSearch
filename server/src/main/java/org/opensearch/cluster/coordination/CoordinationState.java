@@ -53,6 +53,8 @@ import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 /**
  * The core class of the cluster state coordination algorithm, directly implementing the
  * <a href="https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla">formal model</a>
+ *
+ * @opensearch.internal
  */
 public class CoordinationState {
 
@@ -610,7 +612,8 @@ public class CoordinationState {
                 metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
                 metadataBuilder.coordinationMetadata(coordinationMetadata);
             }
-            // if we receive a commit from a Zen1 master that has not recovered its state yet, the cluster uuid might not been known yet.
+            // if we receive a commit from a Zen1 cluster-manager that has not recovered its state yet,
+            // the cluster uuid might not been known yet.
             assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
                 || lastAcceptedState.term() == ZEN1_BWC_TERM : "received cluster state with empty cluster uuid but not Zen1 BWC term: "
                     + lastAcceptedState;
@@ -622,7 +625,8 @@ public class CoordinationState {
                 metadataBuilder.clusterUUIDCommitted(true);
 
                 if (lastAcceptedState.term() != ZEN1_BWC_TERM) {
-                    // Zen1 masters never publish a committed cluster UUID so if we logged this it'd happen on on every update. Let's just
+                    // Zen1 cluster-managers never publish a committed cluster UUID so if we logged this it'd happen on on every update.
+                    // Let's just
                     // not log it at all in a 6.8/7.x rolling upgrade.
                     logger.info("cluster UUID set to [{}]", lastAcceptedState.metadata().clusterUUID());
                 }

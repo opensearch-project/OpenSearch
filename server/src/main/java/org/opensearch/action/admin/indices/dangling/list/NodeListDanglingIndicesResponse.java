@@ -43,6 +43,8 @@ import java.util.List;
 
 /**
  * Used when querying every node in the cluster for dangling indices, in response to a list request.
+ *
+ * @opensearch.internal
  */
 public class NodeListDanglingIndicesResponse extends BaseNodeResponse {
     private final List<DanglingIndexInfo> indexMetaData;

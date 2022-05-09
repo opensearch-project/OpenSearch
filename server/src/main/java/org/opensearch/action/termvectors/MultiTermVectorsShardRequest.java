@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * A multi get shard request.
+ *
+ * @opensearch.internal
+ */
 public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVectorsShardRequest> {
 
     private int shardId;

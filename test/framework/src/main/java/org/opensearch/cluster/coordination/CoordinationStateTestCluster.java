@@ -149,13 +149,13 @@ public class CoordinationStateTestCluster {
 
         void reboot() {
             if (localNode.isMasterNode() == false && rarely()) {
-                // master-ineligible nodes can't be trusted to persist the cluster state properly, but will not lose the fact that they
-                // were bootstrapped
+                // cluster-manager-ineligible nodes can't be trusted to persist the cluster state properly,
+                // but will not lose the fact that they were bootstrapped
                 final CoordinationMetadata.VotingConfiguration votingConfiguration = persistedState.getLastAcceptedState()
                     .getLastAcceptedConfiguration()
                     .isEmpty()
                         ? CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG
-                        : CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER;
+                        : CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER;
                 persistedState = new InMemoryPersistedState(
                     0L,
                     clusterState(0L, 0L, localNode, votingConfiguration, votingConfiguration, 0L)

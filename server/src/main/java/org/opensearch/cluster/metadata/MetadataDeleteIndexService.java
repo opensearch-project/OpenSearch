@@ -62,6 +62,8 @@ import java.util.Set;
 
 /**
  * Deletes indices.
+ *
+ * @opensearch.internal
  */
 public class MetadataDeleteIndexService {
 

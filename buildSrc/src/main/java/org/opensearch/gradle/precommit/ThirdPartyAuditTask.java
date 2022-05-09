@@ -237,6 +237,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         Set<String> jdkJarHellClasses = runJdkJarHellCheck();
 
         if (missingClassExcludes != null) {
+            assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
             long bogousExcludesCount = Stream.concat(missingClassExcludes.stream(), violationsExcludes.stream())
                 .filter(each -> missingClasses.contains(each) == false)
                 .filter(each -> violationsClasses.contains(each) == false)
@@ -247,7 +248,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
                     "All excluded classes seem to have no issues. " + "This is sometimes an indication that the check silently failed"
                 );
             }
-            assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
             missingClasses.removeAll(missingClassExcludes);
         }
         assertNoPointlessExclusions("have no violations", violationsExcludes, violationsClasses);

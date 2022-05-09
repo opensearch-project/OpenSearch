@@ -46,6 +46,8 @@ import java.util.function.Function;
 
 /**
  * An {@link LeafFieldData} implementation that uses Lucene {@link SortedSetDocValues}.
+ *
+ * @opensearch.internal
  */
 public final class SortedSetBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
 

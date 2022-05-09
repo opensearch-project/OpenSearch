@@ -51,6 +51,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * A single multi get request.
+ *
+ * @opensearch.internal
+ */
 public class MultiTermVectorsRequest extends ActionRequest
     implements
         Iterable<TermVectorsRequest>,

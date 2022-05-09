@@ -825,7 +825,7 @@ public final class InternalTestCluster extends TestCluster {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client master is requested
         }
-        throw new AssertionError("No master client found");
+        throw new AssertionError("No cluster-manager client found");
     }
 
     /**
@@ -1740,7 +1740,7 @@ public final class InternalTestCluster extends TestCluster {
                     .distinct()
                     .collect(Collectors.toList());
                 Set<Path> configPaths = Stream.concat(currentNodes.stream(), newNodes.stream())
-                    .map(nac -> nac.node.getEnvironment().configFile())
+                    .map(nac -> nac.node.getEnvironment().configDir())
                     .collect(Collectors.toSet());
                 logger.debug("configuring discovery with {} at {}", discoveryFileContents, configPaths);
                 for (final Path configPath : configPaths) {

@@ -34,6 +34,11 @@ package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to get a pipeline
+ *
+ * @opensearch.internal
+ */
 public class GetPipelineAction extends ActionType<GetPipelineResponse> {
 
     public static final GetPipelineAction INSTANCE = new GetPipelineAction();

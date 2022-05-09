@@ -36,6 +36,7 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -50,7 +51,14 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.client.Requests.updateSettingsRequest;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to update settings
+ *
+ * @opensearch.api
+ */
 public class RestUpdateSettingsAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestUpdateSettingsAction.class);
 
     @Override
     public List<Route> routes() {
@@ -67,7 +75,8 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
-        updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
+        updateSettingsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", updateSettingsRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(updateSettingsRequest, request, deprecationLogger, getName());
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
         updateSettingsRequest.fromXContent(request.contentParser());
 

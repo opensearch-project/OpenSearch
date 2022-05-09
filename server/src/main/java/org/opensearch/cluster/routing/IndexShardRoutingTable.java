@@ -66,6 +66,8 @@ import static java.util.Collections.emptyMap;
  * a disjoint set of the index data and each shard has one or more instances
  * referred to as replicas of a shard. Given that, this class encapsulates all
  * replicas (instances) for a single index shard.
+ *
+ * @opensearch.internal
  */
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 

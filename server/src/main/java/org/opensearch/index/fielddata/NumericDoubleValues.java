@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * A per-document numeric value.
+ *
+ * @opensearch.internal
  */
 public abstract class NumericDoubleValues extends DoubleValues {
 

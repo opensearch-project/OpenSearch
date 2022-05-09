@@ -57,6 +57,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to list shard allocations
+ *
+ * @opensearch.api
+ */
 public class RestAllocationAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestAllocationAction.class);

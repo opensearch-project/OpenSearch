@@ -66,6 +66,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Transport request for a multi get.
+ *
+ * @opensearch.internal
+ */
 public class MultiGetRequest extends ActionRequest
     implements
         Iterable<MultiGetRequest.Item>,

@@ -53,6 +53,8 @@ import java.util.Optional;
 /**
  * Allocates an unassigned stale primary shard to a specific node. Use with extreme care as this will result in data loss.
  * Allocation deciders are ignored.
+ *
+ * @opensearch.internal
  */
 public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocationCommand {
     public static final String NAME = "allocate_stale_primary";

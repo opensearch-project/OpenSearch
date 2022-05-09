@@ -110,6 +110,8 @@ import java.util.function.Supplier;
 
 /**
  * Configures classes and services that affect the entire cluster.
+ *
+ * @opensearch.internal
  */
 public class ClusterModule extends AbstractModule {
 

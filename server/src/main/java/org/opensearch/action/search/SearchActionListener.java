@@ -38,6 +38,8 @@ import org.opensearch.search.SearchShardTarget;
 /**
  * A base action listener that ensures shard target and shard index is set on all responses
  * received by this listener.
+ *
+ * @opensearch.internal
  */
 abstract class SearchActionListener<T extends SearchPhaseResult> implements ActionListener<T> {
 

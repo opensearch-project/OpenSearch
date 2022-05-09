@@ -46,6 +46,8 @@ import java.util.List;
 
 /**
  * Flush ActionType.
+ *
+ * @opensearch.internal
  */
 public class TransportFlushAction extends TransportBroadcastReplicationAction<
     FlushRequest,

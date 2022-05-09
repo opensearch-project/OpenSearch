@@ -67,6 +67,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
+/**
+ * Operation for a replication request
+ *
+ * @opensearch.internal
+ */
 public class ReplicationOperation<
     Request extends ReplicationRequest<Request>,
     ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
@@ -263,7 +268,8 @@ public class ReplicationOperation<
                     ),
                     replicaException
                 );
-                // Only report "critical" exceptions - TODO: Reach out to the master node to get the latest shard state then report.
+                // Only report "critical" exceptions
+                // TODO: Reach out to the cluster-manager node to get the latest shard state then report.
                 if (TransportActions.isShardNotAvailableException(replicaException) == false) {
                     RestStatus restStatus = ExceptionsHelper.status(replicaException);
                     shardReplicaFailures.add(

@@ -42,6 +42,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Base indexing pressure statistics
+ *
+ * @opensearch.internal
+ */
 public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
     private final long totalCombinedCoordinatingAndPrimaryBytes;

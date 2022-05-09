@@ -56,3 +56,6 @@ testfixtures_shared/
 
 # These are generated from .ci/jobs.t
 .ci/jobs/
+
+# build files generated
+doc-tools/missing-doclet/bin/

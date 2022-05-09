@@ -102,7 +102,11 @@ import java.util.Objects;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
-/** A {@link FieldMapper} for full-text fields. */
+/**
+ * A {@link FieldMapper} for full-text fields.
+ *
+ * @opensearch.internal
+ */
 public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "text";
@@ -582,8 +586,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 automata.add(Automata.makeAnyChar());
             }
             Automaton automaton = Operations.concatenate(automata);
-            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
-            query.setRewriteMethod(method);
+            AutomatonQuery query = AutomatonQueries.createAutomatonQuery(new Term(name(), value + "*"), automaton, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField.name(), value)), BooleanClause.Occur.SHOULD)
                 .build();

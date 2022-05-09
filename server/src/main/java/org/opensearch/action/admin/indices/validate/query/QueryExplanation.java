@@ -47,6 +47,11 @@ import java.util.Objects;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Query Explanation
+ *
+ * @opensearch.internal
+ */
 public class QueryExplanation implements Writeable, ToXContentFragment {
 
     public static final String INDEX_FIELD = "index";

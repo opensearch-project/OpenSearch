@@ -36,4 +36,3 @@ configure(project('painless-whitelist')) {
     }
   }
 }
-

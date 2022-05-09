@@ -57,6 +57,11 @@ import org.opensearch.transport.TransportService;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
+/**
+ * Connector for transport handshake
+ *
+ * @opensearch.internal
+ */
 public class HandshakingTransportAddressConnector implements TransportAddressConnector {
 
     private static final Logger logger = LogManager.getLogger(HandshakingTransportAddressConnector.class);

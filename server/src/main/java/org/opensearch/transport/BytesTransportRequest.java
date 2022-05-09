@@ -42,6 +42,8 @@ import java.io.IOException;
 /**
  * A specialized, bytes only request, that can potentially be optimized on the network
  * layer, specifically for the same large buffer send to several nodes.
+ *
+ * @opensearch.internal
  */
 public class BytesTransportRequest extends TransportRequest {
 

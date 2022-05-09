@@ -39,6 +39,11 @@ import java.io.Closeable;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Transport connection manager.
+ *
+ * @opensearch.internal
+ */
 public interface ConnectionManager extends Closeable {
 
     void addListener(TransportConnectionListener listener);

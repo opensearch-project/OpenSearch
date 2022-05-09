@@ -46,6 +46,8 @@ import java.util.function.Supplier;
  * {@link ThreadContext#stashWithOrigin origin} set to a particular
  * value and calls its {@linkplain ActionListener} in its original
  * {@link ThreadContext}.
+ *
+ * @opensearch.internal
  */
 public final class OriginSettingClient extends FilterClient {
 

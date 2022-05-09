@@ -58,6 +58,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+/**
+ * Transport action for obtaining cluster state
+ *
+ * @opensearch.internal
+ */
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
     private final Logger logger = LogManager.getLogger(getClass());
@@ -138,7 +143,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         } else {
                             listener.onFailure(
                                 new NotMasterException(
-                                    "master stepped down waiting for metadata version " + request.waitForMetadataVersion()
+                                    "cluster-manager stepped down waiting for metadata version " + request.waitForMetadataVersion()
                                 )
                             );
                         }

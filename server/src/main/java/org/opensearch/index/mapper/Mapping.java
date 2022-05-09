@@ -54,6 +54,8 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Wrapper around everything that defines a mapping, without references to
  * utility classes like MapperService, ...
+ *
+ * @opensearch.internal
  */
 public final class Mapping implements ToXContentFragment {
 

@@ -136,6 +136,8 @@ import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
  * At the end of the successful restore process {@code RestoreService} calls {@link #cleanupRestoreState(ClusterChangedEvent)},
  * which removes {@link RestoreInProgress} when all shards are completed. In case of
  * restore failure a normal recovery fail-over process kicks in.
+ *
+ * @opensearch.internal
  */
 public class RestoreService implements ClusterStateApplier {
 
@@ -384,7 +386,11 @@ public class RestoreService implements ClusterStateApplier {
                                             .put(snapshotIndexMetadata.getSettings())
                                             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                                     );
-                                    shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
+                                    shardLimitValidator.validateShardLimit(
+                                        renamedIndexName,
+                                        snapshotIndexMetadata.getSettings(),
+                                        currentState
+                                    );
                                     if (!request.includeAliases() && !snapshotIndexMetadata.getAliases().isEmpty()) {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
@@ -954,7 +960,7 @@ public class RestoreService implements ClusterStateApplier {
 
         @Override
         public void onNoLongerMaster(String source) {
-            logger.debug("no longer master while processing restore state update [{}]", source);
+            logger.debug("no longer cluster-manager while processing restore state update [{}]", source);
         }
 
     }

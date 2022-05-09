@@ -40,6 +40,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if recovery fails
+ *
+ * @opensearch.internal
+ */
 public class RecoveryFailedException extends OpenSearchException {
 
     public RecoveryFailedException(StartRecoveryRequest request, Throwable cause) {

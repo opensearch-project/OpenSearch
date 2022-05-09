@@ -87,6 +87,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * The core field mapping service
+ *
+ * @opensearch.internal
+ */
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
@@ -94,7 +99,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public enum MergeReason {
         /**
-         * Pre-flight check before sending a mapping update to the master
+         * Pre-flight check before sending a mapping update to the cluster-manager
          */
         MAPPING_UPDATE_PREFLIGHT,
         /**
@@ -303,7 +308,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
             // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
-            // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
+            // mapping, in this case, we send to the cluster-manager to refresh its own version of the mappings (to conform with the
             // merge version of it, which it does when refreshing the mappings), and warn log it.
             if (documentMapper().mappingSource().equals(incomingMappingSource) == false) {
                 logger.debug(
@@ -576,11 +581,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        if (fullName.equals(TypeFieldMapper.NAME)) {
-            String type = mapper == null ? null : mapper.type();
-            return new TypeFieldMapper.TypeFieldType(type);
-        }
-
         return this.mapper == null ? null : this.mapper.fieldTypes().get(fullName);
     }
 

@@ -109,6 +109,8 @@ import java.util.function.Function;
  *      <li>Settings update listener - Custom settings update listener can be registered via
  *      {@link #addSettingsUpdateConsumer(Setting, Consumer)}</li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public final class IndexModule {
 

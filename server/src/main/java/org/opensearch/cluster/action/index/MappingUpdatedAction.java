@@ -58,6 +58,8 @@ import java.util.concurrent.Semaphore;
 /**
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
  * in the cluster state meta data (and broadcast to all members).
+ *
+ * @opensearch.internal
  */
 public class MappingUpdatedAction {
 
@@ -104,10 +106,10 @@ public class MappingUpdatedAction {
     }
 
     /**
-     * Update mappings on the master node, waiting for the change to be committed,
+     * Update mappings on the cluster-manager node, waiting for the change to be committed,
      * but not for the mapping update to be applied on all nodes. The timeout specified by
-     * {@code timeout} is the master node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
-     * potentially waiting for a master node to be available.
+     * {@code timeout} is the cluster-manager node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
+     * potentially waiting for a cluster-manager node to be available.
      */
     public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
 

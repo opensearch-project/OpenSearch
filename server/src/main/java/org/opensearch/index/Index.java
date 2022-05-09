@@ -47,6 +47,8 @@ import java.util.Objects;
 
 /**
  * A value class representing the basic required properties of an OpenSearch index.
+ *
+ * @opensearch.internal
  */
 public class Index implements Writeable, ToXContentObject {
 

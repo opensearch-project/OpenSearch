@@ -42,6 +42,8 @@ import java.util.Arrays;
 
 /**
  * A snapshot composed out of multiple snapshots
+ *
+ * @opensearch.internal
  */
 final class MultiSnapshot implements Translog.Snapshot {
 

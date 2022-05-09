@@ -37,6 +37,8 @@ import java.util.Map;
 /**
  * Drop processor only returns {@code null} for the execution result to indicate that any document
  * executed by it should not be indexed.
+ *
+ * @opensearch.internal
  */
 public final class DropProcessor extends AbstractProcessor {
 

@@ -108,8 +108,6 @@ import org.opensearch.action.admin.cluster.tasks.TransportPendingClusterTasksAct
 import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.TransportIndicesAliasesAction;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistAction;
-import org.opensearch.action.admin.indices.alias.exists.TransportAliasesExistAction;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.opensearch.action.admin.indices.alias.get.TransportGetAliasesAction;
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
@@ -137,8 +135,6 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexAction;
 import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.opensearch.action.admin.indices.exists.indices.TransportIndicesExistsAction;
-import org.opensearch.action.admin.indices.exists.types.TransportTypesExistsAction;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.opensearch.action.admin.indices.flush.FlushAction;
 import org.opensearch.action.admin.indices.flush.TransportFlushAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -423,6 +419,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
+ *
+ * @opensearch.internal
  */
 public class ActionModule extends AbstractModule {
 
@@ -560,7 +558,6 @@ public class ActionModule extends AbstractModule {
         actions.register(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
         actions.register(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         actions.register(IndicesExistsAction.INSTANCE, TransportIndicesExistsAction.class);
-        actions.register(TypesExistsAction.INSTANCE, TransportTypesExistsAction.class);
         actions.register(AddIndexBlockAction.INSTANCE, TransportAddIndexBlockAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
         actions.register(
@@ -593,7 +590,6 @@ public class ActionModule extends AbstractModule {
         actions.register(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);
         actions.register(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
-        actions.register(AliasesExistAction.INSTANCE, TransportAliasesExistAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
 
         actions.register(IndexAction.INSTANCE, TransportIndexAction.class);

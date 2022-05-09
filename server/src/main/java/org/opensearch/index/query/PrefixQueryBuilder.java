@@ -54,6 +54,8 @@ import java.util.Objects;
 
 /**
  * A Query that matches documents containing terms with a specified prefix.
+ *
+ * @opensearch.internal
  */
 public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "prefix";

@@ -67,6 +67,11 @@ import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+/**
+ * Transport action for obtaining Cluster Health
+ *
+ * @opensearch.internal
+ */
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
@@ -218,11 +223,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                     @Override
                     public void onNoLongerMaster(String source) {
                         logger.trace(
-                            "stopped being master while waiting for events with priority [{}]. retrying.",
+                            "stopped being cluster-manager while waiting for events with priority [{}]. retrying.",
                             request.waitForEvents()
                         );
                         // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
+                        listener.onFailure(new NotMasterException("no longer cluster-manager. source: [" + source + "]"));
                     }
 
                     @Override

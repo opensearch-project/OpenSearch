@@ -596,14 +596,15 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         try {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
-            when(env.sharedDataFile()).thenReturn(null);
+            when(env.sharedDataDir()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
             IndicesService indicesService = mockIndicesServices();
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
-            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
+            final SystemIndices systemIndices = new SystemIndices(emptyMap());
+            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService, systemIndices);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
@@ -615,7 +616,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 testThreadPool,
                 null,
-                new SystemIndices(emptyMap()),
+                systemIndices,
                 false
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
@@ -722,7 +723,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
 
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
-            when(env.sharedDataFile()).thenReturn(null);
+            when(env.sharedDataDir()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
             DocumentMapper documentMapper = mock(DocumentMapper.class);
@@ -739,7 +740,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
-            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
+            final SystemIndices systemIndices = new SystemIndices(emptyMap());
+            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService, systemIndices);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
@@ -751,7 +753,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 testThreadPool,
                 null,
-                new SystemIndices(emptyMap()),
+                systemIndices,
                 false
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(

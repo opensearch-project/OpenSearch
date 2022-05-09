@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.concurrent.GatedAutoCloseable;
+import org.opensearch.common.concurrent.AutoCloseableRefCounted;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -55,6 +55,8 @@ import java.util.concurrent.ConcurrentMap;
  * of those recoveries). The class is used to guarantee concurrent semantics such that once a recoveries was done/cancelled/failed
  * no other thread will be able to find it. Last, the {@link RecoveryRef} inner class verifies that recovery temporary files
  * and store will only be cleared once on going usage is finished.
+ *
+ * @opensearch.internal
  */
 public class RecoveriesCollection {
 
@@ -273,14 +275,14 @@ public class RecoveriesCollection {
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
      */
-    public static class RecoveryRef extends GatedAutoCloseable<RecoveryTarget> {
+    public static class RecoveryRef extends AutoCloseableRefCounted<RecoveryTarget> {
 
         /**
          * Important: {@link RecoveryTarget#tryIncRef()} should
          * be *successfully* called on status before
          */
         public RecoveryRef(RecoveryTarget status) {
-            super(status, status::decRef);
+            super(status);
             status.setLastAccessTime();
         }
     }

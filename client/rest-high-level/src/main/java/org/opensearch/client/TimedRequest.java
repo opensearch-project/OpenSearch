@@ -47,7 +47,7 @@ public abstract class TimedRequest implements Validatable {
     public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private TimeValue timeout = DEFAULT_ACK_TIMEOUT;
-    private TimeValue masterTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
+    private TimeValue clusterManagerTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
     /**
      * Sets the timeout to wait for the all the nodes to acknowledge
@@ -58,11 +58,11 @@ public abstract class TimedRequest implements Validatable {
     }
 
     /**
-     * Sets the timeout to connect to the master node
-     * @param masterTimeout timeout as a {@link TimeValue}
+     * Sets the timeout to connect to the cluster-manager node
+     * @param clusterManagerTimeout timeout as a {@link TimeValue}
      */
-    public void setMasterTimeout(TimeValue masterTimeout) {
-        this.masterTimeout = masterTimeout;
+    public void setMasterTimeout(TimeValue clusterManagerTimeout) {
+        this.clusterManagerTimeout = clusterManagerTimeout;
     }
 
     /**
@@ -73,9 +73,9 @@ public abstract class TimedRequest implements Validatable {
     }
 
     /**
-     * Returns the timeout for the request to be completed on the master node
+     * Returns the timeout for the request to be completed on the cluster-manager node
      */
     public TimeValue masterNodeTimeout() {
-        return masterTimeout;
+        return clusterManagerTimeout;
     }
 }

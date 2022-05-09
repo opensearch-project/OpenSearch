@@ -55,6 +55,8 @@ import static org.opensearch.rest.RestStatus.OK;
 
 /**
  * Rest action for {@link IndicesShardStoresAction}
+ *
+ * @opensearch.api
  */
 public class RestIndicesShardStoresAction extends BaseRestHandler {
 

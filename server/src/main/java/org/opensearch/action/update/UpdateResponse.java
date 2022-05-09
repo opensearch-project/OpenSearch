@@ -45,6 +45,11 @@ import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * Transport response for updating an index
+ *
+ * @opensearch.internal
+ */
 public class UpdateResponse extends DocWriteResponse {
 
     private static final String GET = "get";

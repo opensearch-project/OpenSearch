@@ -85,6 +85,11 @@ import java.util.function.Predicate;
 
 import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;
 
+/**
+ * Transport action for field capabilities request in an index
+ *
+ * @opensearch.internal
+ */
 public class TransportFieldCapabilitiesIndexAction extends HandledTransportAction<
     FieldCapabilitiesIndexRequest,
     FieldCapabilitiesIndexResponse> {

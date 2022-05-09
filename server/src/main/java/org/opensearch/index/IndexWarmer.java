@@ -54,6 +54,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * The main opensearch index warmer
+ *
+ * @opensearch.internal
+ */
 public final class IndexWarmer {
 
     private static final Logger logger = LogManager.getLogger(IndexWarmer.class);

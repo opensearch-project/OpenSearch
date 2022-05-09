@@ -37,7 +37,9 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.client.OpenSearchClient;
 
 /**
- * Base request builder for master node read operations that can be executed on the local node as well
+ * Base request builder for cluster-manager node read operations that can be executed on the local node as well
+ *
+ * @opensearch.internal
  */
 public abstract class MasterNodeReadOperationRequestBuilder<
     Request extends MasterNodeReadRequest<Request>,

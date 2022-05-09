@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Generic ResourceNotFoundException corresponding to the {@link RestStatus#NOT_FOUND} status code
+ *
+ * @opensearch.internal
  */
 public class ResourceNotFoundException extends OpenSearchException {
 

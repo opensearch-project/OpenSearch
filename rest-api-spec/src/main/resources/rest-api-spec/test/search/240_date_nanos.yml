@@ -164,4 +164,3 @@ setup:
   - match: { aggregations.date.buckets.1.key: 1540857600000 }
   - match: { aggregations.date.buckets.1.key_as_string: "2018-10-30T00:00:00.000Z" }
   - match: { aggregations.date.buckets.1.doc_count: 2 }
-

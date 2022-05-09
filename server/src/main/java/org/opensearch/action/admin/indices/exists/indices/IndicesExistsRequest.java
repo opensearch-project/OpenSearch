@@ -44,6 +44,11 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport request for checking if an index exists
+ *
+ * @opensearch.internal
+ */
 public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;

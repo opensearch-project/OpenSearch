@@ -19,6 +19,11 @@ import org.opensearch.index.ShardIndexingPressureTracker;
 
 import java.io.IOException;
 
+/**
+ * Per shard indexing pressure statistics
+ *
+ * @opensearch.internal
+ */
 public class IndexingPressurePerShardStats implements Writeable, ToXContentFragment {
 
     private final String shardId;

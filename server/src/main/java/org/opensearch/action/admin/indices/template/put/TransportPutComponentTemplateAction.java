@@ -54,6 +54,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * An action for putting a single component template into the cluster state
+ *
+ * @opensearch.internal
+ */
 public class TransportPutComponentTemplateAction extends TransportMasterNodeAction<
     PutComponentTemplateAction.Request,
     AcknowledgedResponse> {

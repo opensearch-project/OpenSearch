@@ -48,6 +48,8 @@ import java.io.IOException;
 /**
  * A Span Query that matches documents containing a term.
  * @see SpanTermQuery
+ *
+ * @opensearch.internal
  */
 public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_term";

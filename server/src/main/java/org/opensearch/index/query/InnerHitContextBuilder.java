@@ -49,6 +49,8 @@ import java.util.Optional;
 
 /**
  * A builder for {@link InnerHitsContext.InnerHitSubContext}
+ *
+ * @opensearch.internal
  */
 public abstract class InnerHitContextBuilder {
     protected final QueryBuilder query;

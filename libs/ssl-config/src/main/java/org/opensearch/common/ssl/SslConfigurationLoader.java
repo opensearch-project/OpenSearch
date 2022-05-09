@@ -32,8 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import org.opensearch.bootstrap.JavaVersion;
-
 import javax.crypto.Cipher;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -361,7 +359,6 @@ public abstract class SslConfigurationLoader {
 
     private static List<String> loadDefaultCiphers() {
         final boolean has256BitAES = has256BitAES();
-        final boolean useGCM = JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0;
         final boolean tlsV13Supported = DEFAULT_PROTOCOLS.contains("TLSv1.3");
         List<String> ciphers = new ArrayList<>();
         if (tlsV13Supported) { // TLSv1.3 cipher has PFS, AEAD, hardware support
@@ -370,19 +367,18 @@ public abstract class SslConfigurationLoader {
             }
             ciphers.add("TLS_AES_128_GCM_SHA256");
         }
-        if (useGCM) {  // PFS, AEAD, hardware support
-            if (has256BitAES) {
-                ciphers.addAll(
-                    Arrays.asList(
-                        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
-                        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
-                        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-                        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
-                    )
-                );
-            } else {
-                ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
-            }
+        // use GCM: PFS, AEAD, hardware support
+        if (has256BitAES) {
+            ciphers.addAll(
+                Arrays.asList(
+                    "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+                    "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+                )
+            );
+        } else {
+            ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
         }
 
         // PFS, hardware support
@@ -410,13 +406,11 @@ public abstract class SslConfigurationLoader {
             );
         }
 
-        // AEAD, hardware support
-        if (useGCM) {
-            if (has256BitAES) {
-                ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_256_GCM_SHA384", "TLS_RSA_WITH_AES_128_GCM_SHA256"));
-            } else {
-                ciphers.add("TLS_RSA_WITH_AES_128_GCM_SHA256");
-            }
+        // use GCM: AEAD, hardware support
+        if (has256BitAES) {
+            ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_256_GCM_SHA384", "TLS_RSA_WITH_AES_128_GCM_SHA256"));
+        } else {
+            ciphers.add("TLS_RSA_WITH_AES_128_GCM_SHA256");
         }
 
         // hardware support

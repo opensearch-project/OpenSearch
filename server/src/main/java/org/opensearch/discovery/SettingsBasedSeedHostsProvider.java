@@ -52,6 +52,8 @@ import static java.util.Collections.emptyList;
  *
  * An example setting might look as follows:
  * [67.81.244.10, 67.81.244.11:9305, 67.81.244.15:9400]
+ *
+ * @opensearch.internal
  */
 public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
 

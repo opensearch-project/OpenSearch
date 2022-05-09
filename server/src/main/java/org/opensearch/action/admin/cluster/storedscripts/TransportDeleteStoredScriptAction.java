@@ -49,6 +49,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for deleting stored script
+ *
+ * @opensearch.internal
+ */
 public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction<DeleteStoredScriptRequest, AcknowledgedResponse> {
 
     private final ScriptService scriptService;

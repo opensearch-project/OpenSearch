@@ -59,6 +59,11 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * Transport action to get field mapping
+ *
+ * @opensearch.api
+ */
 public class RestGetFieldMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetFieldMappingAction.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());

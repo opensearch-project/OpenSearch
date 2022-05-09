@@ -34,6 +34,7 @@ package org.opensearch.rest.action.ingest;
 
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -44,7 +45,14 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * Transport action to delete an ingest pipeline
+ *
+ * @opensearch.api
+ */
 public class RestDeletePipelineAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeletePipelineAction.class);
+
     @Override
     public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_ingest/pipeline/{id}"));
@@ -58,7 +66,8 @@ public class RestDeletePipelineAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeletePipelineRequest request = new DeletePipelineRequest(restRequest.param("id"));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.masterNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(request, restRequest, deprecationLogger, getName());
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().deletePipeline(request, new RestToXContentListener<>(channel));
     }

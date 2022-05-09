@@ -89,6 +89,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
+ *
+ * @opensearch.internal
  */
 public class QueryShardContext extends QueryRewriteContext {
 

@@ -36,6 +36,7 @@ import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -52,8 +53,12 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 
 /**
  * The REST handler for get index and head index APIs.
+ *
+ * @opensearch.api
  */
 public class RestGetIndicesAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndicesAction.class);
 
     @Override
     public List<Route> routes() {
@@ -72,7 +77,8 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.indices(indices);
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
-        getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
+        getIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getIndexRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(getIndexRequest, request, deprecationLogger, getName());
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         return channel -> client.admin().indices().getIndex(getIndexRequest, new RestToXContentListener<>(channel));

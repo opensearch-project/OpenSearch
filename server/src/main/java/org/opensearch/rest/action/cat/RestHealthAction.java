@@ -46,6 +46,11 @@ import java.util.Locale;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to get cluster health
+ *
+ * @opensearch.api
+ */
 public class RestHealthAction extends AbstractCatAction {
 
     @Override

@@ -80,6 +80,8 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
  * @see org.opensearch.client.IndicesAdminClient#create(CreateIndexRequest)
  * @see org.opensearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
+ *
+ * @opensearch.internal
  */
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
 

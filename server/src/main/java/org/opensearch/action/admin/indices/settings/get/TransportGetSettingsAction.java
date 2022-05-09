@@ -55,6 +55,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for getting index settings
+ *
+ * @opensearch.internal
+ */
 public class TransportGetSettingsAction extends TransportMasterNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
 
     private final SettingsFilter settingsFilter;

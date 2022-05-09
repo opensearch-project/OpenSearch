@@ -34,6 +34,8 @@ package org.opensearch.cluster.ack;
 
 /**
  * Base response returned after a cluster state update
+ *
+ * @opensearch.internal
  */
 public class ClusterStateUpdateResponse {
 

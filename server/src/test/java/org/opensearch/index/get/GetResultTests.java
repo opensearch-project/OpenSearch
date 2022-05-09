@@ -46,7 +46,6 @@ import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
@@ -372,9 +371,8 @@ public class GetResultTests extends OpenSearchTestCase {
         Map<String, DocumentField> fields = new HashMap<>(numFields);
         Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
         // As we are using this to construct a GetResult object that already contains
-        // index, type, id, version, seqNo, and source fields, we need to exclude them from random fields
-        Predicate<String> excludeMetaFieldFilter = field -> field.equals(TypeFieldMapper.NAME)
-            || field.equals(IndexFieldMapper.NAME)
+        // index, id, version, seqNo, and source fields, we need to exclude them from random fields
+        Predicate<String> excludeMetaFieldFilter = field -> field.equals(IndexFieldMapper.NAME)
             || field.equals(IdFieldMapper.NAME)
             || field.equals(VersionFieldMapper.NAME)
             || field.equals(SourceFieldMapper.NAME)

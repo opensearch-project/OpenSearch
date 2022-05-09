@@ -63,6 +63,11 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
+/**
+ * Result provided for a search get
+ *
+ * @opensearch.api
+ */
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
 
     public static final String _INDEX = "_index";

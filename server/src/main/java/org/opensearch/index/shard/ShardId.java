@@ -44,6 +44,8 @@ import java.io.IOException;
 
 /**
  * Allows for shard level components to be injected with the shard id.
+ *
+ * @opensearch.internal
  */
 public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeable {
 

@@ -35,6 +35,11 @@ package org.opensearch.action.ingest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
+/**
+ * Transport action to put a new pipeline
+ *
+ * @opensearch.internal
+ */
 public class PutPipelineAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutPipelineAction INSTANCE = new PutPipelineAction();

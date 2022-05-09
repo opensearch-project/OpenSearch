@@ -62,6 +62,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  * references as well as mutable state. That makes it impractical to send tasks over transport channels
  * and use in APIs. Instead, immutable and writeable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
+ *
+ * @opensearch.internal
  */
 public final class TaskInfo implements Writeable, ToXContentFragment {
     private final TaskId taskId;
@@ -142,7 +144,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
             resourceStats = in.readOptionalWriteable(TaskResourceStats::new);
         } else {
             resourceStats = null;
@@ -164,7 +166,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_1_0)) {
             out.writeOptionalWriteable(resourceStats);
         }
     }

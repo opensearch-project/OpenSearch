@@ -48,6 +48,11 @@ import org.opensearch.tasks.TaskManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Base class for a transport action
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
     public final String actionName;

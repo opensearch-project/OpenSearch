@@ -34,6 +34,11 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Action type for delete by query
+ *
+ * @opensearch.internal
+ */
 public class DeleteByQueryAction extends ActionType<BulkByScrollResponse> {
 
     public static final DeleteByQueryAction INSTANCE = new DeleteByQueryAction();

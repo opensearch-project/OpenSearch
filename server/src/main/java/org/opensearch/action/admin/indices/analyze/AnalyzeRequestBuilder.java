@@ -36,6 +36,11 @@ import org.opensearch.client.OpenSearchClient;
 
 import java.util.Map;
 
+/**
+ * Transport request builder for analyzing text
+ *
+ * @opensearch.internal
+ */
 public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<
     AnalyzeAction.Request,
     AnalyzeAction.Response,

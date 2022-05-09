@@ -32,6 +32,9 @@
 
 package org.opensearch.index.shard;
 
+/**
+ * Index Shard States
+ */
 public enum IndexShardState {
     CREATED((byte) 0),
     RECOVERING((byte) 1),

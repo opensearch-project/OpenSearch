@@ -47,6 +47,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.NestedQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -324,7 +325,7 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
 
         Query expectedChildQuery = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST)
             // we automatically add a filter since the inner query might match non-nested docs
-            .add(new TermQuery(new Term("_type", "__nested1")), Occur.FILTER)
+            .add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested1")), Occur.FILTER)
             .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
@@ -352,7 +353,7 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
 
         // we need to add the filter again because of include_in_parent
         expectedChildQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("nested2.foo", "bar")), Occur.MUST)
-            .add(new TermQuery(new Term("_type", "__nested2")), Occur.FILTER)
+            .add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested2")), Occur.FILTER)
             .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
@@ -367,7 +368,7 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
 
         // we need to add the filter again because of include_in_root
         expectedChildQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("nested3.foo", "bar")), Occur.MUST)
-            .add(new TermQuery(new Term("_type", "__nested3")), Occur.FILTER)
+            .add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested3")), Occur.FILTER)
             .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 

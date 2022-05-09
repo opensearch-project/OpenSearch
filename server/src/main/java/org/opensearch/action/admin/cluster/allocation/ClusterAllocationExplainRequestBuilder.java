@@ -37,6 +37,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for requests to explain the allocation of a shard in the cluster
+ *
+ * @opensearch.internal
  */
 public class ClusterAllocationExplainRequestBuilder extends MasterNodeOperationRequestBuilder<
     ClusterAllocationExplainRequest,

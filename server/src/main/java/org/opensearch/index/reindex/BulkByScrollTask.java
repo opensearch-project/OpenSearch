@@ -82,6 +82,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  * We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
  * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
+ *
+ * @opensearch.internal
  */
 public class BulkByScrollTask extends CancellableTask {
 

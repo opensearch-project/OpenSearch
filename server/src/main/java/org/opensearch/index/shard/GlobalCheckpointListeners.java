@@ -58,6 +58,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Represents a collection of global checkpoint listeners. This collection can be added to, and all listeners present at the time of an
  * update will be notified together. All listeners will be notified when the shard is closed.
+ *
+ * @opensearch.internal
  */
 public class GlobalCheckpointListeners implements Closeable {
 

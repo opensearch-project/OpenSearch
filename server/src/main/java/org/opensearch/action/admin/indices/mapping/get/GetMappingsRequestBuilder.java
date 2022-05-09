@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.mapping.get;
 import org.opensearch.action.support.master.info.ClusterInfoRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder to get field mappings.
+ *
+ * @opensearch.internal
+ */
 public class GetMappingsRequestBuilder extends ClusterInfoRequestBuilder<
     GetMappingsRequest,
     GetMappingsResponse,

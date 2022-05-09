@@ -48,6 +48,8 @@ import java.util.Collections;
 
 /**
  * Specialization of {@link LeafNumericFieldData} for floating-point numerics.
+ *
+ * @opensearch.internal
  */
 public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
 

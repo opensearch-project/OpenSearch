@@ -68,6 +68,8 @@ import java.security.BasicPermission;
  *    ...
  *   );
  * </code></pre>
+ *
+ * @opensearch.internal
  */
 public final class SpecialPermission extends BasicPermission {
 

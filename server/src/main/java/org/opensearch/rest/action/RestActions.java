@@ -61,6 +61,11 @@ import java.util.List;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
+/**
+ * REST actions
+ *
+ * @opensearch.api
+ */
 public class RestActions {
 
     public static final ParseField _SHARDS_FIELD = new ParseField("_shards");

@@ -37,6 +37,11 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Request builder for broadcast operations
+ *
+ * @opensearch.internal
+ */
 public abstract class BroadcastOperationRequestBuilder<
     Request extends BroadcastRequest<Request>,
     Response extends BroadcastResponse,

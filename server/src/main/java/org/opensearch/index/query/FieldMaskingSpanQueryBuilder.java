@@ -47,6 +47,11 @@ import org.opensearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Query builder for field masking span query
+ *
+ * @opensearch.internal
+ */
 public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
     public static final ParseField SPAN_FIELD_MASKING_FIELD = new ParseField("span_field_masking", "field_masking_span");
 

@@ -38,6 +38,11 @@ import org.opensearch.action.ListenableActionFuture;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Future for a plain listenable action
+ *
+ * @opensearch.internal
+ */
 public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> implements ListenableActionFuture<T> {
 
     volatile Object listeners;

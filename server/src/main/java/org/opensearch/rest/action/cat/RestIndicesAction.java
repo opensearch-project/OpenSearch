@@ -81,12 +81,17 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to list indices
+ *
+ * @opensearch.api
+ */
 public class RestIndicesAction extends AbstractCatAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
@@ -211,7 +216,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<GetSettingsResponse> listener
     ) {
@@ -219,7 +224,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.masterNodeTimeout(clusterManagerNodeTimeout);
         request.names(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
 
         client.admin().indices().getSettings(request, listener);
@@ -229,7 +234,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<ClusterStateResponse> listener
     ) {
@@ -238,7 +243,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.masterNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().state(request, listener);
     }
@@ -247,7 +252,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<ClusterHealthResponse> listener
     ) {
@@ -256,7 +261,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.masterNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().health(request, listener);
     }

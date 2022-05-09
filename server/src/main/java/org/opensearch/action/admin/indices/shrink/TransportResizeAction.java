@@ -66,6 +66,8 @@ import java.util.function.IntFunction;
 
 /**
  * Main class to initiate resizing (shrink / split) an index into a new index
+ *
+ * @opensearch.internal
  */
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
     private final MetadataCreateIndexService createIndexService;

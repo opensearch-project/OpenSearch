@@ -63,6 +63,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+/**
+ * The OpenSearch DocumentMapper
+ *
+ * @opensearch.internal
+ */
 public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
@@ -161,7 +166,6 @@ public class DocumentMapper implements ToXContentFragment {
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(
             VersionFieldMapper.NAME,
             IdFieldMapper.NAME,
-            TypeFieldMapper.NAME,
             SeqNoFieldMapper.NAME,
             SeqNoFieldMapper.PRIMARY_TERM_NAME,
             SeqNoFieldMapper.TOMBSTONE_NAME
