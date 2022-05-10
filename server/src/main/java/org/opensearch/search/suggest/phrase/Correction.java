@@ -38,6 +38,12 @@ import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import java.util.Arrays;
 
 //TODO public for tests
+
+/**
+ * Correction in phrase suggester
+ *
+ * @opensearch.internal
+ */
 public final class Correction implements Comparable<Correction> {
 
     public static final Correction[] EMPTY = new Correction[0];

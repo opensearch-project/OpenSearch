@@ -50,6 +50,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 
 /**
  * Suggestion entry returned from the {@link PhraseSuggester}.
+ *
+ * @opensearch.internal
  */
 public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry> {
 

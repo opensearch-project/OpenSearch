@@ -34,6 +34,11 @@ package org.opensearch.search.sort;
 import org.apache.lucene.search.Sort;
 import org.opensearch.search.DocValueFormat;
 
+/**
+ * Utility class to hold sort and doc value format instances
+ *
+ * @opensearch.internal
+ */
 public final class SortAndFormats {
 
     public final Sort sort;

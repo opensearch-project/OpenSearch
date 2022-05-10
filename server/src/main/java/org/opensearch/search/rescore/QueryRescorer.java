@@ -47,6 +47,12 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toSet;
 
+/**
+ * A concrete query rescorer used to re-rank the Top-K results of a previously
+ * executed search.
+ *
+ * @opensearch.internal
+ */
 public final class QueryRescorer implements Rescorer {
 
     public static final Rescorer INSTANCE = new QueryRescorer();

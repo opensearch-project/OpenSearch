@@ -60,6 +60,11 @@ import java.util.Optional;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
+/**
+ * Base class for sort object builders
+ *
+ * @opensearch.internal
+ */
 public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
 
     protected SortOrder order = SortOrder.ASC;

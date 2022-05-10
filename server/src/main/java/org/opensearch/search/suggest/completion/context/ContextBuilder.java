@@ -34,6 +34,8 @@ package org.opensearch.search.suggest.completion.context;
 
 /**
  * Builder for {@link ContextMapping}
+ *
+ * @opensearch.internal
  */
 public abstract class ContextBuilder<E extends ContextMapping<?>> {
 

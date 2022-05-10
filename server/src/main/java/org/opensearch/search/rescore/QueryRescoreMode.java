@@ -39,6 +39,11 @@ import org.opensearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Locale;
 
+/**
+ * What mode the rescorer should operate in
+ *
+ * @opensearch.internal
+ */
 public enum QueryRescoreMode implements Writeable {
     Avg {
         @Override

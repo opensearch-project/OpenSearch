@@ -46,6 +46,8 @@ import java.util.Map;
 
 /**
  * Suggest phase of a search request, used to collect suggestions
+ *
+ * @opensearch.internal
  */
 public class SuggestPhase {
 

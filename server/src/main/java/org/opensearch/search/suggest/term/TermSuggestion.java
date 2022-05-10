@@ -54,6 +54,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * The suggestion responses corresponding with the suggestions in the request.
+ *
+ * @opensearch.internal
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 

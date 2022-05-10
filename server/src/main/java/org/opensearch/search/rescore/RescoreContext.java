@@ -42,6 +42,8 @@ import java.util.Set;
  * Context available to the rescore while it is running. Rescore
  * implementations should extend this with any additional resources that
  * they will need while rescoring.
+ *
+ * @opensearch.internal
  */
 public class RescoreContext {
     private final int windowSize;

@@ -77,6 +77,8 @@ import static org.opensearch.search.suggest.phrase.DirectCandidateGeneratorBuild
  * Defines the actual suggest command. Each command uses the global options
  * unless defined in the suggestion itself. All options are the same as the
  * global options, but are only applicable for this suggestion.
+ *
+ * @opensearch.internal
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
 

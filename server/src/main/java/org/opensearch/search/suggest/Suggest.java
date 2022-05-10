@@ -71,6 +71,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 
 /**
  * Top level suggest result, containing the result for each suggestion.
+ *
+ * @opensearch.internal
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
 

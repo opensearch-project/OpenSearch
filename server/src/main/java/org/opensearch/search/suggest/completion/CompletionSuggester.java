@@ -51,6 +51,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * The completion suggester implementation
+ *
+ * @opensearch.internal
+ */
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
     public static final CompletionSuggester INSTANCE = new CompletionSuggester();

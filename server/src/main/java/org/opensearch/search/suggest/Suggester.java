@@ -37,6 +37,11 @@ import org.apache.lucene.util.CharsRefBuilder;
 
 import java.io.IOException;
 
+/**
+ * Base class used for all suggester implementations
+ *
+ * @opensearch.internal
+ */
 public abstract class Suggester<T extends SuggestionSearchContext.SuggestionContext> {
 
     protected abstract Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(

@@ -65,6 +65,8 @@ import static org.opensearch.search.suggest.completion.context.ContextMapping.FI
  * ContextMappings indexes context-enabled suggestion fields
  * and creates context queries for defined {@link ContextMapping}s
  * for a {@link CompletionFieldMapper}
+ *
+ * @opensearch.internal
  */
 public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> {
 
