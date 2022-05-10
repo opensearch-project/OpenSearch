@@ -56,7 +56,7 @@ dependencies {
   runtimeOnly "com.optimaize.languagedetector:language-detector:0.6"
   runtimeOnly 'com.google.guava:guava:18.0'
   // Other dependencies
-  api 'org.tukaani:xz:1.8'
+  api 'org.tukaani:xz:1.9'
   api 'commons-io:commons-io:2.11.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
