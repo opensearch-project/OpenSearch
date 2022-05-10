@@ -84,6 +84,8 @@ public final class OrdinalsBuilder implements Closeable {
      * <p>
      * In addition to these structures, there is another array which stores the current position (level + slice + offset in the slice)
      * in order to be able to append data in constant time.
+     *
+     * @opensearch.internal
      */
     private static class OrdinalsStore {
 

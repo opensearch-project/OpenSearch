@@ -74,6 +74,11 @@ public final class DocValueFetcher implements ValueFetcher {
         return result;
     }
 
+    /**
+     * Leaf interface
+     *
+     * @opensearch.internal
+     */
     public interface Leaf {
         /**
          * Advance the doc values reader to the provided doc.

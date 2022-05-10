@@ -47,6 +47,11 @@ import java.util.function.Function;
  */
 public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
 
+    /**
+     * Type parser for the field mapper
+     *
+     * @opensearch.internal
+     */
     public interface TypeParser extends Mapper.TypeParser {
 
         @Override
@@ -91,6 +96,8 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
 
     /**
      * A type parser for an unconfigurable metadata field.
+     *
+     * @opensearch.internal
      */
     public static class FixedTypeParser implements TypeParser {
 
@@ -111,6 +118,11 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Type parser that is configurable
+     *
+     * @opensearch.internal
+     */
     public static class ConfigurableTypeParser implements TypeParser {
 
         final Function<ParserContext, MetadataFieldMapper> defaultMapperParser;
@@ -137,6 +149,11 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Base builder for internal metadata fields
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder extends ParametrizedFieldMapper.Builder {
 
         protected Builder(String name) {

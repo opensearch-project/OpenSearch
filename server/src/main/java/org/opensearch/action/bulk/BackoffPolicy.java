@@ -119,6 +119,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         return delay;
     }
 
+    /**
+     * Concrete No Back Off Policy
+     *
+     * @opensearch.internal
+     */
     private static class NoBackoff extends BackoffPolicy {
         @Override
         public Iterator<TimeValue> iterator() {
@@ -136,6 +141,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Exponential Back Off Policy
+     *
+     * @opensearch.internal
+     */
     private static class ExponentialBackoff extends BackoffPolicy {
         private final int start;
 
@@ -154,6 +164,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Exponential Back Off Iterator
+     *
+     * @opensearch.internal
+     */
     private static class ExponentialBackoffIterator implements Iterator<TimeValue> {
         private final int numberOfElements;
 
@@ -182,6 +197,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Constant Back Off Policy
+     *
+     * @opensearch.internal
+     */
     private static final class ConstantBackoff extends BackoffPolicy {
         private final TimeValue delay;
 
@@ -199,6 +219,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Constant Back Off Iterator
+     *
+     * @opensearch.internal
+     */
     private static final class ConstantBackoffIterator implements Iterator<TimeValue> {
         private final TimeValue delay;
         private final int numberOfElements;
@@ -224,6 +249,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Wrapped Back Off Policy
+     *
+     * @opensearch.internal
+     */
     private static final class WrappedBackoffPolicy extends BackoffPolicy {
         private final BackoffPolicy delegate;
         private final Runnable onBackoff;
@@ -239,6 +269,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Wrapped Back Off Iterator
+     *
+     * @opensearch.internal
+     */
     private static final class WrappedBackoffIterator implements Iterator<TimeValue> {
         private final Iterator<TimeValue> delegate;
         private final Runnable onBackoff;

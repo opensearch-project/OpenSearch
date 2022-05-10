@@ -99,6 +99,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
     /**
      * Request to take one or more actions on one or more indexes and alias combinations.
+     *
+     * @opensearch.internal
      */
     public static class AliasActions implements AliasesRequest, Writeable, ToXContentObject {
 

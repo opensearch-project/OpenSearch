@@ -57,6 +57,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         return new Builder().init(this);
     }
 
+    /**
+     * Default parameters for routing fields
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
 
         public static final FieldType FIELD_TYPE = new FieldType();
@@ -75,6 +80,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         return (RoutingFieldMapper) in;
     }
 
+    /**
+     * Builder for routing fields
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends MetadataFieldMapper.Builder {
 
         final Parameter<Boolean> required = Parameter.boolParam("required", false, m -> toType(m).required, Defaults.REQUIRED);
@@ -96,6 +106,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new RoutingFieldMapper(Defaults.REQUIRED), c -> new Builder());
 
+    /**
+     * Field type for routing fields
+     *
+     * @opensearch.internal
+     */
     static final class RoutingFieldType extends StringFieldType {
 
         static RoutingFieldType INSTANCE = new RoutingFieldType();

@@ -53,16 +53,31 @@ import java.util.Map;
  */
 public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
 
+    /**
+     * Common parameters for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Names extends AbstractGeometryFieldMapper.Names {
         public static final ParseField ORIENTATION = new ParseField("orientation");
         public static final ParseField COERCE = new ParseField("coerce");
     }
 
+    /**
+     * Parameter defaults for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Defaults extends AbstractGeometryFieldMapper.Defaults {
         public static final Explicit<Orientation> ORIENTATION = new Explicit<>(Orientation.RIGHT, false);
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
     }
 
+    /**
+     * Base builder for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractShapeGeometryFieldType> extends
         AbstractGeometryFieldMapper.Builder<T, FT> {
         protected Boolean coerce;
@@ -124,6 +139,11 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
 
     protected static final String DEPRECATED_PARAMETERS_KEY = "deprecated_parameters";
 
+    /**
+     * Base type parser for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class TypeParser extends AbstractGeometryFieldMapper.TypeParser<Builder> {
         protected abstract Builder newBuilder(String name, Map<String, Object> params);
 
@@ -180,6 +200,11 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         }
     }
 
+    /**
+     * Base field type for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class AbstractShapeGeometryFieldType<Parsed, Processed> extends AbstractGeometryFieldType<Parsed, Processed> {
         protected Orientation orientation = Defaults.ORIENTATION.value();
 

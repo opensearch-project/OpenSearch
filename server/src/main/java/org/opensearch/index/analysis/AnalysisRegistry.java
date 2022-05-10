@@ -570,6 +570,11 @@ public final class AnalysisRegistry implements Closeable {
         return type;
     }
 
+    /**
+     * Internal prebuilt analysis class
+     *
+     * @opensearch.internal
+     */
     private static class PrebuiltAnalysis implements Closeable {
 
         final Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;

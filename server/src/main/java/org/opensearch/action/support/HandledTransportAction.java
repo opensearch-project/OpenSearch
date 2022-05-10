@@ -90,6 +90,11 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
     }
 
+    /**
+     * Inner transport handler
+     *
+     * @opensearch.internal
+     */
     class TransportHandler implements TransportRequestHandler<Request> {
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) {

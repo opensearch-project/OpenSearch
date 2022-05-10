@@ -390,6 +390,11 @@ public class UpdateHelper {
         );
     }
 
+    /**
+     * Internal result
+     *
+     * @opensearch.internal
+     */
     public static class Result {
 
         private final Writeable action;
@@ -468,6 +473,8 @@ public class UpdateHelper {
 
     /**
      * Field names used to populate the script context
+     *
+     * @opensearch.internal
      */
     public static class ContextFields {
         public static final String CTX = "ctx";

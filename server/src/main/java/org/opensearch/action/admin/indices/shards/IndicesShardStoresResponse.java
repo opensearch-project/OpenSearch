@@ -63,6 +63,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
     /**
      * Shard store information from a node
+     *
+     * @opensearch.internal
      */
     public static class StoreStatus implements Writeable, ToXContentFragment, Comparable<StoreStatus> {
         private final DiscoveryNode node;
@@ -233,6 +235,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
     /**
      * Single node failure while retrieving shard store information
+     *
+     * @opensearch.internal
      */
     public static class Failure extends DefaultShardOperationFailedException {
         private String nodeId;
@@ -369,6 +373,11 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
         static final String SHARDS = "shards";

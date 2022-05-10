@@ -115,6 +115,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     private FilterSettings filterSettings;
 
+    /**
+     * Internal filter settings
+     *
+     * @opensearch.internal
+     */
     public static final class FilterSettings {
         public Integer maxNumTerms;
         public Integer minTermFreq;

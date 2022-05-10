@@ -187,6 +187,11 @@ public final class ShardSearchStats implements SearchOperationListener {
         totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - readerContext.getStartTimeInNano()));
     }
 
+    /**
+     * Holder of statistics values
+     *
+     * @opensearch.internal
+     */
     static final class StatsHolder {
         final MeanMetric queryMetric = new MeanMetric();
         final MeanMetric fetchMetric = new MeanMetric();

@@ -222,6 +222,11 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         return Objects.hash(modeInfo, initialConnectionTimeout, clusterAlias, skipUnavailable);
     }
 
+    /**
+     * Mode information
+     *
+     * @opensearch.internal
+     */
     public interface ModeInfo extends ToXContentFragment, Writeable {
 
         boolean isConnected();

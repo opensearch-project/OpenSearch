@@ -208,6 +208,11 @@ public final class SimilarityService extends AbstractIndexComponent {
         return defaultSimilarity;
     }
 
+    /**
+     * Similarity per field
+     *
+     * @opensearch.internal
+     */
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
 
         private final Similarity defaultSimilarity;

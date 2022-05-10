@@ -104,6 +104,8 @@ public class TimeoutTaskCancellationUtility {
      * Timeout listener which executes the provided runnable after timeout is expired and if a response/failure is not yet received.
      * If either a response/failure is received before timeout then the scheduled task is cancelled and response/failure is sent back to
      * the original listener.
+     *
+     * @opensearch.internal
      */
     private static class TimeoutRunnableListener<Response> implements ActionListener<Response>, Runnable {
 

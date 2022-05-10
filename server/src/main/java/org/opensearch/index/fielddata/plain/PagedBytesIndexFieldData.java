@@ -74,6 +74,11 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     private final double minFrequency, maxFrequency;
     private final int minSegmentSize;
 
+    /**
+     * Builder for paged bytes index field data
+     *
+     * @opensearch.internal
+     */
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final double minFrequency, maxFrequency;
@@ -280,6 +285,11 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
     }
 
+    /**
+     * A frequency filter
+     *
+     * @opensearch.internal
+     */
     private static final class FrequencyFilter extends FilteredTermsEnum {
         private final int minFreq;
         private final int maxFreq;

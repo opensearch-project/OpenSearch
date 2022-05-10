@@ -371,6 +371,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     /**
      * Function to be associated with an optional filter, meaning it will be executed only for the documents
      * that match the given filter.
+     *
+     * @opensearch.internal
      */
     public static class FilterFunctionBuilder implements ToXContentObject, Writeable {
         private final QueryBuilder filter;

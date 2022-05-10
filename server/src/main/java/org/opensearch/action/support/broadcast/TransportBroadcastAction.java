@@ -124,6 +124,11 @@ public abstract class TransportBroadcastAction<
 
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
+    /**
+     * Asynchronous broadcast action
+     *
+     * @opensearch.internal
+     */
     protected class AsyncBroadcastAction {
 
         private final Task task;
@@ -320,6 +325,11 @@ public abstract class TransportBroadcastAction<
         }
     }
 
+    /**
+     * A shard transport handler
+     *
+     * @opensearch.internal
+     */
     class ShardTransportHandler implements TransportRequestHandler<ShardRequest> {
 
         @Override

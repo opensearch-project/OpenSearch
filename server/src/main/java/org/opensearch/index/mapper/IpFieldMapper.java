@@ -78,6 +78,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         return (IpFieldMapper) in;
     }
 
+    /**
+     * Builder
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -155,6 +160,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated());
     });
 
+    /**
+     * Field type for IP fields
+     *
+     * @opensearch.internal
+     */
     public static final class IpFieldType extends SimpleMappedFieldType {
 
         private final InetAddress nullValue;
@@ -305,6 +315,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             return builder.apply(lower, upper);
         }
 
+        /**
+         * Field type for IP Scripted doc values
+         *
+         * @opensearch.internal
+         */
         public static final class IpScriptDocValues extends ScriptDocValues<String> {
 
             private final SortedSetDocValues in;

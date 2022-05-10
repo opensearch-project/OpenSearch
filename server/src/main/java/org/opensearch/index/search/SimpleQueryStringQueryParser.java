@@ -310,6 +310,8 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     /**
      * Class encapsulating the settings for the SimpleQueryString query, with
      * their default values
+     *
+     * @opensearch.internal
      */
     public static class Settings {
         /** Specifies whether lenient query parsing should be used. */

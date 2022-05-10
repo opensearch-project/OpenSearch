@@ -361,6 +361,11 @@ final class IndexShardOperationPermits implements Closeable {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Represents a delayed operation
+     *
+     * @opensearch.internal
+     */
     private static class DelayedOperation {
         private final ActionListener<Releasable> listener;
         private final String debugInfo;

@@ -244,6 +244,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for segment statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String SEGMENTS = "segments";
         static final String COUNT = "count";

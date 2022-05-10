@@ -88,6 +88,11 @@ public class VectorGeoShapeQueryProcessor {
         );
     }
 
+    /**
+     * Geometry collector for LatLonShape indexing types
+     *
+     * @opensearch.internal
+     */
     private static class LuceneGeometryCollector implements GeometryVisitor<Void, RuntimeException> {
         private final List<LatLonGeometry> geometries = new ArrayList<>();
         private final String name;

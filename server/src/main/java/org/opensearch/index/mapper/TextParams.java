@@ -54,6 +54,11 @@ public final class TextParams {
 
     private TextParams() {}
 
+    /**
+     * Analyzers for text
+     *
+     * @opensearch.internal
+     */
     public static final class Analyzers {
         public final Parameter<NamedAnalyzer> indexAnalyzer;
         public final Parameter<NamedAnalyzer> searchAnalyzer;

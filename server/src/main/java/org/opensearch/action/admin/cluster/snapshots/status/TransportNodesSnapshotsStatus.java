@@ -145,6 +145,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
+    /**
+     * Inner Request
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BaseNodesRequest<Request> {
 
         private Snapshot[] snapshots;
@@ -171,6 +176,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
+    /**
+     * Inner Node Snapshot Status
+     *
+     * @opensearch.internal
+     */
     public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {
 
         public NodesSnapshotStatus(StreamInput in) throws IOException {
@@ -192,6 +202,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
+    /**
+     * Inner Node Request
+     *
+     * @opensearch.internal
+     */
     public static class NodeRequest extends BaseNodeRequest {
 
         private final List<Snapshot> snapshots;
@@ -212,6 +227,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
+    /**
+     * Inner Node Shapshot Status
+     *
+     * @opensearch.internal
+     */
     public static class NodeSnapshotStatus extends BaseNodeResponse {
 
         private final Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status;
