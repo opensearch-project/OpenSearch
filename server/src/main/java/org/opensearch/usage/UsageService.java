@@ -61,6 +61,8 @@ import java.util.Objects;
 
 /**
  * A service to monitor usage of OpenSearch features.
+ *
+ * @opensearch.internal
  */
 public class UsageService {
 

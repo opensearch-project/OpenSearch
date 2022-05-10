@@ -44,6 +44,11 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Perform cluster information action
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse> extends
     TransportMasterNodeReadAction<Request, Response> {
 

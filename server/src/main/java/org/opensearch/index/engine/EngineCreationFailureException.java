@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  * An exception indicating that an {@link Engine} creation failed.
  *
- *
+ * @opensearch.internal
  */
 public class EngineCreationFailureException extends EngineException {
 

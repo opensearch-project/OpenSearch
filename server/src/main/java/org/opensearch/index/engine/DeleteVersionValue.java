@@ -34,7 +34,11 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.util.RamUsageEstimator;
 
-/** Holds a deleted version, which just adds a timestamp to {@link VersionValue} so we know when we can expire the deletion. */
+/**
+ * Holds a deleted version, which just adds a timestamp to {@link VersionValue} so we know when we can expire the deletion.
+ *
+ * @opensearch.internal
+ */
 
 final class DeleteVersionValue extends VersionValue {
 

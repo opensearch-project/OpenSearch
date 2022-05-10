@@ -44,6 +44,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Transport action to get data stream stats
+ *
+ * @opensearch.api
+ */
 public class RestDataStreamsStatsAction extends BaseRestHandler {
     @Override
     public String getName() {

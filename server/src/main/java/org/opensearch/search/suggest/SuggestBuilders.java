@@ -38,6 +38,8 @@ import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 
 /**
  * A static factory for building suggester lookup queries
+ *
+ * @opensearch.internal
  */
 public abstract class SuggestBuilders {
 

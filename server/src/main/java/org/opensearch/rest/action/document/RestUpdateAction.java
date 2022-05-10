@@ -52,6 +52,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to update a document
+ *
+ * @opensearch.api
+ */
 public class RestUpdateAction extends BaseRestHandler {
 
     @Override

@@ -43,6 +43,8 @@ import java.util.Arrays;
 
 /**
  * Base class for building {@link SortedBinaryDocValues} instances based on unsorted content.
+ *
+ * @opensearch.internal
  */
 public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
 

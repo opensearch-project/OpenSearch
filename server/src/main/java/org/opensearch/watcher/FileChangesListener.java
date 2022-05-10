@@ -35,6 +35,8 @@ import java.nio.file.Path;
 
 /**
  * Callback interface that file changes File Watcher is using to notify listeners about changes.
+ *
+ * @opensearch.internal
  */
 public interface FileChangesListener {
     /**

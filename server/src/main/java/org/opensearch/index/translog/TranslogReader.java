@@ -50,6 +50,8 @@ import static org.opensearch.index.translog.Translog.getCommitCheckpointFileName
 
 /**
  * an immutable translog filereader
+ *
+ * @opensearch.internal
  */
 public class TranslogReader extends BaseTranslogReader implements Closeable {
     protected final long length;

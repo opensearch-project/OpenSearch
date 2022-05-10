@@ -37,6 +37,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if there are any errors parsing mappings
+ *
+ * @opensearch.internal
+ */
 public class MapperParsingException extends MapperException {
 
     public MapperParsingException(StreamInput in) throws IOException {

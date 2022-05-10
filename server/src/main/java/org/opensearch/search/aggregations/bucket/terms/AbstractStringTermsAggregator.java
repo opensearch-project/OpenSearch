@@ -46,6 +46,11 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * Base Aggregator to collect all docs that contain significant terms
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
     protected final boolean showTermDocCountError;

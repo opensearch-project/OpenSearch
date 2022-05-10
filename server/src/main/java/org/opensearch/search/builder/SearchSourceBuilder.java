@@ -89,6 +89,8 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
  * {@link org.opensearch.search.builder.SearchSourceBuilder#searchSource()}.
  *
  * @see org.opensearch.action.search.SearchRequest#source(SearchSourceBuilder)
+ *
+ * @opensearch.internal
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);

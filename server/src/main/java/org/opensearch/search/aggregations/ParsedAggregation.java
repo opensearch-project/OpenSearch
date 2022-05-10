@@ -46,6 +46,8 @@ import java.util.Map;
 /**
  * An implementation of {@link Aggregation} that is parsed from a REST response.
  * Serves as a base class for all aggregation implementations that are parsed from REST.
+ *
+ * @opensearch.internal
  */
 public abstract class ParsedAggregation implements Aggregation, ToXContentFragment {
 

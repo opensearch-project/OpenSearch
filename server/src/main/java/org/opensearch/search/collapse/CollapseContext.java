@@ -42,6 +42,8 @@ import java.util.List;
 
 /**
  * Context used for field collapsing
+ *
+ * @opensearch.internal
  */
 public class CollapseContext {
     private final String fieldName;

@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * Exception used when the in-memory lock for a shard cannot be obtained
+ *
+ * @opensearch.internal
  */
 public class ShardLockObtainFailedException extends OpenSearchException {
 

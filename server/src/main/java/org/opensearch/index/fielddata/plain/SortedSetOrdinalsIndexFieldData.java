@@ -55,6 +55,11 @@ import org.opensearch.search.sort.SortOrder;
 
 import java.util.function.Function;
 
+/**
+ * Sorted Set Ordinals doc values
+ *
+ * @opensearch.internal
+ */
 public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {

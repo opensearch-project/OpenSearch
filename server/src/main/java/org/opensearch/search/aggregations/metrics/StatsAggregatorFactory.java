@@ -46,6 +46,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for stats agg
+ *
+ * @opensearch.internal
+ */
 class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     StatsAggregatorFactory(

@@ -45,6 +45,8 @@ import java.util.Objects;
 
 /**
  * Represents a single snapshotted index in the repository.
+ *
+ * @opensearch.internal
  */
 public final class IndexId implements Writeable, ToXContentObject {
     protected static final String NAME = "name";

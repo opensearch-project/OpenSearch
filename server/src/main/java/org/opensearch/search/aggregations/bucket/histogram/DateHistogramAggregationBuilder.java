@@ -65,6 +65,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * A builder for histograms on date fields.
+ *
+ * @opensearch.internal
  */
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<DateHistogramAggregationBuilder>
     implements

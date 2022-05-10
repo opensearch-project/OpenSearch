@@ -42,6 +42,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Stats snapshot about a repository
+ *
+ * @opensearch.internal
+ */
 public final class RepositoryStatsSnapshot implements Writeable, ToXContentObject {
     public static final long UNKNOWN_CLUSTER_VERSION = -1;
     private final RepositoryInfo repositoryInfo;

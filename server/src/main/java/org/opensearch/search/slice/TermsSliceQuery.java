@@ -59,6 +59,8 @@ import java.io.IOException;
  * For each segment this filter enumerates the terms dictionary, computes the hash code for each term and fills
  * a bit set with the documents of all terms whose hash code matches the predicate.
  * <b>NOTE</b>: Documents with no value for that field are ignored.
+ *
+ * @opensearch.internal
  */
 public final class TermsSliceQuery extends SliceQuery {
     // Fixed seed for computing term hashCode

@@ -53,6 +53,8 @@ import java.util.Objects;
  * can pull values from multiple fields).
  *
  * A limitation of this class is that all the ValuesSource's being refereenced must be of the same type.
+ *
+ * @opensearch.internal
  */
 public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValuesSourceAggregationBuilder<AB>> extends
     AbstractAggregationBuilder<AB> {

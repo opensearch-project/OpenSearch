@@ -55,6 +55,8 @@ import java.util.stream.Collectors;
 
 /**
  * The environment of where things exists.
+ *
+ * @opensearch.internal
  */
 @SuppressForbidden(reason = "configures paths for the system")
 // TODO: move PathUtils to be package-private here instead of

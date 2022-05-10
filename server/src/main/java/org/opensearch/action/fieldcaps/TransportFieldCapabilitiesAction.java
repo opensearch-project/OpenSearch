@@ -58,6 +58,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Transport action for field capabilities requests
+ *
+ * @opensearch.internal
+ */
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     private final ThreadPool threadPool;
     private final ClusterService clusterService;

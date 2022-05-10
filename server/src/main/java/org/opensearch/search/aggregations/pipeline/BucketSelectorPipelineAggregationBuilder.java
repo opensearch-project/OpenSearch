@@ -51,6 +51,11 @@ import java.util.TreeMap;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
+/**
+ * Aggregation Builder for bucket_selector agg
+ *
+ * @opensearch.internal
+ */
 public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketSelectorPipelineAggregationBuilder> {
     public static final String NAME = "bucket_selector";
 

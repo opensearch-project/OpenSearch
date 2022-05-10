@@ -41,6 +41,11 @@ import org.opensearch.common.lucene.search.function.Functions;
 
 import java.io.IOException;
 
+/**
+ * Foundation builder for a gaussian decay
+ *
+ * @opensearch.internal
+ */
 public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFunctionBuilder> {
     public static final String NAME = "gauss";
     public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);

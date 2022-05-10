@@ -41,7 +41,7 @@ import java.io.IOException;
 /**
  * An action invocation failure.
  *
- *
+ * @opensearch.internal
  */
 public class ActionTransportException extends TransportException {
 

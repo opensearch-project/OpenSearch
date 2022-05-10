@@ -38,6 +38,11 @@ import org.opensearch.tasks.Task;
 
 import java.util.Arrays;
 
+/**
+ * Utility class for transport
+ *
+ * @opensearch.internal
+ */
 public enum Transports {
     ;
 

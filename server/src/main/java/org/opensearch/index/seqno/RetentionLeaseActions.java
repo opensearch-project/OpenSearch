@@ -64,6 +64,8 @@ import java.util.Objects;
  * responded with success. Additionally, note the use of
  * {@link TransportSingleShardAction#asyncShardOperation(SingleShardRequest, ShardId, ActionListener)} to handle the case when acquiring
  * permits goes asynchronous because acquiring permits is blocked
+ *
+ * @opensearch.internal
  */
 public class RetentionLeaseActions {
 

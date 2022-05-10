@@ -51,6 +51,11 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
+/**
+ * Implementation of scripted metric agg
+ *
+ * @opensearch.internal
+ */
 public class InternalScriptedMetric extends InternalAggregation implements ScriptedMetric {
     final Script reduceScript;
     private final List<Object> aggregations;

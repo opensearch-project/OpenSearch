@@ -51,6 +51,8 @@ import java.util.Objects;
 /**
  * A function that uses a script to compute or influence the score of documents
  * that match with the inner query or filter.
+ *
+ * @opensearch.internal
  */
 public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScoreFunctionBuilder> {
     public static final String NAME = "script_score";

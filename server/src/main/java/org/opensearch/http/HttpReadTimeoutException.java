@@ -31,6 +31,11 @@
 
 package org.opensearch.http;
 
+/**
+ * Timeout Exception for HTTP read operations
+ *
+ * @opensearch.internal
+ */
 public class HttpReadTimeoutException extends RuntimeException {
 
     public HttpReadTimeoutException(long readTimeoutMillis) {

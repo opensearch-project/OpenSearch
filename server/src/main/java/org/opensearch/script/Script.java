@@ -95,6 +95,8 @@ import java.util.function.BiConsumer;
  *                                use an empty {@link Map} to specify no params
  * </ul>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public final class Script implements ToXContentObject, Writeable {
 

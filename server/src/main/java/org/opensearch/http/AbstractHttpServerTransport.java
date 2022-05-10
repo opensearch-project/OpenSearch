@@ -78,6 +78,11 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 
+/**
+ * Base HttpServer class
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
     private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});

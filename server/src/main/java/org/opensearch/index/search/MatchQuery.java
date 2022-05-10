@@ -82,6 +82,11 @@ import java.util.function.Supplier;
 import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
+/**
+ * Foundation match query
+ *
+ * @opensearch.internal
+ */
 public class MatchQuery {
 
     public enum Type implements Writeable {

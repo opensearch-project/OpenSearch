@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Gets the inner hits of a document during search
+ *
+ * @opensearch.internal
+ */
 public final class InnerHitsPhase implements FetchSubPhase {
 
     private final FetchPhase fetchPhase;

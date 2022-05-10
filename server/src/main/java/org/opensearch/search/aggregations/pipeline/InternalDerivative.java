@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of derivitive pipeline
+ *
+ * @opensearch.internal
+ */
 public class InternalDerivative extends InternalSimpleValue implements Derivative {
     private final double normalizationFactor;
 

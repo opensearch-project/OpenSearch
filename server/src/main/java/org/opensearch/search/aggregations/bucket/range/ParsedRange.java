@@ -48,6 +48,11 @@ import java.util.function.Supplier;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * A range agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.ParsedBucket> implements Range {
 
     @Override

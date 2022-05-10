@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Response sent when updating an index shard status
+ *
+ * @opensearch.internal
+ */
 class UpdateIndexShardSnapshotStatusResponse extends ActionResponse {
 
     public static final UpdateIndexShardSnapshotStatusResponse INSTANCE = new UpdateIndexShardSnapshotStatusResponse();

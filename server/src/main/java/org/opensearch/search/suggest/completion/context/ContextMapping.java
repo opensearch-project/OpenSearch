@@ -57,6 +57,8 @@ import java.util.function.Function;
  * filter and/or boost suggestions at query time for {@link CompletionFieldMapper}.
  *
  * Implementations have to define how contexts are parsed at query/index time
+ *
+ * @opensearch.internal
  */
 public abstract class ContextMapping<T extends ToXContent> implements ToXContentFragment {
 

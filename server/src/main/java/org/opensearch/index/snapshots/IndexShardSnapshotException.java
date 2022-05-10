@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * Generic shard snapshot exception
+ *
+ * @opensearch.internal
  */
 public class IndexShardSnapshotException extends OpenSearchException {
     public IndexShardSnapshotException(ShardId shardId, String msg) {

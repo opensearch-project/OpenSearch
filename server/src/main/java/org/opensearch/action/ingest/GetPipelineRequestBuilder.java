@@ -35,6 +35,11 @@ package org.opensearch.action.ingest;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder to get a pipeline
+ *
+ * @opensearch.internal
+ */
 public class GetPipelineRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     GetPipelineRequest,
     GetPipelineResponse,

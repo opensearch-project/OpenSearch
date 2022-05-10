@@ -38,6 +38,8 @@ import java.util.Locale;
 
 /**
  * Flags for the XSimpleQueryString parser
+ *
+ * @opensearch.internal
  */
 public enum SimpleQueryStringFlag {
     ALL(-1),

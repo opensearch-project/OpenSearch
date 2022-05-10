@@ -54,6 +54,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * Encapsulates the results of a search operation
+ *
+ * @opensearch.internal
+ */
 public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
     public static SearchHits empty() {
         return empty(true);

@@ -68,6 +68,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Strategy to connect to remote nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     enum ConnectionStrategy {

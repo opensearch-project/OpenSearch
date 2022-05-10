@@ -47,6 +47,11 @@ import java.util.function.Supplier;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * A multi-bucket agg that has been parsed
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedMultiBucketAggregation<B extends ParsedMultiBucketAggregation.Bucket> extends ParsedAggregation
     implements
         MultiBucketsAggregation {

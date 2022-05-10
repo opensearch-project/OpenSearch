@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * A Collector that can collect data in separate buckets.
+ *
+ * @opensearch.internal
  */
 public abstract class BucketCollector implements Collector {
 

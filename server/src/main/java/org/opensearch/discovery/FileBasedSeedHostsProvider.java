@@ -57,6 +57,8 @@ import java.util.stream.Stream;
  * 67.81.244.10
  * 67.81.244.11:9305
  * 67.81.244.15:9400
+ *
+ * @opensearch.internal
  */
 public class FileBasedSeedHostsProvider implements SeedHostsProvider {
 

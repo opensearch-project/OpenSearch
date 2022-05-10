@@ -35,5 +35,7 @@ import org.opensearch.search.aggregations.bucket.SingleBucketAggregation;
 
 /**
  * A {@code global} aggregation. Defines a single bucket the holds all the documents in the search context.
+ *
+ * @opensearch.internal
  */
 public interface Global extends SingleBucketAggregation {}

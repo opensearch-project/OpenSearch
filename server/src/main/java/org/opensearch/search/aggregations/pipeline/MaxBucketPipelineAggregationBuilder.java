@@ -39,6 +39,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for max_bucket agg
+ *
+ * @opensearch.internal
+ */
 public class MaxBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<MaxBucketPipelineAggregationBuilder> {
     public static final String NAME = "max_bucket";
 

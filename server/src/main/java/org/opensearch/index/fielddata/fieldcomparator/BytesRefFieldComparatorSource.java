@@ -56,6 +56,8 @@ import java.io.IOException;
 
 /**
  * Comparator source for string/binary values.
+ *
+ * @opensearch.internal
  */
 public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparatorSource {
 

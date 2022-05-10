@@ -43,6 +43,8 @@ import java.util.function.Function;
 
 /**
  * Provides pre-configured, shared {@link CharFilter}s.
+ *
+ * @opensearch.internal
  */
 public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<CharFilterFactory> {
     /**

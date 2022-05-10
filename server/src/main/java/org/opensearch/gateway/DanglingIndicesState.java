@@ -63,6 +63,8 @@ import static java.util.Collections.unmodifiableMap;
  * The dangling indices state is responsible for finding new dangling indices (indices that have
  * their state written on disk, but don't exists in the metadata of the cluster), and importing
  * them into the cluster.
+ *
+ * @opensearch.internal
  */
 public class DanglingIndicesState implements ClusterStateListener {
 

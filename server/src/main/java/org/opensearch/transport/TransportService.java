@@ -87,6 +87,11 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/**
+ * The main OpenSearch transport service
+ *
+ * @opensearch.internal
+ */
 public class TransportService extends AbstractLifecycleComponent
     implements
         ReportingService<TransportInfo>,

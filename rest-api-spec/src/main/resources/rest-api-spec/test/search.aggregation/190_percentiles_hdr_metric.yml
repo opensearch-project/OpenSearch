@@ -161,6 +161,16 @@ setup:
 "Filtered test":
 
   - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_1
+              _id:    5
+          - int_field: 126
+            double_field: 126.0
+            string_field: foo
+  - do:
       search:
         rest_total_hits_as_int: true
         body:
@@ -180,14 +190,14 @@ setup:
                 field: double_field
                 hdr: {}
 
-  - match: { hits.total: 3 }
-  - length: { hits.hits: 3 }
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
 
   - match: { aggregations.percentiles_int.values.1\.0: 51.0 }
   - match: { aggregations.percentiles_int.values.5\.0: 51.0 }
   - match: { aggregations.percentiles_int.values.25\.0: 51.0 }
   - match: { aggregations.percentiles_int.values.50\.0: 101.03125 }
-  - match: { aggregations.percentiles_int.values.75\.0: 101.03125 }
+  - match: { aggregations.percentiles_int.values.75\.0: 126.03125 }
   - match: { aggregations.percentiles_int.values.95\.0: 151.09375 }
   - match: { aggregations.percentiles_int.values.99\.0: 151.09375 }
 
@@ -195,7 +205,7 @@ setup:
   - match: { aggregations.percentiles_double.values.5\.0: 51.0 }
   - match: { aggregations.percentiles_double.values.25\.0: 51.0 }
   - match: { aggregations.percentiles_double.values.50\.0: 101.03125 }
-  - match: { aggregations.percentiles_double.values.75\.0: 101.03125 }
+  - match: { aggregations.percentiles_double.values.75\.0: 126.03125 }
   - match: { aggregations.percentiles_double.values.95\.0: 151.09375 }
   - match: { aggregations.percentiles_double.values.99\.0: 151.09375 }
 

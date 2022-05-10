@@ -42,6 +42,8 @@ import java.util.function.Supplier;
 
 /**
  * Provides pre-configured, shared {@link Tokenizer}s.
+ *
+ * @opensearch.internal
  */
 public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent<TokenizerFactory> {
     /**

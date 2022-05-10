@@ -47,6 +47,8 @@ import java.util.Map;
  * This collector groups suggestions coming from the same document but matching different contexts
  * or surface form together. When different contexts or surface forms match the same suggestion form only
  * the best one per document (sorted by weight) is kept.
+ *
+ * @opensearch.internal
  **/
 class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
     private Map<Integer, List<CharSequence>> docContexts = new HashMap<>();

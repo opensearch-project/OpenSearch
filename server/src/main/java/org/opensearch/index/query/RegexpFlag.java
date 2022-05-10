@@ -50,6 +50,8 @@ import java.util.Locale;
  *
  * @see RegexpQueryBuilder#flags(RegexpFlag...)
  * @see RegexpQueryBuilder#flags(RegexpFlag...)
+ *
+ * @opensearch.internal
  */
 public enum RegexpFlag {
 

@@ -65,6 +65,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Aggregate all docs that match given ranges.
+ *
+ * @opensearch.internal
+ */
 public class RangeAggregator extends BucketsAggregator {
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");

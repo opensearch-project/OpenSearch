@@ -37,6 +37,11 @@ import org.opensearch.script.TemplateScript;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+/**
+ * Processes an ingest pipeline
+ *
+ * @opensearch.internal
+ */
 public class PipelineProcessor extends AbstractProcessor {
 
     public static final String TYPE = "pipeline";

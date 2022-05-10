@@ -74,6 +74,8 @@ import java.util.stream.Stream;
  * (see {@link org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator}),
  * nor does it allocate primaries when a primary shard failed and there is a valid replica
  * copy that can immediately be promoted to primary, as this takes place in {@link RoutingNodes#failShard}.
+ *
+ * @opensearch.internal
  */
 public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**

@@ -33,7 +33,8 @@
 package org.opensearch.ingest.attachment;
 
 import org.apache.tika.exception.ZeroByteFileException;
-import org.apache.tika.language.LanguageIdentifier;
+import org.apache.tika.langdetect.optimaize.OptimaizeLangDetector;
+import org.apache.tika.language.detect.LanguageResult;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 
@@ -134,9 +135,10 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-            // TODO: stop using LanguageIdentifier...
-            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
-            String language = identifier.getLanguage();
+            OptimaizeLangDetector langDetector = new OptimaizeLangDetector();
+            langDetector.loadModels();
+            LanguageResult result = langDetector.detect(parsedContent);
+            String language = result.getLanguage();
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
         }
 
@@ -158,6 +160,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
             String author = metadata.get("Author");
             if (Strings.hasLength(author)) {
                 additionalFields.put(Property.AUTHOR.toLowerCase(), author);
+            } else {
+                // The MSOffice parser has deprecated "Author" in favor of "Creator"
+                author = metadata.get(TikaCoreProperties.CREATOR);
+                if (Strings.hasLength(author)) {
+                    additionalFields.put(Property.AUTHOR.toLowerCase(), author);
+                }
             }
         }
 
@@ -165,6 +173,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
             String keywords = metadata.get("Keywords");
             if (Strings.hasLength(keywords)) {
                 additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
+            } else {
+                // Fallback - EPUBs put their keywords as multiple subject fields by convention
+                keywords = metadata.get(TikaCoreProperties.SUBJECT);
+                if (Strings.hasLength(keywords)) {
+                    additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
+                }
             }
         }
 

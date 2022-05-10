@@ -60,6 +60,8 @@ import java.util.stream.Collectors;
 /**
  * A class that represents the data in a repository, as captured in the
  * repository's index blob.
+ *
+ * @opensearch.internal
  */
 public final class RepositoryData {
 

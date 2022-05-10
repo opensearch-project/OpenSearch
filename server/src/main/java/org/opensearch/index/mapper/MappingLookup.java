@@ -45,6 +45,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * Looks up a mapping for a field
+ *
+ * @opensearch.internal
+ */
 public final class MappingLookup implements Iterable<Mapper> {
 
     /** Full field name to mapper */

@@ -41,6 +41,8 @@ import java.util.Collections;
 /**
  * Plugin for defining system indices. Extends {@link ActionPlugin} because system indices must be accessed via APIs
  * added by the plugin that owns the system index, rather than standard APIs.
+ *
+ * @opensearch.api
  */
 public interface SystemIndexPlugin extends ActionPlugin {
 

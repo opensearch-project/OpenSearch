@@ -39,6 +39,8 @@ import org.opensearch.transport.TransportService;
 
 /**
  * A generic proxy that will execute the given action against a specific node.
+ *
+ * @opensearch.internal
  */
 public class TransportActionNodeProxy<Request extends ActionRequest, Response extends ActionResponse> {
 

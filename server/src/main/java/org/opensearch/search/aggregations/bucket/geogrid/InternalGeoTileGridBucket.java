@@ -38,6 +38,11 @@ import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 
+/**
+ * Implementation of geotile grid bucket
+ *
+ * @opensearch.internal
+ */
 public class InternalGeoTileGridBucket extends InternalGeoGridBucket<InternalGeoTileGridBucket> {
     InternalGeoTileGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         super(hashAsLong, docCount, aggregations);

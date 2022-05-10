@@ -15,6 +15,11 @@ import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * A multi terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedMultiTerms extends ParsedTerms {
     @Override
     public String getType() {

@@ -41,6 +41,8 @@ import java.io.IOException;
 
 /**
  * Generic snapshot exception
+ *
+ * @opensearch.internal
  */
 public class SnapshotException extends OpenSearchException {
 

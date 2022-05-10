@@ -34,6 +34,11 @@ package org.opensearch.transport;
 
 import org.opensearch.tasks.Task;
 
+/**
+ * Handles transport requests
+ *
+ * @opensearch.internal
+ */
 public interface TransportRequestHandler<T extends TransportRequest> {
 
     void messageReceived(T request, TransportChannel channel, Task task) throws Exception;

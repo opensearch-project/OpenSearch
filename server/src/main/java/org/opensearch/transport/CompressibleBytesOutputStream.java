@@ -55,6 +55,8 @@ import java.util.zip.DeflaterOutputStream;
  *
  * {@link CompressibleBytesOutputStream#close()} will NOT close the underlying stream. The byte stream passed
  * in the constructor must be closed individually.
+ *
+ * @opensearch.internal
  */
 final class CompressibleBytesOutputStream extends StreamOutput {
 

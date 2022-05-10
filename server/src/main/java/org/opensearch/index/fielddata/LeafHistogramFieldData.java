@@ -35,6 +35,8 @@ import java.io.IOException;
 
 /**
  * {@link LeafFieldData} specialization for histogram data.
+ *
+ * @opensearch.internal
  */
 public interface LeafHistogramFieldData extends LeafFieldData {
 

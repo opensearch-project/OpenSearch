@@ -38,6 +38,11 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchLeafReader;
 
+/**
+ * Utility class for shard operations
+ *
+ * @opensearch.internal
+ */
 public final class ShardUtils {
 
     private ShardUtils() {}

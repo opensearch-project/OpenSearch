@@ -42,6 +42,8 @@ import java.util.List;
 
 /**
  * The result of parsing a document.
+ *
+ * @opensearch.internal
  */
 public class ParsedDocument {
 

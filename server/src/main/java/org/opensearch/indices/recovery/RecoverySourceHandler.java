@@ -115,6 +115,8 @@ import java.util.stream.StreamSupport;
  * while the {@link RateLimiter} passed via {@link RecoverySettings} is shared across recoveries
  * originating from this nodes to throttle the number bytes send during file transfer. The transaction log
  * phase bypasses the rate limiter entirely.
+ *
+ * @opensearch.internal
  */
 public class RecoverySourceHandler {
 

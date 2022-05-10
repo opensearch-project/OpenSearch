@@ -93,6 +93,8 @@ import java.util.Map;
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  *
  * @deprecated use {@link GeoShapeFieldMapper}
+ *
+ * @opensearch.internal
  */
 @Deprecated
 public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>, Shape> {

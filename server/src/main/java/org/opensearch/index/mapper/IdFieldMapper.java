@@ -73,6 +73,8 @@ import java.util.function.Supplier;
  * A mapper for the _id field. It does nothing since _id is neither indexed nor
  * stored, but we need to keep it so that its FieldType can be used to generate
  * queries.
+ *
+ * @opensearch.internal
  */
 public class IdFieldMapper extends MetadataFieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IdFieldMapper.class);

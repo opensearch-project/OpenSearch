@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Implementation of geo_distance bucket
+ *
+ * @opensearch.internal
+ */
 public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucket, InternalGeoDistance> {
     public static final Factory FACTORY = new Factory();
 

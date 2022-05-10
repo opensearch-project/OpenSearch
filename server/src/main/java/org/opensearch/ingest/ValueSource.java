@@ -49,6 +49,8 @@ import static org.opensearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
 /**
  * Holds a value. If the value is requested a copy is made and optionally template snippets are resolved too.
+ *
+ * @opensearch.internal
  */
 public interface ValueSource {
 

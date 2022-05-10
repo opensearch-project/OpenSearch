@@ -66,6 +66,11 @@ import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
+/**
+ * Uses lucene's unified highlighter implementation
+ *
+ * @opensearch.internal
+ */
 public class UnifiedHighlighter implements Highlighter {
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {

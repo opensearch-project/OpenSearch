@@ -34,6 +34,8 @@ package org.opensearch.snapshots;
 
 /**
  * Represents the state that a snapshot can be in
+ *
+ * @opensearch.internal
  */
 public enum SnapshotState {
     /**

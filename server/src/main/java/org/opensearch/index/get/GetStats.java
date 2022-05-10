@@ -41,6 +41,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stats for a search get
+ *
+ * @opensearch.api
+ */
 public class GetStats implements Writeable, ToXContentFragment {
 
     private long existsCount;

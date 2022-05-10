@@ -47,6 +47,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to upgrade an index
+ *
+ * @opensearch.api
+ */
 public class RestUpgradeAction extends BaseRestHandler {
 
     @Override

@@ -52,6 +52,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * A significant terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregation<ParsedSignificantTerms.ParsedBucket>
     implements
         SignificantTerms {

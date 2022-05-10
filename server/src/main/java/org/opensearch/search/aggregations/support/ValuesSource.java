@@ -69,6 +69,11 @@ import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 
+/**
+ * Base class for a ValuesSource; the primitive data for an agg
+ *
+ * @opensearch.internal
+ */
 public abstract class ValuesSource {
 
     /**

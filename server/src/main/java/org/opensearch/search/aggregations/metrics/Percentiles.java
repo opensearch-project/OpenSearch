@@ -33,6 +33,8 @@ package org.opensearch.search.aggregations.metrics;
 
 /**
  * An aggregation that computes approximate percentiles.
+ *
+ * @opensearch.internal
  */
 public interface Percentiles extends NumericMetricsAggregation.MultiValue, Iterable<Percentile> {
 

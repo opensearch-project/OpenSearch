@@ -102,6 +102,8 @@ import static org.opensearch.search.aggregations.bucket.terms.TermsAggregationBu
  *   <b>Notes:</b> The current implementation focuses on adding new type aggregates. Performance (latency) is not good，mainly because of
  *   simply encoding/decoding a list of values as bucket keys.
  * </p>
+ *
+ * @opensearch.internal
  */
 public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<MultiTermsAggregationBuilder> {
     public static final String NAME = "multi_terms";

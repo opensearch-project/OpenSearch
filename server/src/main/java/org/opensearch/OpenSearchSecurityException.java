@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Generic security exception
+ *
+ * @opensearch.internal
  */
 public class OpenSearchSecurityException extends OpenSearchStatusException {
     /**

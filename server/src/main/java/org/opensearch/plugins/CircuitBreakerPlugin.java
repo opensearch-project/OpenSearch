@@ -39,6 +39,8 @@ import org.opensearch.indices.breaker.CircuitBreakerService;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom circuit breakers
+ *
+ * @opensearch.api
  */
 public interface CircuitBreakerPlugin {
 

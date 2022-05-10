@@ -15,6 +15,11 @@ import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+/**
+ * Mode for Text and Mapped Field Types
+ *
+ * @opensearch.internal
+ */
 public enum IntervalMode implements Writeable {
     ORDERED(0),
     UNORDERED(1),

@@ -79,6 +79,8 @@ import java.util.function.BiFunction;
 /**
  * An encapsulation of {@link org.opensearch.search.SearchService} operations exposed through
  * transport.
+ *
+ * @opensearch.internal
  */
 public class SearchTransportService {
 

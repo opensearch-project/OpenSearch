@@ -48,6 +48,8 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
  * Restores a snapshot
+ *
+ * @opensearch.api
  */
 public class RestRestoreSnapshotAction extends BaseRestHandler {
 

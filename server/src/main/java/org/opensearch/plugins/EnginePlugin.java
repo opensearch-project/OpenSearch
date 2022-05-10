@@ -45,6 +45,8 @@ import java.util.function.Supplier;
 
 /**
  * A plugin that provides alternative engine implementations.
+ *
+ * @opensearch.api
  */
 public interface EnginePlugin {
 

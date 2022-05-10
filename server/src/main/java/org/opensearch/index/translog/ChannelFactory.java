@@ -39,6 +39,8 @@ import java.nio.file.StandardOpenOption;
 
 /**
  * only for testing until we have a disk-full FileSystem
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface ChannelFactory {

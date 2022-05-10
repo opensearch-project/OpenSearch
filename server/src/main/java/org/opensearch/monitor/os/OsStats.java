@@ -45,6 +45,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Holds stats for the Operating System
+ *
+ * @opensearch.internal
+ */
 public class OsStats implements Writeable, ToXContentFragment {
 
     private final long timestamp;

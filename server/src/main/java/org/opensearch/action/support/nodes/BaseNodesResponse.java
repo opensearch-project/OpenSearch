@@ -44,6 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Transport response for nodes requests
+ *
+ * @opensearch.internal
+ */
 public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> extends ActionResponse {
 
     private ClusterName clusterName;

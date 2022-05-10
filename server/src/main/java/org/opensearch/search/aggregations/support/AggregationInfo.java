@@ -46,6 +46,11 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
 
+/**
+ * Data describing an agg
+ *
+ * @opensearch.internal
+ */
 public class AggregationInfo implements ReportingService.Info {
 
     private final Map<String, Set<String>> aggs;

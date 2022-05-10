@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Base request for cluster-manager based read operations that allows to read the cluster state from the local node if needed
+ *
+ * @opensearch.internal
  */
 public abstract class MasterNodeReadRequest<Request extends MasterNodeReadRequest<Request>> extends MasterNodeRequest<Request> {
 

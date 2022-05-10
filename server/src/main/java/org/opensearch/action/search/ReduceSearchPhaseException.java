@@ -40,7 +40,7 @@ import java.io.IOException;
  * A failure during a reduce phase (when receiving results from several shards, and reducing them
  * into one or more results and possible actions).
  *
- *
+ * @opensearch.internal
  */
 public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
 

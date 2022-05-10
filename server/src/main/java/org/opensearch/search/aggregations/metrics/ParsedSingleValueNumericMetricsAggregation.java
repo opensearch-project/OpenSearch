@@ -35,6 +35,11 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ObjectParser.ValueType;
 import org.opensearch.search.aggregations.ParsedAggregation;
 
+/**
+ * A single value numeric agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedAggregation
     implements
         NumericMetricsAggregation.SingleValue {

@@ -35,6 +35,11 @@ package org.opensearch.transport;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 
+/**
+ * Handler for empty transport response
+ *
+ * @opensearch.internal
+ */
 public class EmptyTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
 
     public static final EmptyTransportResponseHandler INSTANCE_SAME = new EmptyTransportResponseHandler(ThreadPool.Names.SAME);

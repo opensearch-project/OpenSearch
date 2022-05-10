@@ -64,6 +64,8 @@ import java.util.function.Supplier;
 
 /**
  * Base {@link QueryBuilder} that builds a Geometry Query
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 

@@ -41,6 +41,8 @@ import java.io.IOException;
 
 /**
  * A base class for node level operations.
+ *
+ * @opensearch.internal
  */
 public abstract class BaseNodeResponse extends TransportResponse {
 

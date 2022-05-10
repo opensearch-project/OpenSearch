@@ -62,6 +62,11 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+/**
+ * Base action class for transport nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportNodesAction<
     NodesRequest extends BaseNodesRequest<NodesRequest>,
     NodesResponse extends BaseNodesResponse,

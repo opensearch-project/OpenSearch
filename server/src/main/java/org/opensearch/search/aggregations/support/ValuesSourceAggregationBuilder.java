@@ -54,6 +54,11 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Base class for all values source agg builders
+ *
+ * @opensearch.internal
+ */
 public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends AbstractAggregationBuilder<AB> {
 
     public static <T> void declareFields(

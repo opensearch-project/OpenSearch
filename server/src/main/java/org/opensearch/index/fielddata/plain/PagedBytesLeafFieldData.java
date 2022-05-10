@@ -44,6 +44,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Field Data for Paged Bytes
+ *
+ * @opensearch.internal
+ */
 public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
 
     private final PagedBytes.Reader bytes;

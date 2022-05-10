@@ -34,6 +34,11 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.PriorityQueue;
 
+/**
+ * Priority queue for computing bucket significance
+ *
+ * @opensearch.internal
+ */
 public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends PriorityQueue<B> {
 
     public BucketSignificancePriorityQueue(int size) {

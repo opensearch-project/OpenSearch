@@ -42,6 +42,8 @@ import java.util.function.Predicate;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom mappers
+ *
+ * @opensearch.api
  */
 public interface MapperPlugin {
 

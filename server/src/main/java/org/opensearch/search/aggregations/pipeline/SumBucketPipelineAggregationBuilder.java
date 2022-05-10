@@ -39,6 +39,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for sum_bucket agg
+ *
+ * @opensearch.internal
+ */
 public class SumBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<SumBucketPipelineAggregationBuilder> {
     public static final String NAME = "sum_bucket";
 

@@ -56,6 +56,8 @@ import java.io.IOException;
 
 /**
  * Comparator source for float values.
+ *
+ * @opensearch.internal
  */
 public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 

@@ -70,6 +70,8 @@ import java.util.function.Function;
  * for each shard</li>
  * <li>When all shard calls return cluster-manager calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public interface Repository extends LifecycleComponent {
 

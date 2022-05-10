@@ -69,6 +69,8 @@ import static java.util.Collections.unmodifiableSet;
  * The async fetch logic maintains a map of which nodes are being fetched from in an async manner,
  * and once the results are back, it makes sure to schedule a reroute to make sure those results will
  * be taken into account.
+ *
+ * @opensearch.internal
  */
 public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Releasable {
 

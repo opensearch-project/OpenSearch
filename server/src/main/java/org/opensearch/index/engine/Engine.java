@@ -112,6 +112,11 @@ import java.util.stream.Stream;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
+/**
+ * Base OpenSearch Engine class
+ *
+ * @opensearch.internal
+ */
 public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";  // TODO: remove sync_id in 3.0

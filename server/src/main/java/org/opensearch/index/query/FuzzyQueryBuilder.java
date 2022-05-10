@@ -52,6 +52,8 @@ import java.util.Objects;
 
 /**
  * A Query that does fuzzy matching for a specific value.
+ *
+ * @opensearch.internal
  */
 public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "fuzzy";

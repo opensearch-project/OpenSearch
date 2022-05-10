@@ -44,6 +44,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs from the global search scope.
+ *
+ * @opensearch.internal
+ */
 public class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     public GlobalAggregator(String name, AggregatorFactories subFactories, SearchContext aggregationContext, Map<String, Object> metadata)

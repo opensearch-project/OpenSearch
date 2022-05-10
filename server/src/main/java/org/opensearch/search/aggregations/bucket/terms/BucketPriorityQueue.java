@@ -35,6 +35,11 @@ import org.apache.lucene.util.PriorityQueue;
 
 import java.util.Comparator;
 
+/**
+ * Internal priority queue for computing terms aggs
+ *
+ * @opensearch.internal
+ */
 public class BucketPriorityQueue<B extends Terms.Bucket> extends PriorityQueue<B> {
 
     private final Comparator<? super B> comparator;

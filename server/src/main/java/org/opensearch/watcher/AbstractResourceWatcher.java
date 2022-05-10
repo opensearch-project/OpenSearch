@@ -38,6 +38,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * Abstract resource watcher framework, which handles adding and removing listeners
  * and calling resource observer.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractResourceWatcher<Listener> implements ResourceWatcher {
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();

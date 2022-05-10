@@ -39,6 +39,8 @@ import java.util.Objects;
 
 /**
  * An abstract {@link Query} that defines an hash function to partition the documents in multiple slices.
+ *
+ * @opensearch.internal
  */
 public abstract class SliceQuery extends Query {
     private final String field;

@@ -51,6 +51,8 @@ import static org.opensearch.common.settings.Setting.Property.NodeScope;
  * </ul>
  *
  * @see Allocation
+ *
+ * @opensearch.internal
  */
 public class EnableAssignmentDecider {
 

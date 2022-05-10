@@ -45,7 +45,11 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
-/** use transport bulk action directly */
+/**
+ * use transport bulk action directly
+ *
+ * @opensearch.internal
+ */
 @Deprecated
 public abstract class TransportSingleItemBulkWriteAction<
     Request extends ReplicatedWriteRequest<Request>,

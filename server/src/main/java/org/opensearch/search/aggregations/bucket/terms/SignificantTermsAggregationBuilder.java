@@ -60,6 +60,11 @@ import java.util.Objects;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
+/**
+ * Aggregation Builder for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<SignificantTermsAggregationBuilder> {
     public static final String NAME = "significant_terms";
     public static final ValuesSourceRegistry.RegistryKey<SignificantTermsAggregatorSupplier> REGISTRY_KEY =

@@ -49,6 +49,11 @@ import java.util.Map;
 
 import static org.opensearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
+/**
+ * Aggregate all docs into a selected bucket
+ *
+ * @opensearch.internal
+ */
 public class BucketSelectorPipelineAggregator extends PipelineAggregator {
     private GapPolicy gapPolicy;
     private Script script;

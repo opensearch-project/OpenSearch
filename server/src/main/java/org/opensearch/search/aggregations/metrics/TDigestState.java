@@ -41,6 +41,8 @@ import java.util.Iterator;
 
 /**
  * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.
+ *
+ * @opensearch.internal
  */
 public class TDigestState extends AVLTreeDigest {
 

@@ -44,6 +44,8 @@ import java.util.Collection;
 
 /**
  * {@link SortedBinaryDocValues} implementation that reads values from a script.
+ *
+ * @opensearch.internal
  */
 public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerAware {
 

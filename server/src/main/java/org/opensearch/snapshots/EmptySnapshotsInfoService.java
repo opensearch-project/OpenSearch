@@ -34,6 +34,11 @@ package org.opensearch.snapshots;
 
 import org.opensearch.common.collect.ImmutableOpenMap;
 
+/**
+ * Service for getting information about empty snapshots
+ *
+ * @opensearch.internal
+ */
 public class EmptySnapshotsInfoService implements SnapshotsInfoService {
     public static final EmptySnapshotsInfoService INSTANCE = new EmptySnapshotsInfoService();
 

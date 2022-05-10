@@ -47,6 +47,11 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 
+/**
+ * looks up multiple leaf fields
+ *
+ * @opensearch.internal
+ */
 public class LeafFieldsLookup implements Map {
 
     private final MapperService mapperService;

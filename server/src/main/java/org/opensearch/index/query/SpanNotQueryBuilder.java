@@ -47,6 +47,11 @@ import java.util.Objects;
 
 import static org.opensearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
+/**
+ * Query builder for span_not queries
+ *
+ * @opensearch.internal
+ */
 public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_not";
 

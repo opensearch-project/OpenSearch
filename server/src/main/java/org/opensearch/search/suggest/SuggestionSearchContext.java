@@ -38,6 +38,11 @@ import org.opensearch.index.query.QueryShardContext;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * Context used for suggestion based search
+ *
+ * @opensearch.internal
+ */
 public class SuggestionSearchContext {
 
     private final Map<String, SuggestionContext> suggestions = new LinkedHashMap<>(4);

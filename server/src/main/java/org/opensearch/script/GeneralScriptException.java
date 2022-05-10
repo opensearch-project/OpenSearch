@@ -47,6 +47,8 @@ import java.io.IOException;
  * @deprecated Use ScriptException for exceptions from the scripting engine,
  *             otherwise use a more appropriate exception (e.g. if thrown
  *             from various abstractions)
+ *
+ * @opensearch.internal
  */
 @Deprecated
 public class GeneralScriptException extends OpenSearchException implements OpenSearchWrapperException {

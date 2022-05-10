@@ -35,6 +35,8 @@ package org.opensearch.http;
 /**
  * A basic http response abstraction. Http modules must implement this interface as the server package rest
  * handling needs to set http headers for a response.
+ *
+ * @opensearch.internal
  */
 public interface HttpResponse {
 

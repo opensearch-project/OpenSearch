@@ -39,6 +39,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Tokenizer factory for the standard analyzer
+ *
+ * @opensearch.internal
+ */
 public class StandardTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int maxTokenLength;

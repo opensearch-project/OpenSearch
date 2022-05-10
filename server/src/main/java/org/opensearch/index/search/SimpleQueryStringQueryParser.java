@@ -66,6 +66,8 @@ import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 /**
  * Wrapper class for Lucene's SimpleQueryStringQueryParser that allows us to redefine
  * different types of queries.
+ *
+ * @opensearch.internal
  */
 public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 

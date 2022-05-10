@@ -38,6 +38,11 @@ import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 
+/**
+ * Response for recovery translog operations
+ *
+ * @opensearch.internal
+ */
 final class RecoveryTranslogOperationsResponse extends TransportResponse {
     final long localCheckpoint;
 

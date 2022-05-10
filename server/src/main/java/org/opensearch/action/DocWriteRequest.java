@@ -53,6 +53,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.opensearch.action.bulk.BulkRequest}
+ *
+ * @opensearch.internal
  */
 public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 

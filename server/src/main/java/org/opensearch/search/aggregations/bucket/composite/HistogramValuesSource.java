@@ -40,6 +40,11 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 
+/**
+ * The values source for histogram agg
+ *
+ * @opensearch.internal
+ */
 class HistogramValuesSource extends ValuesSource.Numeric {
     private final Numeric vs;
     private final double interval;

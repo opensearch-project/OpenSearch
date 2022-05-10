@@ -37,6 +37,8 @@ import java.io.IOException;
 
 /**
  * Highlights a search result.
+ *
+ * @opensearch.internal
  */
 public interface Highlighter {
 
