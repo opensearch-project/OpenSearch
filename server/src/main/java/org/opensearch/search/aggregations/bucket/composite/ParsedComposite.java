@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A composite result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposite.ParsedBucket> implements CompositeAggregation {
     private static final ObjectParser<ParsedComposite, Void> PARSER = new ObjectParser<>(
         ParsedComposite.class.getSimpleName(),

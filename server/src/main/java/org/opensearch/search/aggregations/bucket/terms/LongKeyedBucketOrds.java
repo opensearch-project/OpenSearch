@@ -40,6 +40,8 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 
 /**
  * Maps long bucket keys to bucket ordinals.
+ *
+ * @opensearch.internal
  */
 public abstract class LongKeyedBucketOrds implements Releasable {
     /**

@@ -53,6 +53,8 @@ import java.util.Map;
 
 /**
  * Results of the {@link TopHitsAggregator}.
+ *
+ * @opensearch.internal
  */
 public class InternalTopHits extends InternalAggregation implements TopHits {
     private int from;

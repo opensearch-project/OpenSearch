@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a sibling bucket
+ *
+ * @opensearch.internal
+ */
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
     protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);

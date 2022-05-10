@@ -51,6 +51,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregate all docs that match a given range
+ *
+ * @opensearch.internal
+ */
 public class RangeHistogramAggregator extends AbstractHistogramAggregator {
     private final ValuesSource.Range valuesSource;
 

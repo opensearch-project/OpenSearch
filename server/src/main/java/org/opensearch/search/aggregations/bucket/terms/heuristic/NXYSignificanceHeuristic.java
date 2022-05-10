@@ -44,6 +44,11 @@ import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * NXY significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
     protected static final ParseField BACKGROUND_IS_SUPERSET = new ParseField("background_is_superset");

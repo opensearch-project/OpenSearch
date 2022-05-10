@@ -46,6 +46,8 @@ import java.util.Objects;
 
 /**
  * Result of the RareTerms aggregation when the field is some kind of whole number like a integer, long, or a date.
+ *
+ * @opensearch.internal
  */
 public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRareTerms.Bucket> {
     public static final String NAME = "lrareterms";

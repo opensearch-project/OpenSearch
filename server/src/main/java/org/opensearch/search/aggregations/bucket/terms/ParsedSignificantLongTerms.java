@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A significant long terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedSignificantLongTerms extends ParsedSignificantTerms {
 
     @Override

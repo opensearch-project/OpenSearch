@@ -64,6 +64,8 @@ import java.util.function.Consumer;
  * {@link BestDocsDeferringCollector#createTopDocsCollector(int)} is designed to
  * be overridden and allows subclasses to choose a custom collector
  * implementation for determining the top N matches.
+ *
+ * @opensearch.internal
  */
 public class BestDocsDeferringCollector extends DeferringBucketCollector implements Releasable {
     private final List<PerSegmentCollects> entries = new ArrayList<>();

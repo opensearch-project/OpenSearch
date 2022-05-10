@@ -41,6 +41,8 @@ import java.util.Map;
 /**
  * A global scope get (the document set on which we aggregate is all documents in the search context (ie. index + type)
  * regardless the query.
+ *
+ * @opensearch.internal
  */
 public class InternalGlobal extends InternalSingleBucketAggregation implements Global {
     InternalGlobal(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {

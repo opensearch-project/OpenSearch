@@ -49,6 +49,8 @@ import java.util.Objects;
 /**
  * A search request with a point in time will execute using the reader contexts associated with that point time
  * instead of the latest reader contexts.
+ *
+ * @opensearch.internal
  */
 public final class PointInTimeBuilder implements Writeable, ToXContentObject {
     private static final ParseField ID_FIELD = new ParseField("id");

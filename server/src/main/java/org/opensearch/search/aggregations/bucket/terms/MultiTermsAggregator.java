@@ -51,6 +51,8 @@ import static org.opensearch.search.aggregations.bucket.terms.TermsAggregator.de
 
 /**
  * An aggregator that aggregate with multi_terms.
+ *
+ * @opensearch.internal
  */
 public class MultiTermsAggregator extends DeferableBucketAggregator {
 

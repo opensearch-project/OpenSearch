@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of weighted avg agg
+ *
+ * @opensearch.internal
+ */
 public class InternalWeightedAvg extends InternalNumericMetricsAggregation.SingleValue implements WeightedAvg {
     private final double sum;
     private final double weight;

@@ -49,6 +49,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a single sum value
+ *
+ * @opensearch.internal
+ */
 public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ValuesSource.Numeric valuesSource;

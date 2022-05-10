@@ -46,6 +46,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of a bucket metric value
+ *
+ * @opensearch.internal
+ */
 public class InternalBucketMetricValue extends InternalNumericMetricsAggregation.SingleValue implements BucketMetricValue {
     public static final String NAME = "bucket_metric_value";
     static final ParseField KEYS_FIELD = new ParseField("keys");

@@ -40,6 +40,8 @@ import java.util.Map;
 
 /**
  * Result of the {@link NestedAggregator}.
+ *
+ * @opensearch.internal
  */
 public class InternalNested extends InternalSingleBucketAggregation implements Nested {
     InternalNested(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {

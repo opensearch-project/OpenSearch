@@ -44,6 +44,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Base Aggregation Builder for bucket metrics pipeline aggs
+ *
+ * @opensearch.internal
+ */
 public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketMetricsPipelineAggregationBuilder<AF>> extends
     AbstractPipelineAggregationBuilder<AF> {
 

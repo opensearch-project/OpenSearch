@@ -44,6 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Base implementation of TDigest percentiles
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
     protected final double[] keys;

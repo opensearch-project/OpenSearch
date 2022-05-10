@@ -37,6 +37,8 @@ import java.util.List;
 
 /**
  * An aggregation that collects significant terms in comparison to a background set.
+ *
+ * @opensearch.internal
  */
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
 

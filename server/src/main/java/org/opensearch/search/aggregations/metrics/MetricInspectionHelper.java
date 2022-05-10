@@ -38,6 +38,8 @@ import org.opensearch.search.aggregations.pipeline.InternalDerivative;
  * helpers for some aggs that have package-private getters.  AggregationInspectionHelper delegates to these
  * helpers when needed, and consumers should prefer to use AggregationInspectionHelper instead of these
  * helpers.
+ *
+ * @opensearch.internal
  */
 public class MetricInspectionHelper {
 

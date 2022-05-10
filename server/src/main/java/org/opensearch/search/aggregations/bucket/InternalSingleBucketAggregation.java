@@ -51,6 +51,8 @@ import java.util.function.Function;
 
 /**
  * A base class for all the single bucket aggregations.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalSingleBucketAggregation extends InternalAggregation implements SingleBucketAggregation {
 

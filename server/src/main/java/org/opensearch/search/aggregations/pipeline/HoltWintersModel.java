@@ -50,6 +50,8 @@ import java.util.Objects;
 
 /**
  * Calculate a triple exponential weighted moving average
+ *
+ * @opensearch.internal
  */
 public class HoltWintersModel extends MovAvgModel {
     public static final String NAME = "holt_winters";

@@ -56,6 +56,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Base aggregator class to aggregate documents by terms
+ *
+ * @opensearch.internal
+ */
 public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {

@@ -33,6 +33,11 @@ package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.util.PriorityQueue;
 
+/**
+ * Internal priority queue for computing geogrid relations
+ *
+ * @opensearch.internal
+ */
 class BucketPriorityQueue<B extends InternalGeoGridBucket> extends PriorityQueue<B> {
 
     BucketPriorityQueue(int size) {

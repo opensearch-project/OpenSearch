@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * An enum representing the methods for calculating percentiles
+ *
+ * @opensearch.internal
  */
 public enum PercentilesMethod implements Writeable {
     /**

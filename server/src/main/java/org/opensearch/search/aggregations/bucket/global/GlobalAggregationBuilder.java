@@ -45,6 +45,11 @@ import org.opensearch.search.aggregations.AggregatorFactory;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for global agg
+ *
+ * @opensearch.internal
+ */
 public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalAggregationBuilder> {
     public static GlobalAggregationBuilder parse(XContentParser parser, String aggregationName) throws IOException {
         parser.nextToken();

@@ -36,6 +36,11 @@ import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.io.IOException;
 
+/**
+ * A sampler result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedSampler extends ParsedSingleBucketAggregation implements Sampler {
 
     @Override

@@ -44,6 +44,11 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Enum to signal what kind of value type is used in the aggregator
+ *
+ * @opensearch.internal
+ */
 public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES, DocValueFormat.RAW),

@@ -50,6 +50,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for percentiles agg
+ *
+ * @opensearch.internal
+ */
 public class PercentilesAggregationBuilder extends AbstractPercentilesAggregationBuilder<PercentilesAggregationBuilder> {
     public static final String NAME = Percentiles.TYPE_NAME;
     public static final ValuesSourceRegistry.RegistryKey<PercentilesAggregatorSupplier> REGISTRY_KEY =

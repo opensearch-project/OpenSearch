@@ -53,6 +53,11 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * Aggregation Factory for geohash_grid agg
+ *
+ * @opensearch.internal
+ */
 public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int precision;

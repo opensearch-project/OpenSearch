@@ -42,6 +42,11 @@ import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Base implementation of geogrid aggs
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> extends InternalMultiBucketAggregation.InternalBucket
     implements
         GeoGrid.Bucket,

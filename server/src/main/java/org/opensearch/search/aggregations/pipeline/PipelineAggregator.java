@@ -49,6 +49,11 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
+/**
+ * Base aggregator for pipline aggs
+ *
+ * @opensearch.internal
+ */
 public abstract class PipelineAggregator implements NamedWriteable {
     /**
      * Parse the {@link PipelineAggregationBuilder} from a {@link XContentParser}.

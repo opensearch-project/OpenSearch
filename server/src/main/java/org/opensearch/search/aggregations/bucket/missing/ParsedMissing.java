@@ -36,6 +36,11 @@ import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.io.IOException;
 
+/**
+ * A missing agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedMissing extends ParsedSingleBucketAggregation implements Missing {
 
     @Override

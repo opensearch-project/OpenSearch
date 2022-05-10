@@ -55,6 +55,8 @@ import java.util.Map;
  *
  * This aggregator works in a multi-bucket mode, that is, when serves as a sub-aggregator, a single aggregator instance aggregates the
  * counts for all buckets owned by the parent aggregator)
+ *
+ * @opensearch.internal
  */
 public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 

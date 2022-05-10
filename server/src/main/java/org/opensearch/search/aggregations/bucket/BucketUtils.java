@@ -33,6 +33,8 @@ package org.opensearch.search.aggregations.bucket;
 
 /**
  * Helper functions for common Bucketing functions
+ *
+ * @opensearch.internal
  */
 public final class BucketUtils {
 

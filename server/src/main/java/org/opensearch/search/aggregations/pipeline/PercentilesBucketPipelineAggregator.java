@@ -45,6 +45,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a percentiles bucket
+ *
+ * @opensearch.internal
+ */
 public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
     private final double[] percents;

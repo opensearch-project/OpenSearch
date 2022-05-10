@@ -34,6 +34,11 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.search.aggregations.metrics.NumericMetricsAggregation;
 
+/**
+ * Base noop class for simple values
+ *
+ * @opensearch.internal
+ */
 public interface SimpleValue extends NumericMetricsAggregation.SingleValue {
 
 }

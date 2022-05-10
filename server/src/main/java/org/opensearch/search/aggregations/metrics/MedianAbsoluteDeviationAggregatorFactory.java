@@ -46,6 +46,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for median_absolute_deviation agg
+ *
+ * @opensearch.internal
+ */
 public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
