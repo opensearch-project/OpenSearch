@@ -138,8 +138,8 @@ public class AttachmentProcessorTests extends OpenSearchTestCase {
         Map<String, Object> attachmentData = parseDocument("text-gibberish.txt", processor);
 
         assertThat(attachmentData.keySet(), hasItem("language"));
-        // lt seems some standard for not detected
-        assertThat(attachmentData.get("language"), is("lt"));
+        // Note - this output is non-deterministic across library versions
+        assertThat(attachmentData.get("language"), is("sl"));
     }
 
     public void testEmptyTextDocument() throws Exception {
@@ -378,8 +378,9 @@ public class AttachmentProcessorTests extends OpenSearchTestCase {
 
         attachmentData = parseDocument("text-in-english.txt", processor, Collections.singletonMap("max_length", 10));
 
+        // Language detection is not accurate when the text to analyze is short
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("language"), is("sk"));
+        assertThat(attachmentData.get("language"), not(is("en")));
         assertThat(attachmentData.get("content"), is("\"God Save"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
         assertThat(attachmentData.get("content_length"), is(10L));
