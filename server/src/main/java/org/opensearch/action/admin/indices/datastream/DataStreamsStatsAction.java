@@ -87,6 +87,11 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         super(NAME, DataStreamsStatsAction.Response::new);
     }
 
+    /**
+     * Request for Data Streams Stats
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BroadcastRequest<Request> {
         public Request() {
             super((String[]) null);
@@ -97,6 +102,11 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
+    /**
+     * Response for Data Streams Stats
+     *
+     * @opensearch.internal
+     */
     public static class Response extends BroadcastResponse {
         private final int dataStreamCount;
         private final int backingIndices;
@@ -198,6 +208,11 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
+    /**
+     * The Data Streams Stats container
+     *
+     * @opensearch.internal
+     */
     public static class DataStreamStats implements ToXContentObject, Writeable {
         private final String dataStream;
         private final int backingIndices;
@@ -289,6 +304,11 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
+    /**
+     * Per Shard Data Stream stats
+     *
+     * @opensearch.internal
+     */
     public static class DataStreamShardStats implements Writeable {
         private final ShardRouting shardRouting;
         private final StoreStats storeStats;
@@ -326,12 +346,22 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
+    /**
+     * Aggregated data Stream stats
+     *
+     * @opensearch.internal
+     */
     private static class AggregatedStats {
         Set<String> backingIndices = new HashSet<>();
         long storageBytes = 0L;
         long maxTimestamp = 0L;
     }
 
+    /**
+     * Transport Action for Data Stream Stats
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportBroadcastByNodeAction<Request, Response, DataStreamShardStats> {
 
         private final ClusterService clusterService;

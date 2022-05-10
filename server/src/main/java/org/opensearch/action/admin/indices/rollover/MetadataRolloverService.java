@@ -92,6 +92,11 @@ public class MetadataRolloverService {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
+    /**
+     * Result for rollover request
+     *
+     * @opensearch.internal
+     */
     public static class RolloverResult {
         public final String rolloverIndexName;
         public final String sourceIndexName;

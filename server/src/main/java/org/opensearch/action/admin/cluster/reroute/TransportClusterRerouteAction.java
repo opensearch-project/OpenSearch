@@ -209,6 +209,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         );
     }
 
+    /**
+     * Inner Reroute Response Acknowledged the Cluster State Update
+     *
+     * @opensearch.internal
+     */
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {
 
         private final ClusterRerouteRequest request;

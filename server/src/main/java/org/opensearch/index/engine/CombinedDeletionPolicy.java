@@ -265,6 +265,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     /**
      * A wrapper of an index commit that prevents it from being deleted.
+     *
+     * @opensearch.internal
      */
     private static class SnapshotIndexCommit extends IndexCommit {
         private final IndexCommit delegate;

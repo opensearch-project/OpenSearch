@@ -186,6 +186,11 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         }
     }
 
+    /**
+     * Shard Request for verifying shards before closing
+     *
+     * @opensearch.internal
+     */
     public static class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;

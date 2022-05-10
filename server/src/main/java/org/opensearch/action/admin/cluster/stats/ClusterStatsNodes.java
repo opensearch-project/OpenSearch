@@ -145,6 +145,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
         return plugins;
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String COUNT = "count";
         static final String VERSIONS = "versions";
@@ -202,6 +207,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Inner Counts
+     *
+     * @opensearch.internal
+     */
     public static class Counts implements ToXContentFragment {
         static final String COORDINATING_ONLY = "coordinating_only";
 
@@ -246,6 +256,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return roles;
         }
 
+        /**
+         * Inner Fields used for creating XContent and parsing
+         *
+         * @opensearch.internal
+         */
         static final class Fields {
             static final String TOTAL = "total";
         }
@@ -260,6 +275,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
     }
 
+    /**
+     * Inner Operating System Stats
+     *
+     * @opensearch.internal
+     */
     public static class OsStats implements ToXContentFragment {
         final int availableProcessors;
         final int allocatedProcessors;
@@ -318,6 +338,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return mem;
         }
 
+        /**
+         * Inner Fields used for creating XContent and parsing
+         *
+         * @opensearch.internal
+         */
         static final class Fields {
             static final String AVAILABLE_PROCESSORS = "available_processors";
             static final String ALLOCATED_PROCESSORS = "allocated_processors";
@@ -361,6 +386,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
     }
 
+    /**
+     * Inner Process Stats
+     *
+     * @opensearch.internal
+     */
     public static class ProcessStats implements ToXContentFragment {
 
         final int count;
@@ -431,6 +461,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return minOpenFileDescriptors;
         }
 
+        /**
+         * Inner Fields used for creating XContent and parsing
+         *
+         * @opensearch.internal
+         */
         static final class Fields {
             static final String CPU = "cpu";
             static final String PERCENT = "percent";
@@ -454,6 +489,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
     }
 
+    /**
+     * Inner JVM Stats
+     *
+     * @opensearch.internal
+     */
     public static class JvmStats implements ToXContentFragment {
 
         private final ObjectIntHashMap<JvmVersion> versions;
@@ -527,6 +567,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return new ByteSizeValue(heapMax);
         }
 
+        /**
+         * Inner Fields used for creating XContent and parsing
+         *
+         * @opensearch.internal
+         */
         static final class Fields {
             static final String VERSIONS = "versions";
             static final String VERSION = "version";
@@ -572,6 +617,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
     }
 
+    /**
+     * Inner JVM Version
+     *
+     * @opensearch.internal
+     */
     public static class JvmVersion {
         String version;
         String vmName;
@@ -609,6 +659,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
     }
 
+    /**
+     * Inner Network Types
+     *
+     * @opensearch.internal
+     */
     static class NetworkTypes implements ToXContentFragment {
 
         private final Map<String, AtomicInteger> transportTypes;
@@ -652,6 +707,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     }
 
+    /**
+     * Inner Discovery Types
+     *
+     * @opensearch.internal
+     */
     static class DiscoveryTypes implements ToXContentFragment {
 
         private final Map<String, AtomicInteger> discoveryTypes;
@@ -677,6 +737,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
     }
 
+    /**
+     * Inner Packaging Types
+     *
+     * @opensearch.internal
+     */
     static class PackagingTypes implements ToXContentFragment {
 
         private final Map<String, AtomicInteger> packagingTypes;
@@ -709,6 +774,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     }
 
+    /**
+     * Inner Ingest Stats
+     *
+     * @opensearch.internal
+     */
     static class IngestStats implements ToXContentFragment {
 
         final int pipelineCount;

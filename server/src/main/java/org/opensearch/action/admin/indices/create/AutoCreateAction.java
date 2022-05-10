@@ -72,6 +72,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         super(NAME, CreateIndexResponse::new);
     }
 
+    /**
+     * Transport Action for Auto Create
+     *
+     * @opensearch.internal
+     */
     public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
         private final ActiveShardsObserver activeShardsObserver;

@@ -75,6 +75,11 @@ public class ReplicationTask extends Task {
         return new Status(phase);
     }
 
+    /**
+     * Status of the replication task
+     *
+     * @opensearch.internal
+     */
     public static class Status implements Task.Status {
         public static final String NAME = "replication";
 

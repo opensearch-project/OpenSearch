@@ -345,6 +345,11 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
+    /**
+     * Holder for a field and it's boost value
+     *
+     * @opensearch.internal
+     */
     static final class FieldAndBoost {
         final MappedFieldType fieldType;
         final float boost;

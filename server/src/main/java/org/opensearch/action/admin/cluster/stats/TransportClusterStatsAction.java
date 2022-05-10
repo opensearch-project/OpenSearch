@@ -206,6 +206,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     }
 
+    /**
+     * Inner Cluster Stats Node Request
+     *
+     * @opensearch.internal
+     */
     public static class ClusterStatsNodeRequest extends BaseNodeRequest {
 
         ClusterStatsRequest request;

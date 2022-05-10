@@ -68,6 +68,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
 
+    /**
+     * Default parameters
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
 
@@ -79,6 +84,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * The keyword field for the field mapper
+     *
+     * @opensearch.internal
+     */
     public static class KeywordField extends Field {
 
         public KeywordField(String field, BytesRef term, FieldType ft) {
@@ -91,6 +101,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         return (KeywordFieldMapper) in;
     }
 
+    /**
+     * The builder for the field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -225,6 +240,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
+    /**
+     * Field type for keyword fields
+     *
+     * @opensearch.internal
+     */
     public static final class KeywordFieldType extends StringFieldType {
 
         private final int ignoreAbove;

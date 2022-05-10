@@ -475,6 +475,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     /**
      * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
      * and how many of them were skipped.
+     *
+     * @opensearch.internal
      */
     public static class Clusters implements ToXContentFragment, Writeable {
 

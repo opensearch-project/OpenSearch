@@ -103,6 +103,11 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
         }
     }
 
+    /**
+     * Inner Node Response
+     *
+     * @opensearch.internal
+     */
     public static class NodeResponse extends BaseNodeResponse {
 
         private Exception reloadException = null;

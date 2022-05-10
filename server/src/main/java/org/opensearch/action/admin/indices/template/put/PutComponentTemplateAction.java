@@ -60,6 +60,8 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
 
     /**
      * A request for putting a single component template into the cluster state
+     *
+     * @opensearch.internal
      */
     public static class Request extends MasterNodeRequest<Request> {
         private final String name;

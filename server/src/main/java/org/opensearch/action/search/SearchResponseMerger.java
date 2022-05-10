@@ -410,6 +410,11 @@ final class SearchResponseMerger {
         );
     }
 
+    /**
+     * Holds a field search hit and doc
+     *
+     * @opensearch.internal
+     */
     private static final class FieldDocAndSearchHit extends FieldDoc {
         private final SearchHit searchHit;
 
@@ -426,6 +431,8 @@ final class SearchResponseMerger {
      * (see TopDocs#tieBreakLessThan line 86). Generally, indices with same names on different clusters have different index uuids which
      * make their ShardIds different, which is not the case if the index is really the same one from the same cluster, in which case we
      * need to look at the cluster alias and make sure to assign a different shardIndex based on that.
+     *
+     * @opensearch.internal
      */
     private static final class ShardIdAndClusterAlias implements Comparable<ShardIdAndClusterAlias> {
         private final ShardId shardId;

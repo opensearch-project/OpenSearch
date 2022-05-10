@@ -358,6 +358,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
     }
 
+    /**
+     * Context builder for nested inner hits
+     *
+     * @opensearch.internal
+     */
     static class NestedInnerHitContextBuilder extends InnerHitContextBuilder {
         private final String path;
 
@@ -396,6 +401,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
     }
 
+    /**
+     * Inner hits sub context
+     *
+     * @opensearch.internal
+     */
     static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
 
         private final ObjectMapper parentObjectMapper;

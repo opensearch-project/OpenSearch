@@ -613,6 +613,11 @@ public final class SearchPhaseController {
             : source.from());
     }
 
+    /**
+     * The reduced query phase
+     *
+     * @opensearch.internal
+     */
     public static final class ReducedQueryPhase {
         // the sum of all hits across all reduces shards
         final TotalHits totalHits;
@@ -714,6 +719,11 @@ public final class SearchPhaseController {
         );
     }
 
+    /**
+     * The top docs statistics
+     *
+     * @opensearch.internal
+     */
     static final class TopDocsStats {
         final int trackTotalHitsUpTo;
         long totalHits;
@@ -778,6 +788,11 @@ public final class SearchPhaseController {
         }
     }
 
+    /**
+     * Top docs that have been sorted
+     *
+     * @opensearch.internal
+     */
     static final class SortedTopDocs {
         static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null);
         // the searches merged top docs

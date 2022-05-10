@@ -93,6 +93,8 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
 
     /**
      * Holder for index stats used to evaluate conditions
+     *
+     * @opensearch.internal
      */
     public static class Stats {
         public final long numDocs;
@@ -108,6 +110,8 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
 
     /**
      * Holder for evaluated condition result
+     *
+     * @opensearch.internal
      */
     public static class Result {
         public final Condition<?> condition;

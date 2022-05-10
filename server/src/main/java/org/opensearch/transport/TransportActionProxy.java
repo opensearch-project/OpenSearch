@@ -53,6 +53,11 @@ public final class TransportActionProxy {
 
     private TransportActionProxy() {} // no instance
 
+    /**
+     * Handler for proxy requests
+     *
+     * @opensearch.internal
+     */
     private static class ProxyRequestHandler<T extends ProxyRequest> implements TransportRequestHandler<T> {
 
         private final TransportService service;
@@ -82,6 +87,11 @@ public final class TransportActionProxy {
         }
     }
 
+    /**
+     * Handler for the proxy response
+     *
+     * @opensearch.internal
+     */
     private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
         private final Writeable.Reader<T> reader;
@@ -121,6 +131,11 @@ public final class TransportActionProxy {
         }
     }
 
+    /**
+     * The proxy request
+     *
+     * @opensearch.internal
+     */
     static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;

@@ -89,6 +89,11 @@ public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
         return ordinals.ordinals(new ValuesHolder(bytes, termOrdToBytesOffset));
     }
 
+    /**
+     * Value holder for paged bytes leaf field data
+     *
+     * @opensearch.internal
+     */
     private static class ValuesHolder implements Ordinals.ValuesHolder {
 
         private final BytesRef scratch = new BytesRef();

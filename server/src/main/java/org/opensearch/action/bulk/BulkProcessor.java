@@ -94,6 +94,8 @@ public class BulkProcessor implements Closeable {
 
     /**
      * A builder used to create a build an instance of a bulk processor.
+     *
+     * @opensearch.internal
      */
     public static class Builder {
 
@@ -545,6 +547,11 @@ public class BulkProcessor implements Closeable {
         }
     }
 
+    /**
+     * Flush for bulk processor
+     *
+     * @opensearch.internal
+     */
     class Flush implements Runnable {
         @Override
         public void run() {

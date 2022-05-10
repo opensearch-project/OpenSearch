@@ -117,6 +117,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private boolean autoGenerateSynonymsPhraseQuery = true;
     private boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;
 
+    /**
+     * Type of the match
+     *
+     * @opensearch.internal
+     */
     public enum Type implements Writeable {
 
         /**

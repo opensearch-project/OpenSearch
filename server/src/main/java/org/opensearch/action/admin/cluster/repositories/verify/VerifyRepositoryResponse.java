@@ -58,6 +58,11 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     static final String NODES = "nodes";
     static final String NAME = "name";
 
+    /**
+     * Inner Node View
+     *
+     * @opensearch.internal
+     */
     public static class NodeView implements Writeable, ToXContentObject {
         private static final ObjectParser.NamedObjectParser<NodeView, Void> PARSER;
         static {

@@ -54,6 +54,11 @@ import java.util.Set;
  */
 final class ByteSizeCachingDirectory extends FilterDirectory {
 
+    /**
+     * Internal caching size and modulo count
+     *
+     * @opensearch.internal
+     */
     private static class SizeAndModCount {
         final long size;
         final long modCount;

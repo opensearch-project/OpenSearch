@@ -129,6 +129,11 @@ final class InternalIndexingStats implements IndexingOperationListener {
         totalStats.noopUpdates.inc();
     }
 
+    /**
+     * Holder for base indexing statistics
+     *
+     * @opensearch.internal
+     */
     static class StatsHolder {
         private final MeanMetric indexMetric = new MeanMetric();
         private final MeanMetric deleteMetric = new MeanMetric();

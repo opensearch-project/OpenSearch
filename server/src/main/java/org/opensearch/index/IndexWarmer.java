@@ -108,7 +108,11 @@ public final class IndexWarmer {
         }
     }
 
-    /** A handle on the execution of  warm-up action. */
+    /**
+     * A handle on the execution of  warm-up action.
+     *
+     * @opensearch.internal
+     */
     public interface TerminationHandle {
 
         TerminationHandle NO_WAIT = () -> {};
@@ -117,12 +121,22 @@ public final class IndexWarmer {
         void awaitTermination() throws InterruptedException;
     }
 
+    /**
+     * Listener for the index warmer
+     *
+     * @opensearch.internal
+     */
     public interface Listener {
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the
          *  execution of those tasks. */
         TerminationHandle warmReader(IndexShard indexShard, OpenSearchDirectoryReader reader);
     }
 
+    /**
+     * Warmer for field data
+     *
+     * @opensearch.internal
+     */
     private static class FieldDataWarmer implements IndexWarmer.Listener {
 
         private final Executor executor;

@@ -107,6 +107,11 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         return new NodeUsage(clusterService.localNode(), System.currentTimeMillis(), sinceTime, restUsage, aggsUsage);
     }
 
+    /**
+     * Inner Node Usage Request
+     *
+     * @opensearch.internal
+     */
     public static class NodeUsageRequest extends BaseNodeRequest {
 
         NodesUsageRequest request;

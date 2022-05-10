@@ -61,6 +61,8 @@ import java.util.function.LongUnaryOperator;
 public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumericFieldData> {
     /**
      * The type of number.
+     *
+     * @opensearch.internal
      */
     public enum NumericType {
         BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN),

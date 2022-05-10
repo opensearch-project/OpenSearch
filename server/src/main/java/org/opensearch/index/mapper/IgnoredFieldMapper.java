@@ -53,6 +53,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_ignored";
 
+    /**
+     * Default parameters
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final String NAME = IgnoredFieldMapper.NAME;
 
@@ -69,6 +74,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> new IgnoredFieldMapper());
 
+    /**
+     * Field type for Ignored fields
+     *
+     * @opensearch.internal
+     */
     public static final class IgnoredFieldType extends StringFieldType {
 
         public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();

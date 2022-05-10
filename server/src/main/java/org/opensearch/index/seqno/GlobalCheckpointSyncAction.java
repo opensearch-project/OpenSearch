@@ -139,6 +139,11 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         }
     }
 
+    /**
+     * Request for checkpoint sync action
+     *
+     * @opensearch.internal
+     */
     public static final class Request extends ReplicationRequest<Request> {
 
         private Request(StreamInput in) throws IOException {

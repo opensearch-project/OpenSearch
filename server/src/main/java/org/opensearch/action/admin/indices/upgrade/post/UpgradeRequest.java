@@ -47,6 +47,11 @@ import java.io.IOException;
  */
 public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {
 
+    /**
+     * Default config for Upgrade Requests
+     *
+     * @opensearch.internal
+     */
     public static final class Defaults {
         public static final boolean UPGRADE_ONLY_ANCIENT_SEGMENTS = false;
     }

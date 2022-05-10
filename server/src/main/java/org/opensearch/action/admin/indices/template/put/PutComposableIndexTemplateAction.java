@@ -62,6 +62,8 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
 
     /**
      * A request for putting a single index template into the cluster state
+     *
+     * @opensearch.internal
      */
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest {
         private final String name;

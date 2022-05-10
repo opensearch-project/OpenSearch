@@ -117,6 +117,11 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         );
     }
 
+    /**
+     * Inner Node Stats Request
+     *
+     * @opensearch.internal
+     */
     public static class NodeStatsRequest extends BaseNodeRequest {
 
         NodesStatsRequest request;

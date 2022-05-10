@@ -67,6 +67,11 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
+    /**
+     * Request for Creating Data Stream
+     *
+     * @opensearch.internal
+     */
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private final String name;
@@ -119,6 +124,11 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
+    /**
+     * Transport Action for Creating Data Stream
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;

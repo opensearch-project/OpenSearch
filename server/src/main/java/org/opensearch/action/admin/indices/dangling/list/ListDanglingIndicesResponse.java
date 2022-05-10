@@ -126,7 +126,13 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
         out.writeList(nodes);
     }
 
-    // visible for testing
+    /**
+     * Aggregates dangling index information
+     *
+     * NOTE: visible for testing
+     *
+     * @opensearch.internal
+     */
     static class AggregatedDanglingIndexInfo {
         private final String indexUUID;
         private final String indexName;

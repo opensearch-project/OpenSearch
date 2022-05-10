@@ -80,6 +80,8 @@ public class RetentionLeaseSyncer {
     /**
      * Represents an action that is invoked to sync retention leases to replica shards after a retention lease is added
      * or removed on the primary. The specified listener is invoked when the syncing completes with success or failure.
+     *
+     * @opensearch.internal
      */
     public interface SyncAction {
         void sync(
@@ -94,6 +96,8 @@ public class RetentionLeaseSyncer {
     /**
      * Represents an action that is invoked periodically to sync retention leases to replica shards after some retention
      * lease has been renewed or expired.
+     *
+     * @opensearch.internal
      */
     public interface BackgroundSyncAction {
         void backgroundSync(ShardId shardId, String primaryAllocationId, long primaryTerm, RetentionLeases retentionLeases);

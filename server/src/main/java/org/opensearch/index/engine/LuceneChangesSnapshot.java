@@ -350,6 +350,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return ndv.longValue() == 1;
     }
 
+    /**
+     * Parallel array to hold translog operations
+     *
+     * @opensearch.internal
+     */
     private static final class ParallelArray {
         final LeafReaderContext[] leafReaderContexts;
         final long[] version;

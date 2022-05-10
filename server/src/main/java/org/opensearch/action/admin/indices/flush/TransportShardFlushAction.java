@@ -120,6 +120,11 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     // TODO: Remove this transition in OpenSearch 3.0
     private static final String PRE_SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/pre";
 
+    /**
+     * A Pre Shard Synced Flush Request
+     *
+     * @opensearch.internal
+     */
     private static class PreShardSyncedFlushRequest extends TransportRequest {
         private final ShardId shardId;
 
@@ -141,6 +146,11 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         }
     }
 
+    /**
+     * Pre synced flush handler for the transport layer
+     *
+     * @opensearch.internal
+     */
     private static final class PreSyncedFlushTransportHandler implements TransportRequestHandler<PreShardSyncedFlushRequest> {
         private final IndicesService indicesService;
 

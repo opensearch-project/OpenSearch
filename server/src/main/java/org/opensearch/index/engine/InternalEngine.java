@@ -379,6 +379,8 @@ public class InternalEngine extends Engine {
      * since no indexing is happening and refreshes are only happening to the external reader manager, while with
      * this specialized implementation an external refresh will immediately be reflected on the internal reader
      * and old segments can be released in the same way previous version did this (as a side-effect of _refresh)
+     *
+     * @opensearch.internal
      */
     @SuppressForbidden(reason = "reference counting is required here")
     private static final class ExternalReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
@@ -1295,6 +1297,11 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * The indexing strategy
+     *
+     * @opensearch.internal
+     */
     protected static final class IndexingStrategy {
         final boolean currentNotFoundOrDeleted;
         final boolean useLuceneUpdateDocument;
@@ -1644,6 +1651,11 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * The deletion strategy
+     *
+     * @opensearch.internal
+     */
     protected static final class DeletionStrategy {
         // of a rare double delete
         final boolean deleteFromLucene;
@@ -2457,7 +2469,11 @@ public class InternalEngine extends Engine {
         return iwc;
     }
 
-    /** A listener that warms the segments if needed when acquiring a new reader */
+    /**
+     * A listener that warms the segments if needed when acquiring a new reader
+     *
+     * @opensearch.internal
+     */
     static final class RefreshWarmerListener implements BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> {
         private final Engine.Warmer warmer;
         private final Logger logger;
@@ -2882,6 +2898,11 @@ public class InternalEngine extends Engine {
         return commitData;
     }
 
+    /**
+     * Internal Asserting Index Writer
+     *
+     * @opensearch.internal
+     */
     private static class AssertingIndexWriter extends IndexWriter {
         AssertingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);

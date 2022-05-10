@@ -178,6 +178,11 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         }
     }
 
+    /**
+     * Inner Node Request
+     *
+     * @opensearch.internal
+     */
     public static class NodeRequest extends BaseNodeRequest {
 
         NodesReloadSecureSettingsRequest request;

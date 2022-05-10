@@ -129,6 +129,11 @@ public class SequenceNumbers {
         }
     }
 
+    /**
+     * Commit information
+     *
+     * @opensearch.internal
+     */
     public static final class CommitInfo {
         public final long maxSeqNo;
         public final long localCheckpoint;

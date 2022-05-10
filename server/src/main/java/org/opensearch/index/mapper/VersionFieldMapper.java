@@ -54,6 +54,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> new VersionFieldMapper());
 
+    /**
+     * Field type for internal version field
+     *
+     * @opensearch.internal
+     */
     static final class VersionFieldType extends MappedFieldType {
 
         public static final VersionFieldType INSTANCE = new VersionFieldType();
