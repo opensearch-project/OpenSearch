@@ -410,6 +410,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         @Override
+        public VType indexRemove(int index) {
+            return map.indexRemove(index);
+        }
+
+        @Override
         public void release() {
             map.release();
         }

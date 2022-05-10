@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import com.carrotsearch.hppc.ObjectIntScatterMap;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -51,7 +50,9 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -129,7 +130,7 @@ public class RestAllocationAction extends AbstractCatAction {
     }
 
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
-        final ObjectIntScatterMap<String> allocs = new ObjectIntScatterMap<>();
+        final Map<String, Integer> allocs = new HashMap<>();
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
             String nodeId = "UNASSIGNED";
@@ -138,7 +139,7 @@ public class RestAllocationAction extends AbstractCatAction {
                 nodeId = shard.currentNodeId();
             }
 
-            allocs.addTo(nodeId, 1);
+            allocs.merge(nodeId, 1, Integer::sum);
         }
 
         Table table = getTableWithHeader(request);
