@@ -126,7 +126,9 @@ public class CreatePitController {
      * Creates PIT reader context with temporary keep alive
      */
     void executeCreatePit(Task task, SearchRequest searchRequest, StepListener<SearchResponse> createPitListener) {
-        logger.debug("Executing creation of PIT context for indices [{}]", Arrays.toString(searchRequest.indices()));
+        logger.debug(
+            () -> new ParameterizedMessage("Executing creation of PIT context for indices [{}]", Arrays.toString(searchRequest.indices()))
+        );
         transportSearchAction.executeRequest(
             task,
             searchRequest,
@@ -160,7 +162,12 @@ public class CreatePitController {
         SearchResponse searchResponse,
         ActionListener<CreatePitResponse> updatePitIdListener
     ) {
-        logger.debug("Updating PIT context with PIT ID [{}], creation time and keep alive", searchResponse.pointInTimeId());
+        logger.debug(
+            () -> new ParameterizedMessage(
+                "Updating PIT context with PIT ID [{}], creation time and keep alive",
+                searchResponse.pointInTimeId()
+            )
+        );
         /**
          * store the create time ( same create time for all PIT contexts across shards ) to be used
          * for list PIT api

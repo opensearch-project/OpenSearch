@@ -50,13 +50,13 @@ public class PitReaderContext extends ReaderContext {
      * <code>keepAliveInMillis</code>.
      */
     public Releasable updatePitIdAndKeepAlive(long keepAliveInMillis, String pitId, long createTime) {
-        refCounted.incRef();
+        getRefCounted().incRef();
         tryUpdateKeepAlive(keepAliveInMillis);
         setPitId(pitId);
         setCreationTime(createTime);
         return Releasables.releaseOnce(() -> {
-            this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
-            refCounted.decRef();
+            getLastAccessTime().updateAndGet(curr -> Math.max(curr, nowInMillis()));
+            getRefCounted().decRef();
         });
     }
 

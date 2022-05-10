@@ -66,9 +66,9 @@ public class ReaderContext implements Releasable {
     private final boolean singleSession;
 
     private final AtomicLong keepAlive;
-    protected final AtomicLong lastAccessTime;
+    private final AtomicLong lastAccessTime;
     // For reference why we use RefCounted here see https://github.com/elastic/elasticsearch/pull/20095.
-    protected final AbstractRefCounted refCounted;
+    private final AbstractRefCounted refCounted;
 
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
 
@@ -105,6 +105,14 @@ public class ReaderContext implements Releasable {
 
     protected long nowInMillis() {
         return indexShard.getThreadPool().relativeTimeInMillis();
+    }
+
+    protected AbstractRefCounted getRefCounted() {
+        return refCounted;
+    }
+
+    protected AtomicLong getLastAccessTime() {
+        return lastAccessTime;
     }
 
     @Override
