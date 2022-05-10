@@ -238,7 +238,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     final IndexShard indexShard = recoveryTarget.indexShard();
                     indexShard.preRecovery();
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
-                    logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
+                    logger.trace("{} preparing shard for peer recovery", recoveryTarget.indexShard().shardId());
                     indexShard.prepareForIndexRecovery();
                     final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
@@ -289,7 +289,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         long startingSeqNo
     ) {
         final StartRecoveryRequest request;
-        logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+        logger.trace("{} collecting local files for [{}]", recoveryTarget.indexShard().shardId(), recoveryTarget.sourceNode());
 
         Store.MetadataSnapshot metadataSnapshot;
         try {
@@ -332,9 +332,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         }
-        logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
+        logger.trace("{} local file count [{}]", recoveryTarget.indexShard().shardId(), metadataSnapshot.size());
         request = new StartRecoveryRequest(
-            recoveryTarget.shardId(),
+            recoveryTarget.indexShard().shardId(),
             recoveryTarget.indexShard().routingEntry().allocationId().getId(),
             recoveryTarget.sourceNode(),
             localNode,

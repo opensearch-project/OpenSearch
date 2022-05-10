@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class ReplicationTarget extends AbstractRefCounted {
 
-    // TODO will this cause issues because its shared between subclasses?
     private static final AtomicLong ID_GENERATOR = new AtomicLong();
 
     // last time the target/status was accessed

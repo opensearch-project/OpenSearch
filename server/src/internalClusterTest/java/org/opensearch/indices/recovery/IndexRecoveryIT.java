@@ -101,7 +101,7 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.indices.analysis.AnalysisModule;
-import org.opensearch.indices.recovery.RecoveryState.Stage;
+import org.opensearch.indices.replication.common.ReplicationState.Stage;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.RecoverySettingsChunkSizePlugin;

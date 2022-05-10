@@ -8,19 +8,62 @@
 
 package org.opensearch.indices.replication.common;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
-
-public class ReplicationState implements ToXContentFragment, Writeable {
+public class ReplicationState {
 
     protected ReplicationTimer timer;
     protected ReplicationLuceneIndex index;
+
+    public enum Stage {
+        INIT((byte) 0),
+
+        /**
+         * recovery of lucene files, either reusing local ones are copying new ones
+         */
+        INDEX((byte) 1),
+
+        /**
+         * potentially running check index
+         */
+        VERIFY_INDEX((byte) 2),
+
+        /**
+         * starting up the engine, replaying the translog
+         */
+        TRANSLOG((byte) 3),
+
+        /**
+         * performing final task after all translog ops have been done
+         */
+        FINALIZE((byte) 4),
+
+        DONE((byte) 5);
+
+        private static final Stage[] STAGES = new Stage[Stage.values().length];
+
+        static {
+            for (Stage stage : Stage.values()) {
+                assert stage.id() < STAGES.length && stage.id() >= 0;
+                STAGES[stage.id] = stage;
+            }
+        }
+
+        private final byte id;
+
+        Stage(byte id) {
+            this.id = id;
+        }
+
+        public byte id() {
+            return id;
+        }
+
+        public static Stage fromId(byte id) {
+            if (id < 0 || id >= STAGES.length) {
+                throw new IllegalArgumentException("No mapping for id [" + id + "]");
+            }
+            return STAGES[id];
+        }
+    }
 
     protected ReplicationState() {
         // Empty default constructor for subclasses
@@ -38,46 +81,6 @@ public class ReplicationState implements ToXContentFragment, Writeable {
 
     public ReplicationLuceneIndex getIndex() {
         return index;
-    }
-
-    public ReplicationState(StreamInput in) throws IOException {
-        timer = new ReplicationTimer(in);
-        index = new ReplicationLuceneIndex(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        timer.writeTo(out);
-        index.writeTo(out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.timeField(ReplicationState.Fields.START_TIME_IN_MILLIS, ReplicationState.Fields.START_TIME, timer.startTime());
-        if (timer.stopTime() > 0) {
-            builder.timeField(ReplicationState.Fields.STOP_TIME_IN_MILLIS, ReplicationState.Fields.STOP_TIME, timer.stopTime());
-        }
-        builder.humanReadableField(
-            ReplicationState.Fields.TOTAL_TIME_IN_MILLIS,
-            ReplicationState.Fields.TOTAL_TIME,
-            new TimeValue(timer.time())
-        );
-
-        builder.startObject(ReplicationState.Fields.INDEX);
-        index.toXContent(builder, params);
-        builder.endObject();
-
-        return builder;
-    }
-
-    static final class Fields {
-        static final String START_TIME = "start_time";
-        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
-        static final String STOP_TIME = "stop_time";
-        static final String STOP_TIME_IN_MILLIS = "stop_time_in_millis";
-        static final String TOTAL_TIME = "total_time";
-        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
-        static final String INDEX = "index";
     }
 
 }

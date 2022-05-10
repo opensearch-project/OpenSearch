@@ -36,8 +36,8 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.Assertions;
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -52,7 +52,6 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardNotRecoveringException;
 import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
@@ -75,7 +74,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     private static final String RECOVERY_PREFIX = "recovery.";
 
-    private final ShardId shardId;
     private final DiscoveryNode sourceNode;
     private final CancellableThreads cancellableThreads;
 
@@ -91,7 +89,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
      */
     public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, ReplicationListener listener) {
         super("recovery_status", indexShard, indexShard.recoveryState().getIndex(), listener);
-        this.shardId = indexShard.shardId();
         this.cancellableThreads = new CancellableThreads();
         this.sourceNode = sourceNode;
         indexShard.recoveryStats().incCurrentAsTarget();
@@ -104,10 +101,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
      */
     public RecoveryTarget retryCopy() {
         return new RecoveryTarget(indexShard, sourceNode, listener);
-    }
-
-    public ShardId shardId() {
-        return shardId;
     }
 
     public IndexShard indexShard() {

@@ -43,7 +43,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex.FileMetadata;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
-import org.opensearch.indices.recovery.RecoveryState.Stage;
+import org.opensearch.indices.replication.common.ReplicationState.Stage;
 import org.opensearch.indices.recovery.RecoveryState.Translog;
 import org.opensearch.indices.recovery.RecoveryState.VerifyIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;

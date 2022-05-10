@@ -59,63 +59,6 @@ import java.util.Locale;
  */
 public class RecoveryState extends ReplicationState implements ToXContentFragment, Writeable {
 
-    /**
-     * The stage of the recovery state
-     *
-     * @opensearch.internal
-     */
-    public enum Stage {
-        INIT((byte) 0),
-
-        /**
-         * recovery of lucene files, either reusing local ones are copying new ones
-         */
-        INDEX((byte) 1),
-
-        /**
-         * potentially running check index
-         */
-        VERIFY_INDEX((byte) 2),
-
-        /**
-         * starting up the engine, replaying the translog
-         */
-        TRANSLOG((byte) 3),
-
-        /**
-         * performing final task after all translog ops have been done
-         */
-        FINALIZE((byte) 4),
-
-        DONE((byte) 5);
-
-        private static final Stage[] STAGES = new Stage[Stage.values().length];
-
-        static {
-            for (Stage stage : Stage.values()) {
-                assert stage.id() < STAGES.length && stage.id() >= 0;
-                STAGES[stage.id] = stage;
-            }
-        }
-
-        private final byte id;
-
-        Stage(byte id) {
-            this.id = id;
-        }
-
-        public byte id() {
-            return id;
-        }
-
-        public static Stage fromId(byte id) {
-            if (id < 0 || id >= STAGES.length) {
-                throw new IllegalArgumentException("No mapping for id [" + id + "]");
-            }
-            return STAGES[id];
-        }
-    }
-
     private Stage stage;
 
     private final Translog translog;
@@ -156,12 +99,13 @@ public class RecoveryState extends ReplicationState implements ToXContentFragmen
     }
 
     public RecoveryState(StreamInput in) throws IOException {
-        super(in);
+        timer = new ReplicationTimer(in);
         stage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
         sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
+        index = new ReplicationLuceneIndex(in);
         translog = new Translog(in);
         verifyIndex = new VerifyIndex(in);
         primary = in.readBoolean();
@@ -169,12 +113,13 @@ public class RecoveryState extends ReplicationState implements ToXContentFragmen
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        timer.writeTo(out);
         out.writeByte(stage.id());
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         targetNode.writeTo(out);
         out.writeOptionalWriteable(sourceNode);
+        index.writeTo(out);
         translog.writeTo(out);
         verifyIndex.writeTo(out);
         out.writeBoolean(primary);
@@ -275,11 +220,15 @@ public class RecoveryState extends ReplicationState implements ToXContentFragmen
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
-        super.toXContent(builder, params);
         builder.field(Fields.ID, shardId.id());
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
+        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime());
+        if (timer.stopTime() > 0) {
+            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime());
+        }
+        builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
         if (recoverySource.getType() == RecoverySource.Type.PEER) {
             builder.startObject(Fields.SOURCE);
             builder.field(Fields.ID, sourceNode.getId());
@@ -300,6 +249,10 @@ public class RecoveryState extends ReplicationState implements ToXContentFragmen
         builder.field(Fields.TRANSPORT_ADDRESS, targetNode.getAddress().toString());
         builder.field(Fields.IP, targetNode.getHostAddress());
         builder.field(Fields.NAME, targetNode.getName());
+        builder.endObject();
+
+        builder.startObject(Fields.INDEX);
+        index.toXContent(builder, params);
         builder.endObject();
 
         builder.startObject(Fields.TRANSLOG);
@@ -323,6 +276,10 @@ public class RecoveryState extends ReplicationState implements ToXContentFragmen
         static final String TYPE = "type";
         static final String STAGE = "stage";
         static final String PRIMARY = "primary";
+        static final String START_TIME = "start_time";
+        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
+        static final String STOP_TIME = "stop_time";
+        static final String STOP_TIME_IN_MILLIS = "stop_time_in_millis";
         static final String TOTAL_TIME = "total_time";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String SOURCE = "source";
@@ -331,6 +288,7 @@ public class RecoveryState extends ReplicationState implements ToXContentFragmen
         static final String IP = "ip";
         static final String NAME = "name";
         static final String TARGET = "target";
+        static final String INDEX = "index";
         static final String TRANSLOG = "translog";
         static final String TOTAL_ON_START = "total_on_start";
         static final String VERIFY_INDEX = "verify_index";

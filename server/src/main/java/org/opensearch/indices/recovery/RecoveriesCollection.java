@@ -86,7 +86,12 @@ public class RecoveriesCollection {
     private void startRecoveryInternal(RecoveryTarget recoveryTarget, TimeValue activityTimeout) {
         RecoveryTarget existingTarget = onGoingRecoveries.putIfAbsent(recoveryTarget.getId(), recoveryTarget);
         assert existingTarget == null : "found two RecoveryStatus instances with the same id";
-        logger.trace("{} started recovery from {}, id [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode(), recoveryTarget.getId());
+        logger.trace(
+            "{} started recovery from {}, id [{}]",
+            recoveryTarget.indexShard().shardId(),
+            recoveryTarget.sourceNode(),
+            recoveryTarget.getId()
+        );
         threadPool.schedule(
             new RecoveryMonitor(recoveryTarget.getId(), recoveryTarget.lastAccessTime(), activityTimeout),
             activityTimeout,
@@ -122,7 +127,7 @@ public class RecoveriesCollection {
             if (successfulReset) {
                 logger.trace(
                     "{} restarted recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
+                    newRecoveryTarget.indexShard().shardId(),
                     newRecoveryTarget.sourceNode(),
                     newRecoveryTarget.getId(),
                     oldRecoveryTarget.getId()
@@ -131,7 +136,7 @@ public class RecoveriesCollection {
             } else {
                 logger.trace(
                     "{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
+                    newRecoveryTarget.indexShard().shardId(),
                     newRecoveryTarget.sourceNode(),
                     newRecoveryTarget.getId(),
                     oldRecoveryTarget.getId()
@@ -171,7 +176,7 @@ public class RecoveriesCollection {
         if (recoveryRef == null) {
             throw new IndexShardClosedException(shardId);
         }
-        assert recoveryRef.get().shardId().equals(shardId);
+        assert recoveryRef.get().indexShard().shardId().equals(shardId);
         return recoveryRef;
     }
 
@@ -182,7 +187,7 @@ public class RecoveriesCollection {
         if (removed != null) {
             logger.trace(
                 "{} canceled recovery from {}, id [{}] (reason [{}])",
-                removed.shardId(),
+                removed.indexShard().shardId(),
                 removed.sourceNode(),
                 removed.getId(),
                 reason
@@ -205,7 +210,7 @@ public class RecoveriesCollection {
         if (removed != null) {
             logger.trace(
                 "{} failing recovery from {}, id [{}]. Send shard failure: [{}]",
-                removed.shardId(),
+                removed.indexShard().shardId(),
                 removed.sourceNode(),
                 removed.getId(),
                 sendShardFailure
@@ -218,7 +223,12 @@ public class RecoveriesCollection {
     public void markRecoveryAsDone(long id) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
-            logger.trace("{} marking recovery from {} as done, id [{}]", removed.shardId(), removed.sourceNode(), removed.getId());
+            logger.trace(
+                "{} marking recovery from {} as done, id [{}]",
+                removed.indexShard().shardId(),
+                removed.sourceNode(),
+                removed.getId()
+            );
             removed.markAsDone();
         }
     }
@@ -241,7 +251,7 @@ public class RecoveriesCollection {
         synchronized (onGoingRecoveries) {
             for (Iterator<RecoveryTarget> it = onGoingRecoveries.values().iterator(); it.hasNext();) {
                 RecoveryTarget status = it.next();
-                if (status.shardId().equals(shardId)) {
+                if (status.indexShard().shardId().equals(shardId)) {
                     matchedRecoveries.add(status);
                     it.remove();
                 }
@@ -250,7 +260,7 @@ public class RecoveriesCollection {
         for (RecoveryTarget removed : matchedRecoveries) {
             logger.trace(
                 "{} canceled recovery from {}, id [{}] (reason [{}])",
-                removed.shardId(),
+                removed.indexShard().shardId(),
                 removed.sourceNode(),
                 removed.getId(),
                 reason
