@@ -54,6 +54,8 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
 
     /**
      * Represents a failure.
+     *
+     * @opensearch.internal
      */
     public static class Failure implements Writeable {
         private final String index;
@@ -151,6 +153,11 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         return builder;
     }
 
+    /**
+     * Fields used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String DOCS = "docs";
         static final String _INDEX = "_index";

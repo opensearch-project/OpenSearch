@@ -71,6 +71,11 @@ public class RetentionLeaseActions {
 
     public static final long RETAIN_ALL = -1;
 
+    /**
+     * Base class for transport retention lease actions
+     *
+     * @opensearch.internal
+     */
     abstract static class TransportRetentionLeaseAction<T extends Request<T>> extends TransportSingleShardAction<T, Response> {
 
         private final IndicesService indicesService;
@@ -134,6 +139,11 @@ public class RetentionLeaseActions {
 
     }
 
+    /**
+     * Add retention lease action
+     *
+     * @opensearch.internal
+     */
     public static class Add extends ActionType<Response> {
 
         public static final Add INSTANCE = new Add();
@@ -143,6 +153,11 @@ public class RetentionLeaseActions {
             super(ACTION_NAME, Response::new);
         }
 
+        /**
+         * Internal transport action
+         *
+         * @opensearch.internal
+         */
         public static class TransportAction extends TransportRetentionLeaseAction<AddRequest> {
 
             @Inject
@@ -184,6 +199,11 @@ public class RetentionLeaseActions {
         }
     }
 
+    /**
+     * Renew the retention lease
+     *
+     * @opensearch.internal
+     */
     public static class Renew extends ActionType<Response> {
 
         public static final Renew INSTANCE = new Renew();
@@ -193,6 +213,11 @@ public class RetentionLeaseActions {
             super(ACTION_NAME, Response::new);
         }
 
+        /**
+         * Internal transport action for renew
+         *
+         * @opensearch.internal
+         */
         public static class TransportAction extends TransportRetentionLeaseAction<RenewRequest> {
 
             @Inject
@@ -225,6 +250,11 @@ public class RetentionLeaseActions {
         }
     }
 
+    /**
+     * Remove retention lease action
+     *
+     * @opensearch.internal
+     */
     public static class Remove extends ActionType<Response> {
 
         public static final Remove INSTANCE = new Remove();
@@ -234,6 +264,11 @@ public class RetentionLeaseActions {
             super(ACTION_NAME, Response::new);
         }
 
+        /**
+         * Internal transport action for remove
+         *
+         * @opensearch.internal
+         */
         public static class TransportAction extends TransportRetentionLeaseAction<RemoveRequest> {
 
             @Inject
@@ -265,6 +300,11 @@ public class RetentionLeaseActions {
         }
     }
 
+    /**
+     * Base request
+     *
+     * @opensearch.internal
+     */
     private abstract static class Request<T extends SingleShardRequest<T>> extends SingleShardRequest<T> {
 
         private final ShardId shardId;
@@ -305,6 +345,11 @@ public class RetentionLeaseActions {
 
     }
 
+    /**
+     * Base add or renew request
+     *
+     * @opensearch.internal
+     */
     private abstract static class AddOrRenewRequest<T extends SingleShardRequest<T>> extends Request<T> {
 
         private final long retainingSequenceNumber;
@@ -343,6 +388,11 @@ public class RetentionLeaseActions {
 
     }
 
+    /**
+     * Add retention lease request
+     *
+     * @opensearch.internal
+     */
     public static class AddRequest extends AddOrRenewRequest<AddRequest> {
 
         AddRequest(StreamInput in) throws IOException {
@@ -355,6 +405,11 @@ public class RetentionLeaseActions {
 
     }
 
+    /**
+     * Renew Request action
+     *
+     * @opensearch.internal
+     */
     public static class RenewRequest extends AddOrRenewRequest<RenewRequest> {
 
         RenewRequest(StreamInput in) throws IOException {
@@ -367,6 +422,11 @@ public class RetentionLeaseActions {
 
     }
 
+    /**
+     * Remove request
+     *
+     * @opensearch.internal
+     */
     public static class RemoveRequest extends Request<RemoveRequest> {
 
         RemoveRequest(StreamInput in) throws IOException {
@@ -379,6 +439,11 @@ public class RetentionLeaseActions {
 
     }
 
+    /**
+     * The response
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse {
 
         public Response() {}

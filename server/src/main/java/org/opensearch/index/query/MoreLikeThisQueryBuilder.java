@@ -161,6 +161,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
+     *
+     * @opensearch.internal
      */
     public static final class Item implements ToXContentObject, Writeable {
         public static final Item[] EMPTY_ARRAY = new Item[0];

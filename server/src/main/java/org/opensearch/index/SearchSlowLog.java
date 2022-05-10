@@ -208,6 +208,11 @@ public final class SearchSlowLog implements SearchOperationListener {
         }
     }
 
+    /**
+     * Search slow log message
+     *
+     * @opensearch.internal
+     */
     static final class SearchSlowLogMessage extends OpenSearchLogMessage {
 
         SearchSlowLogMessage(SearchContext context, long tookInNanos) {

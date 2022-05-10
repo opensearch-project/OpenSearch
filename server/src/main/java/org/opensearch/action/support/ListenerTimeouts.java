@@ -96,6 +96,11 @@ public class ListenerTimeouts {
         return wrappedListener;
     }
 
+    /**
+     * Listener that can time out
+     *
+     * @opensearch.internal
+     */
     private static class TimeoutableListener<Response> implements ActionListener<Response>, Runnable {
 
         private final AtomicBoolean isDone = new AtomicBoolean(false);

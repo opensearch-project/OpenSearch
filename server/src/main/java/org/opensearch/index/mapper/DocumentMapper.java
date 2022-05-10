@@ -70,6 +70,11 @@ import java.util.stream.Stream;
  */
 public class DocumentMapper implements ToXContentFragment {
 
+    /**
+     * Builder for the Document Field Mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();

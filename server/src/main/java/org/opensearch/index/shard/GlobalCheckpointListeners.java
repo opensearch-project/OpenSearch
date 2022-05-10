@@ -65,6 +65,8 @@ public class GlobalCheckpointListeners implements Closeable {
 
     /**
      * A global checkpoint listener consisting of a callback that is notified when the global checkpoint is updated or the shard is closed.
+     *
+     * @opensearch.internal
      */
     public interface GlobalCheckpointListener {
 

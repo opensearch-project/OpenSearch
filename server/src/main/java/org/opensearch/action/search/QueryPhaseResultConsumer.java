@@ -242,6 +242,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return pendingMerges.numReducePhases;
     }
 
+    /**
+     * Class representing pending merges
+     *
+     * @opensearch.internal
+     */
     private class PendingMerges implements Releasable {
         private final int batchReduceSize;
         private final List<QuerySearchResult> buffer = new ArrayList<>();
@@ -498,6 +503,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
+    /**
+     * A single merge result
+     *
+     * @opensearch.internal
+     */
     private static class MergeResult {
         private final List<SearchShard> processedShards;
         private final TopDocs reducedTopDocs;
@@ -517,6 +527,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
+    /**
+     * A single merge task
+     *
+     * @opensearch.internal
+     */
     private static class MergeTask {
         private final List<SearchShard> emptyResults;
         private QuerySearchResult[] buffer;

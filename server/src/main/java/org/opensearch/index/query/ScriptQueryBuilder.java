@@ -164,6 +164,11 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         return new ScriptQuery(script, filterScript, queryName);
     }
 
+    /**
+     * Internal script query
+     *
+     * @opensearch.internal
+     */
     static class ScriptQuery extends Query {
 
         final Script script;

@@ -52,6 +52,11 @@ import java.util.Map;
  */
 public class IndexingStats implements Writeable, ToXContentFragment {
 
+    /**
+     * Internal statistics for indexing
+     *
+     * @opensearch.internal
+     */
     public static class Stats implements Writeable, ToXContentFragment {
 
         private long indexCount;
@@ -269,6 +274,11 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for indexing statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDEXING = "indexing";
         static final String INDEX_TOTAL = "index_total";

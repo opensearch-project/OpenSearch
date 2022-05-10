@@ -231,6 +231,8 @@ final class StoreRecovery {
 
     /**
      * Directory wrapper that records copy process for recovery statistics
+     *
+     * @opensearch.internal
      */
     static final class StatsDirectoryWrapper extends FilterDirectory {
         private final RecoveryState.Index index;

@@ -54,6 +54,11 @@ import java.util.Map;
  */
 public class SearchStats implements Writeable, ToXContentFragment {
 
+    /**
+     * Statistics for search
+     *
+     * @opensearch.internal
+     */
     public static class Stats implements Writeable, ToXContentFragment {
 
         private long queryCount;
@@ -359,6 +364,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         return Strings.toString(this, true, true);
     }
 
+    /**
+     * Fields for search statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String SEARCH = "search";
         static final String OPEN_CONTEXTS = "open_contexts";

@@ -58,6 +58,11 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
         super(NAME, AcknowledgedResponse::new);
     }
 
+    /**
+     * Inner Request class for deleting composable index template
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeRequest<Request> {
 
         private String name;

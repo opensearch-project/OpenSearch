@@ -100,6 +100,11 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
         throw new IllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 
+    /**
+     * Lucene LatLonPoint as indexed field data type
+     *
+     * @opensearch.internal
+     */
     public static class LatLonPointIndexFieldData extends AbstractLatLonPointIndexFieldData {
         public LatLonPointIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
             super(fieldName, valuesSourceType);
@@ -138,6 +143,11 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
         }
     }
 
+    /**
+     * Builder for LatLonPoint based field data
+     *
+     * @opensearch.internal
+     */
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;

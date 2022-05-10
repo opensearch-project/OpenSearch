@@ -174,6 +174,8 @@ public final class ConnectionProfile {
 
     /**
      * A builder to build a new {@link ConnectionProfile}
+     *
+     * @opensearch.internal
      */
     public static class Builder {
         private final List<ConnectionTypeHandle> handles = new ArrayList<>();

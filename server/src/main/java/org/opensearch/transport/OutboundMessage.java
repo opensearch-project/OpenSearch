@@ -117,6 +117,11 @@ abstract class OutboundMessage extends NetworkMessage {
         }
     }
 
+    /**
+     * Internal outbound message request
+     *
+     * @opensearch.internal
+     */
     static class Request extends OutboundMessage {
 
         private final String[] features;
@@ -158,6 +163,11 @@ abstract class OutboundMessage extends NetworkMessage {
         }
     }
 
+    /**
+     * Internal message response
+     *
+     * @opensearch.internal
+     */
     static class Response extends OutboundMessage {
 
         private final Set<String> features;

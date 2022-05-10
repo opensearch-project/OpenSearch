@@ -344,6 +344,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         return new TransportAddress(parseConfiguredAddress(address));
     }
 
+    /**
+     * Contains information about the proxy mode
+     *
+     * @opensearch.internal
+     */
     public static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         private final String address;
