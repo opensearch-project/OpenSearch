@@ -48,6 +48,8 @@ import java.io.IOException;
  * Weight wrapper that will compute how much time it takes to build the
  * {@link Scorer} and then return a {@link Scorer} that is wrapped in
  * order to compute timings as well.
+ *
+ * @opensearch.internal
  */
 public final class ProfileWeight extends Weight {
 

@@ -19,6 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * A record of timings for the various operations that may happen during query execution.
  * A node's time may be composed of several internal attributes (rewriting, weighting,
  * scoring, etc). The class supports profiling the concurrent search over segments.
+ *
+ * @opensearch.internal
  */
 public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBreakdown<QueryTimingType> {
     private final Map<Object, AbstractProfileBreakdown<QueryTimingType>> contexts = new ConcurrentHashMap<>();

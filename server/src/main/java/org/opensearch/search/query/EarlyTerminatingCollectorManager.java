@@ -16,6 +16,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Manager for the EarlyTerminatingCollector
+ *
+ * @opensearch.internal
+ */
 public class EarlyTerminatingCollectorManager<C extends Collector>
     implements
         CollectorManager<EarlyTerminatingCollector, ReduceableSearchResult>,

@@ -46,6 +46,11 @@ import org.opensearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Fetches the document source during search phase
+ *
+ * @opensearch.internal
+ */
 public final class FetchSourcePhase implements FetchSubPhase {
 
     @Override

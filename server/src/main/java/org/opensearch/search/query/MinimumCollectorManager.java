@@ -16,6 +16,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 
+/**
+ * Manager for the MinimumCollector
+ */
 class MinimumCollectorManager implements CollectorManager<MinimumScoreCollector, ReduceableSearchResult> {
     private final CollectorManager<? extends Collector, ReduceableSearchResult> manager;
     private final float minimumScore;

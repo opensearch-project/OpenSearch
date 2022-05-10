@@ -38,6 +38,11 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.util.function.Function;
 
+/**
+ * Looks up a document
+ *
+ * @opensearch.internal
+ */
 public class DocLookup {
 
     private final MapperService mapperService;

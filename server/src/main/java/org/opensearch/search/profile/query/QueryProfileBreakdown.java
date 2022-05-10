@@ -39,6 +39,8 @@ import org.opensearch.search.profile.ContextualProfileBreakdown;
  * A record of timings for the various operations that may happen during query execution.
  * A node's time may be composed of several internal attributes (rewriting, weighting,
  * scoring, etc).
+ *
+ * @opensearch.internal
  */
 public final class QueryProfileBreakdown extends ContextualProfileBreakdown<QueryTimingType> {
 

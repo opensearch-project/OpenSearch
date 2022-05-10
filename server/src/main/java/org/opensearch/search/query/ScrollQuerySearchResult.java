@@ -39,6 +39,11 @@ import org.opensearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
+/**
+ * Scrolled results from a query search request
+ *
+ * @opensearch.internal
+ */
 public final class ScrollQuerySearchResult extends SearchPhaseResult {
 
     private final QuerySearchResult result;

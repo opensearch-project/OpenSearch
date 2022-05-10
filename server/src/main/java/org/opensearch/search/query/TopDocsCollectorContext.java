@@ -92,6 +92,8 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
 
 /**
  * A {@link QueryCollectorContext} that creates top docs collector
+ *
+ * @opensearch.internal
  */
 public abstract class TopDocsCollectorContext extends QueryCollectorContext {
     protected final int numHits;

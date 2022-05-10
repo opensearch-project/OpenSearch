@@ -46,6 +46,8 @@ import java.util.Objects;
 
 /**
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
+ *
+ * @opensearch.internal
  */
 public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 

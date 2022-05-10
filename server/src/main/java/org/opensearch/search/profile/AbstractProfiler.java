@@ -34,6 +34,11 @@ package org.opensearch.search.profile;
 
 import java.util.List;
 
+/**
+ * Base class for a profiler
+ *
+ * @opensearch.internal
+ */
 public class AbstractProfiler<PB extends AbstractProfileBreakdown<?>, E> {
 
     protected final AbstractInternalProfileTree<PB, E> profileTree;

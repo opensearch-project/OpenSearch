@@ -45,6 +45,8 @@ import java.util.Collection;
 /**
  * {@link Scorer} wrapper that will compute how much time is spent on moving
  * the iterator, confirming matches and computing scores.
+ *
+ * @opensearch.internal
  */
 final class ProfileScorer extends Scorer {
 
