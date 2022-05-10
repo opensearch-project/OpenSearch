@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e -o pipefail
+
 ### Script to check for signoff presents on commits
 
 # Validate input parameters

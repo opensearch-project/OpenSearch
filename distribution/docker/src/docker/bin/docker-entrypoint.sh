@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -e -o pipefail
 
 # Files created by Elasticsearch should always be group writable too
 umask 0002
