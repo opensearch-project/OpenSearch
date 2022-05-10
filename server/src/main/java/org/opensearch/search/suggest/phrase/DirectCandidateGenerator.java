@@ -65,6 +65,11 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Math.round;
 
+/**
+ * Generates the phrase directly from the IndexReader
+ *
+ * @opensearch.internal
+ */
 public final class DirectCandidateGenerator extends CandidateGenerator {
 
     private final DirectSpellChecker spellchecker;

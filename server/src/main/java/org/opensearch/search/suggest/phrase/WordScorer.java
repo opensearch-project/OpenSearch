@@ -44,7 +44,12 @@ import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSe
 
 import java.io.IOException;
 
-//TODO public for tests
+/**
+ * Scores by words
+ *
+ * @opensearch.internal
+ */
+// TODO public for tests
 public abstract class WordScorer {
     protected final IndexReader reader;
     protected final String field;

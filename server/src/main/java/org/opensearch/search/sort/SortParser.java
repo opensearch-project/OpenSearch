@@ -12,6 +12,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A base parser interface for creating sort objects based on API requests
+ *
+ * @opensearch.internal
+ */
 @FunctionalInterface
 public interface SortParser<SB extends SortBuilder<SB>> {
     /**

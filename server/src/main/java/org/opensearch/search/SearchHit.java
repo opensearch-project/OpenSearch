@@ -90,6 +90,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName
  * A single search hit.
  *
  * @see SearchHits
+ *
+ * @opensearch.internal
  */
 public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
 

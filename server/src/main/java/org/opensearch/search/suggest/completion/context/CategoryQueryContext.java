@@ -48,6 +48,8 @@ import static org.opensearch.search.suggest.completion.context.CategoryContextMa
 
 /**
  * Defines the query context for {@link CategoryContextMapping}
+ *
+ * @opensearch.internal
  */
 public final class CategoryQueryContext implements ToXContentObject {
     public static final String NAME = "category";
