@@ -237,6 +237,11 @@ public abstract class TransportTasksAction<
      */
     protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
+    /**
+     * Asynchronous single action
+     *
+     * @opensearch.internal
+     */
     private class AsyncAction {
 
         private final TasksRequest request;
@@ -353,6 +358,11 @@ public abstract class TransportTasksAction<
         }
     }
 
+    /**
+     * Node level transport handler
+     *
+     * @opensearch.internal
+     */
     class NodeTransportHandler implements TransportRequestHandler<NodeTaskRequest> {
 
         @Override
@@ -368,6 +378,11 @@ public abstract class TransportTasksAction<
         }
     }
 
+    /**
+     * Node level task request
+     *
+     * @opensearch.internal
+     */
     private class NodeTaskRequest extends TransportRequest {
         private TasksRequest tasksRequest;
 
@@ -389,6 +404,11 @@ public abstract class TransportTasksAction<
 
     }
 
+    /**
+     * Node level task response
+     *
+     * @opensearch.internal
+     */
     private class NodeTasksResponse extends TransportResponse {
         protected String nodeId;
         protected List<TaskOperationFailure> exceptions;

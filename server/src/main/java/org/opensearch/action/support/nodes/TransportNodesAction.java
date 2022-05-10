@@ -216,6 +216,11 @@ public abstract class TransportNodesAction<
         return transportNodeAction;
     }
 
+    /**
+     * Asynchronous action
+     *
+     * @opensearch.internal
+     */
     class AsyncAction {
 
         private final NodesRequest request;
@@ -311,6 +316,11 @@ public abstract class TransportNodesAction<
         }
     }
 
+    /**
+     * A node transport handler
+     *
+     * @opensearch.internal
+     */
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
 
         @Override

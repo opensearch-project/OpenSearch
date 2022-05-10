@@ -90,6 +90,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         return (NumberFieldMapper) in;
     }
 
+    /**
+     * Builder for the number field mappers
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -156,6 +161,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Type of number
+     *
+     * @opensearch.internal
+     */
     public enum NumberType {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
@@ -964,6 +974,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for numeric fields
+     *
+     * @opensearch.internal
+     */
     public static class NumberFieldType extends SimpleMappedFieldType {
 
         private final NumberType type;

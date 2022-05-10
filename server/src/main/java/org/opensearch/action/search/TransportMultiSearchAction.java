@@ -220,6 +220,11 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         });
     }
 
+    /**
+     * Slots a search request
+     *
+     * @opensearch.internal
+     */
     static final class SearchRequestSlot {
 
         final SearchRequest request;

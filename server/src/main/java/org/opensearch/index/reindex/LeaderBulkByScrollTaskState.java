@@ -156,6 +156,11 @@ public class LeaderBulkByScrollTaskState {
         }
     }
 
+    /**
+     * Result
+     *
+     * @opensearch.internal
+     */
     private static final class Result {
         final BulkByScrollResponse response;
         final int sliceId;

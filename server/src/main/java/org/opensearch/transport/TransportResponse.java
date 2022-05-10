@@ -58,6 +58,11 @@ public abstract class TransportResponse extends TransportMessage {
         super(in);
     }
 
+    /**
+     * Empty transport response
+     *
+     * @opensearch.internal
+     */
     public static class Empty extends TransportResponse {
         public static final Empty INSTANCE = new Empty();
 

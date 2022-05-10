@@ -524,7 +524,11 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         return this;
     }
 
-    /** local class that encapsulates xcontent parsed shape parameters */
+    /**
+     * local class that encapsulates xcontent parsed shape parameters
+     *
+     * @opensearch.internal
+     */
     protected abstract static class ParsedGeometryQueryParams {
         public String fieldName;
         public ShapeRelation relation;

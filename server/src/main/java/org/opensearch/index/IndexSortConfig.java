@@ -244,6 +244,11 @@ public final class IndexSortConfig {
         }
     }
 
+    /**
+     * Field sort specification
+     *
+     * @opensearch.internal
+     */
     static class FieldSortSpec {
         final String field;
         SortOrder order;

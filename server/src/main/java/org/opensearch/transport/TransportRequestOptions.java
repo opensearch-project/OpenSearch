@@ -59,6 +59,11 @@ public class TransportRequestOptions {
 
     public static final TransportRequestOptions EMPTY = new TransportRequestOptions.Builder().build();
 
+    /**
+     * Type of transport request
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         RECOVERY,
         BULK,
@@ -71,6 +76,11 @@ public class TransportRequestOptions {
         return new Builder();
     }
 
+    /**
+     * Builder for transport request options
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private TimeValue timeout;
         private Type type = Type.REG;

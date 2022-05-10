@@ -309,6 +309,11 @@ public class SearchTransportService {
         return new HashMap<>(clientConnections);
     }
 
+    /**
+     * A scroll free context request
+     *
+     * @opensearch.internal
+     */
     static class ScrollFreeContextRequest extends TransportRequest {
         private ShardSearchContextId contextId;
 
@@ -333,6 +338,11 @@ public class SearchTransportService {
 
     }
 
+    /**
+     * A search free context request
+     *
+     * @opensearch.internal
+     */
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private OriginalIndices originalIndices;
 
@@ -370,6 +380,11 @@ public class SearchTransportService {
 
     }
 
+    /**
+     * A search free context response
+     *
+     * @opensearch.internal
+     */
     public static class SearchFreeContextResponse extends TransportResponse {
 
         private boolean freed;
@@ -564,6 +579,11 @@ public class SearchTransportService {
         }
     }
 
+    /**
+     * A handler that counts connections
+     *
+     * @opensearch.internal
+     */
     final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
         private final Map<String, Long> clientConnections;
         private final String nodeId;

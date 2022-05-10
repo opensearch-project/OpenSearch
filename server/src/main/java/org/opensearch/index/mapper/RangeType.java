@@ -982,6 +982,11 @@ public enum RangeType {
     private final NumberFieldMapper.NumberType numberType;
     public final LengthType lengthType;
 
+    /**
+     * Type of length
+     *
+     * @opensearch.internal
+     */
     public enum LengthType {
         FIXED_4 {
             @Override

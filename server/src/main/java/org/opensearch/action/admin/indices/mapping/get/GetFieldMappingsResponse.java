@@ -175,6 +175,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         }
     }
 
+    /**
+     * Metadata for field mappings for toXContent
+     *
+     * @opensearch.internal
+     */
     public static class FieldMappingMetadata implements ToXContentFragment {
 
         private static final ParseField FULL_NAME = new ParseField("full_name");

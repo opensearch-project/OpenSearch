@@ -93,6 +93,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
+    /**
+     * Long values for scripted doc values
+     *
+     * @opensearch.internal
+     */
     public static final class Longs extends ScriptDocValues<Long> {
         private final SortedNumericDocValues in;
         private long[] values = new long[0];
@@ -147,6 +152,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
+    /**
+     * Date values for scripted doc values
+     *
+     * @opensearch.internal
+     */
     public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
 
         private final SortedNumericDocValues in;
@@ -223,6 +233,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
+    /**
+     * Double values for scripted doc values
+     *
+     * @opensearch.internal
+     */
     public static final class Doubles extends ScriptDocValues<Double> {
 
         private final SortedNumericDoubleValues in;
@@ -279,6 +294,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
+    /**
+     * Geo points for scripted doc values
+     *
+     * @opensearch.internal
+     */
     public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
 
         private final MultiGeoPointValues in;
@@ -399,6 +419,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
+    /**
+     * Boolean values for scripted doc values
+     *
+     * @opensearch.internal
+     */
     public static final class Booleans extends ScriptDocValues<Boolean> {
 
         private final SortedNumericDocValues in;
@@ -459,6 +484,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     }
 
+    /**
+     * Base class for binary script doc values
+     *
+     * @opensearch.internal
+     */
     abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
 
         private final SortedBinaryDocValues in;
@@ -505,6 +535,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
+    /**
+     * String class for scripted doc values
+     *
+     * @opensearch.internal
+     */
     public static class Strings extends BinaryScriptDocValues<String> {
         public Strings(SortedBinaryDocValues in) {
             super(in);
@@ -533,6 +568,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
+    /**
+     * BytesRef values for scripted doc values
+     *
+     * @opensearch.internal
+     */
     public static final class BytesRefs extends BinaryScriptDocValues<BytesRef> {
 
         public BytesRefs(SortedBinaryDocValues in) {

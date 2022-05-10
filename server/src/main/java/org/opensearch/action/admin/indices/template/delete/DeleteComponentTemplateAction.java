@@ -57,6 +57,11 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
         super(NAME, AcknowledgedResponse::new);
     }
 
+    /**
+     * Inner Request class for deleting component template
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeRequest<Request> {
 
         private String name;

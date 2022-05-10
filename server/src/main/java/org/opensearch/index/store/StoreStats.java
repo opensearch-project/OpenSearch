@@ -138,6 +138,11 @@ public class StoreStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for store statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String STORE = "store";
         static final String SIZE = "size";

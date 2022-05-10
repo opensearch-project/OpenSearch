@@ -279,6 +279,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             && indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
     }
 
+    /**
+     * Context for index creation
+     *
+     * @opensearch.internal
+     */
     public enum IndexCreationContext {
         CREATE_INDEX,
         METADATA_VERIFICATION
@@ -741,6 +746,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    /**
+     * Cache listener for bitsets
+     *
+     * @opensearch.internal
+     */
     private static final class BitsetCacheListener implements BitsetFilterCache.Listener {
         final IndexService indexService;
 
@@ -894,6 +904,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    /**
+     * Shard Store Deleter Interface
+     *
+     * @opensearch.internal
+     */
     public interface ShardStoreDeleter {
         void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
 
@@ -1000,6 +1015,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    /**
+     * Base asynchronous task
+     *
+     * @opensearch.internal
+     */
     abstract static class BaseAsyncTask extends AbstractAsyncTask {
 
         protected final IndexService indexService;
@@ -1020,6 +1040,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * FSyncs the translog for all shards of this index in a defined interval.
+     *
+     * @opensearch.internal
      */
     static final class AsyncTranslogFSync extends BaseAsyncTask {
 

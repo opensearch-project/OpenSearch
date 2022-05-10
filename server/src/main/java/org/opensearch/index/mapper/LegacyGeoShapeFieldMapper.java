@@ -101,8 +101,18 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     public static final String CONTENT_TYPE = "geo_shape";
 
+    /**
+     * Legacy prefix tree parameters that are now deprecated
+     *
+     * @opensearch.internal
+     */
     @Deprecated
     public static class DeprecatedParameters {
+        /**
+         * Deprecated parameter names for Prefix trees
+         *
+         * @opensearch.internal
+         */
         public static class Names {
             public static final ParseField STRATEGY = new ParseField("strategy");
             public static final ParseField TREE = new ParseField("tree");
@@ -112,12 +122,22 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             public static final ParseField POINTS_ONLY = new ParseField("points_only");
         }
 
+        /**
+         * Deprecated prefix tree types
+         *
+         * @opensearch.internal
+         */
         public static class PrefixTrees {
             public static final String LEGACY_QUADTREE = "legacyquadtree";
             public static final String QUADTREE = "quadtree";
             public static final String GEOHASH = "geohash";
         }
 
+        /**
+         * Deprecated defaults for legacy prefix trees
+         *
+         * @opensearch.internal
+         */
         public static class Defaults {
             public static final SpatialStrategy STRATEGY = SpatialStrategy.RECURSIVE;
             public static final String TREE = "quadtree";
@@ -203,6 +223,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LegacyGeoShapeFieldMapper.class);
 
+    /**
+     * The builder for the deprecated prefix tree implementation
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
 
         DeprecatedParameters deprecatedParameters;
@@ -325,6 +350,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
+    /**
+     * A legacy parser for prefix trees
+     *
+     * @opensearch.internal
+     */
     private static class LegacyGeoShapeParser extends Parser<ShapeBuilder<?, ?, ?>> {
         /**
          * Note that this parser is only used for formatting values.
@@ -347,6 +377,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
+    /**
+     * Field type for GeoShape fields
+     *
+     * @opensearch.internal
+     */
     public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>, Shape>
         implements
             GeoShapeQueryable {

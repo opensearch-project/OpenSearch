@@ -192,6 +192,11 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
     }
 
+    /**
+     * Value for bitset filter cache
+     *
+     * @opensearch.internal
+     */
     public static final class Value {
 
         final BitSet bitset;
@@ -316,6 +321,8 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
     /**
      *  A listener interface that is executed for each onCache / onRemoval event
+     *
+     * @opensearch.internal
      */
     public interface Listener {
         /**

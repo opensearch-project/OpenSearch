@@ -178,6 +178,8 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     /**
      * Represents a failure.
+     *
+     * @opensearch.internal
      */
     public static class Failure implements Writeable, ToXContentFragment {
         public static final String INDEX_FIELD = "index";

@@ -436,6 +436,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.values();
     }
 
+    /**
+     * Internal class to hold cluster alias and key and track a remote connection
+     *
+     * @opensearch.internal
+     */
     private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {
 
         private final String clusterAlias;
