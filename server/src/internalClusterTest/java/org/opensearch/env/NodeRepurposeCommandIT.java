@@ -56,7 +56,7 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
         final String indexName = "test-repurpose";
 
         logger.info("--> starting two nodes");
-        final String clusterManagerNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode(
             Settings.builder().put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false).build()
         );
@@ -123,7 +123,7 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
 
         // by restarting as master and data node, we can check that the index definition was really deleted and also that the tool
         // does not mess things up so much that the nodes cannot boot as master or data node any longer.
-        internalCluster().startMasterOnlyNode(clusterManagerNodeDataPathSettings);
+        internalCluster().startClusterManagerOnlyNode(clusterManagerNodeDataPathSettings);
         internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
 
         ensureGreen();

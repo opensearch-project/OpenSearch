@@ -77,7 +77,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
             // all is well, no cluster-manager elected
         }
         logger.info("--> start master node");
-        final String masterNodeName = internalCluster().startMasterOnlyNode();
+        final String masterNodeName = internalCluster().startClusterManagerOnlyNode();
         assertThat(
             internalCluster().nonMasterClient()
                 .admin()
@@ -181,7 +181,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
             // all is well, no cluster-manager elected
         }
         logger.info("--> start master node (1)");
-        final String masterNodeName = internalCluster().startMasterOnlyNode();
+        final String masterNodeName = internalCluster().startClusterManagerOnlyNode();
         assertThat(
             internalCluster().nonMasterClient()
                 .admin()
@@ -210,7 +210,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> start master node (2)");
-        final String nextMasterEligableNodeName = internalCluster().startMasterOnlyNode();
+        final String nextMasterEligableNodeName = internalCluster().startClusterManagerOnlyNode();
         assertThat(
             internalCluster().nonMasterClient()
                 .admin()
@@ -314,7 +314,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
     public void testAliasFilterValidation() {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master node / non data");
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
 
         logger.info("--> start data node / non master node");
         internalCluster().startDataOnlyNode();

@@ -64,7 +64,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * Test cluster join with issues in cluster state publishing *
      */
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        String clusterManagerNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String nonClusterManagerNode = internalCluster().startDataOnlyNode();
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonClusterManagerNode).state().nodes();

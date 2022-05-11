@@ -289,7 +289,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
         logger.info("--> start 1st cluster-manager-eligible node");
         masterNodes.add(
-            internalCluster().startMasterOnlyNode(
+            internalCluster().startClusterManagerOnlyNode(
                 Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
             )
         ); // node ordinal 0
@@ -364,7 +364,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> start 1st cluster-manager-eligible node");
-        String masterNode2 = internalCluster().startMasterOnlyNode(master1DataPathSettings);
+        String masterNode2 = internalCluster().startClusterManagerOnlyNode(master1DataPathSettings);
 
         logger.info("--> detach-cluster on data-only node");
         Environment environmentData = TestEnvironment.newEnvironment(
@@ -410,8 +410,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         detachCluster(environmentMaster3, false);
 
         logger.info("--> start 2nd and 3rd cluster-manager-eligible nodes and ensure 4 nodes stable cluster");
-        bootstrappedNodes.add(internalCluster().startMasterOnlyNode(master2DataPathSettings));
-        bootstrappedNodes.add(internalCluster().startMasterOnlyNode(master3DataPathSettings));
+        bootstrappedNodes.add(internalCluster().startClusterManagerOnlyNode(master2DataPathSettings));
+        bootstrappedNodes.add(internalCluster().startClusterManagerOnlyNode(master3DataPathSettings));
         ensureStableCluster(4);
         bootstrappedNodes.forEach(node -> ensureReadOnlyBlock(true, node));
         removeBlock();
@@ -479,7 +479,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        String clusterManagerNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         Settings clusterManagerNodeDataPathSettings = internalCluster().dataPathSettings(clusterManagerNode);
         internalCluster().stopCurrentMasterNode();
 
@@ -488,7 +488,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         );
         detachCluster(environment);
 
-        String node = internalCluster().startMasterOnlyNode(
+        String node = internalCluster().startClusterManagerOnlyNode(
             Settings.builder()
                 // give the cluster 2 seconds to elect the master (it should not)
                 .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
@@ -504,7 +504,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetadata() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        String clusterManagerNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         Settings clusterManagerNodeDataPathSettings = internalCluster().dataPathSettings(clusterManagerNode);
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
@@ -524,7 +524,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         detachCluster(environment);
         unsafeBootstrap(environment); // read-only block will remain same as one before bootstrap, in this case it is false
 
-        String masterNode2 = internalCluster().startMasterOnlyNode(clusterManagerNodeDataPathSettings);
+        String masterNode2 = internalCluster().startClusterManagerOnlyNode(clusterManagerNodeDataPathSettings);
         ensureGreen();
         ensureReadOnlyBlock(false, masterNode2);
 
@@ -534,7 +534,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     public void testUnsafeBootstrapWithApplyClusterReadOnlyBlockAsFalse() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        String clusterManagerNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         Settings clusterManagerNodeDataPathSettings = internalCluster().dataPathSettings(clusterManagerNode);
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
@@ -553,7 +553,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         );
         unsafeBootstrap(environment, false, false);
 
-        String clusterManagerNode2 = internalCluster().startMasterOnlyNode(clusterManagerNodeDataPathSettings);
+        String clusterManagerNode2 = internalCluster().startClusterManagerOnlyNode(clusterManagerNodeDataPathSettings);
         ensureGreen();
         ensureReadOnlyBlock(false, clusterManagerNode2);
 

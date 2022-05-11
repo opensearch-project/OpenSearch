@@ -107,13 +107,13 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentDeleteFromOtherCluster() throws InterruptedException {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoNameOnFirstCluster = "test-repo";
         final String repoNameOnSecondCluster = randomBoolean() ? "test-repo" : "other-repo";
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
 
-        secondCluster.startMasterOnlyNode();
+        secondCluster.startClusterManagerOnlyNode();
         secondCluster.startDataOnlyNode();
         secondCluster.client()
             .admin()

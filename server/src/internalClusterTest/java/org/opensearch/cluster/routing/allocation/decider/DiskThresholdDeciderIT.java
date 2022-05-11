@@ -154,7 +154,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     }
 
     public void testHighWatermarkNotExceeded() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
@@ -189,7 +189,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     }
 
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);

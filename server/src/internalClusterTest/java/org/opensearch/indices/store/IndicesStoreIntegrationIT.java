@@ -345,7 +345,7 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final List<String> nodes = internalCluster().startDataOnlyNodes(4);
 
         final String node1 = nodes.get(0);

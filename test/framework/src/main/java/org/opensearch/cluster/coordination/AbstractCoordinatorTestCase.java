@@ -217,13 +217,13 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
     }
 
     // Updating the cluster state involves up to 7 delays:
-    // 1. submit the task to the master service
+    // 1. submit the task to the cluster-manager service
     // 2. send PublishRequest
     // 3. receive PublishResponse
     // 4. send ApplyCommitRequest
     // 5. apply committed cluster state
     // 6. receive ApplyCommitResponse
-    // 7. apply committed state on master (last one to apply cluster state)
+    // 7. apply committed state on cluster-manager (last one to apply cluster state)
     public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = 7 * DEFAULT_DELAY_VARIABILITY;
 
     private static final int ELECTION_RETRIES = 10;
@@ -288,11 +288,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             this(initialNodeCount, true, Settings.EMPTY);
         }
 
-        Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
-            this(initialNodeCount, allNodesMasterEligible, nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info"));
+        Cluster(int initialNodeCount, boolean allNodesclusterManagerEligible, Settings nodeSettings) {
+            this(initialNodeCount, allNodesclusterManagerEligible, nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info"));
         }
 
-        Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
+        Cluster(int initialNodeCount, boolean allNodesClusterManagerEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
             bigArrays = usually()
                 ? BigArrays.NON_RECYCLING_INSTANCE
@@ -301,29 +301,29 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
 
             assertThat(initialNodeCount, greaterThan(0));
 
-            final Set<String> masterEligibleNodeIds = new HashSet<>(initialNodeCount);
+            final Set<String> clusterManagerEligibleNodeIds = new HashSet<>(initialNodeCount);
             clusterNodes = new ArrayList<>(initialNodeCount);
             for (int i = 0; i < initialNodeCount; i++) {
                 final ClusterNode clusterNode = new ClusterNode(
                     nextNodeIndex.getAndIncrement(),
-                    allNodesMasterEligible || i == 0 || randomBoolean(),
+                    allNodesClusterManagerEligible || i == 0 || randomBoolean(),
                     nodeSettings,
                     nodeHealthService
                 );
                 clusterNodes.add(clusterNode);
                 if (clusterNode.getLocalNode().isMasterNode()) {
-                    masterEligibleNodeIds.add(clusterNode.getId());
+                    clusterManagerEligibleNodeIds.add(clusterNode.getId());
                 }
             }
 
             initialConfiguration = new VotingConfiguration(
-                new HashSet<>(randomSubsetOf(randomIntBetween(1, masterEligibleNodeIds.size()), masterEligibleNodeIds))
+                new HashSet<>(randomSubsetOf(randomIntBetween(1, clusterManagerEligibleNodeIds.size()), clusterManagerEligibleNodeIds))
             );
 
             logger.info(
                 "--> creating cluster of {} nodes (cluster-manager-eligible nodes: {}) with initial configuration {}",
                 initialNodeCount,
-                masterEligibleNodeIds,
+                clusterManagerEligibleNodeIds,
                 initialConfiguration
             );
         }
@@ -616,7 +616,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     );
                     assertTrue(nodeId + " has been bootstrapped", clusterNode.coordinator.isInitialConfigurationSet());
                     assertThat(
-                        nodeId + " has correct master",
+                        nodeId + " has correct cluster-manager",
                         clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
                         equalTo(leader.getLocalNode())
                     );
@@ -930,7 +930,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                             final long newValue = randomLong();
 
                             logger.trace(
-                                "rolling back persisted cluster state on master-ineligible node [{}]: "
+                                "rolling back persisted cluster state on cluster-manager-ineligible node [{}]: "
                                     + "previously currentTerm={}, lastAcceptedTerm={}, lastAcceptedVersion={} "
                                     + "but now currentTerm={}, lastAcceptedTerm={}, lastAcceptedVersion={}",
                                 newLocalNode,

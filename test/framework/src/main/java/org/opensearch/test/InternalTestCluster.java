@@ -166,7 +166,7 @@ import static org.opensearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_
 import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
-import static org.opensearch.test.NodeRoles.masterOnlyNode;
+import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
 import static org.opensearch.test.NodeRoles.noRoles;
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.NodeRoles.removeRoles;
@@ -249,7 +249,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ExecutorService executor;
 
-    private final boolean autoManageMasterNodes;
+    private final boolean autoManageClusterManagerNodes;
 
     private final Collection<Class<? extends Plugin>> mockPlugins;
 
@@ -272,7 +272,7 @@ public final class InternalTestCluster extends TestCluster {
         final long clusterSeed,
         final Path baseDir,
         final boolean randomlyAddDedicatedMasters,
-        final boolean autoManageMasterNodes,
+        final boolean autoManageClusterManagerNodes,
         final int minNumDataNodes,
         final int maxNumDataNodes,
         final String clusterName,
@@ -286,7 +286,7 @@ public final class InternalTestCluster extends TestCluster {
             clusterSeed,
             baseDir,
             randomlyAddDedicatedMasters,
-            autoManageMasterNodes,
+                autoManageClusterManagerNodes,
             minNumDataNodes,
             maxNumDataNodes,
             clusterName,
@@ -303,7 +303,7 @@ public final class InternalTestCluster extends TestCluster {
         final long clusterSeed,
         final Path baseDir,
         final boolean randomlyAddDedicatedMasters,
-        final boolean autoManageMasterNodes,
+        final boolean autoManageClusterManagerNodes,
         final int minNumDataNodes,
         final int maxNumDataNodes,
         final String clusterName,
@@ -315,7 +315,7 @@ public final class InternalTestCluster extends TestCluster {
         final boolean forbidPrivateIndexSettings
     ) {
         super(clusterSeed);
-        this.autoManageMasterNodes = autoManageMasterNodes;
+        this.autoManageClusterManagerNodes = autoManageClusterManagerNodes;
         this.clientWrapper = clientWrapper;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.baseDir = baseDir;
@@ -380,7 +380,7 @@ public final class InternalTestCluster extends TestCluster {
             numSharedDedicatedMasterNodes,
             numSharedDataNodes,
             numSharedCoordOnlyNodes,
-            autoManageMasterNodes ? "auto-managed" : "manual"
+            autoManageClusterManagerNodes ? "auto-managed" : "manual"
         );
         this.nodeConfigurationSource = nodeConfigurationSource;
         numDataPaths = random.nextInt(5) == 0 ? 2 + random.nextInt(3) : 1;
@@ -454,7 +454,7 @@ public final class InternalTestCluster extends TestCluster {
      * It's only possible to change {@link #bootstrapMasterNodeIndex} value if autoManageMasterNodes is false.
      */
     public void setBootstrapMasterNodeIndex(int bootstrapMasterNodeIndex) {
-        assert autoManageMasterNodes == false || bootstrapMasterNodeIndex == -1
+        assert autoManageClusterManagerNodes == false || bootstrapMasterNodeIndex == -1
             : "bootstrapMasterNodeIndex should be -1 if autoManageMasterNodes is true, but was " + bootstrapMasterNodeIndex;
         this.bootstrapMasterNodeIndex = bootstrapMasterNodeIndex;
     }
@@ -718,7 +718,7 @@ public final class InternalTestCluster extends TestCluster {
         final String discoveryType = DISCOVERY_TYPE_SETTING.get(updatedSettings.build());
         final boolean usingSingleNodeDiscovery = discoveryType.equals("single-node");
         if (usingSingleNodeDiscovery == false) {
-            if (autoManageMasterNodes) {
+            if (autoManageClusterManagerNodes) {
                 assertThat(
                     "if master nodes are automatically managed then nodes must complete a join cycle when starting",
                     updatedSettings.get(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey()),
@@ -1161,7 +1161,7 @@ public final class InternalTestCluster extends TestCluster {
             .map(Node.NODE_NAME_SETTING::get)
             .collect(Collectors.toList());
 
-        if (prevNodeCount == 0 && autoManageMasterNodes) {
+        if (prevNodeCount == 0 && autoManageClusterManagerNodes) {
             if (numSharedDedicatedMasterNodes > 0) {
                 autoBootstrapMasterNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedMasterNodes - 1);
             } else if (numSharedDataNodes > 0) {
@@ -1187,7 +1187,7 @@ public final class InternalTestCluster extends TestCluster {
 
         nextNodeId.set(newSize);
         assert size() == newSize;
-        if (autoManageMasterNodes && newSize > 0) {
+        if (autoManageClusterManagerNodes && newSize > 0) {
             validateClusterFormed();
         }
         logger.debug(
@@ -1214,7 +1214,7 @@ public final class InternalTestCluster extends TestCluster {
                     .map(ClusterService::state)
                     .collect(Collectors.toList());
                 final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
-                // all nodes have a master
+                // all nodes have a cluster-manager
                 assertTrue("Missing master" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
                 // all nodes have the same master (in same term)
                 assertEquals(
@@ -1653,7 +1653,7 @@ public final class InternalTestCluster extends TestCluster {
             if (nodePrefix.equals(OpenSearchIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
                 && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
                 && nodeAndClient.isMasterEligible()
-                && autoManageMasterNodes
+                && autoManageClusterManagerNodes
                 && nodes.values()
                     .stream()
                     .filter(NodeAndClient::isMasterEligible)
@@ -1713,7 +1713,7 @@ public final class InternalTestCluster extends TestCluster {
             }
             nodeAndClients.forEach(this::publishNode);
 
-            if (autoManageMasterNodes
+            if (autoManageClusterManagerNodes
                 && currentMasters > 0
                 && newMasters > 0
                 && getMinMasterNodes(currentMasters + newMasters) > currentMasters) {
@@ -1838,7 +1838,7 @@ public final class InternalTestCluster extends TestCluster {
 
         final Settings newSettings = nodeAndClient.closeForRestart(
             callback,
-            autoManageMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1
+            autoManageClusterManagerNodes ? getMinMasterNodes(getMasterNodesCount()) : -1
         );
 
         removeExclusions(excludedNodeIds);
@@ -1865,7 +1865,7 @@ public final class InternalTestCluster extends TestCluster {
     private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
         assert Thread.holdsLock(this);
         final Set<String> excludedNodeNames = new HashSet<>();
-        if (autoManageMasterNodes && nodeAndClients.size() > 0) {
+        if (autoManageClusterManagerNodes && nodeAndClients.size() > 0) {
 
             final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
             final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
@@ -1912,7 +1912,7 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized void fullRestart(RestartCallback callback) throws Exception {
         int numNodesRestarted = 0;
         final Settings[] newNodeSettings = new Settings[nextNodeId.get()];
-        final int minMasterNodes = autoManageMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1;
+        final int minMasterNodes = autoManageClusterManagerNodes ? getMinMasterNodes(getMasterNodesCount()) : -1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go
         for (NodeAndClient nodeAndClient : nodes.values()) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
@@ -2091,14 +2091,14 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized List<String> startNodes(Settings... extraSettings) {
         final int newMasterCount = Math.toIntExact(Stream.of(extraSettings).filter(DiscoveryNode::isMasterNode).count());
         final int defaultMinMasterNodes;
-        if (autoManageMasterNodes) {
+        if (autoManageClusterManagerNodes) {
             defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + newMasterCount);
         } else {
             defaultMinMasterNodes = -1;
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
-        int autoBootstrapMasterNodeIndex = autoManageMasterNodes
+        int autoBootstrapMasterNodeIndex = autoManageClusterManagerNodes
             && prevMasterCount == 0
             && newMasterCount > 0
             && Arrays.stream(extraSettings)
@@ -2140,7 +2140,7 @@ public final class InternalTestCluster extends TestCluster {
             nodes.add(nodeAndClient);
         }
         startAndPublishNodesAndClients(nodes);
-        if (autoManageMasterNodes) {
+        if (autoManageClusterManagerNodes) {
             validateClusterFormed();
         }
         return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
@@ -2171,12 +2171,12 @@ public final class InternalTestCluster extends TestCluster {
         return (int) nodes.values().stream().filter(n -> DiscoveryNode.isMasterNode(n.node().settings())).count();
     }
 
-    public String startMasterOnlyNode() {
-        return startMasterOnlyNode(Settings.EMPTY);
+    public String startClusterManagerOnlyNode() {
+        return startClusterManagerOnlyNode(Settings.EMPTY);
     }
 
-    public String startMasterOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(masterOnlyNode(settings)).build();
+    public String startClusterManagerOnlyNode(Settings settings) {
+        Settings settings1 = Settings.builder().put(settings).put(NodeRoles.clusterManagerOnlyNode(settings)).build();
         return startNode(settings1);
     }
 

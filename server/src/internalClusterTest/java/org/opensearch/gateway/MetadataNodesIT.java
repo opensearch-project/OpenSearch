@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MetadataNodesIT extends OpenSearchIntegTestCase {
     public void testMetaWrittenAlsoOnDataNode() throws Exception {
         // this test checks that index state is written on data only nodes if they have a shard allocated
-        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        String masterNode = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
         index("test", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
@@ -71,7 +71,7 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
 
     public void testIndexFilesAreRemovedIfAllShardsFromIndexRemoved() throws Exception {
         // this test checks that the index data is removed from a data only node once all shards have been allocated away from it
-        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        String masterNode = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         List<String> nodeNames = internalCluster().startDataOnlyNodes(2);
         String node1 = nodeNames.get(0);
         String node2 = nodeNames.get(1);
@@ -114,7 +114,7 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMetaWrittenWhenIndexIsClosedAndMetaUpdated() throws Exception {
-        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        String masterNode = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         final String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
 
         final String index = "index";

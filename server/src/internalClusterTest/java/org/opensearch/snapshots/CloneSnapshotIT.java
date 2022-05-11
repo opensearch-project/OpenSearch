@@ -72,7 +72,7 @@ import static org.hamcrest.Matchers.is;
 public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testShardClone() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         final Path repoPath = randomRepoPath();
@@ -143,7 +143,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCloneSnapshotIndex() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "fs");
@@ -172,7 +172,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testClonePreventsSnapshotDelete() throws Exception {
-        final String clusterManagerName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
@@ -210,7 +210,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentCloneAndSnapshot() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
@@ -234,7 +234,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testLongRunningCloneAllowsConcurrentSnapshot() throws Exception {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
-        final String masterNode = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String masterNode = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -263,7 +263,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testLongRunningSnapshotAllowsConcurrentClone() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -293,7 +293,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDeletePreventsClone() throws Exception {
-        final String clusterManagerName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
@@ -323,7 +323,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testBackToBackClonesForIndexNotInCluster() throws Exception {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
-        final String masterNode = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String masterNode = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -413,7 +413,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testFailsOnCloneMissingIndices() {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         final Path repoPath = randomRepoPath();
@@ -481,7 +481,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDoesNotStartOnBrokenSourceSnapshot() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -516,7 +516,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartSnapshotWithSuccessfulShardClonePendingFinalization() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String masterName = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -546,7 +546,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartCloneWithSuccessfulShardClonePendingFinalization() throws Exception {
-        final String clusterManagerName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -576,7 +576,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartCloneWithSuccessfulShardSnapshotPendingFinalization() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String masterName = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
