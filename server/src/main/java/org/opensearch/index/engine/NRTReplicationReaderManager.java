@@ -61,7 +61,9 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
             innerReader,
             Lucene.SOFT_DELETES_FIELD
         );
-        logger.trace(() -> new ParameterizedMessage("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader));
+        logger.trace(
+            () -> new ParameterizedMessage("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader)
+        );
         return OpenSearchDirectoryReader.wrap(softDeletesDirectoryReaderWrapper, referenceToRefresh.shardId());
     }
 

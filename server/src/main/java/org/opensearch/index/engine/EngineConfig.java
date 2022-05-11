@@ -228,8 +228,9 @@ public final class EngineConfig {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         TombstoneDocSupplier tombstoneDocSupplier
-        ) {
-        this(shardId,
+    ) {
+        this(
+            shardId,
             threadPool,
             indexSettings,
             warmer,
@@ -252,7 +253,8 @@ public final class EngineConfig {
             retentionLeasesSupplier,
             primaryTermSupplier,
             tombstoneDocSupplier,
-            false);
+            false
+        );
     }
 
     /**
