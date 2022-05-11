@@ -51,7 +51,7 @@ public class GetIndexTemplatesRequest implements Validatable {
 
     private final List<String> names;
 
-    private TimeValue masterNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
     private boolean local = false;
 
     /**
@@ -84,23 +84,23 @@ public class GetIndexTemplatesRequest implements Validatable {
     }
 
     /**
-     * @return the timeout for waiting for the master node to respond
+     * @return the timeout for waiting for the cluster-manager node to respond
      */
     public TimeValue getMasterNodeTimeout() {
-        return masterNodeTimeout;
+        return clusterManagerNodeTimeout;
     }
 
-    public void setMasterNodeTimeout(@Nullable TimeValue masterNodeTimeout) {
-        this.masterNodeTimeout = masterNodeTimeout;
+    public void setMasterNodeTimeout(@Nullable TimeValue clusterManagerNodeTimeout) {
+        this.clusterManagerNodeTimeout = clusterManagerNodeTimeout;
     }
 
-    public void setMasterNodeTimeout(String masterNodeTimeout) {
-        final TimeValue timeValue = TimeValue.parseTimeValue(masterNodeTimeout, getClass().getSimpleName() + ".masterNodeTimeout");
+    public void setMasterNodeTimeout(String clusterManagerNodeTimeout) {
+        final TimeValue timeValue = TimeValue.parseTimeValue(clusterManagerNodeTimeout, getClass().getSimpleName() + ".masterNodeTimeout");
         setMasterNodeTimeout(timeValue);
     }
 
     /**
-     * @return true if this request is to read from the local cluster state, rather than the master node - false otherwise
+     * @return true if this request is to read from the local cluster state, rather than the cluster-manager node - false otherwise
      */
     public boolean isLocal() {
         return local;
