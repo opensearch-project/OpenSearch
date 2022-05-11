@@ -365,6 +365,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
+    /**
+     * The execution mode for the terms agg
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {

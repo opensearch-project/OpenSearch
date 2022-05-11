@@ -133,6 +133,11 @@ public abstract class WordScorer {
         return result.get();
     }
 
+    /**
+     * Factory for a new scorer
+     *
+     * @opensearch.internal
+     */
     public interface WordScorerFactory {
         WordScorer newScorer(IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator)
             throws IOException;

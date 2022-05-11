@@ -99,6 +99,11 @@ public abstract class ParsedMultiBucketAggregation<B extends ParsedMultiBucketAg
         }, CommonFields.BUCKETS, ObjectParser.ValueType.OBJECT_ARRAY);
     }
 
+    /**
+     * A parsed bucket
+     *
+     * @opensearch.internal
+     */
     public abstract static class ParsedBucket implements MultiBucketsAggregation.Bucket {
 
         private Aggregations aggregations;

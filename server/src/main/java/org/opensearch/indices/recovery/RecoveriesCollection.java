@@ -274,6 +274,8 @@ public class RecoveriesCollection {
      * a reference to {@link RecoveryTarget}, which implements {@link AutoCloseable}. closing the reference
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
+     *
+     * @opensearch.internal
      */
     public static class RecoveryRef extends AutoCloseableRefCounted<RecoveryTarget> {
 

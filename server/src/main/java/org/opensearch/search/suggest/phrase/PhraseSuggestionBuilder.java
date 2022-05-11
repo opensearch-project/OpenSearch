@@ -772,6 +772,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
     /**
      * {@link CandidateGenerator} interface.
+     *
+     * @opensearch.internal
      */
     public interface CandidateGenerator extends Writeable, ToXContentObject {
         String getType();

@@ -78,6 +78,11 @@ public class ParsedDateHistogram extends ParsedMultiBucketAggregation<ParsedDate
         return aggregation;
     }
 
+    /**
+     * Parsed Bucket for a parsed date histogram
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
 
         private Long key;

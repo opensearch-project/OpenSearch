@@ -151,6 +151,11 @@ public final class CategoryQueryContext implements ToXContentObject {
         return builder;
     }
 
+    /**
+     * Builder for the category query context
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private String category;
         private boolean isPrefix = false;

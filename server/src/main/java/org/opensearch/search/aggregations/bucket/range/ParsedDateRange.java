@@ -71,6 +71,11 @@ public class ParsedDateRange extends ParsedRange {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a date range
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedRange.ParsedBucket {
 
         @Override

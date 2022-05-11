@@ -61,6 +61,11 @@ import java.util.function.LongConsumer;
  * @opensearch.internal
  */
 public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<HistogramValuesSourceBuilder> {
+    /**
+     * Composite histogram supplier
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface HistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(

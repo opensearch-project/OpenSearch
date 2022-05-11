@@ -103,6 +103,11 @@ public abstract class ValuesSource {
         return false;
     }
 
+    /**
+     * Range type
+     *
+     * @opensearch.internal
+     */
     public static class Range extends ValuesSource {
         private final RangeType rangeType;
         protected final IndexFieldData<?> indexFieldData;
@@ -134,6 +139,11 @@ public abstract class ValuesSource {
         }
     }
 
+    /**
+     * Bytes type
+     *
+     * @opensearch.internal
+     */
     public abstract static class Bytes extends ValuesSource {
 
         @Override
@@ -147,6 +157,11 @@ public abstract class ValuesSource {
             throw new AggregationExecutionException("can't round a [BYTES]");
         }
 
+        /**
+         * Provides ordinals for bytes
+         *
+         * @opensearch.internal
+         */
         public abstract static class WithOrdinals extends Bytes {
 
             public static final WithOrdinals EMPTY = new WithOrdinals() {
@@ -211,6 +226,11 @@ public abstract class ValuesSource {
                 }
             }
 
+            /**
+             * Field data for the bytes values source
+             *
+             * @opensearch.internal
+             */
             public static class FieldData extends WithOrdinals {
 
                 protected final IndexOrdinalsFieldData indexFieldData;
@@ -257,6 +277,11 @@ public abstract class ValuesSource {
             }
         }
 
+        /**
+         * Field data without ordinals
+         *
+         * @opensearch.internal
+         */
         public static class FieldData extends Bytes {
 
             protected final IndexFieldData<?> indexFieldData;
@@ -274,6 +299,8 @@ public abstract class ValuesSource {
 
         /**
          * {@link ValuesSource} implementation for stand alone scripts returning a Bytes value
+         *
+         * @opensearch.internal
          */
         public static class Script extends Bytes {
 
@@ -297,6 +324,8 @@ public abstract class ValuesSource {
         // No need to implement ReaderContextAware here, the delegate already takes care of updating data structures
         /**
          * {@link ValuesSource} subclass for Bytes fields with a Value Script applied
+         *
+         * @opensearch.internal
          */
         public static class WithScript extends Bytes {
 
@@ -318,6 +347,11 @@ public abstract class ValuesSource {
                 return new BytesValues(delegate.bytesValues(context), script.newInstance(context));
             }
 
+            /**
+             * Bytes values
+             *
+             * @opensearch.internal
+             */
             static class BytesValues extends SortingBinaryDocValues implements ScorerAware {
 
                 private final SortedBinaryDocValues bytesValues;
@@ -358,6 +392,11 @@ public abstract class ValuesSource {
         }
     }
 
+    /**
+     * Numeric values source type
+     *
+     * @opensearch.internal
+     */
     public abstract static class Numeric extends ValuesSource {
 
         public static final Numeric EMPTY = new Numeric() {
@@ -411,6 +450,8 @@ public abstract class ValuesSource {
 
         /**
          * {@link ValuesSource} subclass for Numeric fields with a Value Script applied
+         *
+         * @opensearch.internal
          */
         public static class WithScript extends Numeric {
 
@@ -447,6 +488,11 @@ public abstract class ValuesSource {
                 return new DoubleValues(delegate.doubleValues(context), script.newInstance(context));
             }
 
+            /**
+             * Long values source type
+             *
+             * @opensearch.internal
+             */
             static class LongValues extends AbstractSortingNumericDocValues implements ScorerAware {
 
                 private final SortedNumericDocValues longValues;
@@ -478,6 +524,11 @@ public abstract class ValuesSource {
                 }
             }
 
+            /**
+             * Double values source type
+             *
+             * @opensearch.internal
+             */
             static class DoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 
                 private final SortedNumericDoubleValues doubleValues;
@@ -510,6 +561,11 @@ public abstract class ValuesSource {
             }
         }
 
+        /**
+         * Field data for numerics
+         *
+         * @opensearch.internal
+         */
         public static class FieldData extends Numeric {
 
             protected final IndexNumericFieldData indexFieldData;
@@ -541,6 +597,8 @@ public abstract class ValuesSource {
 
         /**
          * {@link ValuesSource} implementation for stand alone scripts returning a Numeric value
+         *
+         * @opensearch.internal
          */
         public static class Script extends Numeric {
             private final AggregationScript.LeafFactory script;
@@ -579,6 +637,11 @@ public abstract class ValuesSource {
 
     }
 
+    /**
+     * Geo point values source
+     *
+     * @opensearch.internal
+     */
     public abstract static class GeoPoint extends ValuesSource {
 
         public static final GeoPoint EMPTY = new GeoPoint() {
@@ -608,6 +671,11 @@ public abstract class ValuesSource {
 
         public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
 
+        /**
+         * Field data for geo point values source
+         *
+         * @opensearch.internal
+         */
         public static class Fielddata extends GeoPoint {
 
             protected final IndexGeoPointFieldData indexFieldData;

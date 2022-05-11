@@ -216,6 +216,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         cache.clear();
     }
 
+    /**
+     * Statistics for the indices query cache
+     *
+     * @opensearch.internal
+     */
     private static class Stats implements Cloneable {
 
         final ShardId shardId;
@@ -251,6 +256,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
+    /**
+     * Statistics and Counts
+     *
+     * @opensearch.internal
+     */
     private static class StatsAndCount {
         volatile int count;
         final Stats stats;

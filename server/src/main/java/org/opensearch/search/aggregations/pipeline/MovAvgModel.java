@@ -158,6 +158,8 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment 
 
     /**
      * Abstract class which also provides some concrete parsing functionality.
+     *
+     * @opensearch.internal
      */
     public abstract static class AbstractModelParser {
         /**

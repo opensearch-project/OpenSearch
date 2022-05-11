@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, InternalMultiTerms.Bucket> {
     /**
      * Internal Multi Terms Bucket.
+     *
+     * @opensearch.internal
      */
     public static class Bucket extends InternalTerms.AbstractInternalBucket implements KeyComparable<Bucket> {
 
@@ -193,6 +195,8 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
 
         /**
          * Visible for testing.
+         *
+         * @opensearch.internal
          */
         protected static class BucketComparator implements Comparator<List<Object>> {
             @SuppressWarnings({ "unchecked" })

@@ -129,6 +129,11 @@ public class JLHScore extends SignificanceHeuristic {
         return getClass().hashCode();
     }
 
+    /**
+     * Builder for a JLH Score heuristic
+     *
+     * @opensearch.internal
+     */
     public static class JLHScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override

@@ -172,6 +172,11 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
             );
     }
 
+    /**
+     * The source location for the distance calculation
+     *
+     * @opensearch.internal
+     */
     private static class DistanceSource extends ValuesSource.Numeric {
 
         private final ValuesSource.GeoPoint source;

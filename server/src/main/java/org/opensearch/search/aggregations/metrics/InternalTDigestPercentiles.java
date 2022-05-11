@@ -100,6 +100,11 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
         return new InternalTDigestPercentiles(name, keys, merged, keyed, format, metadata);
     }
 
+    /**
+     * Iter for the TDigest percentiles agg
+     *
+     * @opensearch.internal
+     */
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] percents;

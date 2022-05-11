@@ -89,6 +89,8 @@ public class CellIdSource extends ValuesSource.Numeric {
     /**
      * The encoder to use to convert a geopoint's (lon, lat, precision) into
      * a long-encoded bucket key for aggregating.
+     *
+     * @opensearch.internal
      */
     @FunctionalInterface
     public interface GeoPointLongEncoder {

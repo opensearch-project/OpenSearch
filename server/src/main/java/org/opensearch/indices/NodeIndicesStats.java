@@ -271,6 +271,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Fields used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
     }
