@@ -299,6 +299,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
 
+    private final RemoteStoreRefreshListener remoteStoreRefreshListener;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -319,7 +321,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listeners,
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final CircuitBreakerService circuitBreakerService
+        final CircuitBreakerService circuitBreakerService,
+        final RemoteStoreRefreshListener remoteStoreRefreshListener
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -402,6 +405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        this.remoteStoreRefreshListener = remoteStoreRefreshListener;
     }
 
     public ThreadPool getThreadPool() {
@@ -3100,6 +3104,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
 
+        final List<ReferenceManager.RefreshListener> internalRefreshListener;
+        if (remoteStoreRefreshListener != null && shardRouting.primary()) {
+            internalRefreshListener = Arrays.asList(new RefreshMetricUpdater(refreshMetric), remoteStoreRefreshListener);
+        } else {
+            internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));
+        }
         return this.engineConfigFactory.newEngineConfig(
             shardId,
             threadPool,
@@ -3116,7 +3126,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, refreshPendingLocationListener),
-            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            internalRefreshListener,
             indexSort,
             circuitBreakerService,
             globalCheckpointSupplier,
