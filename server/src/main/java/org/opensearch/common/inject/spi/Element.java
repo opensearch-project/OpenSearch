@@ -42,6 +42,8 @@ import org.opensearch.common.inject.Binder;
  * @author jessewilson@google.com (Jesse Wilson)
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface Element {
 

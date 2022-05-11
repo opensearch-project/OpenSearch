@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Runnable that can only be run one time.
+ *
+ * @opensearch.internal
  */
 public class RunOnce implements Runnable {
 

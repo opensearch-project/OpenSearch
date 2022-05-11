@@ -67,6 +67,11 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.function.Supplier;
 
+/**
+ * Information service for snapshots
+ *
+ * @opensearch.internal
+ */
 public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
 
     public static final Setting<Integer> INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING = Setting.intSetting(
@@ -357,6 +362,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         }
         return Collections.unmodifiableSet(snapshotShards);
     }
+
+    /**
+     * A snapshot of a shard
+     *
+     * @opensearch.internal
+     */
 
     public static class SnapshotShard {
 

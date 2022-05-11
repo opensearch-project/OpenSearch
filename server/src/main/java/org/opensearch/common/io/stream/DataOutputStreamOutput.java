@@ -36,6 +36,11 @@ import java.io.Closeable;
 import java.io.DataOutput;
 import java.io.IOException;
 
+/**
+ * Main stream output for data output
+ *
+ * @opensearch.internal
+ */
 public class DataOutputStreamOutput extends StreamOutput {
 
     private final DataOutput out;

@@ -35,6 +35,11 @@ import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.spi.BindingTargetVisitor;
 import org.opensearch.common.inject.spi.LinkedKeyBinding;
 
+/**
+ * Linked binding implementation
+ *
+ * @opensearch.internal
+ */
 public final class LinkedBindingImpl<T> extends BindingImpl<T> implements LinkedKeyBinding<T> {
 
     final Key<? extends T> targetKey;

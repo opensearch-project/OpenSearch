@@ -59,6 +59,8 @@ import java.util.function.Consumer;
  * <p>
  * Mainly for use within the framework,
  * but also useful for application code.
+ *
+ * @opensearch.internal
  */
 public abstract class Streams {
 
@@ -257,6 +259,8 @@ public abstract class Streams {
      * A wrapper around a {@link BytesStream} that makes the close operation a flush. This is
      * needed as sometimes a stream will be closed but the bytes that the stream holds still need
      * to be used and the stream cannot be closed until the bytes have been consumed.
+     *
+     * @opensearch.internal
      */
     private static class FlushOnCloseOutputStream extends BytesStream {
 
@@ -299,6 +303,8 @@ public abstract class Streams {
 
     /**
      * A wrapper around an {@link InputStream} that limits the number of bytes that can be read from the stream.
+     *
+     * @opensearch.internal
      */
     static class LimitedInputStream extends FilterInputStream {
 

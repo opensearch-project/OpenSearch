@@ -42,6 +42,8 @@ import static org.opensearch.common.geo.GeoUtils.normalizePoint;
 
 /**
  * Splits lines by datelines.
+ *
+ * @opensearch.internal
  */
 public class GeoLineDecomposer {
 

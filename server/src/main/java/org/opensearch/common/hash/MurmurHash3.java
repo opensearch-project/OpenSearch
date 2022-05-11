@@ -38,12 +38,16 @@ import java.util.Objects;
 
 /**
  * MurmurHash3 hashing functions.
+ *
+ * @opensearch.internal
  */
 public enum MurmurHash3 {
     ;
 
     /**
      * A 128-bits hash.
+     *
+     * @opensearch.internal
      */
     public static class Hash128 {
         /** lower 64 bits part **/

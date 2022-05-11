@@ -49,6 +49,8 @@ import org.apache.logging.log4j.Logger;
  * uses {@link RateLimitingFilter} to prevent the same message being logged repeatedly in a short span of time. This
  * key is combined with the <code>X-Opaque-Id</code> request header value, if supplied, which allows for per-client
  * message limiting.
+ *
+ * @opensearch.internal
  */
 public class DeprecationLogger {
 

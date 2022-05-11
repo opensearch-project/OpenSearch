@@ -55,6 +55,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.parseFieldsValu
  *
  * @see SearchHit
  * @see GetResult
+ *
+ * @opensearch.internal
  */
 public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
 

@@ -43,6 +43,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Path based on a trie structure.
+ *
+ * @opensearch.internal
+ */
 public class PathTrie<T> {
 
     enum TrieMatchingMode {

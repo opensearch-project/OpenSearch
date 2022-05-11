@@ -32,6 +32,11 @@
 
 package org.opensearch.common.recycler;
 
+/**
+ * Base recycler.
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractRecyclerC<T> implements Recycler.C<T> {
 
     @Override

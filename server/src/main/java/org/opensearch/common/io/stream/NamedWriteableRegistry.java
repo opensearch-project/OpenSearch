@@ -44,10 +44,16 @@ import java.util.Objects;
  *
  * The registration is keyed by the combination of the category class of {@link NamedWriteable}, and a name unique
  * to that category.
+ *
+ * @opensearch.internal
  */
 public class NamedWriteableRegistry {
 
-    /** An entry in the registry, made up of a category class and name, and a reader for that category class. */
+    /**
+     * An entry in the registry, made up of a category class and name, and a reader for that category class.
+     *
+     * @opensearch.internal
+     */
     public static class Entry {
 
         /** The superclass of a {@link NamedWriteable} which will be read by {@link #reader}. */

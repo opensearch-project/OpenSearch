@@ -40,6 +40,8 @@ import java.util.Properties;
  * Utility methods for use with {@code @}{@link Named}.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class Names {
 

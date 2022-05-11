@@ -17,6 +17,8 @@ package org.opensearch.common.concurrent;
  * Decorator class that wraps an object reference with a {@link Runnable} that is
  * invoked when {@link #close()} is called. The internal {@link OneWayGate} instance ensures
  * that this is invoked only once. See also {@link GatedCloseable}
+ *
+ * @opensearch.internal
  */
 public class GatedAutoCloseable<T> implements AutoCloseable {
 

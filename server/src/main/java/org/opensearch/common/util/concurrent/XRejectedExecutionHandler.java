@@ -34,6 +34,11 @@ package org.opensearch.common.util.concurrent;
 
 import java.util.concurrent.RejectedExecutionHandler;
 
+/**
+ * Base handler for rejected executions.
+ *
+ * @opensearch.internal
+ */
 public interface XRejectedExecutionHandler extends RejectedExecutionHandler {
 
     /**

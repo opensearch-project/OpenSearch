@@ -42,6 +42,8 @@ import java.util.Set;
 
 /**
  * Registry for looking things up using ParseField semantics.
+ *
+ * @opensearch.internal
  */
 public class ParseFieldRegistry<T> {
     private final Map<String, Tuple<ParseField, T>> registry = new HashMap<>();

@@ -45,6 +45,8 @@ import java.util.Objects;
 
 /**
  * Pseudo randomly generate a score for each {@link LeafScoreFunction#score}.
+ *
+ * @opensearch.internal
  */
 public class RandomScoreFunction extends ScoreFunction {
 

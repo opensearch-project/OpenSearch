@@ -34,6 +34,11 @@ package org.opensearch.common.blobstore.support;
 
 import org.opensearch.common.blobstore.BlobMetadata;
 
+/**
+ * Plain blob metadata
+ *
+ * @opensearch.internal
+ */
 public class PlainBlobMetadata implements BlobMetadata {
 
     private final String name;

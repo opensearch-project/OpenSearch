@@ -40,6 +40,8 @@ import org.opensearch.common.inject.spi.PrivateElements;
 /**
  * This factory exists in a parent injector. When invoked, it retrieves its value from a child
  * injector.
+ *
+ * @opensearch.internal
  */
 class ExposedKeyFactory<T> implements InternalFactory<T>, BindingProcessor.CreationListener {
     private final Key<T> key;

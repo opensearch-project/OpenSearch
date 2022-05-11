@@ -44,6 +44,11 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
 
+/**
+ * Provider instance binding
+ *
+ * @opensearch.internal
+ */
 public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T> implements ProviderInstanceBinding<T> {
 
     final Provider<? extends T> providerInstance;

@@ -48,6 +48,8 @@ import java.util.function.Function;
 /**
  * An extension to thread pool executor, which automatically adjusts the queue size of the
  * {@code ResizableBlockingQueue} according to Little's Law.
+ *
+ * @opensearch.internal
  */
 public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchThreadPoolExecutor {
 

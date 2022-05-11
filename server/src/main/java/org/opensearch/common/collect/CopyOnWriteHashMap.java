@@ -62,6 +62,8 @@ import java.util.stream.Stream;
  * it is better suited for work-loads that are not too write-intensive.
  *
  * @see <a href="http://en.wikipedia.org/wiki/Hash_array_mapped_trie">the wikipedia page</a>
+ *
+ * @opensearch.internal
  */
 public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
@@ -87,6 +89,8 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
     /**
      * Abstraction of a node, implemented by both inner and leaf nodes.
+     *
+     * @opensearch.internal
      */
     private abstract static class Node<K, V> {
 
@@ -124,6 +128,8 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
     /**
      * A leaf of the tree where all hashes are equal. Values are added and retrieved in linear time.
+     *
+     * @opensearch.internal
      */
     private static class Leaf<K, V> extends Node<K, V> {
 
@@ -247,6 +253,8 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
      *
      * As a consequence, the number of slots in an inner node is equal to the
      * number of one bits in the bitmap.
+     *
+     * @opensearch.internal
      */
     private static class InnerNode<K, V> extends Node<K, V> {
 
@@ -440,6 +448,11 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
     }
 
+    /**
+     * Iterates over an entry
+     *
+     * @opensearch.internal
+     */
     private static class EntryIterator<K, V> implements Iterator<Map.Entry<K, V>> {
 
         private final Deque<Map.Entry<K, V>> entries;

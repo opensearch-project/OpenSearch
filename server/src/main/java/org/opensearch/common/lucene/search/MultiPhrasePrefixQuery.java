@@ -55,6 +55,11 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
 
+/**
+ * A multi phrase prefix query.
+ *
+ * @opensearch.internal
+ */
 public class MultiPhrasePrefixQuery extends Query {
 
     private final String field;

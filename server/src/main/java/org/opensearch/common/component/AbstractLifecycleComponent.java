@@ -37,6 +37,11 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Base class for a lifecycle component.
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractLifecycleComponent implements LifecycleComponent {
 
     protected final Lifecycle lifecycle = new Lifecycle();

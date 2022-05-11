@@ -46,6 +46,8 @@ import java.io.IOException;
 /**
  * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
  * bytes, which avoids frequent reallocation &amp; copying of the internal data.
+ *
+ * @opensearch.internal
  */
 public class BytesStreamOutput extends BytesStream {
 

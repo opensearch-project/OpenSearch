@@ -37,6 +37,11 @@ import org.opensearch.common.unit.TimeValue;
 import java.util.Objects;
 import java.util.function.ToLongBiFunction;
 
+/**
+ * The cache builder.
+ *
+ * @opensearch.internal
+ */
 public class CacheBuilder<K, V> {
     private long maximumWeight = -1;
     private long expireAfterAccessNanos = -1;

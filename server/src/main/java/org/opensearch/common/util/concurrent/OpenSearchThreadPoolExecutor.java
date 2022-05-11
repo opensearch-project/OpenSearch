@@ -42,6 +42,8 @@ import java.util.stream.Stream;
 
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
+ *
+ * @opensearch.internal
  */
 public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
 
