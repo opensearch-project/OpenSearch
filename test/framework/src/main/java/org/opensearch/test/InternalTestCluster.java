@@ -199,11 +199,11 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.node.settings()
     );
 
-    private static final Predicate<NodeAndClient> NO_DATA_NO_MASTER_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
+    private static final Predicate<NodeAndClient> NO_DATA_NO_CLUSTER_MANAGER_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
         nodeAndClient.node.settings()
     ) == false && DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;
 
-    private static final Predicate<NodeAndClient> MASTER_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
+    private static final Predicate<NodeAndClient> CLUSTER_MANAGER_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
         nodeAndClient.node.settings()
     );
 
@@ -237,8 +237,8 @@ public final class InternalTestCluster extends TestCluster {
      * fully shared cluster to be more reproducible */
     private final long[] sharedNodesSeeds;
 
-    // if set to 0, data nodes will also assume the master role
-    private final int numSharedDedicatedMasterNodes;
+    // if set to 0, data nodes will also assume the cluster-manager role
+    private final int numSharedDedicatedClusterManagerNodes;
 
     private final int numSharedDataNodes;
 
@@ -270,7 +270,7 @@ public final class InternalTestCluster extends TestCluster {
     public InternalTestCluster(
         final long clusterSeed,
         final Path baseDir,
-        final boolean randomlyAddDedicatedMasters,
+        final boolean randomlyAddDedicatedClusterManagers,
         final boolean autoManageClusterManagerNodes,
         final int minNumDataNodes,
         final int maxNumDataNodes,
@@ -284,7 +284,7 @@ public final class InternalTestCluster extends TestCluster {
         this(
             clusterSeed,
             baseDir,
-            randomlyAddDedicatedMasters,
+            randomlyAddDedicatedClusterManagers,
             autoManageClusterManagerNodes,
             minNumDataNodes,
             maxNumDataNodes,
@@ -301,7 +301,7 @@ public final class InternalTestCluster extends TestCluster {
     public InternalTestCluster(
         final long clusterSeed,
         final Path baseDir,
-        final boolean randomlyAddDedicatedMasters,
+        final boolean randomlyAddDedicatedClusterManagers,
         final boolean autoManageClusterManagerNodes,
         final int minNumDataNodes,
         final int maxNumDataNodes,
@@ -329,24 +329,24 @@ public final class InternalTestCluster extends TestCluster {
 
         Random random = new Random(clusterSeed);
 
-        boolean useDedicatedMasterNodes = randomlyAddDedicatedMasters ? random.nextBoolean() : false;
+        boolean useDedicatedClusterManagerNodes = randomlyAddDedicatedClusterManagers ? random.nextBoolean() : false;
 
         this.numSharedDataNodes = RandomNumbers.randomIntBetween(random, minNumDataNodes, maxNumDataNodes);
         assert this.numSharedDataNodes >= 0;
 
         if (numSharedDataNodes == 0) {
             this.numSharedCoordOnlyNodes = 0;
-            this.numSharedDedicatedMasterNodes = 0;
+            this.numSharedDedicatedClusterManagerNodes = 0;
         } else {
-            if (useDedicatedMasterNodes) {
+            if (useDedicatedClusterManagerNodes) {
                 if (random.nextBoolean()) {
-                    // use a dedicated master, but only low number to reduce overhead to tests
-                    this.numSharedDedicatedMasterNodes = DEFAULT_LOW_NUM_MASTER_NODES;
+                    // use a dedicated cluster-manager, but only low number to reduce overhead to tests
+                    this.numSharedDedicatedClusterManagerNodes = DEFAULT_LOW_NUM_MASTER_NODES;
                 } else {
-                    this.numSharedDedicatedMasterNodes = DEFAULT_HIGH_NUM_MASTER_NODES;
+                    this.numSharedDedicatedClusterManagerNodes = DEFAULT_HIGH_NUM_MASTER_NODES;
                 }
             } else {
-                this.numSharedDedicatedMasterNodes = 0;
+                this.numSharedDedicatedClusterManagerNodes = 0;
             }
             if (numClientNodes < 0) {
                 this.numSharedCoordOnlyNodes = RandomNumbers.randomIntBetween(
@@ -366,17 +366,17 @@ public final class InternalTestCluster extends TestCluster {
 
         this.mockPlugins = mockPlugins;
 
-        sharedNodesSeeds = new long[numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes];
+        sharedNodesSeeds = new long[numSharedDedicatedClusterManagerNodes + numSharedDataNodes + numSharedCoordOnlyNodes];
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
             sharedNodesSeeds[i] = random.nextLong();
         }
 
         logger.info(
-            "Setup InternalTestCluster [{}] with seed [{}] using [{}] dedicated masters, "
-                + "[{}] (data) nodes and [{}] coord only nodes (min_master_nodes are [{}])",
+            "Setup InternalTestCluster [{}] with seed [{}] using [{}] dedicated cluster-managers, "
+                + "[{}] (data) nodes and [{}] coord only nodes (min_cluster_manager_nodes are [{}])",
             clusterName,
             SeedUtils.formatSeed(clusterSeed),
-            numSharedDedicatedMasterNodes,
+                numSharedDedicatedClusterManagerNodes,
             numSharedDataNodes,
             numSharedCoordOnlyNodes,
             autoManageClusterManagerNodes ? "auto-managed" : "manual"
@@ -432,8 +432,8 @@ public final class InternalTestCluster extends TestCluster {
             RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.getKey(),
             RandomNumbers.randomIntBetween(random, 1, 4)
         );
-        // TODO: currently we only randomize "cluster.no_master_block" between "write" and "metadata_write", as "all" is fragile
-        // and fails shards when a master abdicates, which breaks many tests.
+        // TODO: currently we only randomize "cluster.no_cluster_manager_block" between "write" and "metadata_write", as "all" is fragile
+        // and fails shards when a cluster-manager abdicates, which breaks many tests.
         builder.put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
         defaultSettings = builder.build();
         executor = OpenSearchExecutors.newScaling(
@@ -450,11 +450,11 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Sets {@link #bootstrapClusterManagerNodeIndex} to the given value, see {@link #bootstrapClusterManagerNodeWithSpecifiedIndex(List)}
      * for the description of how this field is used.
-     * It's only possible to change {@link #bootstrapClusterManagerNodeIndex} value if autoManageMasterNodes is false.
+     * It's only possible to change {@link #bootstrapClusterManagerNodeIndex} value if autoManageClusterManagerNodes is false.
      */
     public void setBootstrapClusterManagerNodeIndex(int bootstrapClusterManagerNodeIndex) {
         assert autoManageClusterManagerNodes == false || bootstrapClusterManagerNodeIndex == -1
-            : "bootstrapMasterNodeIndex should be -1 if autoManageMasterNodes is true, but was " + bootstrapClusterManagerNodeIndex;
+            : "bootstrapClusterManagerNodeIndex should be -1 if autoManageClusterManagerNodes is true, but was " + bootstrapClusterManagerNodeIndex;
         this.bootstrapClusterManagerNodeIndex = bootstrapClusterManagerNodeIndex;
     }
 
@@ -647,7 +647,7 @@ public final class InternalTestCluster extends TestCluster {
         int size = numDataNodes();
         if (size < n) {
             logger.info("increasing cluster size from {} to {}", size, n);
-            if (numSharedDedicatedMasterNodes > 0) {
+            if (numSharedDedicatedClusterManagerNodes > 0) {
                 startDataOnlyNodes(n - size);
             } else {
                 startNodes(n - size);
@@ -666,7 +666,7 @@ public final class InternalTestCluster extends TestCluster {
         if (size <= n) {
             return;
         }
-        // prevent killing the master if possible and client nodes
+        // prevent killing the cluster-manager if possible and client nodes
         final Stream<NodeAndClient> collection = n == 0
             ? nodes.values().stream()
             : nodes.values().stream().filter(DATA_NODE_PREDICATE.and(new NodeNamePredicate(getMasterName()).negate()));
@@ -686,7 +686,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private Settings getNodeSettings(final int nodeId, final long seed, final Settings extraSettings, final int defaultMinMasterNodes) {
+    private Settings getNodeSettings(final int nodeId, final long seed, final Settings extraSettings, final int defaultMinClusterManagerNodes) {
         final Settings settings = getSettings(nodeId, seed, extraSettings);
 
         final String name = buildNodeName(nodeId, settings);
@@ -719,7 +719,7 @@ public final class InternalTestCluster extends TestCluster {
         if (usingSingleNodeDiscovery == false) {
             if (autoManageClusterManagerNodes) {
                 assertThat(
-                    "if master nodes are automatically managed then nodes must complete a join cycle when starting",
+                    "if cluster-manager nodes are automatically managed then nodes must complete a join cycle when starting",
                     updatedSettings.get(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey()),
                     nullValue()
                 );
@@ -816,7 +816,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a node client to the current master node.
+     * Returns a node client to the current cluster-manager node.
      * Note: use this with care tests should not rely on a certain nodes client.
      */
     public Client masterClient() {
@@ -843,14 +843,14 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client coordOnlyNodeClient() {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(NO_DATA_NO_MASTER_PREDICATE);
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(NO_DATA_NO_CLUSTER_MANAGER_PREDICATE);
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.client();
         }
         int nodeId = nextNodeId.getAndIncrement();
         Settings settings = getSettings(nodeId, random.nextLong(), Settings.EMPTY);
         startCoordinatingOnlyNode(settings);
-        return getRandomNodeAndClient(NO_DATA_NO_MASTER_PREDICATE).client();
+        return getRandomNodeAndClient(NO_DATA_NO_CLUSTER_MANAGER_PREDICATE).client();
     }
 
     public synchronized String startCoordinatingOnlyNode(Settings settings) {
@@ -980,7 +980,7 @@ public final class InternalTestCluster extends TestCluster {
         /**
          * closes the node and prepares it to be restarted
          */
-        Settings closeForRestart(RestartCallback callback, int minMasterNodes) throws Exception {
+        Settings closeForRestart(RestartCallback callback, int minClusterManagerNodes) throws Exception {
             assert callback != null;
             close();
             removeNode(this);
@@ -988,7 +988,7 @@ public final class InternalTestCluster extends TestCluster {
             assert callbackSettings != null;
             Settings.Builder newSettings = Settings.builder();
             newSettings.put(callbackSettings);
-            if (minMasterNodes >= 0) {
+            if (minClusterManagerNodes >= 0) {
                 if (INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(callbackSettings) == false) {
                     newSettings.putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey());
                 }
@@ -1127,54 +1127,54 @@ public final class InternalTestCluster extends TestCluster {
         final int prevNodeCount = nodes.size();
 
         // start any missing node
-        assert newSize == numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
-        final int numberOfMasterNodes = numSharedDedicatedMasterNodes > 0 ? numSharedDedicatedMasterNodes : numSharedDataNodes;
-        final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;
+        assert newSize == numSharedDedicatedClusterManagerNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
+        final int numberOfClusterManagerNodes = numSharedDedicatedClusterManagerNodes > 0 ? numSharedDedicatedClusterManagerNodes : numSharedDataNodes;
+        final int defaultMinClusterManagerNodes = (numberOfClusterManagerNodes / 2) + 1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
 
         final List<Settings> settings = new ArrayList<>();
 
-        for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
-            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY, defaultMinMasterNodes);
+        for (int i = 0; i < numSharedDedicatedClusterManagerNodes; i++) {
+            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY, defaultMinClusterManagerNodes);
             settings.add(removeRoles(nodeSettings, Collections.singleton(DiscoveryNodeRole.DATA_ROLE)));
         }
-        for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
-            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY, defaultMinMasterNodes);
-            if (numSharedDedicatedMasterNodes > 0) {
+        for (int i = numSharedDedicatedClusterManagerNodes; i < numSharedDedicatedClusterManagerNodes + numSharedDataNodes; i++) {
+            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY, defaultMinClusterManagerNodes);
+            if (numSharedDedicatedClusterManagerNodes > 0) {
                 settings.add(removeRoles(nodeSettings, Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)));
             } else {
                 // if we don't have dedicated cluster-manager nodes, keep things default
                 settings.add(nodeSettings);
             }
         }
-        for (int i = numSharedDedicatedMasterNodes + numSharedDataNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes
+        for (int i = numSharedDedicatedClusterManagerNodes + numSharedDataNodes; i < numSharedDedicatedClusterManagerNodes + numSharedDataNodes
             + numSharedCoordOnlyNodes; i++) {
             final Builder extraSettings = Settings.builder().put(noRoles());
-            settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinMasterNodes));
+            settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinClusterManagerNodes));
         }
 
-        int autoBootstrapMasterNodeIndex = -1;
-        final List<String> masterNodeNames = settings.stream()
+        int autoBootstrapClusterManagerNodeIndex = -1;
+        final List<String> clusterManagerNodeNames = settings.stream()
             .filter(DiscoveryNode::isMasterNode)
             .map(Node.NODE_NAME_SETTING::get)
             .collect(Collectors.toList());
 
         if (prevNodeCount == 0 && autoManageClusterManagerNodes) {
-            if (numSharedDedicatedMasterNodes > 0) {
-                autoBootstrapMasterNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedMasterNodes - 1);
+            if (numSharedDedicatedClusterManagerNodes > 0) {
+                autoBootstrapClusterManagerNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedClusterManagerNodes - 1);
             } else if (numSharedDataNodes > 0) {
-                autoBootstrapMasterNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDataNodes - 1);
+                autoBootstrapClusterManagerNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDataNodes - 1);
             }
         }
 
         final List<Settings> updatedSettings = bootstrapClusterManagerNodeWithSpecifiedIndex(settings);
 
-        for (int i = 0; i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
+        for (int i = 0; i < numSharedDedicatedClusterManagerNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             Settings nodeSettings = updatedSettings.get(i);
-            if (i == autoBootstrapMasterNodeIndex) {
+            if (i == autoBootstrapClusterManagerNodeIndex) {
                 nodeSettings = Settings.builder()
-                    .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), masterNodeNames)
+                    .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), clusterManagerNodeNames)
                     .put(nodeSettings)
                     .build();
             }
@@ -1214,8 +1214,8 @@ public final class InternalTestCluster extends TestCluster {
                     .collect(Collectors.toList());
                 final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
                 // all nodes have a cluster-manager
-                assertTrue("Missing master" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
-                // all nodes have the same master (in same term)
+                assertTrue("Missing cluster-manager" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
+                // all nodes have the same cluster-manager (in same term)
                 assertEquals(
                     "Not all cluster-managers in same term" + debugString,
                     1,
@@ -1558,7 +1558,7 @@ public final class InternalTestCluster extends TestCluster {
      * in the cluster.
      */
     public <T> Iterable<T> getDataOrMasterNodeInstances(Class<T> clazz) {
-        return getInstances(clazz, DATA_NODE_PREDICATE.or(MASTER_NODE_PREDICATE));
+        return getInstances(clazz, DATA_NODE_PREDICATE.or(CLUSTER_MANAGER_NODE_PREDICATE));
     }
 
     private <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
@@ -1582,7 +1582,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public <T> T getMasterNodeInstance(Class<T> clazz) {
-        return getInstance(clazz, MASTER_NODE_PREDICATE);
+        return getInstance(clazz, CLUSTER_MANAGER_NODE_PREDICATE);
     }
 
     private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
@@ -1658,7 +1658,7 @@ public final class InternalTestCluster extends TestCluster {
                     .filter(NodeAndClient::isMasterEligible)
                     .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
                     .count() == 1) {
-                throw new AssertionError("Tried to stop the only master eligible shared node");
+                throw new AssertionError("Tried to stop the only cluster-manager eligible shared node");
             }
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
             stopNodesAndClient(nodeAndClient);
@@ -1672,10 +1672,10 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         assert size() > 0;
         String clusterManagerNodeName = getMasterName();
-        final NodeAndClient masterNode = nodes.get(clusterManagerNodeName);
-        assert masterNode != null;
+        final NodeAndClient clusterManagerNode = nodes.get(clusterManagerNodeName);
+        assert clusterManagerNode != null;
         logger.info("Closing cluster-manager node [{}] ", clusterManagerNodeName);
-        stopNodesAndClient(masterNode);
+        stopNodesAndClient(clusterManagerNode);
     }
 
     /**
@@ -1691,11 +1691,11 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {
         if (nodeAndClients.size() > 0) {
-            final int newMasters = (int) nodeAndClients.stream()
+            final int newClusterManagers = (int) nodeAndClients.stream()
                 .filter(NodeAndClient::isMasterEligible)
-                .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
+                .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old cluster-managers
                 .count();
-            final int currentMasters = getClusterManagerNodesCount();
+            final int currentClusterManagers = getClusterManagerNodesCount();
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
             List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
 
@@ -1713,9 +1713,9 @@ public final class InternalTestCluster extends TestCluster {
             nodeAndClients.forEach(this::publishNode);
 
             if (autoManageClusterManagerNodes
-                && currentMasters > 0
-                && newMasters > 0
-                && getMinClusterManagerNodes(currentMasters + newMasters) > currentMasters) {
+                && currentClusterManagers > 0
+                && newClusterManagers > 0
+                && getMinClusterManagerNodes(currentClusterManagers + newClusterManagers) > currentClusterManagers) {
                 // update once cluster-managers have joined
                 validateClusterFormed();
             }
@@ -1757,7 +1757,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
-        final Set<String> excludedNodeIds = excludeMasters(nodeAndClients);
+        final Set<String> excludedNodeIds = excludeClusterManagers(nodeAndClients);
 
         for (NodeAndClient nodeAndClient : nodeAndClients) {
             removeDisruptionSchemeFromNode(nodeAndClient);
@@ -1833,7 +1833,7 @@ public final class InternalTestCluster extends TestCluster {
             activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
         }
 
-        Set<String> excludedNodeIds = excludeMasters(Collections.singleton(nodeAndClient));
+        Set<String> excludedNodeIds = excludeClusterManagers(Collections.singleton(nodeAndClient));
 
         final Settings newSettings = nodeAndClient.closeForRestart(
             callback,
@@ -1861,23 +1861,23 @@ public final class InternalTestCluster extends TestCluster {
         return previous;
     }
 
-    private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
+    private Set<String> excludeClusterManagers(Collection<NodeAndClient> nodeAndClients) {
         assert Thread.holdsLock(this);
         final Set<String> excludedNodeNames = new HashSet<>();
         if (autoManageClusterManagerNodes && nodeAndClients.size() > 0) {
 
-            final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
-            final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
+            final long currentClusterManagers = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
+            final long stoppingClusterManagers = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
 
-            assert stoppingMasters <= currentMasters : currentMasters + " < " + stoppingMasters;
-            if (stoppingMasters != currentMasters && stoppingMasters > 0) {
+            assert stoppingClusterManagers <= currentClusterManagers : currentClusterManagers + " < " + stoppingClusterManagers;
+            if (stoppingClusterManagers != currentClusterManagers && stoppingClusterManagers > 0) {
                 // If stopping few enough cluster-manager-nodes that there's still a majority left, there is no need to withdraw their votes
                 // first.
                 // However, we do not yet have a way to be sure there's a majority left, because the voting configuration may not yet have
                 // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
                 // TODO add cluster health API to check that voting configuration is optimal so this isn't always needed
                 nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(excludedNodeNames::add);
-                assert excludedNodeNames.size() == stoppingMasters;
+                assert excludedNodeNames.size() == stoppingClusterManagers;
 
                 logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeNames);
                 try {
@@ -1912,7 +1912,7 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized void fullRestart(RestartCallback callback) throws Exception {
         int numNodesRestarted = 0;
         final Settings[] newNodeSettings = new Settings[nextNodeId.get()];
-        final int minMasterNodes = autoManageClusterManagerNodes ? getMinClusterManagerNodes(getClusterManagerNodesCount()) : -1;
+        final int minClusterManagerNodes = autoManageClusterManagerNodes ? getMinClusterManagerNodes(getClusterManagerNodesCount()) : -1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go
         for (NodeAndClient nodeAndClient : nodes.values()) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
@@ -1920,7 +1920,7 @@ public final class InternalTestCluster extends TestCluster {
             if (activeDisruptionScheme != null) {
                 activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
             }
-            final Settings newSettings = nodeAndClient.closeForRestart(callback, minMasterNodes);
+            final Settings newSettings = nodeAndClient.closeForRestart(callback, minClusterManagerNodes);
             newNodeSettings[nodeAndClient.nodeAndClientId()] = newSettings;
             toStartAndPublish.add(nodeAndClient);
         }
@@ -1950,7 +1950,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns the name of the current master node in the cluster and executes the request via the node specified
+     * Returns the name of the current cluster-manager node in the cluster and executes the request via the node specified
      * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
      */
     public String getMasterName(@Nullable String viaNode) {
@@ -2114,7 +2114,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         nextNodeId.set(firstNodeId + numOfNodes);
 
-        final List<String> initialMasterNodes = settings.stream()
+        final List<String> initialClusterManagerNodes = settings.stream()
             .filter(DiscoveryNode::isMasterNode)
             .map(Node.NODE_NAME_SETTING::get)
             .collect(Collectors.toList());
@@ -2126,7 +2126,7 @@ public final class InternalTestCluster extends TestCluster {
             final Builder builder = Settings.builder();
             if (DiscoveryNode.isMasterNode(nodeSettings)) {
                 if (autoBootstrapClusterManagerNodeIndex == 0) {
-                    builder.putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), initialMasterNodes);
+                    builder.putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), initialClusterManagerNodes);
                 }
                 autoBootstrapClusterManagerNodeIndex -= 1;
             }
@@ -2208,7 +2208,7 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public int numDataAndMasterNodes() {
-        return filterNodes(nodes, DATA_NODE_PREDICATE.or(MASTER_NODE_PREDICATE)).size();
+        return filterNodes(nodes, DATA_NODE_PREDICATE.or(CLUSTER_MANAGER_NODE_PREDICATE)).size();
     }
 
     public int numMasterNodes() {

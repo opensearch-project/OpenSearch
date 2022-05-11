@@ -1261,7 +1261,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
 
             void submitSetAutoShrinkVotingConfiguration(final boolean autoShrinkVotingConfiguration) {
                 submitUpdateTask(
-                    "set master nodes failure tolerance [" + autoShrinkVotingConfiguration + "]",
+                    "set cluster-manager nodes failure tolerance [" + autoShrinkVotingConfiguration + "]",
                     cs -> ClusterState.builder(cs)
                         .metadata(
                             Metadata.builder(cs.metadata())
@@ -1347,7 +1347,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
 
                         @Override
                         public void onNoLongerMaster(String source) {
-                            logger.trace("no longer master: [{}]", source);
+                            logger.trace("no longer cluster-manager: [{}]", source);
                             taskListener.onNoLongerMaster(source);
                         }
 
@@ -1610,7 +1610,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         }
     }
 
-    protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
+    protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean clusterManagerEligible) {
         final TransportAddress address = buildNewFakeTransportAddress();
         return new DiscoveryNode(
             "",
@@ -1620,7 +1620,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             address.getAddress(),
             address,
             Collections.emptyMap(),
-            masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(),
+            clusterManagerEligible ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(),
             Version.CURRENT
         );
     }

@@ -143,7 +143,7 @@ public class MockRepository extends FsRepository {
      */
     private volatile boolean blockOnWriteIndexFile;
 
-    /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
+    /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died cluster-manager node */
     private volatile boolean blockAndFailOnWriteSnapFile;
 
     private volatile boolean blockOnWriteShardLevelMeta;
@@ -191,7 +191,7 @@ public class MockRepository extends FsRepository {
     }
 
     private static RepositoryMetadata overrideSettings(RepositoryMetadata metadata, Environment environment) {
-        // TODO: use another method of testing not being able to read the test file written by the master...
+        // TODO: use another method of testing not being able to read the test file written by the cluster-manager...
         // this is super duper hacky
         if (metadata.settings().getAsBoolean("localize_location", false)) {
             Path location = PathUtils.get(metadata.settings().get("location"));

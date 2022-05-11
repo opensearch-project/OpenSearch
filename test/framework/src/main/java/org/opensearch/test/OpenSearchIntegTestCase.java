@@ -713,11 +713,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * @return disruption
      */
     protected static NetworkDisruption isolateMasterDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
-        final String masterNode = internalCluster().getMasterName();
+        final String clusterManagerNode = internalCluster().getMasterName();
         return new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(
-                Collections.singleton(masterNode),
-                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false).collect(Collectors.toSet())
+                Collections.singleton(clusterManagerNode),
+                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(clusterManagerNode) == false).collect(Collectors.toSet())
             ),
             disruptionType
         );
@@ -1092,13 +1092,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (cluster() != null && cluster().size() > 0) {
             final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
             final Client clusterManagerClient = client();
-            ClusterState masterClusterState = clusterManagerClient.admin().cluster().prepareState().all().get().getState();
-            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
+            ClusterState clusterManagerClusterState = clusterManagerClient.admin().cluster().prepareState().all().get().getState();
+            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(clusterManagerClusterState);
             // remove local node reference
-            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
-            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-            int masterClusterStateSize = masterClusterState.toString().length();
-            String masterId = masterClusterState.nodes().getMasterNodeId();
+            clusterManagerClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
+            Map<String, Object> clusterManagerStateMap = convertToMap(clusterManagerClusterState);
+            int clusterManagerClusterStateSize = clusterManagerClusterState.toString().length();
+            String clusterManagerId = clusterManagerClusterState.nodes().getMasterNodeId();
             for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
@@ -1109,25 +1109,25 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 // Check that the non-cluster-manager node has the same version of the cluster state as the cluster-manager and
                 // that the cluster-manager node matches the cluster-manager (otherwise there is no requirement for the cluster state to
                 // match)
-                if (masterClusterState.version() == localClusterState.version()
-                    && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                if (clusterManagerClusterState.version() == localClusterState.version()
+                    && clusterManagerId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
-                        assertEquals("cluster state UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
+                        assertEquals("cluster state UUID does not match", clusterManagerClusterState.stateUUID(), localClusterState.stateUUID());
                         // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                         // We also cannot compare byte array size because CompressedXContent's DeflateCompressor uses
                         // a synced flush that can affect the size of the compressed byte array
                         // (see: DeflateCompressedXContentTests#testDifferentCompressedRepresentation for an example)
                         // instead we compare the string length of cluster state - they should be the same
-                        assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
+                        assertEquals("cluster state size does not match", clusterManagerClusterStateSize, localClusterStateSize);
                         // Compare JSON serialization
                         assertNull(
                             "cluster state JSON serialization does not match",
-                            differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
+                            differenceBetweenMapsIgnoringArrayOrder(clusterManagerStateMap, localStateMap)
                         );
                     } catch (final AssertionError error) {
                         logger.error(
-                            "Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                            masterClusterState.toString(),
+                            "Cluster state from cluster-manager:\n{}\nLocal cluster state:\n{}",
+                            clusterManagerClusterState.toString(),
                             localClusterState.toString()
                         );
                         throw error;
@@ -1140,8 +1140,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
-            final Client masterClient = client();
-            Metadata metadata = masterClient.admin().cluster().prepareState().all().get().getState().metadata();
+            final Client clusterManagerClient = client();
+            Metadata metadata = clusterManagerClient.admin().cluster().prepareState().all().get().getState().metadata();
             final Map<String, String> serializationParams = new HashMap<>(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
@@ -1831,12 +1831,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
-    private boolean getSupportsDedicatedMasters() {
+    private boolean getSupportsDedicatedClusterManagers() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? true : annotation.supportsDedicatedMasters();
     }
 
-    private boolean getAutoManageMasterNodes() {
+    private boolean getAutoManageClusterManagerNodes() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? true : annotation.autoManageMasterNodes();
     }
@@ -1961,7 +1961,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 throw new OpenSearchException("Scope not supported: " + scope);
         }
 
-        boolean supportsDedicatedMasters = getSupportsDedicatedMasters();
+        boolean supportsDedicatedClusterManagers = getSupportsDedicatedClusterManagers();
         int numDataNodes = getNumDataNodes();
         int minNumDataNodes;
         int maxNumDataNodes;
@@ -1985,8 +1985,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return new InternalTestCluster(
             seed,
             createTempDir(),
-            supportsDedicatedMasters,
-            getAutoManageMasterNodes(),
+            supportsDedicatedClusterManagers,
+            getAutoManageClusterManagerNodes(),
             minNumDataNodes,
             maxNumDataNodes,
             InternalTestCluster.clusterName(scope.name(), seed) + "-cluster",

@@ -146,7 +146,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             final Version minVersion = versionVersionTuple.v1();
             final Version clusterManagerVersion = versionVersionTuple.v2();
             logger.info(
-                "initializing client, minimum OpenSearch version [{}], master version, [{}], hosts {}",
+                "initializing client, minimum OpenSearch version [{}], cluster-manager version, [{}], hosts {}",
                 minVersion,
                 clusterManagerVersion,
                 hosts
@@ -337,14 +337,14 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
      * Detect minimal node version and master node version of cluster using REST Client.
      *
      * @param restClient REST client used to discover cluster nodes
-     * @return {@link Tuple} of [minimal node version, master node version]
+     * @return {@link Tuple} of [minimal node version, cluster-manager node version]
      * @throws IOException When _cat API output parsing fails
      */
     private Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
         final Request request = new Request("GET", "/_cat/nodes");
         request.addParameter("h", "version,master");
-        request.setOptions(getCatNodesVersionMasterRequestOptions());
+        request.setOptions(getCatNodesVersionClusterManagerRequestOptions());
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         String nodesCatResponse = restTestResponse.getBodyAsString();
@@ -369,7 +369,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         return new Tuple<>(version, clusterManagerVersion);
     }
 
-    protected RequestOptions getCatNodesVersionMasterRequestOptions() {
+    protected RequestOptions getCatNodesVersionClusterManagerRequestOptions() {
         return RequestOptions.DEFAULT;
     }
 

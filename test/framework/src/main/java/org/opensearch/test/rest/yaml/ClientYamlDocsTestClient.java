@@ -62,10 +62,10 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
         final RestClient restClient,
         final List<HttpHost> hosts,
         final Version esVersion,
-        final Version masterVersion,
+        final Version clusterManagerVersion,
         final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
     ) {
-        super(restSpec, restClient, hosts, esVersion, masterVersion, clientBuilderWithSniffedNodes);
+        super(restSpec, restClient, hosts, esVersion, clusterManagerVersion, clientBuilderWithSniffedNodes);
     }
 
     @Override

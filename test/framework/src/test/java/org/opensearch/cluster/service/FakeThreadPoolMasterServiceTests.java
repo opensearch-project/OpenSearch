@@ -63,7 +63,7 @@ import static org.mockito.Mockito.when;
 
 public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
 
-    public void testFakeMasterService() {
+    public void testFakeClusterManagerService() {
         List<Runnable> runnableTasks = new ArrayList<>();
         AtomicReference<ClusterState> lastClusterStateRef = new AtomicReference<>();
         DiscoveryNode discoveryNode = new DiscoveryNode(
@@ -124,7 +124,7 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
         assertFalse(firstTaskCompleted.get());
 
         final Runnable scheduleTask = runnableTasks.remove(0);
-        assertThat(scheduleTask, hasToString("master service scheduling next task"));
+        assertThat(scheduleTask, hasToString("cluster-manager service scheduling next task"));
         scheduleTask.run();
 
         final Runnable publishTask = runnableTasks.remove(0);
