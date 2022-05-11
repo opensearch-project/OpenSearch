@@ -36,7 +36,7 @@ package org.opensearch.common.inject;
  * A module can implement this interface to allow to pre process other modules
  * before an injector is created.
  *
- *
+ * @opensearch.internal
  */
 public interface PreProcessModule {
 

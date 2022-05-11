@@ -55,6 +55,8 @@ import java.util.stream.IntStream;
 
 /**
  * A module that binds the provided settings to the {@link Settings} interface.
+ *
+ * @opensearch.internal
  */
 public class SettingsModule implements Module {
     private static final Logger logger = LogManager.getLogger(SettingsModule.class);

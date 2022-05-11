@@ -43,6 +43,8 @@ class Reflection {
     /**
      * A placeholder. This enables us to continue processing and gather more
      * errors but blows up if you actually try to use it.
+     *
+     * @opensearch.internal
      */
     static class InvalidConstructor {
         InvalidConstructor() {

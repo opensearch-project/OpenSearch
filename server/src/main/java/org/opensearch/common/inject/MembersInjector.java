@@ -37,6 +37,8 @@ package org.opensearch.common.inject;
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface MembersInjector<T> {
 

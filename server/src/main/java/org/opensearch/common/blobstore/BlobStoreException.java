@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Thrown on blob store errors
+ *
+ * @opensearch.internal
+ */
 public class BlobStoreException extends OpenSearchException {
 
     public BlobStoreException(String msg) {

@@ -36,6 +36,11 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * A plain iterator
+ *
+ * @opensearch.internal
+ */
 public class PlainIterator<T> implements Iterable<T>, Countable {
     private final List<T> elements;
 

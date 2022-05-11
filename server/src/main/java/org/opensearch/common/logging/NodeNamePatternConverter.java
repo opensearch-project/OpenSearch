@@ -46,6 +46,8 @@ import org.apache.lucene.util.SetOnce;
  * We can't use a system property for this because the node name system
  * property is only set if the node name is explicitly defined in
  * opensearch.yml.
+ *
+ * @opensearch.internal
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
 @ConverterKeys({ "node_name" })

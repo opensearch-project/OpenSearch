@@ -65,6 +65,8 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
  * builder.
+ *
+ * @opensearch.internal
  */
 public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.geometry.Geometry, PolygonBuilder> {
 

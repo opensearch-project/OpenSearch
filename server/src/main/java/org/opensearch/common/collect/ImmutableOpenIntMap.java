@@ -54,6 +54,8 @@ import java.util.Map;
  * <p>
  * Can be constructed using a {@link #builder()}, or using {@link #builder(org.opensearch.common.collect.ImmutableOpenIntMap)}
  * (which is an optimized option to copy over existing content and modify it).
+ *
+ * @opensearch.internal
  */
 public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCursor<VType>> {
 
@@ -223,6 +225,11 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         return new Builder<>(map);
     }
 
+    /**
+     * Base builder for an immutable int
+     *
+     * @opensearch.internal
+     */
     public static class Builder<VType> implements IntObjectMap<VType> {
 
         private IntObjectHashMap<VType> map;

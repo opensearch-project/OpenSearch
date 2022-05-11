@@ -39,7 +39,11 @@ import java.util.Collections;
 import java.util.List;
 
 /**
+ * Encounter implementation
+ *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 final class EncounterImpl<T> implements TypeEncounter<T> {
 

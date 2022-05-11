@@ -41,6 +41,11 @@ import java.util.Set;
 
 import static java.util.Collections.singleton;
 
+/**
+ * Exposed binding implementation
+ *
+ * @opensearch.internal
+ */
 public class ExposedBindingImpl<T> extends BindingImpl<T> implements ExposedBinding<T> {
 
     private final PrivateElements privateElements;

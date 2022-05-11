@@ -48,6 +48,11 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+/**
+ * Core network service.
+ *
+ * @opensearch.internal
+ */
 public final class NetworkService {
 
     /** By default, we bind to loopback interfaces */

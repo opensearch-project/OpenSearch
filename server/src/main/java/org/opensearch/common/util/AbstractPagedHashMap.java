@@ -37,6 +37,8 @@ import org.opensearch.common.lease.Releasable;
 
 /**
  * Base implementation for a hash table that is paged, recycles arrays and grows in-place.
+ *
+ * @opensearch.internal
  */
 abstract class AbstractPagedHashMap implements Releasable {
 

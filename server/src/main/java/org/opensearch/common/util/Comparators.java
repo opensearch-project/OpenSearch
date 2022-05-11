@@ -36,6 +36,8 @@ import java.util.Comparator;
 
 /**
  * {@link Comparator}-related utility methods.
+ *
+ * @opensearch.internal
  */
 public enum Comparators {
     ;

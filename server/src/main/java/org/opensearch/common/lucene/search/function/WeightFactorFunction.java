@@ -40,6 +40,11 @@ import org.opensearch.common.Strings;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Weight factor function
+ *
+ * @opensearch.internal
+ */
 public class WeightFactorFunction extends ScoreFunction {
 
     private static final ScoreFunction SCORE_ONE = new ScoreOne(CombineFunction.MULTIPLY);
@@ -123,6 +128,11 @@ public class WeightFactorFunction extends ScoreFunction {
         return Objects.hash(weight, scoreFunction);
     }
 
+    /**
+     * A constant score of 1.0
+     *
+     * @opensearch.internal
+     */
     private static class ScoreOne extends ScoreFunction {
         private final String functionName;
 

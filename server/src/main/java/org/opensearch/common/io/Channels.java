@@ -40,6 +40,11 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 
+/**
+ * Data channels
+ *
+ * @opensearch.internal
+ */
 @SuppressForbidden(reason = "Channel#read")
 public final class Channels {
 

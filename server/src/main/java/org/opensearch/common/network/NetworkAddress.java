@@ -60,6 +60,8 @@ import java.util.Objects;
  * This class provides sane address formatting instead, e.g.
  * {@code 127.0.0.1} and {@code ::1} respectively. No methods do reverse
  * lookups.
+ *
+ * @opensearch.internal
  */
 public final class NetworkAddress {
     /** No instantiation */

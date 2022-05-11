@@ -34,6 +34,8 @@ package org.opensearch.common.blobstore;
 
 /**
  * An interface for providing basic metadata about a blob.
+ *
+ * @opensearch.internal
  */
 public interface BlobMetadata {
 

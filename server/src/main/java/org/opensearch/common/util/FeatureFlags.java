@@ -12,6 +12,8 @@ package org.opensearch.common.util;
  * Utility class to manage feature flags. Feature flags are system properties that must be set on the JVM.
  * These are used to gate the visibility/availability of incomplete features. Fore more information, see
  * https://featureflags.io/feature-flag-introduction/
+ *
+ * @opensearch.internal
  */
 public class FeatureFlags {
 

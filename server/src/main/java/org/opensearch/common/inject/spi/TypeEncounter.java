@@ -42,6 +42,8 @@ import org.opensearch.common.inject.TypeLiteral;
  *
  * @param <I> the injectable type encountered
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 @SuppressWarnings("overloads")
 public interface TypeEncounter<I> {

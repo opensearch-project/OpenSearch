@@ -50,6 +50,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * Builds a multi polygon geometry
+ *
+ * @opensearch.internal
+ */
 public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, MultiPolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOLYGON;

@@ -43,6 +43,8 @@ import java.util.Objects;
  * Bind a value or constant.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractBindingBuilder<T> {
 

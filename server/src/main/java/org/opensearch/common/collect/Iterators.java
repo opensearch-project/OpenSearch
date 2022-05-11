@@ -45,6 +45,11 @@ public class Iterators {
         return new ConcatenatedIterator<T>(iterators);
     }
 
+    /**
+     * Concat iterators
+     *
+     * @opensearch.internal
+     */
     static class ConcatenatedIterator<T> implements Iterator<T> {
         private final Iterator<? extends T>[] iterators;
         private int index = 0;

@@ -54,6 +54,8 @@ import java.util.zip.CheckedOutputStream;
  * data using a compressed representation in order to require less permanent
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
+ *
+ * @opensearch.internal
  */
 public final class CompressedXContent {
 

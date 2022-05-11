@@ -34,6 +34,11 @@ package org.opensearch.common;
 
 import java.lang.reflect.Modifier;
 
+/**
+ * Base class utilities
+ *
+ * @opensearch.internal
+ */
 public class Classes {
 
     /**

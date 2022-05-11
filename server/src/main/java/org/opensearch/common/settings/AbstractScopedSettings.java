@@ -60,6 +60,8 @@ import java.util.stream.Collectors;
 /**
  * A basic setting service that can be used for per-index and per-cluster settings.
  * This service offers transactional application of updates settings.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractScopedSettings {
 

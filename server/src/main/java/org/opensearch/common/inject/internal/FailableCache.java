@@ -36,6 +36,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * exception is thrown on retrieval.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public abstract class FailableCache<K, V> {
 

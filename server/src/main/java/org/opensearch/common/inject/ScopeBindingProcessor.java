@@ -41,6 +41,8 @@ import java.util.Objects;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class ScopeBindingProcessor extends AbstractProcessor {
 

@@ -34,6 +34,8 @@ package org.opensearch.common.inject;
  * the injector has been created.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 interface Lookups {
 

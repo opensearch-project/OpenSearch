@@ -39,6 +39,8 @@ import java.lang.annotation.Target;
 
 /**
  * Annotation to suppress logging usage checks errors inside a whole class or a method.
+ *
+ * @opensearch.internal
  */
 @Retention(RetentionPolicy.CLASS)
 @Target({ ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.TYPE })

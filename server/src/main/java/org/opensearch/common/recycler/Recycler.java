@@ -37,6 +37,8 @@ import org.opensearch.common.lease.Releasable;
 /**
  * A recycled object, note, implementations should support calling obtain and then recycle
  * on different threads.
+ *
+ * @opensearch.internal
  */
 public interface Recycler<T> {
 

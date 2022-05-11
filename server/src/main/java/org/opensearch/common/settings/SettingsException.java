@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  * A generic failure to handle settings.
  *
- *
+ * @opensearch.internal
  */
 public class SettingsException extends OpenSearchException {
 

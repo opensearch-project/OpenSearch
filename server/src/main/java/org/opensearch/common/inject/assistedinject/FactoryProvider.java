@@ -134,6 +134,8 @@ import static java.util.Collections.unmodifiableSet;
  * @author jmourits@google.com (Jerome Mourits)
  * @author jessewilson@google.com (Jesse Wilson)
  * @author dtm@google.com (Daniel Martin)
+ *
+ * @opensearch.internal
  */
 public class FactoryProvider<F> implements Provider<F>, HasDependencies {
 
