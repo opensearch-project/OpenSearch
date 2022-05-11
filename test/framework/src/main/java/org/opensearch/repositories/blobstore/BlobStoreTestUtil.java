@@ -410,7 +410,7 @@ public final class BlobStoreTestUtil {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-        // Setting local node as master so it may update the repository metadata in the cluster state
+        // Setting local node as cluster-manager so it may update the repository metadata in the cluster state
         final DiscoveryNode localNode = new DiscoveryNode("", buildNewFakeTransportAddress(), Version.CURRENT);
         final AtomicReference<ClusterState> currentState = new AtomicReference<>(
             ClusterState.builder(initialState)

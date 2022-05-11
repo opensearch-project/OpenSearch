@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.not;
 public class RemoveSettingsCommandIT extends OpenSearchIntegTestCase {
 
     public void testRemoveSettingsAbortedByUser() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         client().admin()
             .cluster()
@@ -78,7 +78,7 @@ public class RemoveSettingsCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testRemoveSettingsSuccessful() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         client().admin()
             .cluster()
@@ -122,7 +122,7 @@ public class RemoveSettingsCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testSettingDoesNotMatch() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         client().admin()
             .cluster()

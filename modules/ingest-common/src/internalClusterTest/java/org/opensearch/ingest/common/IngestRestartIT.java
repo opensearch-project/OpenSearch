@@ -86,7 +86,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
 
     public void testFailureInConditionalProcessor() {
         internalCluster().ensureAtLeastNumDataNodes(1);
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String pipelineId = "foo";
         client().admin()
             .cluster()

@@ -100,7 +100,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
 
         // initial set up
         final String indexName = "index42";
-        final String master = internalCluster().startMasterOnlyNode();
+        final String clusterManager = internalCluster().startClusterManagerOnlyNode();
         String node1 = internalCluster().startNode();
         createIndex(
             indexName,

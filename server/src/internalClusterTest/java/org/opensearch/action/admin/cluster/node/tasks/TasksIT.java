@@ -117,7 +117,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Integration tests for task management API
  * <p>
- * We need at least 2 nodes so we have a master node a non-master node
+ * We need at least 2 nodes so we have a cluster-manager node a non-cluster-manager node
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends OpenSearchIntegTestCase {
@@ -154,17 +154,17 @@ public class TasksIT extends OpenSearchIntegTestCase {
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(cluster().numDataNodes()));
     }
 
-    public void testMasterNodeOperationTasks() {
+    public void testClusterManagerNodeOperationTasks() {
         registerTaskManagerListeners(ClusterHealthAction.NAME);
 
-        // First run the health on the master node - should produce only one task on the master node
+        // First run the health on the cluster-manager node - should produce only one task on the cluster-manager node
         internalCluster().masterClient().admin().cluster().prepareHealth().get();
         assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
 
         resetTaskManagerListeners(ClusterHealthAction.NAME);
 
-        // Now run the health on a non-master node - should produce one task on master and one task on another node
+        // Now run the health on a non-cluster-manager node - should produce one task on cluster-manager and one task on another node
         internalCluster().nonMasterClient().admin().cluster().prepareHealth().get();
         assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events

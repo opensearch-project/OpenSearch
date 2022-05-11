@@ -66,21 +66,22 @@ public class MockBigArrays extends BigArrays {
     private static final ConcurrentMap<Object, Object> ACQUIRED_ARRAYS = new ConcurrentHashMap<>();
 
     public static void ensureAllArraysAreReleased() throws Exception {
-        final Map<Object, Object> masterCopy = new HashMap<>(ACQUIRED_ARRAYS);
-        if (!masterCopy.isEmpty()) {
+        final Map<Object, Object> clusterManagerCopy = new HashMap<>(ACQUIRED_ARRAYS);
+        if (!clusterManagerCopy.isEmpty()) {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
-            // and releasing arrays, lets make sure that after a reasonable timeout, all master
+            // and releasing arrays, lets make sure that after a reasonable timeout, all cluster-manager
             // copy (snapshot) have been released
             try {
-                assertBusy(() -> assertTrue(Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet())));
+                assertBusy(() -> assertTrue(Sets.haveEmptyIntersection(clusterManagerCopy.keySet(), ACQUIRED_ARRAYS.keySet())));
             } catch (AssertionError ex) {
-                masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
-                ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
-                if (!masterCopy.isEmpty()) {
-                    Iterator<Object> causes = masterCopy.values().iterator();
+                clusterManagerCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
+                // remove all existing cluster-manager copy we will report on
+                ACQUIRED_ARRAYS.keySet().removeAll(clusterManagerCopy.keySet());
+                if (!clusterManagerCopy.isEmpty()) {
+                    Iterator<Object> causes = clusterManagerCopy.values().iterator();
                     Object firstCause = causes.next();
                     RuntimeException exception = new RuntimeException(
-                        masterCopy.size() + " arrays have not been released",
+                        clusterManagerCopy.size() + " arrays have not been released",
                         firstCause instanceof Throwable ? (Throwable) firstCause : null
                     );
                     while (causes.hasNext()) {

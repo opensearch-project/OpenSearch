@@ -53,19 +53,23 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     private static final ConcurrentMap<Object, Throwable> ACQUIRED_PAGES = new ConcurrentHashMap<>();
 
     public static void ensureAllPagesAreReleased() throws Exception {
-        final Map<Object, Throwable> masterCopy = new HashMap<>(ACQUIRED_PAGES);
-        if (!masterCopy.isEmpty()) {
+        final Map<Object, Throwable> clusterManagerCopy = new HashMap<>(ACQUIRED_PAGES);
+        if (!clusterManagerCopy.isEmpty()) {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
-            // and releasing pages, lets make sure that after a reasonable timeout, all master
+            // and releasing pages, lets make sure that after a reasonable timeout, all cluster-manager
             // copy (snapshot) have been released
-            final boolean success = waitUntil(() -> Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()));
+            final boolean success = waitUntil(() -> Sets.haveEmptyIntersection(clusterManagerCopy.keySet(), ACQUIRED_PAGES.keySet()));
             if (!success) {
-                masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
-                ACQUIRED_PAGES.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
-                if (!masterCopy.isEmpty()) {
-                    Iterator<Throwable> causes = masterCopy.values().iterator();
+                clusterManagerCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
+                // remove all existing cluster-manager copy we will report on
+                ACQUIRED_PAGES.keySet().removeAll(clusterManagerCopy.keySet());
+                if (!clusterManagerCopy.isEmpty()) {
+                    Iterator<Throwable> causes = clusterManagerCopy.values().iterator();
                     Throwable firstCause = causes.next();
-                    RuntimeException exception = new RuntimeException(masterCopy.size() + " pages have not been released", firstCause);
+                    RuntimeException exception = new RuntimeException(
+                        clusterManagerCopy.size() + " pages have not been released",
+                        firstCause
+                    );
                     while (causes.hasNext()) {
                         exception.addSuppressed(causes.next());
                     }

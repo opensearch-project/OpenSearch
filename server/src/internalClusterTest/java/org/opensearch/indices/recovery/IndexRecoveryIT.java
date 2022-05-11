@@ -1211,7 +1211,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .build();
         TimeValue disconnectAfterDelay = TimeValue.timeValueMillis(randomIntBetween(0, 100));
         // start a master node
-        String masterNodeName = internalCluster().startMasterOnlyNode(nodeSettings);
+        String masterNodeName = internalCluster().startClusterManagerOnlyNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
             Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build()
@@ -2084,7 +2084,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     }
 
     public void testAllocateEmptyPrimaryResetsGlobalCheckpoint() throws Exception {
-        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         final Settings randomNodeDataPathSettings = internalCluster().dataPathSettings(randomFrom(dataNodes));
         final String indexName = "test";
@@ -2184,7 +2184,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     }
 
     public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         assertAcked(
             client().admin()
                 .indices()
