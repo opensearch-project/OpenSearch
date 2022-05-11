@@ -44,6 +44,8 @@ import java.util.function.Supplier;
  * requests. It is much less appropriate when parsing responses from external
  * sources because it will report deprecated fields back to the user as
  * though the user sent them.
+ *
+ * @opensearch.internal
  */
 public class LoggingDeprecationHandler implements DeprecationHandler {
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();

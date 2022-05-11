@@ -184,6 +184,11 @@ public final class QueryRescorer implements Rescorer {
         return in;
     }
 
+    /**
+     * Context used during query rescoring
+     *
+     * @opensearch.internal
+     */
     public static class QueryRescoreContext extends RescoreContext {
         private Query query;
         private float queryWeight = 1.0f;

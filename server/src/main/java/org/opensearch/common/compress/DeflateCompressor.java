@@ -51,6 +51,8 @@ import java.util.zip.InflaterOutputStream;
 
 /**
  * {@link Compressor} implementation based on the DEFLATE compression algorithm.
+ *
+ * @opensearch.internal
  */
 public class DeflateCompressor implements Compressor {
 

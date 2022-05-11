@@ -46,6 +46,8 @@ import static java.util.Collections.emptySet;
  * injector data to be accessed as a unit.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 interface State {
 

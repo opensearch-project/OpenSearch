@@ -56,7 +56,11 @@ import java.util.Set;
  */
 public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
-    /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
+    /**
+     * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
+     *
+     * @opensearch.internal
+     */
     public static class Document implements Iterable<IndexableField> {
 
         private final Document parent;
@@ -171,6 +175,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
     }
 
+    /**
+     * Filter parse context.
+     *
+     * @opensearch.internal
+     */
     private static class FilterParseContext extends ParseContext {
 
         private final ParseContext in;
@@ -305,6 +314,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         }
     }
 
+    /**
+     * An internal parse context
+     *
+     * @opensearch.internal
+     */
     public static class InternalParseContext extends ParseContext {
 
         private final DocumentMapper docMapper;

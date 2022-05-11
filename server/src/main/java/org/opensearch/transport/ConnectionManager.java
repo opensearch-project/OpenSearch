@@ -76,11 +76,21 @@ public interface ConnectionManager extends Closeable {
 
     ConnectionProfile getConnectionProfile();
 
+    /**
+     * Validates a connection
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     interface ConnectionValidator {
         void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener<Void> listener);
     }
 
+    /**
+     * Connection listener for a delegating node
+     *
+     * @opensearch.internal
+     */
     final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 
         private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();

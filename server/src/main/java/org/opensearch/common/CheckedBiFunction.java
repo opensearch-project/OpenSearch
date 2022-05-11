@@ -34,6 +34,8 @@ package org.opensearch.common;
 
 /**
  * A {@link java.util.function.BiFunction}-like interface which allows throwing checked exceptions.
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface CheckedBiFunction<T, U, R, E extends Exception> {

@@ -295,6 +295,8 @@ public class AggregatorFactories {
     /**
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
+     *
+     * @opensearch.internal
      */
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();

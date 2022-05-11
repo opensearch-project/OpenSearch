@@ -40,6 +40,8 @@ import org.opensearch.common.lease.Releasable;
  * probing, growth is smooth thanks to {@link BigArrays} and capacity is always
  * a multiple of 2 for faster identification of buckets.
  * This class is not thread-safe.
+ *
+ * @opensearch.internal
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
 public final class LongHash extends AbstractHash {

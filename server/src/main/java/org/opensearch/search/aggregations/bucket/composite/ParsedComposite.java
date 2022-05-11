@@ -106,6 +106,11 @@ public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposit
         return CompositeAggregation.toXContentFragment(this, builder, params);
     }
 
+    /**
+     * Parsed bucket for the parsed composite agg
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements CompositeAggregation.Bucket {
         private Map<String, Object> key;
 

@@ -62,10 +62,17 @@ import java.util.Objects;
 /**
  * A query that allows for a pluggable boost function / filter. If it matches
  * the filter, it will be boosted by the formula.
+ *
+ * @opensearch.internal
  */
 public class FunctionScoreQuery extends Query {
     public static final float DEFAULT_MAX_BOOST = Float.MAX_VALUE;
 
+    /**
+     * Filter score function
+     *
+     * @opensearch.internal
+     */
     public static class FilterScoreFunction extends ScoreFunction {
         public final Query filter;
         public final ScoreFunction function;
@@ -481,6 +488,11 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
+    /**
+     * Internal function factor scorer
+     *
+     * @opensearch.internal
+     */
     static class FunctionFactorScorer extends FilterScorer {
         private final ScoreFunction[] functions;
         private final ScoreMode scoreMode;

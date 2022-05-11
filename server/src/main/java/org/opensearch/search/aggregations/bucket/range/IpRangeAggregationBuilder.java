@@ -128,6 +128,11 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         }
     }
 
+    /**
+     * Range for an IP range
+     *
+     * @opensearch.internal
+     */
     public static class Range implements ToXContentObject {
 
         private final String key;

@@ -55,6 +55,8 @@ import static org.opensearch.common.geo.GeoUtils.normalizeLon;
 
 /**
  * Splits polygons by datelines.
+ *
+ * @opensearch.internal
  */
 public class GeoPolygonDecomposer {
 

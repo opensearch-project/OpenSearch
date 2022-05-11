@@ -39,6 +39,8 @@ import java.util.List;
  * Handles {@link Binder#newPrivateBinder()} elements.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class PrivateElementProcessor extends AbstractProcessor {
 

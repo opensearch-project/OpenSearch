@@ -47,6 +47,11 @@ import java.io.IOException;
  */
 public interface FetchSubPhase {
 
+    /**
+     * The hit context for the fetch subphase
+     *
+     * @opensearch.internal
+     */
     class HitContext {
         private final SearchHit hit;
         private final LeafReaderContext readerContext;

@@ -144,6 +144,8 @@ public class TextSearchInfo {
 
     /**
      * What sort of term vectors are available
+     *
+     * @opensearch.internal
      */
     public enum TermVector {
         NONE,

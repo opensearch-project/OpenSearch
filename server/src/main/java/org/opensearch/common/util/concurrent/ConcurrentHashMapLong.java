@@ -37,6 +37,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * Thread safe hash map of longs.
+ *
+ * @opensearch.internal
+ */
 public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
 
     private final ConcurrentMap<Long, T> map;

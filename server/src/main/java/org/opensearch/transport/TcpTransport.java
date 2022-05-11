@@ -244,6 +244,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         inboundHandler.setSlowLogThreshold(slowLogThreshold);
     }
 
+    /**
+     * List of node connection channels
+     *
+     * @opensearch.internal
+     */
     public final class NodeChannels extends CloseableConnection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;
@@ -872,6 +877,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * A helper exception to mark an incoming connection as potentially being HTTP
      * so an appropriate error code can be returned
+     *
+     * @opensearch.internal
      */
     public static class HttpRequestOnTransportException extends OpenSearchException {
 

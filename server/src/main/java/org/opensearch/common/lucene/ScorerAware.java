@@ -33,6 +33,11 @@ package org.opensearch.common.lucene;
 
 import org.apache.lucene.search.Scorable;
 
+/**
+ * Interface that is scorer aware.
+ *
+ * @opensearch.internal
+ */
 public interface ScorerAware {
 
     void setScorer(Scorable scorer);

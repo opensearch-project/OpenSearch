@@ -155,6 +155,8 @@ public class RegexOptions implements ToXContentFragment, Writeable {
 
     /**
      * Options for regular expression queries
+     *
+     * @opensearch.internal
      */
     public static class Builder {
         private int flagsValue = RegExp.ALL;

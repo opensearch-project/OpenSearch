@@ -65,6 +65,11 @@ public class ParsedDoubleTerms extends ParsedTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for double terms
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
         private Double key;

@@ -65,6 +65,11 @@ public class ParsedLongTerms extends ParsedTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for long term values
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
         private Long key;

@@ -39,6 +39,11 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Locale;
 
+/**
+ * Network addresses.
+ *
+ * @opensearch.internal
+ */
 public class InetAddresses {
     private static int IPV4_PART_COUNT = 4;
     private static int IPV6_PART_COUNT = 8;

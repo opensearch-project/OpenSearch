@@ -44,6 +44,8 @@ public interface RareTerms extends MultiBucketsAggregation {
 
     /**
      * A bucket that is associated with a single term
+     *
+     * @opensearch.internal
      */
     interface Bucket extends MultiBucketsAggregation.Bucket {
 

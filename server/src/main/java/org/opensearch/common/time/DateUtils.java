@@ -51,6 +51,11 @@ import static org.opensearch.common.time.DateUtilsRounding.getTotalMillisByYearM
 import static org.opensearch.common.time.DateUtilsRounding.getYear;
 import static org.opensearch.common.time.DateUtilsRounding.utcMillisAtStartOfYear;
 
+/**
+ * Date utilities.
+ *
+ * @opensearch.internal
+ */
 public class DateUtils {
     public static DateTimeZone zoneIdToDateTimeZone(ZoneId zoneId) {
         if (zoneId == null) {

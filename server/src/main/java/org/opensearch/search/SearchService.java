@@ -1418,6 +1418,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return request.source().aggregations().buildPipelineTree();
     }
 
+    /**
+     * Search phase result that can match a response
+     *
+     * @opensearch.internal
+     */
     public static final class CanMatchResponse extends SearchPhaseResult {
         private final boolean canMatch;
         private final MinAndMax<?> estimatedMinAndMax;

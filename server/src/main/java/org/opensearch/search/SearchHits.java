@@ -201,6 +201,11 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         return Arrays.stream(getHits()).iterator();
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     public static final class Fields {
         public static final String HITS = "hits";
         public static final String TOTAL = "total";

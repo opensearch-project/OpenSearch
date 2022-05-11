@@ -66,6 +66,8 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     /**
      * Represents a failure.
+     *
+     * @opensearch.internal
      */
     public static class Failure implements Writeable, ToXContentObject {
 

@@ -84,6 +84,11 @@ class SinglePackedOrdinals extends Ordinals {
         return (SortedSetDocValues) DocValues.singleton(new Docs(this, values));
     }
 
+    /**
+     * Doc class
+     *
+     * @opensearch.internal
+     */
     private static class Docs extends AbstractSortedDocValues {
 
         private final int maxOrd;

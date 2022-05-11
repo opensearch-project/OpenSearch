@@ -68,6 +68,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
+    /**
+     * Default parameters for the boolean field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
 
@@ -79,6 +84,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Values that can be used for this field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Values {
         public static final BytesRef TRUE = new BytesRef("T");
         public static final BytesRef FALSE = new BytesRef("F");
@@ -88,6 +98,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return (BooleanFieldMapper) in;
     }
 
+    /**
+     * Builder for this field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -131,6 +146,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
+    /**
+     * Field type for boolean field mapper
+     *
+     * @opensearch.internal
+     */
     public static final class BooleanFieldType extends TermBasedFieldType {
 
         private final Boolean nullValue;

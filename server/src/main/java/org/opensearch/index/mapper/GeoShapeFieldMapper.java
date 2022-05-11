@@ -78,6 +78,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         FIELD_TYPE.freeze();
     }
 
+    /**
+     * Concrete builder for geo_shape types
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, GeoShapeFieldType> {
 
         public Builder(String name) {
@@ -110,6 +115,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
     }
 
+    /**
+     * Concrete field type for geo_shape fields
+     *
+     * @opensearch.internal
+     */
     public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> implements GeoShapeQueryable {
 
         private final VectorGeoShapeQueryProcessor queryProcessor;
@@ -130,6 +140,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
     }
 
+    /**
+     * The type parser
+     *
+     * @opensearch.internal
+     */
     public static final class TypeParser extends AbstractShapeGeometryFieldMapper.TypeParser {
 
         @Override

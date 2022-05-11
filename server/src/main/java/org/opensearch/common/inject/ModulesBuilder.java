@@ -37,6 +37,11 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * A modules builder
+ *
+ * @opensearch.internal
+ */
 public class ModulesBuilder implements Iterable<Module> {
 
     private final List<Module> modules = new ArrayList<>();

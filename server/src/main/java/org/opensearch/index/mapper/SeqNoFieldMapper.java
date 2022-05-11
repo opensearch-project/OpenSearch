@@ -73,6 +73,8 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     /**
      * A sequence ID, which is made up of a sequence number (both the searchable
      * and doc_value version of the field) and the primary term.
+     *
+     * @opensearch.internal
      */
     public static class SequenceIDFields {
 
@@ -108,6 +110,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> new SeqNoFieldMapper());
 
+    /**
+     * Field type for internal sequence numbers
+     *
+     * @opensearch.internal
+     */
     static final class SeqNoFieldType extends SimpleMappedFieldType {
 
         private static final SeqNoFieldType INSTANCE = new SeqNoFieldType();

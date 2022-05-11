@@ -153,6 +153,11 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     @Nullable
     protected abstract ShardsIterator shards(ClusterState state, InternalRequest request);
 
+    /**
+     * Asynchronous single action
+     *
+     * @opensearch.internal
+     */
     class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
@@ -299,6 +304,11 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
     }
 
+    /**
+     * Internal transport handler
+     *
+     * @opensearch.internal
+     */
     private class TransportHandler implements TransportRequestHandler<Request> {
 
         @Override
@@ -308,6 +318,11 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
     }
 
+    /**
+     * Shard level transport handler
+     *
+     * @opensearch.internal
+     */
     private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override
@@ -321,6 +336,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     /**
      * Internal request class that gets built on each node. Holds the original request plus additional info.
+     *
+     * @opensearch.internal
      */
     protected class InternalRequest {
         final Request request;

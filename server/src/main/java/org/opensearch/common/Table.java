@@ -44,6 +44,11 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 
+/**
+ * A table.
+ *
+ * @opensearch.internal
+ */
 public class Table {
 
     private List<Cell> headers = new ArrayList<>();
@@ -224,6 +229,11 @@ public class Table {
         return headerAliasMap;
     }
 
+    /**
+     * Cell in a table
+     *
+     * @opensearch.internal
+     */
     public static class Cell {
         public final Object value;
         public final Map<String, String> attr;

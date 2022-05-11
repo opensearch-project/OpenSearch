@@ -56,6 +56,8 @@ import java.io.IOException;
  * to delayed expansion). When such objects are buffered for some time it may be desirable
  * to force their buffering in serialized format by calling
  * {@link #asSerialized(Reader, NamedWriteableRegistry)}.
+ *
+ * @opensearch.internal
  */
 public abstract class DelayableWriteable<T extends Writeable> implements Writeable {
     /**
@@ -94,6 +96,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      */
     abstract boolean isSerialized();
 
+    /**
+     * A referencing writable
+     *
+     * @opensearch.internal
+     */
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
         private final T reference;
 
@@ -138,6 +145,8 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
     /**
      * A {@link Writeable} stored in serialized form.
+     *
+     * @opensearch.internal
      */
     public static class Serialized<T extends Writeable> extends DelayableWriteable<T> implements Accountable {
         private final Writeable.Reader<T> reader;

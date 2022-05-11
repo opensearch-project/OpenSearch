@@ -162,16 +162,29 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Base filter class
+     *
+     * @opensearch.internal
+     */
     public abstract static class Filter {}
 
-    // The includeValue and excludeValue ByteRefs which are the result of the parsing
-    // process are converted into a LongFilter when used on numeric fields
-    // in the index.
+    /**
+     * The includeValue and excludeValue ByteRefs which are the result of the parsing
+     * process are converted into a LongFilter when used on numeric fields
+     * in the index.
+     *
+     * @opensearch.internal
+     */
     public abstract static class LongFilter extends Filter {
         public abstract boolean accept(long value);
-
     }
 
+    /**
+     * Long filter that is partitioned
+     *
+     * @opensearch.internal
+     */
     public class PartitionedLongFilter extends LongFilter {
         @Override
         public boolean accept(long value) {
@@ -181,6 +194,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Long filter backed by valid values
+     *
+     * @opensearch.internal
+     */
     public static class SetBackedLongFilter extends LongFilter {
         private LongSet valids;
         private LongSet invalids;
@@ -208,7 +226,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    // Only used for the 'map' execution mode (ie. scripts)
+    /**
+     * Only used for the 'map' execution mode (ie. scripts)
+     *
+     * @opensearch.internal
+     */
     public abstract static class StringFilter extends Filter {
         public abstract boolean accept(BytesRef value);
     }
@@ -220,6 +242,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * String filter backed by an automaton
+     *
+     * @opensearch.internal
+     */
     static class AutomatonBackedStringFilter extends StringFilter {
 
         private final ByteRunAutomaton runAutomaton;
@@ -237,6 +264,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * String filter backed by a term list
+     *
+     * @opensearch.internal
+     */
     static class TermListBackedStringFilter extends StringFilter {
 
         private final Set<BytesRef> valids;
@@ -257,6 +289,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * An ordinals filter
+     *
+     * @opensearch.internal
+     */
     public abstract static class OrdinalsFilter extends Filter {
         public abstract LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException;
 
@@ -284,6 +321,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * An ordinals filter backed by an automaton
+     *
+     * @opensearch.internal
+     */
     static class AutomatonBackedOrdinalsFilter extends OrdinalsFilter {
 
         private final CompiledAutomaton compiled;
@@ -311,6 +353,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     }
 
+    /**
+     * An ordinals filter backed by a terms list
+     *
+     * @opensearch.internal
+     */
     static class TermListBackedOrdinalsFilter extends OrdinalsFilter {
 
         private final SortedSet<BytesRef> includeValues;
@@ -508,6 +555,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     /**
      * Terms adapter around doc values.
+     *
+     * @opensearch.internal
      */
     private static class DocValuesTerms extends Terms {
 

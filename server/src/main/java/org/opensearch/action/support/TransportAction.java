@@ -176,6 +176,11 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);
 
+    /**
+     * A request filter chain
+     *
+     * @opensearch.internal
+     */
     private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse>
         implements
             ActionFilterChain<Request, Response> {
@@ -210,6 +215,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     /**
      * Wrapper for an action listener that stores the result at the end of the execution
+     *
+     * @opensearch.internal
      */
     private static class TaskResultStoringActionListener<Response extends ActionResponse> implements ActionListener<Response> {
         private final ActionListener<Response> delegate;

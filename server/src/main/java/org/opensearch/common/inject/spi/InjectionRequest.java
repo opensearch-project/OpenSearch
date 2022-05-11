@@ -45,6 +45,8 @@ import java.util.Set;
  *
  * @author mikeward@google.com (Mike Ward)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class InjectionRequest<T> implements Element {
 

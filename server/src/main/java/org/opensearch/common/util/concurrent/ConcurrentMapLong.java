@@ -34,6 +34,11 @@ package org.opensearch.common.util.concurrent;
 
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * Thread safe long value hash map
+ *
+ * @opensearch.internal
+ */
 public interface ConcurrentMapLong<T> extends ConcurrentMap<Long, T> {
 
     T get(long key);

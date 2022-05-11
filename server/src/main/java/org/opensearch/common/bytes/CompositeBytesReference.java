@@ -47,6 +47,8 @@ import java.util.Objects;
  * into one without copying.
  *
  * Note, {@link #toBytesRef()} will materialize all pages in this BytesReference.
+ *
+ * @opensearch.internal
  */
 public final class CompositeBytesReference extends AbstractBytesReference {
 

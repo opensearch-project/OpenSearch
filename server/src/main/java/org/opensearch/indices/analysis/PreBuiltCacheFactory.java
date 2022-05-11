@@ -60,6 +60,11 @@ public class PreBuiltCacheFactory {
         OPENSEARCH
     }
 
+    /**
+     * The prebuilt cache
+     *
+     * @opensearch.internal
+     */
     public interface PreBuiltCache<T> {
 
         T get(Version version);
@@ -86,6 +91,8 @@ public class PreBuiltCacheFactory {
 
     /**
      * This is a pretty simple cache, it only contains one version
+     *
+     * @opensearch.internal
      */
     private static class PreBuiltCacheStrategyOne<T> implements PreBuiltCache<T> {
 
@@ -109,6 +116,8 @@ public class PreBuiltCacheFactory {
 
     /**
      * This cache contains one version for each opensearch version object
+     *
+     * @opensearch.internal
      */
     private static class PreBuiltCacheStrategyOpenSearch<T> implements PreBuiltCache<T> {
 
@@ -132,6 +141,8 @@ public class PreBuiltCacheFactory {
 
     /**
      * This cache uses the lucene version for caching
+     *
+     * @opensearch.internal
      */
     private static class PreBuiltCacheStrategyLucene<T> implements PreBuiltCache<T> {
 

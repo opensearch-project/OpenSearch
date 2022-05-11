@@ -43,6 +43,8 @@ package org.opensearch.common.util;
  * Refer to {@link BigArrays.DoubleBinarySearcher} for an example.
  *
  * NOTE: this class is not thread safe
+ *
+ * @opensearch.internal
  */
 public abstract class BinarySearcher {
 

@@ -37,6 +37,8 @@ import org.opensearch.common.inject.spi.Dependency;
 
 /**
  * Resolves a single parameter, to be used in a constructor or method invocation.
+ *
+ * @opensearch.internal
  */
 class SingleParameterInjector<T> {
     private static final Object[] NO_ARGUMENTS = {};

@@ -73,6 +73,11 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
 
     static final long SCOREDOCKEY_SIZE = RamUsageEstimator.shallowSizeOfInstance(DiversifiedTopDocsCollector.ScoreDocKey.class);
 
+    /**
+     * The execution mode for the sampler
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {

@@ -121,6 +121,11 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         return this.factory;
     }
 
+    /**
+     * Factory for single token filter
+     *
+     * @opensearch.internal
+     */
     public static final class Factory implements TokenFilterFactory {
         private final int maxShingleSize;
 

@@ -38,7 +38,11 @@ import org.opensearch.common.inject.spi.ElementVisitor;
 import org.opensearch.common.inject.spi.InstanceBinding;
 
 /**
+ * A binding implementation
+ *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public abstract class BindingImpl<T> implements Binding<T> {
 

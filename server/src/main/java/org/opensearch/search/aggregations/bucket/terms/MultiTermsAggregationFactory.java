@@ -159,6 +159,11 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         );
     }
 
+    /**
+     * Supplier for internal values source
+     *
+     * @opensearch.internal
+     */
     public interface InternalValuesSourceSupplier {
         MultiTermsAggregator.InternalValuesSource build(Tuple<ValuesSourceConfig, IncludeExclude> config);
     }

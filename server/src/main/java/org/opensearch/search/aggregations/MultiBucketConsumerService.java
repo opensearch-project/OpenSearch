@@ -76,6 +76,11 @@ public class MultiBucketConsumerService {
         this.maxBucket = maxBucket;
     }
 
+    /**
+     * Thrown when there are too many buckets
+     *
+     * @opensearch.internal
+     */
     public static class TooManyBucketsException extends AggregationExecutionException {
         private final int maxBuckets;
 
@@ -115,6 +120,8 @@ public class MultiBucketConsumerService {
      * when the sum of the provided values is above the limit (`search.max_buckets`).
      * It is used by aggregators to limit the number of bucket creation during
      * {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
+     *
+     * @opensearch.internal
      */
     public static class MultiBucketConsumer implements IntConsumer {
         private final int limit;

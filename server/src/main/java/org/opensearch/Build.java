@@ -56,6 +56,11 @@ public class Build {
      */
     public static final Build CURRENT;
 
+    /**
+     * The type of build
+     *
+     * @opensearch.internal
+     */
     public enum Type {
 
         DEB("deb"),

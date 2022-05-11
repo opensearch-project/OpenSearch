@@ -391,6 +391,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      * Base class of all {@link DocWriteResponse} builders. These {@link DocWriteResponse.Builder} are used during
      * xcontent parsing to temporarily store the parsed values, then the {@link Builder#build()} method is called to
      * instantiate the appropriate {@link DocWriteResponse} with the parsed values.
+     *
+     * @opensearch.internal
      */
     public abstract static class Builder {
 

@@ -66,6 +66,11 @@ import java.util.Set;
  */
 public class TermVectorsResponse extends ActionResponse implements ToXContentObject {
 
+    /**
+     * Fields used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     private static class FieldStrings {
         // term statistics strings
         public static final String TTF = "ttf";

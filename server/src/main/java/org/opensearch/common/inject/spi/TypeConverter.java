@@ -36,6 +36,8 @@ import org.opensearch.common.inject.TypeLiteral;
  *
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface TypeConverter {
 

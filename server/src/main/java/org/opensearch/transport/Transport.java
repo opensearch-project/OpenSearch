@@ -268,6 +268,11 @@ public interface Transport extends LifecycleComponent {
         }
     }
 
+    /**
+     * Request handler implementations
+     *
+     * @opensearch.internal
+     */
     final class RequestHandlers {
 
         private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();

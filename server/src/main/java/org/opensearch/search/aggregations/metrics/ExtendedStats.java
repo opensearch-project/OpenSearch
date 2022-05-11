@@ -118,6 +118,11 @@ public interface ExtendedStats extends Stats {
      */
     String getVarianceSamplingAsString();
 
+    /**
+     * The bounds of the extended stats
+     *
+     * @opensearch.internal
+     */
     enum Bounds {
         UPPER,
         LOWER,

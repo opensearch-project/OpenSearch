@@ -32,6 +32,11 @@
 
 package org.opensearch.common.lucene.uid;
 
+/**
+ * UID versions.
+ *
+ * @opensearch.internal
+ */
 public final class Versions {
 
     /** used to indicate the write operation should succeed regardless of current version **/

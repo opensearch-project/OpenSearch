@@ -45,6 +45,8 @@ import static java.util.stream.Collectors.toSet;
  * Injects members of instances of a given type.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class MembersInjectorImpl<T> implements MembersInjector<T> {
     private final TypeLiteral<T> typeLiteral;

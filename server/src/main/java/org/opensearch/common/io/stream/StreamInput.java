@@ -105,6 +105,8 @@ import static org.opensearch.OpenSearchException.readStackTrace;
  * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
  * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
  * on {@link StreamInput}.
+ *
+ * @opensearch.internal
  */
 public abstract class StreamInput extends InputStream {
 

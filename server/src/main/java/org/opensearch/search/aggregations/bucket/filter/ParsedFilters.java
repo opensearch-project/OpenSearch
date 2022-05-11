@@ -106,6 +106,11 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for the parsed filters agg
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Filters.Bucket {
 
         private String key;

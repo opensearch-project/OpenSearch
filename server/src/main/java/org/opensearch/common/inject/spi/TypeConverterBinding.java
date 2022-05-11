@@ -44,6 +44,8 @@ import java.util.Objects;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class TypeConverterBinding implements Element {
     private final Object source;

@@ -83,6 +83,11 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
         }
     }
 
+    /**
+     * Unmapped class for reverse nested agg
+     *
+     * @opensearch.internal
+     */
     private static final class Unmapped extends NonCollectingAggregator {
 
         Unmapped(String name, SearchContext context, Aggregator parent, AggregatorFactories factories, Map<String, Object> metadata)

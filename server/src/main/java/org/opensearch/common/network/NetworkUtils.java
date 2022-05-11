@@ -52,6 +52,8 @@ import java.util.function.Predicate;
 /**
  * Utilities for network interfaces / addresses binding and publishing.
  * Its only intended for that purpose, not general purpose usage!!!!
+ *
+ * @opensearch.internal
  */
 public abstract class NetworkUtils {
 

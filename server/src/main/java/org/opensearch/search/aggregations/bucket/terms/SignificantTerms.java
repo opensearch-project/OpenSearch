@@ -42,6 +42,11 @@ import java.util.List;
  */
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
 
+    /**
+     * Bucket for significant terms
+     *
+     * @opensearch.internal
+     */
     interface Bucket extends MultiBucketsAggregation.Bucket {
 
         /**

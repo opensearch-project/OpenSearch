@@ -42,6 +42,8 @@ import org.opensearch.common.inject.TypeLiteral;
  * binding method interceptors}.
  *
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface TypeListener {
 

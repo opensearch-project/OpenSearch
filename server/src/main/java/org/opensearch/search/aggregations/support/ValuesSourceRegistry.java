@@ -53,6 +53,11 @@ import java.util.stream.Collectors;
  */
 public class ValuesSourceRegistry {
 
+    /**
+     * The registry key for the values source registry key
+     *
+     * @opensearch.internal
+     */
     public static final class RegistryKey<T> {
         private final String name;
         private final Class<T> supplierType;
@@ -82,6 +87,11 @@ public class ValuesSourceRegistry {
 
     public static final RegistryKey UNREGISTERED_KEY = new RegistryKey("unregistered", RegistryKey.class);
 
+    /**
+     * Builder for the values source registry
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
         private Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();

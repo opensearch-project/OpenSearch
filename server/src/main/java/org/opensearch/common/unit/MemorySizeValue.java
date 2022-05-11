@@ -39,7 +39,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 
-/** Utility methods to get memory sizes. */
+/**
+ * Utility methods to get memory sizes.
+ *
+ * @opensearch.internal
+ */
 public enum MemorySizeValue {
     ;
 

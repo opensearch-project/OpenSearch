@@ -145,6 +145,11 @@ public class GetStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for get statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String GET = "get";
         static final String TOTAL = "total";

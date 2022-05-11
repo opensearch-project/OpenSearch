@@ -55,6 +55,8 @@ import java.util.Optional;
  * The milliseconds formatter is provided by {@link #MILLIS_FORMATTER}.
  * <p>
  * Both formatters support fractional time, up to nanosecond precision.
+ *
+ * @opensearch.internal
  */
 class EpochTime {
 
@@ -270,6 +272,11 @@ class EpochTime {
         MILLISECONDS_FORMATTER2
     );
 
+    /**
+     * Base class for an epoch field
+     *
+     * @opensearch.internal
+     */
     private abstract static class EpochField implements TemporalField {
 
         private final TemporalUnit baseUnit;

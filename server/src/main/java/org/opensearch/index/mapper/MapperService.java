@@ -96,6 +96,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
      * The reason why a mapping is being merged.
+     *
+     * @opensearch.internal
      */
     public enum MergeReason {
         /**

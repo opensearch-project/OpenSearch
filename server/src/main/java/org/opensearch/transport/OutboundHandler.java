@@ -212,6 +212,11 @@ final class OutboundHandler {
         }
     }
 
+    /**
+     * Internal message serializer
+     *
+     * @opensearch.internal
+     */
     private static class MessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
 
         private final OutboundMessage message;

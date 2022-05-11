@@ -55,6 +55,8 @@ import java.util.function.LongSupplier;
  * The format of the datetime is configurable, and unix timestamps can also be used. Datemath
  * is appended to a datetime with the following syntax:
  * <code>||[+-/](\d+)?[yMwdhHms]</code>.
+ *
+ * @opensearch.internal
  */
 public class JavaDateMathParser implements DateMathParser {
 

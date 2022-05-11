@@ -570,6 +570,11 @@ public class TransportService extends AbstractLifecycleComponent
         return connectionManager;
     }
 
+    /**
+     * Internal Handshake request
+     *
+     * @opensearch.internal
+     */
     static class HandshakeRequest extends TransportRequest {
 
         public static final HandshakeRequest INSTANCE = new HandshakeRequest();
@@ -582,6 +587,11 @@ public class TransportService extends AbstractLifecycleComponent
 
     }
 
+    /**
+     * Internal handshake response
+     *
+     * @opensearch.internal
+     */
     public static class HandshakeResponse extends TransportResponse {
         private final DiscoveryNode discoveryNode;
         private final ClusterName clusterName;
@@ -1292,6 +1302,11 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
+    /**
+     * Holder for timeout information
+     *
+     * @opensearch.internal
+     */
     static class TimeoutInfoHolder {
 
         private final DiscoveryNode node;
@@ -1379,6 +1394,11 @@ public class TransportService extends AbstractLifecycleComponent
 
     }
 
+    /**
+     * A channel for a direct response
+     *
+     * @opensearch.internal
+     */
     static class DirectResponseChannel implements TransportChannel {
         final DiscoveryNode localNode;
         private final String action;

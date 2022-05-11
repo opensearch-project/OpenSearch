@@ -44,6 +44,8 @@ import java.util.Locale;
 /**
  * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
  * Keeping those two fields together assures that they will be atomically set and become visible in logs at the same time.
+ *
+ * @opensearch.internal
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
 @ConverterKeys({ "node_and_cluster_id" })

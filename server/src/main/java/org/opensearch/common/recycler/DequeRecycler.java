@@ -36,6 +36,8 @@ import java.util.Deque;
 
 /**
  * A {@link Recycler} implementation based on a {@link Deque}. This implementation is NOT thread-safe.
+ *
+ * @opensearch.internal
  */
 public class DequeRecycler<T> extends AbstractRecycler<T> {
 

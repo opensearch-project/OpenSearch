@@ -35,6 +35,8 @@ package org.opensearch.common.inject.internal;
  * errors.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public class ErrorsException extends Exception {
 
