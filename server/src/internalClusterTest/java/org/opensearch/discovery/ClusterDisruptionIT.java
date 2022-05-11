@@ -338,26 +338,26 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     // simulate handling of sending shard failure during an isolation
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3);
-        String masterNode = internalCluster().getMasterName();
-        List<String> nonMasterNodes = nodes.stream().filter(node -> !node.equals(masterNode)).collect(Collectors.toList());
-        String nonMasterNode = randomFrom(nonMasterNodes);
+        String clusterManagerNode = internalCluster().getMasterName();
+        List<String> nonClusterManagerNodes = nodes.stream().filter(node -> !node.equals(clusterManagerNode)).collect(Collectors.toList());
+        String nonClusterManagerNode = randomFrom(nonClusterManagerNodes);
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
             )
         );
         ensureGreen();
-        String nonMasterNodeId = internalCluster().clusterService(nonMasterNode).localNode().getId();
+        String nonClusterManagerNodeId = internalCluster().clusterService(nonClusterManagerNode).localNode().getId();
 
         // fail a random shard
         ShardRouting failedShard = randomFrom(
-            clusterService().state().getRoutingNodes().node(nonMasterNodeId).shardsWithState(ShardRoutingState.STARTED)
+            clusterService().state().getRoutingNodes().node(nonClusterManagerNodeId).shardsWithState(ShardRoutingState.STARTED)
         );
-        ShardStateAction service = internalCluster().getInstance(ShardStateAction.class, nonMasterNode);
+        ShardStateAction service = internalCluster().getInstance(ShardStateAction.class, nonClusterManagerNode);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean success = new AtomicBoolean();
 
-        String isolatedNode = randomBoolean() ? masterNode : nonMasterNode;
+        String isolatedNode = randomBoolean() ? clusterManagerNode : nonClusterManagerNode;
         TwoPartitions partitions = isolateNode(isolatedNode);
         // we cannot use the NetworkUnresponsive disruption type here as it will swallow the "shard failed" request, calling neither
         // onSuccess nor onFailure on the provided listener.
@@ -385,10 +385,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             }
         );
 
-        if (isolatedNode.equals(nonMasterNode)) {
-            assertNoMaster(nonMasterNode);
+        if (isolatedNode.equals(nonClusterManagerNode)) {
+            assertNoMaster(nonClusterManagerNode);
         } else {
-            ensureStableCluster(2, nonMasterNode);
+            ensureStableCluster(2, nonClusterManagerNode);
         }
 
         // heal the partition
@@ -410,10 +410,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testCannotJoinIfMasterLostDataFolder() throws Exception {
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
 
-        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+        internalCluster().restartNode(clusterManagerNode, new InternalTestCluster.RestartCallback() {
             @Override
             public boolean clearData(String nodeName) {
                 return true;
@@ -442,9 +442,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         assertBusy(() -> {
-            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
+            assertFalse(internalCluster().client(clusterManagerNode).admin().cluster().prepareHealth().get().isTimedOut());
             assertTrue(
-                internalCluster().client(masterNode)
+                internalCluster().client(clusterManagerNode)
                     .admin()
                     .cluster()
                     .prepareHealth()

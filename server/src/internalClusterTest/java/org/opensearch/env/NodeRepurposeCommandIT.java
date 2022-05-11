@@ -56,7 +56,7 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
         final String indexName = "test-repurpose";
 
         logger.info("--> starting two nodes");
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode(
             Settings.builder().put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false).build()
         );
@@ -71,20 +71,20 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
 
         assertTrue(client().prepareGet(indexName, "1").get().isExists());
 
-        final Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
+        final Settings clusterManagerNodeDataPathSettings = internalCluster().dataPathSettings(clusterManagerNode);
         final Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
 
-        final Settings noMasterNoDataSettings = NodeRoles.removeRoles(
+        final Settings noClusterManagerNoDataSettings = NodeRoles.removeRoles(
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
         );
 
-        final Settings noMasterNoDataSettingsForMasterNode = Settings.builder()
-            .put(noMasterNoDataSettings)
-            .put(masterNodeDataPathSettings)
+        final Settings noClusterManagerNoDataSettingsForClusterManagerNode = Settings.builder()
+            .put(noClusterManagerNoDataSettings)
+            .put(clusterManagerNodeDataPathSettings)
             .build();
 
-        final Settings noMasterNoDataSettingsForDataNode = Settings.builder()
-            .put(noMasterNoDataSettings)
+        final Settings noClusterManagerNoDataSettingsForDataNode = Settings.builder()
+            .put(noClusterManagerNoDataSettings)
             .put(dataNodeDataPathSettings)
             .build();
 
@@ -99,11 +99,11 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> Repurposing node 1");
-        executeRepurposeCommand(noMasterNoDataSettingsForDataNode, 1, 1);
+        executeRepurposeCommand(noClusterManagerNoDataSettingsForDataNode, 1, 1);
 
         OpenSearchException lockedException = expectThrows(
             OpenSearchException.class,
-            () -> executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, 1, 1)
+            () -> executeRepurposeCommand(noClusterManagerNoDataSettingsForClusterManagerNode, 1, 1)
         );
 
         assertThat(lockedException.getMessage(), containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
@@ -119,11 +119,11 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
         internalCluster().stopRandomNode(s -> true);
         internalCluster().stopRandomNode(s -> true);
 
-        executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, 1, 0);
+        executeRepurposeCommand(noClusterManagerNoDataSettingsForClusterManagerNode, 1, 0);
 
         // by restarting as master and data node, we can check that the index definition was really deleted and also that the tool
         // does not mess things up so much that the nodes cannot boot as master or data node any longer.
-        internalCluster().startMasterOnlyNode(masterNodeDataPathSettings);
+        internalCluster().startClusterManagerOnlyNode(clusterManagerNodeDataPathSettings);
         internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
 
         ensureGreen();

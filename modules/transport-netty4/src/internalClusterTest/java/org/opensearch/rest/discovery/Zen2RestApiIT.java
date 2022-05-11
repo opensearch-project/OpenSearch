@@ -69,7 +69,7 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
     }
 
     public void testRollingRestartOfTwoNodeCluster() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(1);
+        internalCluster().setBootstrapClusterManagerNodeIndex(1);
         final List<String> nodes = internalCluster().startNodes(2);
         createIndex(
             "test",
@@ -135,7 +135,7 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
     }
 
     public void testClearVotingTombstonesNotWaitingForRemoval() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
@@ -150,7 +150,7 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
     }
 
     public void testClearVotingTombstonesWaitingForRemoval() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
@@ -165,7 +165,7 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
     }
 
     public void testFailsOnUnknownNode() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
         internalCluster().startNodes(3);
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
@@ -182,7 +182,7 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
     }
 
     public void testRemoveTwoNodesAtOnce() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
         RestClient restClient = getRestClient();

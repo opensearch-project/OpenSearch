@@ -44,7 +44,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import java.util.Set;
 
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
-import static org.opensearch.test.NodeRoles.masterOnlyNode;
+import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -75,7 +75,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testRecoverAfterNodes() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start node (1)");
         Client clientNode1 = startNode(Settings.builder().put("gateway.recover_after_nodes", 3));
         assertThat(
@@ -128,9 +128,9 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testRecoverAfterMasterNodes() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start master_node (1)");
-        Client master1 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(masterOnlyNode()));
+        Client master1 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(
             master1.admin()
                 .cluster()
@@ -211,7 +211,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> start master_node (2)");
-        Client master2 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(masterOnlyNode()));
+        Client master2 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master1).isEmpty(), equalTo(true));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master2).isEmpty(), equalTo(true));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, data1).isEmpty(), equalTo(true));
@@ -219,9 +219,9 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testRecoverAfterDataNodes() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start master_node (1)");
-        Client master1 = startNode(Settings.builder().put("gateway.recover_after_data_nodes", 2).put(masterOnlyNode()));
+        Client master1 = startNode(Settings.builder().put("gateway.recover_after_data_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(
             master1.admin()
                 .cluster()
@@ -263,7 +263,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> start master_node (2)");
-        Client master2 = startNode(Settings.builder().put("gateway.recover_after_data_nodes", 2).put(masterOnlyNode()));
+        Client master2 = startNode(Settings.builder().put("gateway.recover_after_data_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(
             master2.admin()
                 .cluster()
