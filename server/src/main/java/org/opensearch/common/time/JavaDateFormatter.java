@@ -73,6 +73,11 @@ class JavaDateFormatter implements DateFormatter {
     private final List<DateTimeFormatter> parsers;
     private final JavaDateFormatter roundupParser;
 
+    /**
+     * A round up formatter
+     *
+     * @opensearch.internal
+     */
     static class RoundUpFormatter extends JavaDateFormatter {
 
         RoundUpFormatter(String format, List<DateTimeFormatter> roundUpParsers) {

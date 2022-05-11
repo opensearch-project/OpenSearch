@@ -58,6 +58,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
+/**
+ * Lucene queries class
+ *
+ * @opensearch.internal
+ */
 public class Queries {
 
     public static Query newMatchAllQuery() {
@@ -210,6 +215,11 @@ public class Queries {
         return new MatchNoDocsWithoutRewriteQuery(reason);
     }
 
+    /**
+     * Matches no docs w/o rewriting the query
+     *
+     * @opensearch.internal
+     */
     static class MatchNoDocsWithoutRewriteQuery extends Query {
         private final String reason;
 

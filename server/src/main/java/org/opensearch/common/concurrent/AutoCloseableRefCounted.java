@@ -18,6 +18,8 @@ import org.opensearch.common.util.concurrent.RefCounted;
 /**
  * Adapter class that enables a {@link RefCounted} implementation to function like an {@link AutoCloseable}.
  * The {@link #close()} API invokes {@link RefCounted#decRef()} and ensures idempotency using a {@link OneWayGate}.
+ *
+ * @opensearch.internal
  */
 public class AutoCloseableRefCounted<T extends RefCounted> implements AutoCloseable {
 

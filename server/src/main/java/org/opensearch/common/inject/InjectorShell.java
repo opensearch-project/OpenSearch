@@ -58,6 +58,8 @@ import static org.opensearch.common.inject.Scopes.SINGLETON;
  * of injectors in batch.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class InjectorShell {
 
@@ -77,6 +79,11 @@ class InjectorShell {
         return elements;
     }
 
+    /**
+     * Builder for an injector
+     *
+     * @opensearch.internal
+     */
     static class Builder {
         private final List<Element> elements = new ArrayList<>();
         private final List<Module> modules = new ArrayList<>();
@@ -215,6 +222,11 @@ class InjectorShell {
         );
     }
 
+    /**
+     * The factory for the injector
+     *
+     * @opensearch.internal
+     */
     private static class InjectorFactory implements InternalFactory<Injector>, Provider<Injector> {
         private final Injector injector;
 
@@ -259,6 +271,11 @@ class InjectorShell {
         );
     }
 
+    /**
+     * Factory for a logger
+     *
+     * @opensearch.internal
+     */
     private static class LoggerFactory implements InternalFactory<Logger>, Provider<Logger> {
         @Override
         public Logger get(Errors errors, InternalContext context, Dependency<?> dependency) {
@@ -279,6 +296,11 @@ class InjectorShell {
         }
     }
 
+    /**
+     * The root module
+     *
+     * @opensearch.internal
+     */
     private static class RootModule implements Module {
         final Stage stage;
 

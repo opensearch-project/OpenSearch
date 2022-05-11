@@ -37,6 +37,8 @@ import java.util.Locale;
 /**
  * Interface for an object that can be incremented, breaking after some
  * configured limit has been reached.
+ *
+ * @opensearch.internal
  */
 public interface CircuitBreaker {
 

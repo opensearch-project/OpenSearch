@@ -94,6 +94,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING
  *     // previous context is restored on StoredContext#close()
  * </pre>
  *
+ * @opensearch.internal
  */
 public final class ThreadContext implements Writeable {
 
@@ -805,6 +806,11 @@ public final class ThreadContext implements Writeable {
 
     private static final Collector<String, Set<String>, Set<String>> LINKED_HASH_SET_COLLECTOR = new LinkedHashSetCollector<>();
 
+    /**
+     * Collector based on a linked hash set
+     *
+     * @opensearch.internal
+     */
     private static class LinkedHashSetCollector<T> implements Collector<T, Set<T>, Set<T>> {
         @Override
         public Supplier<Set<T>> supplier() {

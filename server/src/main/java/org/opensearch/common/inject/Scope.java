@@ -41,6 +41,8 @@ package org.opensearch.common.inject;
  * An example of a scope is {@link Scopes#SINGLETON}.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public interface Scope {
 

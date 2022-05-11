@@ -37,6 +37,8 @@ import org.opensearch.common.lease.Releasables;
 /**
  * Base implementation for {@link BytesRefHash} and {@link LongHash}, or any class that
  * needs to map values to dense ords. This class is not thread-safe.
+ *
+ * @opensearch.internal
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
 abstract class AbstractHash extends AbstractPagedHashMap {

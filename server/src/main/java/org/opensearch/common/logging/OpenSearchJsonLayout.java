@@ -83,6 +83,8 @@ import java.util.stream.Stream;
  * <p>
  * The value taken from %OpenSearchMessageField{message} has to be a simple escaped JSON value and is populated in subclasses of
  * <code>OpenSearchLogMessage</code>
+ *
+ * @opensearch.internal
  */
 @Plugin(name = "OpenSearchJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class OpenSearchJsonLayout extends AbstractStringLayout {
@@ -168,6 +170,11 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
         return patternLayout;
     }
 
+    /**
+     * Builder for a json layout
+     *
+     * @opensearch.internal
+     */
     public static class Builder<B extends OpenSearchJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
         implements
             org.apache.logging.log4j.core.util.Builder<OpenSearchJsonLayout> {

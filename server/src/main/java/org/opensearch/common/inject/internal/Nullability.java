@@ -43,6 +43,8 @@ import java.lang.annotation.Annotation;
  * org.jetbrains.annotations.Nullable</a>.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public class Nullability {
     private Nullability() {}

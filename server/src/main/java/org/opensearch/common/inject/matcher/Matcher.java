@@ -33,6 +33,8 @@ package org.opensearch.common.inject.matcher;
  * Returns {@code true} or {@code false} for a given input.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public interface Matcher<T> {
 

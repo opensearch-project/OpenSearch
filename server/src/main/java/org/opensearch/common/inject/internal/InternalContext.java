@@ -39,6 +39,8 @@ import java.util.Map;
  * dependencies.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public final class InternalContext {
 

@@ -72,6 +72,8 @@ import static org.opensearch.common.inject.internal.Annotations.findScopeAnnotat
  *
  * @author crazybob@google.com (Bob Lee)
  * @see InjectorBuilder
+ *
+ * @opensearch.internal
  */
 class InjectorImpl implements Injector, Lookups {
     final State state;
@@ -199,6 +201,11 @@ class InjectorImpl implements Injector, Lookups {
         return new ProviderBindingImpl<>(this, key, delegate);
     }
 
+    /**
+     * Implementation for a binding object
+     *
+     * @opensearch.internal
+     */
     static class ProviderBindingImpl<T> extends BindingImpl<Provider<T>> implements ProviderBinding<Provider<T>> {
         final BindingImpl<T> providedBinding;
 
@@ -286,6 +293,11 @@ class InjectorImpl implements Injector, Lookups {
         }
     }
 
+    /**
+     * Implementation for a converted constant
+     *
+     * @opensearch.internal
+     */
     private static class ConvertedConstantBindingImpl<T> extends BindingImpl<T> implements ConvertedConstantBinding<T> {
         final T value;
         final Provider<T> provider;
@@ -607,6 +619,11 @@ class InjectorImpl implements Injector, Lookups {
         return getBindingOrThrow(key, errors).getInternalFactory();
     }
 
+    /**
+     * Multimap for java bindings
+     *
+     * @opensearch.internal
+     */
     private static class BindingsMultimap {
         final Map<TypeLiteral<?>, List<Binding<?>>> multimap = new HashMap<>();
 

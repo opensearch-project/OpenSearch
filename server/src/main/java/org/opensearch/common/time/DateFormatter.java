@@ -46,6 +46,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+/**
+ * Base Date formatter
+ *
+ * @opensearch.internal
+ */
 public interface DateFormatter {
 
     /**

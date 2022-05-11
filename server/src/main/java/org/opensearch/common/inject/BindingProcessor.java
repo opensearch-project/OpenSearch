@@ -67,6 +67,8 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class BindingProcessor extends AbstractProcessor {
 

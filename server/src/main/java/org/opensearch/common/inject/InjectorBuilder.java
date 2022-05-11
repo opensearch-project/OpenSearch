@@ -56,6 +56,8 @@ import java.util.List;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class InjectorBuilder {
 

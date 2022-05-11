@@ -37,7 +37,11 @@ import org.opensearch.common.inject.internal.ToStringBuilder;
 import org.opensearch.common.inject.spi.Dependency;
 
 /**
+ * Constant factory.
+ *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 class ConstantFactory<T> implements InternalFactory<T> {
 

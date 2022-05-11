@@ -36,6 +36,11 @@ import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.spi.BindingTargetVisitor;
 import org.opensearch.common.inject.spi.ProviderKeyBinding;
 
+/**
+ * Linked provider binding implementation
+ *
+ * @opensearch.internal
+ */
 public final class LinkedProviderBindingImpl<T> extends BindingImpl<T> implements ProviderKeyBinding<T> {
 
     final Key<? extends Provider<? extends T>> providerKey;

@@ -59,6 +59,8 @@ import java.util.Objects;
 
 /**
  * A query that uses a script to compute documents' scores.
+ *
+ * @opensearch.internal
  */
 public class ScriptScoreQuery extends Query {
     private final Query subQuery;
@@ -244,6 +246,11 @@ public class ScriptScoreQuery extends Query {
         return Objects.hash(subQuery, script, minScore, indexName, shardId, indexVersion, queryName);
     }
 
+    /**
+     * A script scorer
+     *
+     * @opensearch.internal
+     */
     private static class ScriptScorer extends Scorer {
         private final ScoreScript scoreScript;
         private final Scorer subQueryScorer;
@@ -303,6 +310,11 @@ public class ScriptScoreQuery extends Query {
 
     }
 
+    /**
+     * A script scorable
+     *
+     * @opensearch.internal
+     */
     private static class ScriptScorable extends Scorable {
         private final ScoreScript scoreScript;
         private final Scorable subQueryScorer;
@@ -352,6 +364,8 @@ public class ScriptScoreQuery extends Query {
     /**
      * Use the {@link BulkScorer} of the sub-query,
      * as it may be significantly faster (e.g. BooleanScorer) than iterating over the scorer
+     *
+     * @opensearch.internal
      */
     private static class ScriptScoreBulkScorer extends BulkScorer {
         private final BulkScorer subQueryBulkScorer;

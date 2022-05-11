@@ -44,6 +44,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+/**
+ * Channel that can be closed
+ *
+ * @opensearch.internal
+ */
 public interface CloseableChannel extends Closeable {
 
     /**

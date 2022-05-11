@@ -35,6 +35,8 @@ package org.opensearch.common.inject.spi;
  * @param <V> any type to be returned by the visit method. Use {@link Void} with
  *            {@code return null} if no return type is needed.
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface BindingTargetVisitor<T, V> {
 

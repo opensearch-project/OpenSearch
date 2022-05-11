@@ -72,6 +72,8 @@ package org.opensearch.common.component;
  *  // perform close logic here
  * }
  * </pre>
+ *
+ * @opensearch.internal
  */
 public class Lifecycle {
 

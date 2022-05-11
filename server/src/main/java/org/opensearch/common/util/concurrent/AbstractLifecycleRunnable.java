@@ -40,6 +40,8 @@ import java.util.Objects;
  * {@code AbstractLifecycleRunnable} is a service-lifecycle aware {@link AbstractRunnable}.
  * <p>
  * This simplifies the running and rescheduling of {@link Lifecycle}-based {@code Runnable}s.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractLifecycleRunnable extends AbstractRunnable {
     /**

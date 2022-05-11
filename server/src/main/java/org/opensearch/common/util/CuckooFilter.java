@@ -74,6 +74,8 @@ import java.util.Random;
  * Proceedings of the 10th ACM International on Conference on emerging Networking Experiments and Technologies. ACM, 2014.
  *
  * https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf
+ *
+ * @opensearch.internal
  */
 public class CuckooFilter implements Writeable {
 

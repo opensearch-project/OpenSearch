@@ -55,6 +55,8 @@ import java.util.Locale;
 
 /**
  * Utility class for binary serializtion/deserialization of libs/geo classes
+ *
+ * @opensearch.internal
  */
 public final class GeometryIO {
 

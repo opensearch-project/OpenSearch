@@ -65,6 +65,8 @@ import static org.opensearch.common.inject.internal.MoreTypes.getRawType;
  *
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class InjectionPoint {
 

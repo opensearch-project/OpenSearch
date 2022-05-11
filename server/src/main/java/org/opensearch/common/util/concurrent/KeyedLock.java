@@ -46,7 +46,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * infinitely.
  * Note: this lock is reentrant
  *
- * */
+ * @opensearch.internal
+ */
 public final class KeyedLock<T> {
 
     private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();

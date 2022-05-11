@@ -48,6 +48,8 @@ import java.lang.reflect.Type;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class TypeConverterBindingProcessor extends AbstractProcessor {
 

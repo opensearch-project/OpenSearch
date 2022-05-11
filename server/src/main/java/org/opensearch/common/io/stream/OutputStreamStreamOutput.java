@@ -35,6 +35,11 @@ package org.opensearch.common.io.stream;
 import java.io.IOException;
 import java.io.OutputStream;
 
+/**
+ * Streaming output data
+ *
+ * @opensearch.internal
+ */
 public class OutputStreamStreamOutput extends StreamOutput {
 
     private final OutputStream out;

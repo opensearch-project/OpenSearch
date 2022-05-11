@@ -39,6 +39,11 @@ import org.joda.time.chrono.ISOChronology;
 
 import java.util.function.Function;
 
+/**
+ * Main date time unit class.
+ *
+ * @opensearch.internal
+ */
 public enum DateTimeUnit {
 
     WEEK_OF_WEEKYEAR((byte) 1, tz -> ISOChronology.getInstance(tz).weekOfWeekyear()),

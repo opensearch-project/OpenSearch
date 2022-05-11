@@ -42,6 +42,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 @Target(ElementType.METHOD)
 @Retention(RUNTIME)

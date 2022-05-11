@@ -32,6 +32,11 @@
 
 package org.opensearch.common.component;
 
+/**
+ * Base lifecycle listener.
+ *
+ * @opensearch.internal
+ */
 public abstract class LifecycleListener {
 
     public void beforeStart() {

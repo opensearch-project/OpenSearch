@@ -39,6 +39,8 @@ import org.opensearch.geometry.Rectangle;
 
 /**
  * Utility class that transforms OpenSearch geometry objects to the Lucene representation
+ *
+ * @opensearch.internal
  */
 public class GeoShapeUtils {
 

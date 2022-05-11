@@ -47,6 +47,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Builds a circle geometry
+ *
+ * @opensearch.internal
+ */
 public class CircleBuilder extends ShapeBuilder<Circle, org.opensearch.geometry.Circle, CircleBuilder> {
 
     public static final ParseField FIELD_RADIUS = new ParseField("radius");

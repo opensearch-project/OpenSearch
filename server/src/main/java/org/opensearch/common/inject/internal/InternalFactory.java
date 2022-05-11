@@ -35,6 +35,8 @@ import org.opensearch.common.inject.spi.Dependency;
  * Creates objects which will be injected.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public interface InternalFactory<T> {
 

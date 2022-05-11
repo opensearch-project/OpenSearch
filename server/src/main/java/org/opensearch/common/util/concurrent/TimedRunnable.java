@@ -37,6 +37,8 @@ import org.opensearch.ExceptionsHelper;
 /**
  * A class used to wrap a {@code Runnable} that allows capturing the time of the task since creation
  * through execution as well as only execution time.
+ *
+ * @opensearch.internal
  */
 class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     private final Runnable original;

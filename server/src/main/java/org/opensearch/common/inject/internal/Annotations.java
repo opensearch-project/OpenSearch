@@ -44,6 +44,8 @@ import java.lang.reflect.Member;
  * Annotation utilities.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class Annotations {
 

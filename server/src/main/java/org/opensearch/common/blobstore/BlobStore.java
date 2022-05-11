@@ -37,6 +37,8 @@ import java.util.Map;
 
 /**
  * An interface for storing blobs.
+ *
+ * @opensearch.internal
  */
 public interface BlobStore extends Closeable {
 

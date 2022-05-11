@@ -91,6 +91,8 @@ import java.util.regex.Pattern;
  * {@link #decrypt(char[])} with the keystore password, or an empty char array if
  * {@link #hasPassword()} is {@code false}.  Loading and decrypting should happen
  * in a single thread. Once decrypted, settings may be read in multiple threads.
+ *
+ * @opensearch.internal
  */
 public class KeyStoreWrapper implements SecureSettings {
 
@@ -100,7 +102,11 @@ public class KeyStoreWrapper implements SecureSettings {
         FILE
     }
 
-    /** An entry in the keystore. The bytes are opaque and interpreted based on the entry type. */
+    /**
+     * An entry in the keystore. The bytes are opaque and interpreted based on the entry type.
+     *
+     * @opensearch.internal
+     */
     private static class Entry {
         final byte[] bytes;
         final byte[] sha256Digest;
