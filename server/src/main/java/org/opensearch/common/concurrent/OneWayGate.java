@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Encapsulates logic for a one-way gate. Guarantees idempotency via the {@link AtomicBoolean} instance
  * and the return value of the {@link #close()} function.
+ *
+ * @opensearch.internal
  */
 public class OneWayGate {
 

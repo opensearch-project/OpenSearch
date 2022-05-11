@@ -43,6 +43,8 @@ import java.util.Locale;
 /**
  * Enum representing the relationship between a Query / Filter Shape and indexed Shapes
  * that will be used to determine if a Document should be matched or not
+ *
+ * @opensearch.internal
  */
 public enum ShapeRelation implements Writeable {
 

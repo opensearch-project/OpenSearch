@@ -39,6 +39,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 
+/**
+ * A bytes array.
+ *
+ * @opensearch.internal
+ */
 public final class BytesArray extends AbstractBytesReference {
 
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);

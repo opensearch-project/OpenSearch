@@ -39,6 +39,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A rate limiter designed for multiple concurrent users.
+ *
+ * @opensearch.internal
  */
 public class CombinedRateLimiter {
 

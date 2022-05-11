@@ -41,6 +41,11 @@ import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 
+/**
+ * Builds a point geometry
+ *
+ * @opensearch.internal
+ */
 public class PointBuilder extends ShapeBuilder<Point, org.opensearch.geometry.Point, PointBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
 

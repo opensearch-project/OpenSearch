@@ -39,6 +39,8 @@ import org.opensearch.index.shard.ShardId;
 /**
  * A {@link org.apache.lucene.index.FilterLeafReader} that exposes
  * OpenSearch internal per shard / index information like the shard ID.
+ *
+ * @opensearch.internal
  */
 public final class OpenSearchLeafReader extends SequentialStoredFieldsLeafReader {
 

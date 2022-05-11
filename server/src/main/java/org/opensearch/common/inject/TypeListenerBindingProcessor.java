@@ -36,6 +36,8 @@ import org.opensearch.common.inject.spi.TypeListenerBinding;
  * Handles {@link Binder#bindListener} commands.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class TypeListenerBindingProcessor extends AbstractProcessor {
 

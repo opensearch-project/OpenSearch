@@ -44,6 +44,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *
  * @author jmourits@google.com (Jerome Mourits)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 @BindingAnnotation
 @Target({ FIELD, PARAMETER, METHOD })

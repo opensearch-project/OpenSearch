@@ -42,6 +42,8 @@ import java.util.List;
  *
  * @author jmourits@google.com (Jerome Mourits)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class ParameterListKey {
 

@@ -103,6 +103,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final Comparator<SnapshotInfo> COMPARATOR = Comparator.comparing(SnapshotInfo::startTime)
         .thenComparing(SnapshotInfo::snapshotId);
 
+    /**
+     * Builds snapshot information
+     *
+     * @opensearch.internal
+     */
     public static final class SnapshotInfoBuilder {
         private String snapshotName = null;
         private String snapshotUUID = null;

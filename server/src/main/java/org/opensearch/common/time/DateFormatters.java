@@ -67,6 +67,11 @@ import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
+/**
+ * Utility of date formatters.
+ *
+ * @opensearch.internal
+ */
 public class DateFormatters {
     // when run with JDK8, WeekFields for Locale.ROOT would return WeekFields.of(DayOfWeek.SUNDAY,1)
     public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(DayOfWeek.MONDAY, 4);

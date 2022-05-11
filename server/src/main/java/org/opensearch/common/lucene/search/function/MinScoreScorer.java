@@ -39,8 +39,12 @@ import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 
-/** A {@link Scorer} that filters out documents that have a score that is
- *  lower than a configured constant. */
+/**
+ * A {@link Scorer} that filters out documents that have a score that is
+ * lower than a configured constant.
+ *
+ *  @opensearch.internal
+ */
 final class MinScoreScorer extends Scorer {
 
     private final Scorer in;

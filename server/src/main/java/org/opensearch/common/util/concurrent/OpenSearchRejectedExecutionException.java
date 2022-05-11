@@ -34,6 +34,11 @@ package org.opensearch.common.util.concurrent;
 
 import java.util.concurrent.RejectedExecutionException;
 
+/**
+ * Thrown when an execution is rejected
+ *
+ * @opensearch.internal
+ */
 public class OpenSearchRejectedExecutionException extends RejectedExecutionException {
 
     private final boolean isExecutorShutdown;

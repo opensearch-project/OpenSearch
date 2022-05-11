@@ -48,6 +48,8 @@ import java.util.Objects;
  * A unit class that encapsulates all in-exact search
  * parsing and conversion from similarities to edit distances
  * etc.
+ *
+ * @opensearch.internal
  */
 public final class Fuzziness implements ToXContentFragment, Writeable {
 

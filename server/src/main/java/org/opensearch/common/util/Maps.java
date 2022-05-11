@@ -35,6 +35,11 @@ package org.opensearch.common.util;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Map utility class.
+ *
+ * @opensearch.internal
+ */
 public class Maps {
 
     /**

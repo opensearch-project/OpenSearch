@@ -49,7 +49,11 @@ import static org.opensearch.common.recycler.Recyclers.concurrentDeque;
 import static org.opensearch.common.recycler.Recyclers.dequeFactory;
 import static org.opensearch.common.recycler.Recyclers.none;
 
-/** A recycler of fixed-size pages. */
+/**
+ * A recycler of fixed-size pages.
+ *
+ * @opensearch.internal
+ */
 public class PageCacheRecycler {
 
     public static final Setting<Type> TYPE_SETTING = new Setting<>(

@@ -37,6 +37,8 @@ import java.util.Set;
 
 /**
  * Format string for OpenSearch log messages.
+ *
+ * @opensearch.internal
  */
 public class LoggerMessageFormat {
 

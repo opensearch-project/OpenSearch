@@ -42,6 +42,11 @@ import java.util.Locale;
 
 import static java.util.stream.Collectors.toList;
 
+/**
+ * Utility for suggesting source of errors.
+ *
+ * @opensearch.internal
+ */
 public class SuggestingErrorOnUnknown implements ErrorOnUnknown {
     @Override
     public String errorMessage(String parserName, String unknownField, Iterable<String> candidates) {

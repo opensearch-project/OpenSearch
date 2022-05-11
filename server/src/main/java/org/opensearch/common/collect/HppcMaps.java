@@ -39,6 +39,11 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import java.util.Iterator;
 
+/**
+ * High performance maps
+ *
+ * @opensearch.internal
+ */
 public final class HppcMaps {
 
     private HppcMaps() {}

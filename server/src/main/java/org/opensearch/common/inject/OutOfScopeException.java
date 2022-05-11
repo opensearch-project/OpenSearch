@@ -35,6 +35,8 @@ package org.opensearch.common.inject;
  *
  * @author kevinb@google.com (Kevin Bourrillion)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class OutOfScopeException extends RuntimeException {
 

@@ -44,6 +44,8 @@ import java.util.function.BiConsumer;
 /**
  * This class provides helpers for {@link ObjectParser} that allow dealing with
  * classes outside of the xcontent dependencies.
+ *
+ * @opensearch.internal
  */
 public final class ObjectParserHelper<Value, Context> {
 

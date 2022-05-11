@@ -57,6 +57,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+/**
+ * Executors.
+ *
+ * @opensearch.internal
+ */
 public class OpenSearchExecutors {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OpenSearchExecutors.class);
@@ -337,6 +342,11 @@ public class OpenSearchExecutors {
         return new OpenSearchThreadFactory(namePrefix);
     }
 
+    /**
+     * A thread factory
+     *
+     * @opensearch.internal
+     */
     static class OpenSearchThreadFactory implements ThreadFactory {
 
         final ThreadGroup group;
@@ -363,6 +373,11 @@ public class OpenSearchExecutors {
      */
     private OpenSearchExecutors() {}
 
+    /**
+     * A scaling queue for executors
+     *
+     * @opensearch.internal
+     */
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
         ThreadPoolExecutor executor;
@@ -396,6 +411,8 @@ public class OpenSearchExecutors {
     /**
      * A handler for rejected tasks that adds the specified element to this queue,
      * waiting if necessary for space to become available.
+     *
+     * @opensearch.internal
      */
     static class ForceQueuePolicy implements XRejectedExecutionHandler {
 

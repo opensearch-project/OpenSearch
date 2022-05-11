@@ -165,6 +165,8 @@ import java.util.Set;
  * - refactor: moved common code into isNoiseWord()
  * - optimise: when no termvector support available - used maxNumTermsParsed to limit amount of tokenization
  * </pre>
+ *
+ * @opensearch.internal
  */
 public final class XMoreLikeThis {
 
@@ -1016,6 +1018,8 @@ public final class XMoreLikeThis {
 
     /**
      * PriorityQueue that orders words by score.
+     *
+     * @opensearch.internal
      */
     private static class FreqQ extends PriorityQueue<ScoreTerm> {
         FreqQ(int maxSize) {
@@ -1028,6 +1032,11 @@ public final class XMoreLikeThis {
         }
     }
 
+    /**
+     * A scored term
+     *
+     * @opensearch.internal
+     */
     private static class ScoreTerm {
         String word;
         String topField;
@@ -1048,6 +1057,8 @@ public final class XMoreLikeThis {
 
     /**
      * Use for frequencies and to avoid renewing Integers.
+     *
+     * @opensearch.internal
      */
     private static class Int {
         int x;

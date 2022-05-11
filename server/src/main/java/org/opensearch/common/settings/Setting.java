@@ -97,6 +97,8 @@ import java.util.stream.Stream;
  *     new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, Setting.Property.NodeScope);
  * }
  * </pre>
+ *
+ * @opensearch.internal
  */
 public class Setting<T> implements ToXContentObject {
 
@@ -773,6 +775,11 @@ public class Setting<T> implements ToXContentObject {
 
     }
 
+    /**
+     * An affix setting
+     *
+     * @opensearch.internal
+     */
     public static class AffixSetting<T> extends Setting<T> {
         private final AffixKey key;
         private final BiFunction<String, String, Setting<T>> delegateFactory;
@@ -1044,6 +1051,11 @@ public class Setting<T> implements ToXContentObject {
 
     }
 
+    /**
+     * A group setting
+     *
+     * @opensearch.internal
+     */
     private static class GroupSetting extends Setting<Settings> {
         private final String key;
         private final Consumer<Settings> validator;
@@ -1918,6 +1930,11 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
+    /**
+     * A list setting
+     *
+     * @opensearch.internal
+     */
     private static class ListSetting<T> extends Setting<List<T>> {
 
         private final Function<Settings, List<String>> defaultStringValue;
@@ -2234,6 +2251,11 @@ public class Setting<T> implements ToXContentObject {
         boolean match(String key);
     }
 
+    /**
+     * A simple key for a setting
+     *
+     * @opensearch.internal
+     */
     public static class SimpleKey implements Key {
         protected final String key;
 

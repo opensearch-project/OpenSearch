@@ -36,6 +36,8 @@ import java.io.IOException;
 
 /**
  * Wraps a {@link StreamInput} and associates it with a {@link NamedWriteableRegistry}
+ *
+ * @opensearch.internal
  */
 public class NamedWriteableAwareStreamInput extends FilterStreamInput {
 

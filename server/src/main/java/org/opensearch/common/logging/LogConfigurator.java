@@ -80,6 +80,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
+/**
+ * Configures the logger
+ *
+ * @opensearch.internal
+ */
 public class LogConfigurator {
 
     /*

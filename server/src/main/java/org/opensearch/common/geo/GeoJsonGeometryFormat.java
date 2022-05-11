@@ -39,6 +39,11 @@ import org.opensearch.geometry.Geometry;
 
 import java.io.IOException;
 
+/**
+ * Geometry format for geojson
+ *
+ * @opensearch.internal
+ */
 public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
     public static final String NAME = "geojson";
 

@@ -40,6 +40,8 @@ import java.util.function.LongSupplier;
 
 /**
  * An abstraction over date math parsing to allow different implementation for joda and java time.
+ *
+ * @opensearch.internal
  */
 public interface DateMathParser {
 

@@ -76,6 +76,8 @@ import static org.opensearch.common.inject.internal.MoreTypes.canonicalize;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public class TypeLiteral<T> {
 

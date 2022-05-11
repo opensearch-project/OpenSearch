@@ -79,6 +79,8 @@ import java.util.function.ToLongBiFunction;
  *
  * @param <K> The type of the keys
  * @param <V> The type of the values
+ *
+ * @opensearch.internal
  */
 public class Cache<K, V> {
 
@@ -173,6 +175,11 @@ public class Cache<K, V> {
         DELETED
     }
 
+    /**
+     * Entry in a cache
+     *
+     * @opensearch.internal
+     */
     static class Entry<K, V> {
         final K key;
         final V value;
@@ -196,6 +203,8 @@ public class Cache<K, V> {
      *
      * @param <K> the type of the keys
      * @param <V> the type of the values
+     *
+     * @opensearch.internal
      */
     private static class CacheSegment<K, V> {
         // read/write lock protecting mutations to the segment
@@ -329,6 +338,11 @@ public class Cache<K, V> {
             }
         }
 
+        /**
+         * Segment statistics
+         *
+         * @opensearch.internal
+         */
         private static class SegmentStats {
             private final LongAdder hits = new LongAdder();
             private final LongAdder misses = new LongAdder();
@@ -717,6 +731,11 @@ public class Cache<K, V> {
         return new CacheStats(hits, misses, evictions);
     }
 
+    /**
+     * Cache statistics
+     *
+     * @opensearch.internal
+     */
     public static class CacheStats {
         private long hits;
         private long misses;

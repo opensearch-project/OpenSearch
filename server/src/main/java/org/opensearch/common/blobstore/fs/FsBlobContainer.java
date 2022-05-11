@@ -73,6 +73,8 @@ import static java.util.Collections.unmodifiableMap;
  * Note that the methods in this implementation of {@link org.opensearch.common.blobstore.BlobContainer} may
  * additionally throw a {@link java.lang.SecurityException} if the configured {@link java.lang.SecurityManager}
  * does not permit read and/or write access to the underlying files.
+ *
+ * @opensearch.internal
  */
 public class FsBlobContainer extends AbstractBlobContainer {
 

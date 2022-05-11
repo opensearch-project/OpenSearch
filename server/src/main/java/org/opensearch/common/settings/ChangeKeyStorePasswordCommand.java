@@ -40,6 +40,8 @@ import org.opensearch.env.Environment;
 
 /**
  * A sub-command for the keystore cli which changes the password.
+ *
+ * @opensearch.internal
  */
 class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
 

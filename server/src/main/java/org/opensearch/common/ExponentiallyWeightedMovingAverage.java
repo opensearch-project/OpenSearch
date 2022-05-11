@@ -37,6 +37,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Implements exponentially weighted moving averages (commonly abbreviated EWMA) for a single value.
  * This class is safe to share between threads.
+ *
+ * @opensearch.internal
  */
 public class ExponentiallyWeightedMovingAverage {
 

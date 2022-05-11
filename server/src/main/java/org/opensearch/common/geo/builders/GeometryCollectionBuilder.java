@@ -49,6 +49,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Builds a geometry collection
+ *
+ * @opensearch.internal
+ */
 public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryCollection<Geometry>, GeometryCollectionBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;

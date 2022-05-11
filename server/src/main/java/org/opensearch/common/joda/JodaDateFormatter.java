@@ -46,6 +46,11 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * Joda date formatter.
+ *
+ * @opensearch.internal
+ */
 public class JodaDateFormatter implements DateFormatter {
 
     final String pattern;

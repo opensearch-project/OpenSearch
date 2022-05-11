@@ -49,6 +49,8 @@ import java.util.function.Supplier;
  * by a single worker. A worker in this context can be any caller of the {@link #put(Object, Consumer)} method since it will
  * hijack a worker if nobody else is currently processing queued items. If the internal queue has reached it's capacity incoming threads
  * might be blocked until other items are processed
+ *
+ * @opensearch.internal
  */
 public abstract class AsyncIOProcessor<Item> {
     private final Logger logger;

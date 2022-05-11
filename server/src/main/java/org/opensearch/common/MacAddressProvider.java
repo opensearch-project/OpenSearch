@@ -36,6 +36,11 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.Enumeration;
 
+/**
+ * Provider of MAC addressing
+ *
+ * @opensearch.internal
+ */
 public class MacAddressProvider {
 
     private static byte[] getMacAddress() throws SocketException {

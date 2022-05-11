@@ -37,6 +37,8 @@ import java.io.IOException;
 
 /**
  * IndexOutput that delegates all calls to another IndexOutput
+ *
+ * @opensearch.internal
  */
 public class FilterIndexOutput extends IndexOutput {
 

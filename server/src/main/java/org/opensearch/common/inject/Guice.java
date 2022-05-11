@@ -57,6 +57,8 @@ import java.util.Arrays;
  *       }
  *     }
  * </pre>
+ *
+ * @opensearch.internal
  */
 public final class Guice {
 

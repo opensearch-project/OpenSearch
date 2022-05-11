@@ -60,6 +60,8 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class Modules {
     private Modules() {}
@@ -277,6 +279,11 @@ public final class Modules {
         }
     }
 
+    /**
+     * A module writer
+     *
+     * @opensearch.internal
+     */
     private static class ModuleWriter extends DefaultElementVisitor<Void> {
         protected final Binder binder;
 
