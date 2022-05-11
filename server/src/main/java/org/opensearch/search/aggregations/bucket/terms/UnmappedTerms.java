@@ -57,6 +57,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     /**
      * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
+     *
+     * @opensearch.internal
      */
     protected abstract static class Bucket extends InternalTerms.Bucket<Bucket> {
         private Bucket(

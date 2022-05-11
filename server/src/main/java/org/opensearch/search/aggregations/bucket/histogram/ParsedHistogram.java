@@ -75,6 +75,11 @@ public class ParsedHistogram extends ParsedMultiBucketAggregation<ParsedHistogra
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a parsed histogram
+     *
+     * @opensearch.internal
+     */
     static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
 
         private Double key;

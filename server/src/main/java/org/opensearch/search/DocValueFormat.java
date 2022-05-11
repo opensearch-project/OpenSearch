@@ -201,6 +201,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
     }
 
+    /**
+     * Date time doc value format
+     *
+     * @opensearch.internal
+     */
     final class DateTime implements DocValueFormat {
 
         public static final String NAME = "date_time";
@@ -406,6 +411,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
+    /**
+     * Decimal doc value format
+     *
+     * @opensearch.internal
+     */
     final class Decimal implements DocValueFormat {
 
         public static final String NAME = "decimal";

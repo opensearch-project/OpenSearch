@@ -49,6 +49,11 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
 
     public static final String OTHER_SUBTYPE = "other";
 
+    /**
+     * Builder for the Agg usage service to track telemetry
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private final Map<String, Map<String, LongAdder>> aggs;
 

@@ -68,6 +68,11 @@ public class ParsedGeoDistance extends ParsedRange {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a geo distance
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedRange.ParsedBucket {
 
         static ParsedBucket fromXContent(final XContentParser parser, final boolean keyed) throws IOException {

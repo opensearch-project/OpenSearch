@@ -388,6 +388,8 @@ public class QueryPhase {
 
     /**
      * The exception being raised when search timeout is reached.
+     *
+     * @opensearch.internal
      */
     public static class TimeExceededException extends RuntimeException {
         private static final long serialVersionUID = 1L;
@@ -395,6 +397,8 @@ public class QueryPhase {
 
     /**
      * Default {@link QueryPhaseSearcher} implementation which delegates to the {@link QueryPhase}.
+     *
+     * @opensearch.internal
      */
     public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
         /**

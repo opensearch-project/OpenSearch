@@ -460,6 +460,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return NAME;
     }
 
+    /**
+     * Sort type for scripting
+     *
+     * @opensearch.internal
+     */
     public enum ScriptSortType implements Writeable {
         /** script sort for a string value **/
         STRING,

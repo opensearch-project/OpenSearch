@@ -68,6 +68,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         Histogram,
         HistogramFactory {
 
+    /**
+     * Bucket for an internal date histogram agg
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
         final long key;
@@ -170,6 +175,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         }
     }
 
+    /**
+     * Information about an empty bucket
+     *
+     * @opensearch.internal
+     */
     static class EmptyBucketInfo {
 
         final Rounding rounding;

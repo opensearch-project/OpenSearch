@@ -82,6 +82,8 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
 
     /**
      * An iterator for buckets inside a particular {@code owningBucketOrd}.
+     *
+     * @opensearch.internal
      */
     public interface BucketOrdsEnum {
         /**
@@ -122,6 +124,8 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
 
     /**
      * Implementation that only works if it is collecting from a single bucket.
+     *
+     * @opensearch.internal
      */
     private static class FromSingle extends BytesKeyedBucketOrds {
         private final BytesRefHash ords;
@@ -177,6 +181,8 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
 
     /**
      * Implementation that works properly when collecting from many buckets.
+     *
+     * @opensearch.internal
      */
     private static class FromMany extends BytesKeyedBucketOrds {
         // TODO we can almost certainly do better here by building something fit for purpose rather than trying to lego together stuff

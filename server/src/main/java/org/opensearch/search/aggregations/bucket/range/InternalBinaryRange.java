@@ -61,6 +61,11 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     implements
         Range {
 
+    /**
+     * Bucket for a binary range agg
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
         private final transient DocValueFormat format;

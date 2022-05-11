@@ -63,6 +63,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Parses the aggregation request and creates the appropriate aggregator factory for it.
      *
      * @see AggregationBuilder
+     *
+     * @opensearch.internal
      */
     @FunctionalInterface
     public interface Parser {
@@ -157,6 +159,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Compare two buckets by their ordinal.
+     *
+     * @opensearch.internal
      */
     @FunctionalInterface
     public interface BucketComparator {
@@ -204,7 +208,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public void collectDebugInfo(BiConsumer<String, Object> add) {}
 
-    /** Aggregation mode for sub aggregations. */
+    /**
+     * Aggregation mode for sub aggregations.
+     *
+     * @opensearch.internal
+     */
     public enum SubAggCollectionMode implements Writeable {
 
         /**

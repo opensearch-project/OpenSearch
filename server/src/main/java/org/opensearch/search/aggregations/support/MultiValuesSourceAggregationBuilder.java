@@ -59,6 +59,11 @@ import java.util.Objects;
 public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValuesSourceAggregationBuilder<AB>> extends
     AbstractAggregationBuilder<AB> {
 
+    /**
+     * Base leaf only class
+     *
+     * @opensearch.internal
+     */
     public abstract static class LeafOnly<AB extends MultiValuesSourceAggregationBuilder<AB>> extends MultiValuesSourceAggregationBuilder<
         AB> {
 

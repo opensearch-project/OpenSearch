@@ -66,6 +66,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     InternalAutoDateHistogram,
     InternalAutoDateHistogram.Bucket> implements Histogram, HistogramFactory {
 
+    /**
+     * Bucket for the internal auto date histogram agg
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
         final long key;
@@ -157,6 +162,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         }
     }
 
+    /**
+     * Information about the bucket
+     *
+     * @opensearch.internal
+     */
     static class BucketInfo {
 
         final RoundingInfo[] roundingInfos;
@@ -422,6 +432,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return new InternalAutoDateHistogram.Bucket(buckets.get(0).key, docCount, format, aggs);
     }
 
+    /**
+     * The result from a bucket reduce
+     *
+     * @opensearch.internal
+     */
     private static class BucketReduceResult {
         final List<Bucket> buckets;
         final int roundingIdx;

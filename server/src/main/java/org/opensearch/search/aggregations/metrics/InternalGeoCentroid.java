@@ -177,6 +177,11 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         }
     }
 
+    /**
+     * Fields for geo centroid
+     *
+     * @opensearch.internal
+     */
     static class Fields {
         static final ParseField CENTROID = new ParseField("location");
         static final ParseField COUNT = new ParseField("count");

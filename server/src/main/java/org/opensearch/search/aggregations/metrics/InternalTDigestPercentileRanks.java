@@ -110,6 +110,11 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         return percentileRank * 100;
     }
 
+    /**
+     * Iter for the TDigest percentile ranks agg
+     *
+     * @opensearch.internal
+     */
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;

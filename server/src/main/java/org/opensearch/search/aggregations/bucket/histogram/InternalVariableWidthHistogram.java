@@ -62,8 +62,18 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     InternalVariableWidthHistogram,
     InternalVariableWidthHistogram.Bucket> implements Histogram, HistogramFactory {
 
+    /**
+     * Bucket for an internal variable width histogram
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
+        /**
+         * Bounds of the bucket
+         *
+         * @opensearch.internal
+         */
         public static class BucketBounds {
             public double min;
             public double max;
@@ -219,6 +229,11 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
     }
 
+    /**
+     * Information about an empty bucket
+     *
+     * @opensearch.internal
+     */
     static class EmptyBucketInfo {
 
         final InternalAggregations subAggregations;

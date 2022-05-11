@@ -128,6 +128,11 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
         );
     }
 
+    /**
+     * Parsed bucket for significant values
+     *
+     * @opensearch.internal
+     */
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements SignificantTerms.Bucket {
 
         protected long subsetDf;

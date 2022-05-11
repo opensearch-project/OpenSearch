@@ -330,6 +330,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
         return results;
     }
 
+    /**
+     * A bucket builder for a fixed count
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     protected interface BucketBuilderForFixedCount<B> {
         B build(int offsetInOwningOrd, int docCount, InternalAggregations subAggregationResults);
@@ -355,6 +360,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
         return results;
     }
 
+    /**
+     * A single bucket result builder
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     protected interface SingleBucketResultBuilder {
         InternalAggregation build(long owningBucketOrd, InternalAggregations subAggregationResults);
@@ -415,11 +425,21 @@ public abstract class BucketsAggregator extends AggregatorBase {
         return results;
     }
 
+    /**
+     * A bucket builder for a variable
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     protected interface BucketBuilderForVariable<B> {
         B build(long bucketValue, int docCount, InternalAggregations subAggregationResults);
     }
 
+    /**
+     * A result builder for a bucket variable
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     protected interface ResultBuilderForVariable<B> {
         InternalAggregation build(long owninigBucketOrd, List<B> buckets);
