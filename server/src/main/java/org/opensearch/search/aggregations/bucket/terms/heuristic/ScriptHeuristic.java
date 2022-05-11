@@ -65,8 +65,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     private final Script script;
 
-    // This class holds an executable form of the script with private variables ready for execution
-    // on a single search thread.
+    /**
+     * This class holds an executable form of the script with private variables ready for execution
+     * on a single search thread.
+     *
+     * @opensearch.internal
+     */
     static class ExecutableScriptHeuristic extends ScriptHeuristic {
         private final LongAccessor subsetSizeHolder;
         private final LongAccessor supersetSizeHolder;
@@ -178,6 +182,11 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         return Objects.equals(script, other.script);
     }
 
+    /**
+     * Accesses long values
+     *
+     * @opensearch.internal
+     */
     public final class LongAccessor extends Number {
         public long value;
 

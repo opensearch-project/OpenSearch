@@ -67,6 +67,11 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     protected final Type type;
     protected final String name;
 
+    /**
+     * Type of context mapping
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         CATEGORY,
         GEO;
@@ -189,6 +194,11 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
         }
     }
 
+    /**
+     * The internal query context
+     *
+     * @opensearch.internal
+     */
     public static class InternalQueryContext {
         public final String context;
         public final int boost;

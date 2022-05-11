@@ -58,6 +58,11 @@ import java.util.Locale;
  */
 public class RecoveryState implements ToXContentFragment, Writeable {
 
+    /**
+     * The stage of the recovery state
+     *
+     * @opensearch.internal
+     */
     public enum Stage {
         INIT((byte) 0),
 
@@ -328,6 +333,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return builder;
     }
 
+    /**
+     * Fields used in the recovery state
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String ID = "id";
         static final String TYPE = "type";
@@ -356,6 +366,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String PERCENT = "percent";
     }
 
+    /**
+     * Verifys the lucene index
+     *
+     * @opensearch.internal
+     */
     public static class VerifyIndex extends ReplicationTimer implements ToXContentFragment, Writeable {
         private volatile long checkIndexTime;
 
@@ -393,6 +408,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
+    /**
+     * The translog
+     *
+     * @opensearch.internal
+     */
     public static class Translog extends ReplicationTimer implements ToXContentFragment, Writeable {
         public static final int UNKNOWN = -1;
 

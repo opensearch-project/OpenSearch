@@ -72,6 +72,11 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
 
+    /**
+     * A keyed filter
+     *
+     * @opensearch.internal
+     */
     protected static class KeyedFilter implements Writeable, ToXContentFragment {
         private final String key;
         private final QueryBuilder filter;

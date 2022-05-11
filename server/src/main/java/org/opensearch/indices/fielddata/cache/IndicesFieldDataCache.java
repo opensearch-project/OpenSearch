@@ -125,6 +125,11 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
     }
 
+    /**
+     * Computes a weight based on ramBytesUsed
+     *
+     * @opensearch.internal
+     */
     public static class FieldDataWeigher implements ToLongBiFunction<Key, Accountable> {
         @Override
         public long applyAsLong(Key key, Accountable ramUsage) {
@@ -135,6 +140,8 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     /**
      * A specific cache instance for the relevant parameters of it (index, fieldNames, fieldType).
+     *
+     * @opensearch.internal
      */
     static class IndexFieldCache implements IndexFieldDataCache, IndexReader.ClosedListener {
         private final Logger logger;
@@ -242,6 +249,11 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
     }
 
+    /**
+     * Key for the indices field data cache
+     *
+     * @opensearch.internal
+     */
     public static class Key {
         public final IndexFieldCache indexCache;
         public final IndexReader.CacheKey readerKey;

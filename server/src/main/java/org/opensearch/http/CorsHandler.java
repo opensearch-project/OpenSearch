@@ -261,6 +261,11 @@ public class CorsHandler {
         response.addHeader(ACCESS_CONTROL_MAX_AGE, Long.toString(config.maxAge));
     }
 
+    /**
+     * The cors handler configuration
+     *
+     * @opensearch.internal
+     */
     public static class Config {
 
         private final boolean enabled;

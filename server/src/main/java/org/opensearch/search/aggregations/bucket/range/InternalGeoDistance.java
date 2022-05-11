@@ -50,6 +50,11 @@ import java.util.Map;
 public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucket, InternalGeoDistance> {
     public static final Factory FACTORY = new Factory();
 
+    /**
+     * Bucket for a geo distance range
+     *
+     * @opensearch.internal
+     */
     static class Bucket extends InternalRange.Bucket {
 
         Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed) {
@@ -66,6 +71,11 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
     }
 
+    /**
+     * Factory for a geo distance bucket
+     *
+     * @opensearch.internal
+     */
     public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
         @Override
         public ValuesSourceType getValueSourceType() {

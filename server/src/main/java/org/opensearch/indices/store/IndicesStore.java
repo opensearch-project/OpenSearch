@@ -452,6 +452,11 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     }
 
+    /**
+     * A shard active request
+     *
+     * @opensearch.internal
+     */
     private static class ShardActiveRequest extends TransportRequest {
         protected TimeValue timeout = null;
         private ClusterName clusterName;
@@ -483,6 +488,11 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         }
     }
 
+    /**
+     * The shard active response
+     *
+     * @opensearch.internal
+     */
     private static class ShardActiveResponse extends TransportResponse {
 
         private final boolean shardActive;

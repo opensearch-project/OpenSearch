@@ -59,6 +59,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         Range {
     static final Factory FACTORY = new Factory();
 
+    /**
+     * Bucket for a range
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
         protected final transient boolean keyed;
@@ -211,6 +216,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
     }
 
+    /**
+     * Factory for a range
+     *
+     * @opensearch.internal
+     */
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
         public ValuesSourceType getValueSourceType() {
             return CoreValuesSourceType.NUMERIC;

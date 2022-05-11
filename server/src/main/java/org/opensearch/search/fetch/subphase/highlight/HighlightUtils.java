@@ -80,6 +80,11 @@ public final class HighlightUtils {
         return fetcher.fetchValues(hitContext.sourceLookup());
     }
 
+    /**
+     * Encoders for the highlighters
+     *
+     * @opensearch.internal
+     */
     public static class Encoders {
         public static final Encoder DEFAULT = new DefaultEncoder();
         public static final Encoder HTML = new SimpleHTMLEncoder();

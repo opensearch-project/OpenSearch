@@ -79,6 +79,11 @@ public class SearchHighlightContext {
         return _field == null ? false : _field.fieldOptions.forceSource;
     }
 
+    /**
+     * Field for the search highlight context
+     *
+     * @opensearch.internal
+     */
     public static class Field {
         private final String field;
         private final FieldOptions fieldOptions;
@@ -99,6 +104,11 @@ public class SearchHighlightContext {
         }
     }
 
+    /**
+     * Field options for the search highlight context
+     *
+     * @opensearch.internal
+     */
     public static class FieldOptions {
 
         // Field options that default to null or -1 are often set to their real default in HighlighterParseElement#parse

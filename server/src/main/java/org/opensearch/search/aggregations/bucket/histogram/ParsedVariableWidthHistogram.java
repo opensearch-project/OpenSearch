@@ -84,6 +84,11 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a parsed variable width histogram
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
         private Double key;
 

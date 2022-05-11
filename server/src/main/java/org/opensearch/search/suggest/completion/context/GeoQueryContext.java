@@ -177,6 +177,11 @@ public final class GeoQueryContext implements ToXContentObject {
         return builder;
     }
 
+    /**
+     * Builder for the geo context
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private GeoPoint geoPoint;
         private int boost = 1;

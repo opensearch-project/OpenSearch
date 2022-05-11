@@ -363,6 +363,11 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         return Objects.hash(super.hashCode(), precision, fieldName);
     }
 
+    /**
+     * Builder for geo context mapping
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ContextBuilder<GeoContextMapping> {
 
         private int precision = DEFAULT_PRECISION;

@@ -49,6 +49,11 @@ import java.util.Map;
  */
 public interface HttpRequest {
 
+    /**
+     * Which HTTP version being used
+     *
+     * @opensearch.internal
+     */
     enum HttpVersion {
         HTTP_1_0,
         HTTP_1_1

@@ -50,6 +50,11 @@ import java.util.function.LongConsumer;
  */
 public class CompositeValuesSourceConfig {
 
+    /**
+     * A single dimension provider
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface SingleDimensionValuesSourceProvider {
         SingleDimensionValuesSource<?> createValuesSource(

@@ -176,6 +176,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         cache.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
     }
 
+    /**
+     * Loader for the request cache
+     *
+     * @opensearch.internal
+     */
     private static class Loader implements CacheLoader<Key, BytesReference> {
 
         private final CacheEntity entity;
@@ -238,6 +243,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         void onRemoval(RemovalNotification<Key, BytesReference> notification);
     }
 
+    /**
+     * Unique key for the cache
+     *
+     * @opensearch.internal
+     */
     static class Key implements Accountable {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 

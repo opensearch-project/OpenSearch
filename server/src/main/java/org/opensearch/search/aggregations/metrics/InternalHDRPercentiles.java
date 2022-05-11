@@ -104,6 +104,11 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
         return new InternalHDRPercentiles(name, keys, merged, keyed, format, metadata);
     }
 
+    /**
+     * Iterator for HDR percentiles
+     *
+     * @opensearch.internal
+     */
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] percents;

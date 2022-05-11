@@ -98,6 +98,11 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         lc.addEncoded(bucket, encoded);
     }
 
+    /**
+     * The plus plus
+     *
+     * @opensearch.internal
+     */
     private static class LinearCounting extends AbstractLinearCounting implements Releasable {
 
         private final int capacity;
@@ -189,6 +194,11 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         }
     }
 
+    /**
+     * The plus plus iterator
+     *
+     * @opensearch.internal
+     */
     private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
 
         private final LinearCounting lc;

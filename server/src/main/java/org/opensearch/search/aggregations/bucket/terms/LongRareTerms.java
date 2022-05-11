@@ -52,6 +52,11 @@ import java.util.Objects;
 public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRareTerms.Bucket> {
     public static final String NAME = "lrareterms";
 
+    /**
+     * Bucket for rare long valued terms
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalRareTerms.Bucket<Bucket> {
         long term;
 

@@ -77,6 +77,11 @@ import java.util.Map;
  */
 class TopHitsAggregator extends MetricsAggregator {
 
+    /**
+     * Collectors for top hits
+     *
+     * @opensearch.internal
+     */
     private static class Collectors {
         public final TopDocsCollector<?> topDocsCollector;
         public final MaxScoreCollector maxScoreCollector;
