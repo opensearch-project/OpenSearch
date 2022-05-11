@@ -75,7 +75,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testRecoverAfterNodes() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start node (1)");
         Client clientNode1 = startNode(Settings.builder().put("gateway.recover_after_nodes", 3));
         assertThat(
@@ -128,7 +128,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testRecoverAfterMasterNodes() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start master_node (1)");
         Client master1 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(
@@ -219,7 +219,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testRecoverAfterDataNodes() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start master_node (1)");
         Client master1 = startNode(Settings.builder().put("gateway.recover_after_data_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(

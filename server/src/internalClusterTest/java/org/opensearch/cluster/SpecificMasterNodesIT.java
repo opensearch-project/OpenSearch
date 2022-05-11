@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
 
     public void testSimpleOnlyMasterNodeElection() throws IOException {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start data node / non master node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
@@ -160,7 +160,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testElectOnlyBetweenMasterNodes() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start data node / non master node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
@@ -312,7 +312,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testAliasFilterValidation() {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start master node / non data");
         internalCluster().startClusterManagerOnlyNode();
 

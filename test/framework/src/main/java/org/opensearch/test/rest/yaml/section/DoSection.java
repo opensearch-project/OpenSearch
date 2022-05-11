@@ -375,7 +375,7 @@ public class DoSection implements ExecutableSection {
                     )) {
                     /*
                      * This warning header will come back in the vast majority of our tests that create an index when running against an
-                     * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
+                     * older cluster-manager. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
                      */
                     continue;
                 }

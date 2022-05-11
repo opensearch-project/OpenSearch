@@ -69,7 +69,7 @@ public class MockBigArrays extends BigArrays {
         final Map<Object, Object> masterCopy = new HashMap<>(ACQUIRED_ARRAYS);
         if (!masterCopy.isEmpty()) {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
-            // and releasing arrays, lets make sure that after a reasonable timeout, all master
+            // and releasing arrays, lets make sure that after a reasonable timeout, all cluster-manager
             // copy (snapshot) have been released
             try {
                 assertBusy(() -> assertTrue(Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet())));

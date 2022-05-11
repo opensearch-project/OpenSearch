@@ -76,11 +76,11 @@ public class NetworkDisruptionIT extends OpenSearchIntegTestCase {
     /**
      * Creates 3 to 5 mixed-node cluster and splits it into 2 parts.
      * The first part is guaranteed to have at least the majority of the nodes,
-     * so that master could be elected on this side.
+     * so that cluster-manager could be elected on this side.
      */
     private Tuple<Set<String>, Set<String>> prepareDisruptedCluster() {
         int numOfNodes = randomIntBetween(3, 5);
-        internalCluster().setBootstrapMasterNodeIndex(numOfNodes - 1);
+        internalCluster().setBootstrapClusterManagerNodeIndex(numOfNodes - 1);
         Set<String> nodes = new HashSet<>(internalCluster().startNodes(numOfNodes, DISRUPTION_TUNED_SETTINGS));
         ensureGreen();
         assertThat(nodes.size(), greaterThanOrEqualTo(3));
@@ -127,7 +127,7 @@ public class NetworkDisruptionIT extends OpenSearchIntegTestCase {
     }
 
     public void testTransportRespondsEventually() throws InterruptedException {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(3, 5));
         final NetworkDisruption.DisruptedLinks disruptedLinks;
         if (randomBoolean()) {

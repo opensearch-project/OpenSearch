@@ -144,14 +144,14 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             final List<HttpHost> hosts = getClusterHosts();
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
             final Version minVersion = versionVersionTuple.v1();
-            final Version masterVersion = versionVersionTuple.v2();
+            final Version clusterManagerVersion = versionVersionTuple.v2();
             logger.info(
                 "initializing client, minimum OpenSearch version [{}], master version, [{}], hosts {}",
                 minVersion,
-                masterVersion,
+                clusterManagerVersion,
                 hosts
             );
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, minVersion, masterVersion);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, minVersion, clusterManagerVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             final String[] denylist = resolvePathsProperty(REST_TESTS_DENYLIST, null);
@@ -179,9 +179,9 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         final RestClient restClient,
         final List<HttpHost> hosts,
         final Version esVersion,
-        final Version masterVersion
+        final Version clusterManagerVersion
     ) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, clusterManagerVersion, this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass
@@ -343,15 +343,15 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         String nodesCatResponse = restTestResponse.getBodyAsString();
         String[] split = nodesCatResponse.split("\n");
         Version version = null;
-        Version masterVersion = null;
+        Version clusterManagerVersion = null;
         for (String perNode : split) {
-            final String[] versionAndMaster = perNode.split("\\s+");
-            assert versionAndMaster.length == 2 : "invalid line: " + perNode + " length: " + versionAndMaster.length;
-            final Version currentVersion = Version.fromString(versionAndMaster[0]);
-            final boolean master = versionAndMaster[1].trim().equals("*");
-            if (master) {
-                assert masterVersion == null;
-                masterVersion = currentVersion;
+            final String[] versionAndClusterManager = perNode.split("\\s+");
+            assert versionAndClusterManager.length == 2 : "invalid line: " + perNode + " length: " + versionAndClusterManager.length;
+            final Version currentVersion = Version.fromString(versionAndClusterManager[0]);
+            final boolean clusterManager = versionAndClusterManager[1].trim().equals("*");
+            if (clusterManager) {
+                assert clusterManagerVersion == null;
+                clusterManagerVersion = currentVersion;
             }
             if (version == null) {
                 version = currentVersion;
@@ -359,7 +359,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
                 version = currentVersion;
             }
         }
-        return new Tuple<>(version, masterVersion);
+        return new Tuple<>(version, clusterManagerVersion);
     }
 
     protected RequestOptions getCatNodesVersionMasterRequestOptions() {

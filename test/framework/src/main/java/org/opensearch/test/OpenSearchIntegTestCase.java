@@ -707,7 +707,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Creates a disruption that isolates the current master node from all other nodes in the cluster.
+     * Creates a disruption that isolates the current cluster-manager node from all other nodes in the cluster.
      *
      * @param disruptionType type of disruption to create
      * @return disruption
@@ -949,12 +949,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .waitForNoRelocatingShards(true)
             .waitForNoInitializingShards(waitForNoInitializingShards)
             // We currently often use ensureGreen or ensureYellow to check whether the cluster is back in a good state after shutting down
-            // a node. If the node that is stopped is the master node, another node will become master and publish a cluster state where it
-            // is master but where the node that was stopped hasn't been removed yet from the cluster state. It will only subsequently
-            // publish a second state where the old master is removed. If the ensureGreen/ensureYellow is timed just right, it will get to
-            // execute before the second cluster state update removes the old master and the condition ensureGreen / ensureYellow will
+            // a node. If the node that is stopped is the cluster-manager node, another node will become cluster-manager and publish a cluster state where it
+            // is cluster-manager but where the node that was stopped hasn't been removed yet from the cluster state. It will only subsequently
+            // publish a second state where the old cluster-manager is removed. If the ensureGreen/ensureYellow is timed just right, it will get to
+            // execute before the second cluster state update removes the old cluster-manager and the condition ensureGreen / ensureYellow will
             // trivially hold if it held before the node was shut down. The following "waitForNodes" condition ensures that the node has
-            // been removed by the master so that the health check applies to the set of nodes we expect to be part of the cluster.
+            // been removed by the cluster-manager so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
@@ -1085,13 +1085,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Verifies that all nodes that have the same version of the cluster state as master have same cluster state
+     * Verifies that all nodes that have the same version of the cluster state as cluster-manager have same cluster state
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
-            final Client masterClient = client();
-            ClusterState masterClusterState = masterClient.admin().cluster().prepareState().all().get().getState();
+            final Client clusterManagerClient = client();
+            ClusterState masterClusterState = clusterManagerClient.admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
             masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
@@ -1105,8 +1105,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, namedWriteableRegistry);
                 final Map<String, Object> localStateMap = convertToMap(localClusterState);
                 final int localClusterStateSize = localClusterState.toString().length();
-                // Check that the non-master node has the same version of the cluster state as the master and
-                // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
+                // Check that the non-cluster-manager node has the same version of the cluster state as the cluster-manager and
+                // that the cluster-manager node matches the cluster-manager (otherwise there is no requirement for the cluster state to match)
                 if (masterClusterState.version() == localClusterState.version()
                     && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
@@ -1320,7 +1320,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     /**
      * Ensures that all nodes in the cluster are connected to each other.
      *
-     * Some network disruptions may leave nodes that are not the master disconnected from each other.
+     * Some network disruptions may leave nodes that are not the cluster-manager disconnected from each other.
      * {@link org.opensearch.cluster.NodeConnectionsService} will eventually reconnect but it's
      * handy to be able to ensure this happens faster
      */
@@ -1738,9 +1738,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         int maxNumDataNodes() default -1;
 
         /**
-         * Indicates whether the cluster can have dedicated master nodes. If {@code false} means data nodes will serve as master nodes
-         * and there will be no dedicated master (and data) nodes. Default is {@code false} which means
-         * dedicated master nodes will be randomly used.
+         * Indicates whether the cluster can have dedicated cluster-manager nodes. If {@code false} means data nodes will serve as cluster-manager nodes
+         * and there will be no dedicated cluster-manager (and data) nodes. Default is {@code false} which means
+         * dedicated cluster-manager nodes will be randomly used.
          */
         boolean supportsDedicatedMasters() default true;
 
@@ -2227,7 +2227,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         if (isInternalCluster()) {
-            internalCluster().setBootstrapMasterNodeIndex(-1);
+            internalCluster().setBootstrapClusterManagerNodeIndex(-1);
         }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {

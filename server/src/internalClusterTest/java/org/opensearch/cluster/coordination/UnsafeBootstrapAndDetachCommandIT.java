@@ -228,7 +228,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testBootstrapNoClusterState() throws IOException {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
@@ -243,7 +243,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testDetachNoClusterState() throws IOException {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
@@ -258,7 +258,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testBootstrapAbortedByUser() throws IOException {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
@@ -271,7 +271,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testDetachAbortedByUser() throws IOException {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
@@ -284,7 +284,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void test3MasterNodes2Failed() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
         List<String> masterNodes = new ArrayList<>();
 
         logger.info("--> start 1st cluster-manager-eligible node");
@@ -418,7 +418,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testAllMasterEligibleNodesFailedDanglingIndexImport() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
 
         Settings settings = Settings.builder().put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), true).build();
 
@@ -478,7 +478,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         Settings clusterManagerNodeDataPathSettings = internalCluster().dataPathSettings(clusterManagerNode);
         internalCluster().stopCurrentMasterNode();
@@ -503,7 +503,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetadata() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         Settings clusterManagerNodeDataPathSettings = internalCluster().dataPathSettings(clusterManagerNode);
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
@@ -533,7 +533,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testUnsafeBootstrapWithApplyClusterReadOnlyBlockAsFalse() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         Settings clusterManagerNodeDataPathSettings = internalCluster().dataPathSettings(clusterManagerNode);
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(

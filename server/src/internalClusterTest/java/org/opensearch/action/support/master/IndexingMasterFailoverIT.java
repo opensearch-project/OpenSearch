@@ -65,7 +65,7 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
     public void testMasterFailoverDuringIndexingWithMappingChanges() throws Throwable {
         logger.info("--> start 4 nodes, 3 master, 1 data");
 
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
 
         internalCluster().startMasterOnlyNodes(3, Settings.EMPTY);
 

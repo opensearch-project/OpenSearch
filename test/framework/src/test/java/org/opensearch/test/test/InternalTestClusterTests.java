@@ -86,7 +86,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
 
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();
-        boolean masterNodes = randomBoolean();
+        boolean clusterManagerNodes = randomBoolean();
         int minNumDataNodes = randomIntBetween(0, 9);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 10);
         String clusterName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
@@ -98,7 +98,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         InternalTestCluster cluster0 = new InternalTestCluster(
             clusterSeed,
             baseDir,
-            masterNodes,
+            clusterManagerNodes,
             randomBoolean(),
             minNumDataNodes,
             maxNumDataNodes,
@@ -112,7 +112,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         InternalTestCluster cluster1 = new InternalTestCluster(
             clusterSeed,
             baseDir,
-            masterNodes,
+            clusterManagerNodes,
             randomBoolean(),
             minNumDataNodes,
             maxNumDataNodes,
@@ -220,7 +220,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             mockPlugins(),
             Function.identity()
         );
-        cluster0.setBootstrapMasterNodeIndex(bootstrapClusterManagerNodeIndex);
+        cluster0.setBootstrapClusterManagerNodeIndex(bootstrapClusterManagerNodeIndex);
 
         InternalTestCluster cluster1 = new InternalTestCluster(
             clusterSeed,
@@ -236,7 +236,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             mockPlugins(),
             Function.identity()
         );
-        cluster1.setBootstrapMasterNodeIndex(bootstrapClusterManagerNodeIndex);
+        cluster1.setBootstrapClusterManagerNodeIndex(bootstrapClusterManagerNodeIndex);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
@@ -409,7 +409,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             roles.add(role);
         }
 
-        cluster.setBootstrapMasterNodeIndex(
+        cluster.setBootstrapClusterManagerNodeIndex(
             randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(clusterManagerRole)).count() - 1)
         );
 
