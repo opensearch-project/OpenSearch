@@ -1134,7 +1134,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     transportService,
                     writableRegistry(),
                     allocationService,
-                        clusterManagerService,
+                    clusterManagerService,
                     this::getPersistedState,
                     Cluster.this::provideSeedHosts,
                     clusterApplierService,

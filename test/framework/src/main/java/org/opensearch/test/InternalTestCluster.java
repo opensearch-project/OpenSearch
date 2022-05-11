@@ -166,7 +166,6 @@ import static org.opensearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_
 import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
-import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
 import static org.opensearch.test.NodeRoles.noRoles;
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.NodeRoles.removeRoles;
@@ -286,7 +285,7 @@ public final class InternalTestCluster extends TestCluster {
             clusterSeed,
             baseDir,
             randomlyAddDedicatedMasters,
-                autoManageClusterManagerNodes,
+            autoManageClusterManagerNodes,
             minNumDataNodes,
             maxNumDataNodes,
             clusterName,
@@ -1872,7 +1871,8 @@ public final class InternalTestCluster extends TestCluster {
 
             assert stoppingMasters <= currentMasters : currentMasters + " < " + stoppingMasters;
             if (stoppingMasters != currentMasters && stoppingMasters > 0) {
-                // If stopping few enough cluster-manager-nodes that there's still a majority left, there is no need to withdraw their votes first.
+                // If stopping few enough cluster-manager-nodes that there's still a majority left, there is no need to withdraw their votes
+                // first.
                 // However, we do not yet have a way to be sure there's a majority left, because the voting configuration may not yet have
                 // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
                 // TODO add cluster health API to check that voting configuration is optimal so this isn't always needed

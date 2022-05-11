@@ -181,7 +181,14 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         final Version esVersion,
         final Version clusterManagerVersion
     ) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, clusterManagerVersion, this::getClientBuilderWithSniffedHosts);
+        return new ClientYamlTestClient(
+            restSpec,
+            restClient,
+            hosts,
+            esVersion,
+            clusterManagerVersion,
+            this::getClientBuilderWithSniffedHosts
+        );
     }
 
     @AfterClass

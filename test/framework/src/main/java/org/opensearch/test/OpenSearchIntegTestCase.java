@@ -949,12 +949,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .waitForNoRelocatingShards(true)
             .waitForNoInitializingShards(waitForNoInitializingShards)
             // We currently often use ensureGreen or ensureYellow to check whether the cluster is back in a good state after shutting down
-            // a node. If the node that is stopped is the cluster-manager node, another node will become cluster-manager and publish a cluster state where it
-            // is cluster-manager but where the node that was stopped hasn't been removed yet from the cluster state. It will only subsequently
-            // publish a second state where the old cluster-manager is removed. If the ensureGreen/ensureYellow is timed just right, it will get to
-            // execute before the second cluster state update removes the old cluster-manager and the condition ensureGreen / ensureYellow will
-            // trivially hold if it held before the node was shut down. The following "waitForNodes" condition ensures that the node has
-            // been removed by the cluster-manager so that the health check applies to the set of nodes we expect to be part of the cluster.
+            // a node. If the node that is stopped is the cluster-manager node, another node will become cluster-manager and publish a
+            // cluster state where it is cluster-manager but where the node that was stopped hasn't been removed yet from the cluster state.
+            // It will only subsequently publish a second state where the old cluster-manager is removed.
+            // If the ensureGreen/ensureYellow is timed just right, it will get to execute before the second cluster state update removes
+            // the old cluster-manager and the condition ensureGreen / ensureYellow will trivially hold if it held before the node was 
+            // shut down. The following "waitForNodes" condition ensures that the node has been removed by the cluster-manager 
+            // so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
@@ -1106,7 +1107,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 final Map<String, Object> localStateMap = convertToMap(localClusterState);
                 final int localClusterStateSize = localClusterState.toString().length();
                 // Check that the non-cluster-manager node has the same version of the cluster state as the cluster-manager and
-                // that the cluster-manager node matches the cluster-manager (otherwise there is no requirement for the cluster state to match)
+                // that the cluster-manager node matches the cluster-manager (otherwise there is no requirement for the cluster state to
+                // match)
                 if (masterClusterState.version() == localClusterState.version()
                     && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
