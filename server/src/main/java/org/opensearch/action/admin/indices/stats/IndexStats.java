@@ -38,6 +38,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Index Stats for OpenSearch
+ *
+ * @opensearch.internal
+ */
 public class IndexStats implements Iterable<IndexShardStats> {
 
     private final String index;
@@ -127,6 +132,11 @@ public class IndexStats implements Iterable<IndexShardStats> {
         return stats;
     }
 
+    /**
+     * Builder for Index Stats
+     *
+     * @opensearch.internal
+     */
     public static class IndexStatsBuilder {
         private final String indexName;
         private final String uuid;

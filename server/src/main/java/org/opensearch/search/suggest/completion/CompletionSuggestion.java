@@ -76,6 +76,7 @@ import static org.opensearch.search.suggest.Suggest.COMPARATOR;
  *     ..
  * }
  *
+ * @opensearch.internal
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 

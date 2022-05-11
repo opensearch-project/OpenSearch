@@ -53,6 +53,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to get template information
+ *
+ * @opensearch.api
+ */
 public class RestTemplatesAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestTemplatesAction.class);

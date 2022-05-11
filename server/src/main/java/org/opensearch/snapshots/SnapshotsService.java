@@ -137,6 +137,8 @@ import static org.opensearch.cluster.SnapshotsInProgress.completed;
  * Service responsible for creating snapshots. This service runs all the steps executed on the cluster-manager node during snapshot creation and
  * deletion.
  * See package level documentation of {@link org.opensearch.snapshots} for details.
+ *
+ * @opensearch.internal
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 

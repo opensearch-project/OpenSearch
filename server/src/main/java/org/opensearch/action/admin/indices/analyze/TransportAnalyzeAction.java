@@ -82,6 +82,8 @@ import java.util.TreeMap;
 
 /**
  * Transport action used to execute analyze requests
+ *
+ * @opensearch.internal
  */
 public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAction.Request, AnalyzeAction.Response> {
 
@@ -465,6 +467,11 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return sb.toString();
     }
 
+    /**
+     * Inner Token Counter
+     *
+     * @opensearch.internal
+     */
     private static class TokenCounter {
         private int tokenCount = 0;
         private int maxTokenCount;
@@ -486,6 +493,11 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         }
     }
 
+    /**
+     * Inner Token List Creator
+     *
+     * @opensearch.internal
+     */
     private static class TokenListCreator {
         int lastPosition = -1;
         int lastOffset = 0;

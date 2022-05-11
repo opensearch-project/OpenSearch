@@ -37,6 +37,8 @@ package org.opensearch.search.aggregations.bucket.histogram;
  *
  * Provides definitions for the new fixed and calendar intervals, and deprecated
  * defintions for the old interval/dateHisto interval parameters
+ *
+ * @opensearch.internal
  */
 public interface DateIntervalConsumer<T> {
     @Deprecated

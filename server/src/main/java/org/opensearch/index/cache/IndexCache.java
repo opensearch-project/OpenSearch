@@ -41,6 +41,11 @@ import org.opensearch.index.cache.query.QueryCache;
 import java.io.Closeable;
 import java.io.IOException;
 
+/**
+ * Wrapping class for the index cache
+ *
+ * @opensearch.internal
+ */
 public class IndexCache extends AbstractIndexComponent implements Closeable {
 
     private final QueryCache queryCache;

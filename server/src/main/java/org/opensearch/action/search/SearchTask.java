@@ -43,6 +43,8 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * Task storing information about a currently running {@link SearchRequest}.
+ *
+ * @opensearch.internal
  */
 public class SearchTask extends CancellableTask {
     // generating description in a lazy way since source can be quite big

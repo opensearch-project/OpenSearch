@@ -58,6 +58,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport action for creating a datastream
+ *
+ * @opensearch.internal
+ */
 public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     public static final CreateDataStreamAction INSTANCE = new CreateDataStreamAction();
@@ -67,6 +72,11 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
+    /**
+     * Request for Creating Data Stream
+     *
+     * @opensearch.internal
+     */
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private final String name;
@@ -119,6 +129,11 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
+    /**
+     * Transport Action for Creating Data Stream
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;

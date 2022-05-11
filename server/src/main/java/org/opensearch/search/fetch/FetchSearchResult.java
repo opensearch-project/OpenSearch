@@ -43,6 +43,11 @@ import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 
+/**
+ * Result from a fetch
+ *
+ * @opensearch.internal
+ */
 public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;

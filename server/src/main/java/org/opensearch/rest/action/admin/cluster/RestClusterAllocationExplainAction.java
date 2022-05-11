@@ -55,6 +55,8 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
  * Class handling cluster allocation explanation at the REST level
+ *
+ * @opensearch.api
  */
 public class RestClusterAllocationExplainAction extends BaseRestHandler {
 

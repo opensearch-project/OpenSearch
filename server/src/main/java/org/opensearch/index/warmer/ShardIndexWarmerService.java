@@ -41,6 +41,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Warms the index into the cache
+ *
+ * @opensearch.internal
+ */
 public class ShardIndexWarmerService extends AbstractIndexShardComponent {
 
     private final CounterMetric current = new CounterMetric();

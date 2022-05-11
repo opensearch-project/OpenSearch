@@ -50,6 +50,8 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
  * Clones indices from one snapshot into another snapshot in the same repository
+ *
+ * @opensearch.api
  */
 public class RestCloneSnapshotAction extends BaseRestHandler {
 

@@ -49,6 +49,8 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndice
  * local state via their arguments. Yet, if an instance is shared across indices they might be called concurrently and should not
  * modify local state without sufficient synchronization.
  * </p>
+ *
+ * @opensearch.internal
  */
 public interface IndexEventListener {
 

@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * A multi get shard response.
+ *
+ * @opensearch.internal
+ */
 public class MultiTermVectorsShardResponse extends ActionResponse {
 
     final IntArrayList locations;

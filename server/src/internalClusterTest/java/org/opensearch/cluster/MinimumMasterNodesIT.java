@@ -91,7 +91,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         logger.info("--> start first node");
         String node1Name = internalCluster().startNode(settings);
 
-        logger.info("--> should be blocked, no master...");
+        logger.info("--> should be blocked, no cluster-manager...");
         ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         assertThat(state.nodes().getSize(), equalTo(1)); // verify that we still see the local node in the cluster state
@@ -155,7 +155,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         String otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for non-master node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(otherNode)).get();
-        logger.info("--> stop master node, no master block should appear");
+        logger.info("--> stop master node, no cluster-manager block should appear");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
 
@@ -166,7 +166,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
-        // verify that both nodes are still in the cluster state but there is no master
+        // verify that both nodes are still in the cluster state but there is no cluster-manager
         assertThat(state.nodes().getSize(), equalTo(2));
         assertThat(state.nodes().getMasterNode(), equalTo(null));
 
@@ -208,7 +208,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for master node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNode)).get();
-        logger.info("--> stop non-master node, no master block should appear");
+        logger.info("--> stop non-master node, no cluster-manager block should appear");
         Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNode));
 
@@ -317,7 +317,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         internalCluster().stopRandomNonMasterNode();
         internalCluster().stopRandomNonMasterNode();
 
-        logger.info("--> verify that there is no master anymore on remaining node");
+        logger.info("--> verify that there is no cluster-manager anymore on remaining node");
         // spin here to wait till the state is set
         assertBusy(() -> {
             ClusterState st = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -386,7 +386,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
 
         assertThat(failure.get(), instanceOf(FailedToCommitClusterStateException.class));
 
-        logger.debug("--> check that there is no master in minor partition");
+        logger.debug("--> check that there is no cluster-manager in minor partition");
         assertBusy(() -> assertThat(masterClusterService.state().nodes().getMasterNode(), nullValue()));
 
         // let major partition to elect new master, to ensure that old master is not elected once partition is restored,

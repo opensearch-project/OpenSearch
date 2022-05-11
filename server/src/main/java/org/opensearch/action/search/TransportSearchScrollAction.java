@@ -41,6 +41,11 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Perform the search scroll
+ *
+ * @opensearch.internal
+ */
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
 
     private final ClusterService clusterService;

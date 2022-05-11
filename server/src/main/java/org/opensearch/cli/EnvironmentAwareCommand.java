@@ -46,7 +46,11 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/** A cli command which requires an {@link org.opensearch.env.Environment} to use current paths and settings. */
+/**
+ * A cli command which requires an {@link org.opensearch.env.Environment} to use current paths and settings.
+ *
+ * @opensearch.internal
+ */
 public abstract class EnvironmentAwareCommand extends Command {
 
     private final OptionSpec<KeyValuePair> settingOption;

@@ -36,6 +36,11 @@ import org.apache.lucene.analysis.Tokenizer;
 
 import java.util.function.Supplier;
 
+/**
+ * Base tokenizer factory used in analysis chain
+ *
+ * @opensearch.internal
+ */
 public interface TokenizerFactory {
 
     String name();

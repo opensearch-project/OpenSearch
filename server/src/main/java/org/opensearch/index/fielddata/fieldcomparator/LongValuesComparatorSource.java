@@ -57,6 +57,8 @@ import java.util.function.Function;
 
 /**
  * Comparator source for long values.
+ *
+ * @opensearch.internal
  */
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 

@@ -53,6 +53,8 @@ import java.util.Set;
  * as well as the latest written shard generation per shard in case there is a shard generation for a shard that has
  * been cleanly written out to the repository but not yet made part of the current {@link org.opensearch.repositories.RepositoryData}
  * through a snapshot finalization.
+ *
+ * @opensearch.internal
  */
 public final class InFlightShardSnapshotStates {
 

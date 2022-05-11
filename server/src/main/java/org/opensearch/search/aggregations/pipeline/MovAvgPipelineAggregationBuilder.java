@@ -54,6 +54,11 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
+/**
+ * Aggregation Builder for moving_avg
+ *
+ * @opensearch.internal
+ */
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     public static final String NAME = "moving_avg";
 

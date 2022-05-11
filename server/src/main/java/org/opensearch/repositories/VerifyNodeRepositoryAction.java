@@ -59,6 +59,11 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Action to verify a node repository
+ *
+ * @opensearch.internal
+ */
 public class VerifyNodeRepositoryAction {
 
     private static final Logger logger = LogManager.getLogger(VerifyNodeRepositoryAction.class);

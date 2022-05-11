@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Base exception for no node found
+ *
+ * @opensearch.internal
+ */
 public class NoSuchNodeException extends FailedNodeException {
 
     public NoSuchNodeException(String nodeId) {

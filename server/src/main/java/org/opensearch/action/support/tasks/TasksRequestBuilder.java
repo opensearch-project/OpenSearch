@@ -39,6 +39,8 @@ import org.opensearch.tasks.TaskId;
 
 /**
  * Builder for task-based requests
+ *
+ * @opensearch.internal
  */
 public class TasksRequestBuilder<
     Request extends BaseTasksRequest<Request>,

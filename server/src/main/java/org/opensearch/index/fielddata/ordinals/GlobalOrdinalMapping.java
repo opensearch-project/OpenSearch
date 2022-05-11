@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * A {@link SortedSetDocValues} implementation that returns ordinals that are global.
+ *
+ * @opensearch.internal
  */
 final class GlobalOrdinalMapping extends SortedSetDocValues {
 

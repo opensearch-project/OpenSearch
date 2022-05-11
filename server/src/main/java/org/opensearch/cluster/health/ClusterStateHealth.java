@@ -49,6 +49,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Cluster state health information
+ *
+ * @opensearch.internal
+ */
 public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, Writeable {
 
     private final int numberOfNodes;

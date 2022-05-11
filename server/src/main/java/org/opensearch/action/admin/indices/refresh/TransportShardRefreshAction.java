@@ -49,6 +49,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Refresh information action
+ *
+ * @opensearch.internal
+ */
 public class TransportShardRefreshAction extends TransportReplicationAction<
     BasicReplicationRequest,
     BasicReplicationRequest,

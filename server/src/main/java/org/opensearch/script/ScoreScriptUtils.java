@@ -48,6 +48,11 @@ import java.time.ZoneId;
 
 import static com.carrotsearch.hppc.BitMixer.mix32;
 
+/**
+ * Utilities for scoring scripts
+ *
+ * @opensearch.internal
+ */
 public final class ScoreScriptUtils {
 
     /****** STATIC FUNCTIONS that can be used by users for score calculations **/

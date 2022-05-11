@@ -45,6 +45,11 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport request for a Single bulk item
+ *
+ * @opensearch.internal
+ */
 public class BulkItemRequest implements Writeable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);

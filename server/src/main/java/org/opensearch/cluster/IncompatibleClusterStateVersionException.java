@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Thrown by {@link Diff#apply} method
+ *
+ * @opensearch.internal
  */
 public class IncompatibleClusterStateVersionException extends OpenSearchException {
     public IncompatibleClusterStateVersionException(String msg) {

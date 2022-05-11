@@ -41,6 +41,11 @@ import org.opensearch.index.store.StoreStats;
 
 import java.io.IOException;
 
+/**
+ * Document statistics
+ *
+ * @opensearch.internal
+ */
 public class DocsStats implements Writeable, ToXContentFragment {
 
     private long count = 0;
@@ -116,6 +121,11 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for document statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String DOCS = "docs";
         static final String COUNT = "count";

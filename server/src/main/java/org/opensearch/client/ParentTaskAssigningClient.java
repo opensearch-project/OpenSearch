@@ -43,6 +43,8 @@ import org.opensearch.tasks.TaskId;
 /**
  * A {@linkplain Client} that sets the parent task on all requests that it makes. Use this to conveniently implement actions that cause
  * many other actions.
+ *
+ * @opensearch.internal
  */
 public class ParentTaskAssigningClient extends FilterClient {
     private final TaskId parentTask;

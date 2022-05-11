@@ -46,6 +46,8 @@ import java.io.IOException;
  * information about the current state of the node that provided the vote, so that
  * the receiver of the vote can determine if it has a more up-to-date state than the
  * source node.
+ *
+ * @opensearch.internal
  */
 public class Join implements Writeable {
     private final DiscoveryNode sourceNode;

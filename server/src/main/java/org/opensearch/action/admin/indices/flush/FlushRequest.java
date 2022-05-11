@@ -51,6 +51,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @see org.opensearch.client.Requests#flushRequest(String...)
  * @see org.opensearch.client.IndicesAdminClient#flush(FlushRequest)
  * @see FlushResponse
+ *
+ * @opensearch.internal
  */
 public class FlushRequest extends BroadcastRequest<FlushRequest> {
 

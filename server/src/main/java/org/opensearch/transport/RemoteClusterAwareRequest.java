@@ -34,6 +34,11 @@ package org.opensearch.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 
+/**
+ * Request for remote clusters
+ *
+ * @opensearch.internal
+ */
 public interface RemoteClusterAwareRequest {
 
     /**

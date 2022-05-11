@@ -43,6 +43,11 @@ import org.opensearch.search.sort.SortOrder;
 
 import java.util.function.LongConsumer;
 
+/**
+ * Field configuration class for composite values
+ *
+ * @opensearch.internal
+ */
 public class CompositeValuesSourceConfig {
 
     @FunctionalInterface

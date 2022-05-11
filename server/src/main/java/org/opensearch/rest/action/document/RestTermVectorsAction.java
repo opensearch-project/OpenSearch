@@ -55,6 +55,8 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 /**
  * This class parses the json request and translates it into a
  * TermVectorsRequest.
+ *
+ * @opensearch.api
  */
 public class RestTermVectorsAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in term vector requests is deprecated.";

@@ -39,6 +39,11 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 
+/**
+ * Stores the document source
+ *
+ * @opensearch.internal
+ */
 public class SourceToParse {
 
     private final BytesReference source;
@@ -85,6 +90,11 @@ public class SourceToParse {
         return this.xContentType;
     }
 
+    /**
+     * Origin of the source
+     *
+     * @opensearch.internal
+     */
     public enum Origin {
         PRIMARY,
         REPLICA

@@ -45,6 +45,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Gets the scripted fields during search phase
+ *
+ * @opensearch.internal
+ */
 public final class ScriptFieldsPhase implements FetchSubPhase {
 
     @Override

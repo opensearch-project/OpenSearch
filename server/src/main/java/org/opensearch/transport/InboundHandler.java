@@ -52,6 +52,11 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
+/**
+ * Handler for inbound data
+ *
+ * @opensearch.internal
+ */
 public class InboundHandler {
 
     private static final Logger logger = LogManager.getLogger(InboundHandler.class);
@@ -427,6 +432,11 @@ public class InboundHandler {
         assert version.equals(in.getVersion()) : "Stream version [" + in.getVersion() + "] does not match version [" + version + "]";
     }
 
+    /**
+     * Internal request handler
+     *
+     * @opensearch.internal
+     */
     private static class RequestHandler<T extends TransportRequest> extends AbstractRunnable {
         private final RequestHandlerRegistry<T> reg;
         private final T request;

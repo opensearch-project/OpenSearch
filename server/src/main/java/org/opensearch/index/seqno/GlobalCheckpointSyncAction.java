@@ -60,6 +60,8 @@ import java.io.IOException;
  * Background global checkpoint sync action initiated when a shard goes inactive. This is needed because while we send the global checkpoint
  * on every replication operation, after the last operation completes the global checkpoint could advance but without a follow-up operation
  * the global checkpoint will never be synced to the replicas.
+ *
+ * @opensearch.internal
  */
 public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     GlobalCheckpointSyncAction.Request,
@@ -137,6 +139,11 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         }
     }
 
+    /**
+     * Request for checkpoint sync action
+     *
+     * @opensearch.internal
+     */
     public static final class Request extends ReplicationRequest<Request> {
 
         private Request(StreamInput in) throws IOException {

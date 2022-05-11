@@ -52,6 +52,8 @@ import java.util.Map;
 
 /**
  * A geo metric aggregator that computes a geo-centroid from a {@code geo_point} type field
+ *
+ * @opensearch.internal
  */
 final class GeoCentroidAggregator extends MetricsAggregator {
     private final ValuesSource.GeoPoint valuesSource;

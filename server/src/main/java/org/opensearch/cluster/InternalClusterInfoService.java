@@ -83,6 +83,8 @@ import java.util.function.Consumer;
  *
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
+ *
+ * @opensearch.internal
  */
 public class InternalClusterInfoService implements ClusterInfoService, ClusterStateListener {
 

@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Upgrade index/indices action.
+ *
+ * @opensearch.internal
  */
 public class UpgradeAction extends ActionType<UpgradeResponse> {
 

@@ -37,6 +37,8 @@ import java.util.List;
 
 /**
  * Allows to iterate over unrelated shards.
+ *
+ * @opensearch.internal
  */
 public interface ShardsIterator extends Iterable<ShardRouting>, Countable {
 

@@ -47,6 +47,8 @@ import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of decimal number like a float, double, or distance.
+ *
+ * @opensearch.internal
  */
 public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bucket> {
     public static final String NAME = "dterms";

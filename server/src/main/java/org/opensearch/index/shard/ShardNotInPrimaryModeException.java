@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if a shard is not in primary mode
+ *
+ * @opensearch.internal
+ */
 public class ShardNotInPrimaryModeException extends IllegalIndexShardStateException {
 
     public ShardNotInPrimaryModeException(final ShardId shardId, final IndexShardState currentState) {

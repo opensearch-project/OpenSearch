@@ -46,6 +46,8 @@ import java.io.IOException;
 
 /**
  * {@link SearchResponseSections} subclass that can be serialized over the wire.
+ *
+ * @opensearch.internal
  */
 public class InternalSearchResponse extends SearchResponseSections implements Writeable, ToXContentFragment {
     public static InternalSearchResponse empty() {

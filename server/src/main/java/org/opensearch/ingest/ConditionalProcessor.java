@@ -57,6 +57,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
 
+/**
+ * Ingest processor based on specific conditions
+ *
+ * @opensearch.internal
+ */
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);

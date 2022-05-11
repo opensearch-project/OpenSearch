@@ -34,6 +34,8 @@ package org.opensearch.search.aggregations.metrics;
 
 /**
  * An aggregation that computes approximate numbers of unique terms.
+ *
+ * @opensearch.internal
  */
 public interface Cardinality extends NumericMetricsAggregation.SingleValue {
 

@@ -64,6 +64,8 @@ import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findC
 /**
  * Handles simulating an index template either by name (looking it up in the
  * cluster state), or by a provided template configuration
+ *
+ * @opensearch.internal
  */
 public class TransportSimulateTemplateAction extends TransportMasterNodeReadAction<
     SimulateTemplateAction.Request,

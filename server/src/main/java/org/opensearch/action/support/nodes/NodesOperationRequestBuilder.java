@@ -37,6 +37,11 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Builder for Operation Requests
+ *
+ * @opensearch.internal
+ */
 public abstract class NodesOperationRequestBuilder<
     Request extends BaseNodesRequest<Request>,
     Response extends BaseNodesResponse,

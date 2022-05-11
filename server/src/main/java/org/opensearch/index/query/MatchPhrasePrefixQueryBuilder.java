@@ -50,6 +50,8 @@ import java.util.Objects;
 /**
  * Match query is a query that analyzes the text and constructs a phrase prefix
  * query as the result of the analysis.
+ *
+ * @opensearch.internal
  */
 public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhrasePrefixQueryBuilder> {
     public static final String NAME = "match_phrase_prefix";

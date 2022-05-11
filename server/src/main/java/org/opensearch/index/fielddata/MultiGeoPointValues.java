@@ -49,6 +49,8 @@ import java.io.IOException;
  * </pre>
  * The set of values associated with a document might contain duplicates and
  * comes in a non-specified order.
+ *
+ * @opensearch.internal
  */
 public abstract class MultiGeoPointValues {
 

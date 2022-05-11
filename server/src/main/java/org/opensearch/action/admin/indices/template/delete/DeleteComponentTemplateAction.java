@@ -43,6 +43,11 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for deleting an index template component
+ *
+ * @opensearch.internal
+ */
 public class DeleteComponentTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteComponentTemplateAction INSTANCE = new DeleteComponentTemplateAction();
@@ -52,6 +57,11 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
         super(NAME, AcknowledgedResponse::new);
     }
 
+    /**
+     * Inner Request class for deleting component template
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeRequest<Request> {
 
         private String name;

@@ -53,6 +53,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregates documents that match a nested path.
+ *
+ * @opensearch.internal
+ */
 public class ReverseNestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField PATH_FIELD = new ParseField("path");

@@ -37,6 +37,8 @@ import java.util.List;
 /**
  * This class exists solely as an intermediate layer to avoid causing PluginsService
  * to load ExtendedPluginsClassLoader when used in the transport client.
+ *
+ * @opensearch.api
  */
 class PluginLoaderIndirection {
 

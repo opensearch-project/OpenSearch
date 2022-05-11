@@ -46,6 +46,11 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.client.Requests.verifyRepositoryRequest;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to verify a repository
+ *
+ * @opensearch.api
+ */
 public class RestVerifyRepositoryAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestVerifyRepositoryAction.class);

@@ -48,6 +48,8 @@ import static java.util.Collections.emptyList;
 
 /**
  * Result of the RareTerms aggregation when the field is unmapped.
+ *
+ * @opensearch.internal
  */
 public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, UnmappedRareTerms.Bucket> {
     public static final String NAME = "umrareterms";

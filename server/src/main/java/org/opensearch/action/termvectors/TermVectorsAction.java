@@ -34,6 +34,12 @@ package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for returning the term vector (doc frequency, positions, offsets) for a
+ * document.
+ *
+ * @opensearch.internal
+ */
 public class TermVectorsAction extends ActionType<TermVectorsResponse> {
 
     public static final TermVectorsAction INSTANCE = new TermVectorsAction();

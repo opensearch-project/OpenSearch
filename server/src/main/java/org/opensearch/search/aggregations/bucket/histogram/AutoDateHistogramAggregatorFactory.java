@@ -50,6 +50,11 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Aggregation Factory for auto_date_histogram
+ *
+ * @opensearch.internal
+ */
 public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {

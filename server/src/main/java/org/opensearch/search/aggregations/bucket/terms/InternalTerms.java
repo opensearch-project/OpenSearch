@@ -62,6 +62,11 @@ import java.util.function.Function;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
+/**
+ * Implementation of terms
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends InternalTerms.AbstractInternalBucket> extends
     InternalMultiBucketAggregation<A, B>
     implements

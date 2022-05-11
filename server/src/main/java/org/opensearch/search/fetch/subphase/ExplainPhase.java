@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * Explains the scoring calculations for the top hits.
+ *
+ * @opensearch.internal
  */
 public final class ExplainPhase implements FetchSubPhase {
 

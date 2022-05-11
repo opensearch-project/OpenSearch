@@ -73,6 +73,11 @@ import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for deleting a datastream
+ *
+ * @opensearch.internal
+ */
 public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(DeleteDataStreamAction.class);
@@ -84,6 +89,11 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
+    /**
+     * Request for deleting data streams
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
@@ -149,6 +159,11 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
+    /**
+     * Transport action for deleting data streams
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataDeleteIndexService deleteIndexService;

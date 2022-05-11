@@ -56,6 +56,8 @@ import static org.opensearch.common.util.concurrent.ConcurrentCollections.newCon
  * A publication can succeed and complete before all nodes have applied the published state and acknowledged it; however we need every node
  * eventually either to apply the published state (or a later state) or be removed from the cluster. This component achieves this by
  * removing any lagging nodes from the cluster after a timeout.
+ *
+ * @opensearch.internal
  */
 public class LagDetector {
 

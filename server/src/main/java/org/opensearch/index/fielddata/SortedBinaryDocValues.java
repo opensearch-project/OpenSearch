@@ -40,6 +40,8 @@ import java.io.IOException;
  * A list of per-document binary values, sorted
  * according to {@link BytesRef#compareTo(BytesRef)}.
  * There might be dups however.
+ *
+ * @opensearch.internal
  */
 // TODO: Should it expose a count (current approach) or return null when there are no more values?
 public abstract class SortedBinaryDocValues {

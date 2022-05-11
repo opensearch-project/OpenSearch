@@ -21,6 +21,11 @@ import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import java.io.IOException;
 import java.util.Collection;
 
+/**
+ * CollectorManager for the TotalHitCountCollector
+ *
+ * @opensearch.internal
+ */
 public class TotalHitCountCollectorManager
     implements
         CollectorManager<TotalHitCountCollector, ReduceableSearchResult>,

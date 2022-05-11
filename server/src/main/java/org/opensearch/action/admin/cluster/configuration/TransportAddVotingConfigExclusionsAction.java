@@ -66,6 +66,11 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * Transport endpoint action for adding exclusions to voting config
+ *
+ * @opensearch.internal
+ */
 public class TransportAddVotingConfigExclusionsAction extends TransportMasterNodeAction<
     AddVotingConfigExclusionsRequest,
     AddVotingConfigExclusionsResponse> {

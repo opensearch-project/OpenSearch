@@ -47,6 +47,11 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * Generations of shards for snapshots
+ *
+ * @opensearch.internal
+ */
 public final class ShardGenerations {
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());

@@ -61,6 +61,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * Base class for requests that should be executed on all shards of an index or several indices.
  * This action sends shard requests to all primary shards of the indices and they are then replicated like write requests
+ *
+ * @opensearch.internal
  */
 public abstract class TransportBroadcastReplicationAction<
     Request extends BroadcastRequest<Request>,

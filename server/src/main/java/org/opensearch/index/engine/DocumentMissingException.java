@@ -37,6 +37,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if a document is missing
+ *
+ * @opensearch.internal
+ */
 public class DocumentMissingException extends EngineException {
 
     public DocumentMissingException(ShardId shardId, String id) {

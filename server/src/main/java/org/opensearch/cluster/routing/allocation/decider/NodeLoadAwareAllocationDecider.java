@@ -47,6 +47,8 @@ import java.util.function.BiPredicate;
  * <pre>
  * cluster.routing.allocation.load_awareness.allow_unassigned_primaries
  * </pre>
+ *
+ * @opensearch.internal
  */
 public class NodeLoadAwareAllocationDecider extends AllocationDecider {
 

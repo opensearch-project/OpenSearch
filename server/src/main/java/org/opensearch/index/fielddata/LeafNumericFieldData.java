@@ -36,6 +36,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 
 /**
  * Specialization of {@link LeafFieldData} for numeric data.
+ *
+ * @opensearch.internal
  */
 public interface LeafNumericFieldData extends LeafFieldData {
 

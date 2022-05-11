@@ -50,6 +50,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Returns status of currently running snapshot
+ *
+ * @opensearch.api
  */
 public class RestSnapshotsStatusAction extends BaseRestHandler {
 

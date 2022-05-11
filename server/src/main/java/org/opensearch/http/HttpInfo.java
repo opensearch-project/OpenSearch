@@ -44,6 +44,11 @@ import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 
+/**
+ * Information about an http connection
+ *
+ * @opensearch.internal
+ */
 public class HttpInfo implements ReportingService.Info {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(HttpInfo.class);

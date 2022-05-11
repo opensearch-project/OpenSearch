@@ -44,6 +44,8 @@ import java.util.List;
 
 /**
  * A response to flush action.
+ *
+ * @opensearch.internal
  */
 public class FlushResponse extends BroadcastResponse {
 

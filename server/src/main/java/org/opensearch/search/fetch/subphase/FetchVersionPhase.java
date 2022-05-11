@@ -41,6 +41,11 @@ import org.opensearch.search.fetch.FetchSubPhaseProcessor;
 
 import java.io.IOException;
 
+/**
+ * Fetches the version of a term during search phase
+ *
+ * @opensearch.internal
+ */
 public final class FetchVersionPhase implements FetchSubPhase {
 
     @Override

@@ -47,6 +47,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * <p>
  * Delete snapshot request removes snapshots from the repository and cleans up all files that are associated with the snapshots.
  * All files that are shared with at least one other existing snapshot are left intact.
+ *
+ * @opensearch.internal
  */
 public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotRequest> {
 

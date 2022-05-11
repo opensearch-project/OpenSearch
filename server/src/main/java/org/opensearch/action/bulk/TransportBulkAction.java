@@ -112,6 +112,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
  * delegates to {@link TransportShardBulkAction} for shard-level bulk execution
+ *
+ * @opensearch.internal
  */
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
@@ -481,7 +483,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     /**
      * retries on retryable cluster blocks, resolves item requests,
      * constructs shard bulk requests and delegates execution to shard bulk action
-     * */
+     *
+     * @opensearch.internal
+     */
     private final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final Task task;
         private BulkRequest bulkRequest; // set to null once all requests are sent out
@@ -770,6 +774,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         new BulkOperation(task, bulkRequest, listener, responses, startTimeNanos, indicesThatCannotBeCreated).run();
     }
 
+    /**
+     * Concrete indices
+     *
+     * @opensearch.internal
+     */
     private static class ConcreteIndices {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -872,6 +881,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         );
     }
 
+    /**
+     * A modifier for a bulk request
+     *
+     * @opensearch.internal
+     */
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
 
         final BulkRequest bulkRequest;

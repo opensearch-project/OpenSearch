@@ -38,6 +38,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if a type is invalid
+ *
+ * @opensearch.internal
+ */
 public class InvalidTypeNameException extends MapperException {
 
     public InvalidTypeNameException(StreamInput in) throws IOException {

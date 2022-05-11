@@ -86,6 +86,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * @param <Request>              the underlying client request
  * @param <Response>             the response to the client request
  * @param <ShardOperationResult> per-shard operation results
+ *
+ * @opensearch.internal
  */
 public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,
@@ -271,6 +273,11 @@ public abstract class TransportBroadcastByNodeAction<
         new AsyncAction(task, request, listener).start();
     }
 
+    /**
+     * Asynchronous action
+     *
+     * @opensearch.internal
+     */
     protected class AsyncAction {
         private final Task task;
         private final Request request;
@@ -441,6 +448,11 @@ public abstract class TransportBroadcastByNodeAction<
         }
     }
 
+    /**
+     * Broadcast by a node's transport request handler
+     *
+     * @opensearch.internal
+     */
     class BroadcastByNodeTransportRequestHandler implements TransportRequestHandler<NodeRequest> {
         @Override
         public void messageReceived(final NodeRequest request, TransportChannel channel, Task task) throws Exception {
@@ -520,6 +532,11 @@ public abstract class TransportBroadcastByNodeAction<
         }
     }
 
+    /**
+     * A node request
+     *
+     * @opensearch.internal
+     */
     public class NodeRequest extends TransportRequest implements IndicesRequest {
         private String nodeId;
 
@@ -567,6 +584,11 @@ public abstract class TransportBroadcastByNodeAction<
         }
     }
 
+    /**
+     * A node response
+     *
+     * @opensearch.internal
+     */
     class NodeResponse extends TransportResponse {
         protected String nodeId;
         protected int totalShards;
@@ -631,6 +653,8 @@ public abstract class TransportBroadcastByNodeAction<
     /**
      * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting) shardOperation} for
      * which there is no shard-level return value.
+     *
+     * @opensearch.internal
      */
     public static final class EmptyResult implements Writeable {
         public static EmptyResult INSTANCE = new EmptyResult();

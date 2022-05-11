@@ -55,6 +55,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * transport request to simulate a pipeline
+ *
+ * @opensearch.internal
+ */
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
@@ -125,6 +130,11 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     public static final class Fields {
         static final String PIPELINE = "pipeline";
         static final String DOCS = "docs";

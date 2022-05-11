@@ -69,6 +69,8 @@ import java.util.Map;
 
 /**
  * Snapshot metadata file format used in v2.0 and above
+ *
+ * @opensearch.internal
  */
 public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 

@@ -42,6 +42,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stores stats about a merge process
+ *
+ * @opensearch.internal
+ */
 public class MergeStats implements Writeable, ToXContentFragment {
 
     private long total;
@@ -239,6 +244,11 @@ public class MergeStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields used for merge statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String MERGES = "merges";
         static final String CURRENT = "current";

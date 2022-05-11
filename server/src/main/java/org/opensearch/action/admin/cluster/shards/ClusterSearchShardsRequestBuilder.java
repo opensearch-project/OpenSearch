@@ -36,6 +36,11 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for searching shards
+ *
+ * @opensearch.internal
+ */
 public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     ClusterSearchShardsRequest,
     ClusterSearchShardsResponse,

@@ -66,6 +66,8 @@ import static org.opensearch.common.util.CollectionUtils.isEmpty;
 
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.
+ *
+ * @opensearch.internal
  */
 public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;
@@ -177,6 +179,11 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
     }
 
+    /**
+     * A Client hit
+     *
+     * @opensearch.internal
+     */
     private static class ClientHit implements Hit {
         private final SearchHit delegate;
         private final BytesReference source;

@@ -67,6 +67,8 @@ import java.util.Map;
 
 /**
  * Global information on indices stats running on a specific node.
+ *
+ * @opensearch.internal
  */
 public class NodeIndicesStats implements Writeable, ToXContentFragment {
 

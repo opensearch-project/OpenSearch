@@ -58,6 +58,8 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
     /**

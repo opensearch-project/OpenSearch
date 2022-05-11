@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Executes the logic for a {@link FetchSubPhase} against a particular leaf reader and hit
+ *
+ * @opensearch.internal
  */
 public interface FetchSubPhaseProcessor {
 

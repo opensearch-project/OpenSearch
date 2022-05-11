@@ -53,6 +53,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for cardinality agg
+ *
+ * @opensearch.internal
+ */
 public final class CardinalityAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
     ValuesSource,
     CardinalityAggregationBuilder> {

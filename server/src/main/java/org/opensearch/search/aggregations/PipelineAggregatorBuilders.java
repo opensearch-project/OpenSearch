@@ -53,6 +53,11 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Builder utility class for pipeline aggs
+ *
+ * @opensearch.internal
+ */
 public final class PipelineAggregatorBuilders {
 
     private PipelineAggregatorBuilders() {}

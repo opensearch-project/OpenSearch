@@ -76,6 +76,8 @@ import java.util.function.LongToIntFunction;
  * standpoint but the simpler implementation is between 7% and 15% faster
  * when you can use it. This is an important aggregation and we need that
  * performance.
+ *
+ * @opensearch.internal
  */
 abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     static AutoDateHistogramAggregator build(

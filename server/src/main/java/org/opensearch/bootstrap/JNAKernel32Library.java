@@ -51,6 +51,8 @@ import java.util.List;
 
 /**
  * Library for Windows/Kernel32
+ *
+ * @opensearch.internal
  */
 final class JNAKernel32Library {
 

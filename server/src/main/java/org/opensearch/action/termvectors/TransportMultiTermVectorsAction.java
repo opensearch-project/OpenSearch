@@ -51,6 +51,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Performs the multi term get operation.
+ *
+ * @opensearch.internal
+ */
 public class TransportMultiTermVectorsAction extends HandledTransportAction<MultiTermVectorsRequest, MultiTermVectorsResponse> {
 
     private final ClusterService clusterService;

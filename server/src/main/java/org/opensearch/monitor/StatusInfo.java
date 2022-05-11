@@ -35,6 +35,8 @@ package org.opensearch.monitor;
 /**
  * Class that represents the Health status for a node as determined by {@link NodeHealthService} and provides additional
  * info explaining the reasons
+ *
+ * @opensearch.internal
  */
 public class StatusInfo {
 

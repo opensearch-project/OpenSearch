@@ -51,6 +51,11 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * A shard snapshot stored locally
+ *
+ * @opensearch.internal
+ */
 final class LocalShardSnapshot implements Closeable {
     private final IndexShard shard;
     private final Store store;

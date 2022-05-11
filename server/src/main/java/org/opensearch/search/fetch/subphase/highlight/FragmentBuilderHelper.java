@@ -49,6 +49,8 @@ import java.util.List;
 
 /**
  * Simple helper class for {@link FastVectorHighlighter} {@link FragmentsBuilder} implementations.
+ *
+ * @opensearch.internal
  */
 public final class FragmentBuilderHelper {
 

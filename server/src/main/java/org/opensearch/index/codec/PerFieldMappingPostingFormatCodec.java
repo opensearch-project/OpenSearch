@@ -50,6 +50,8 @@ import org.opensearch.index.mapper.MapperService;
  * allows users to change the low level postings format for individual fields
  * per index in real time via the mapping API. If no specific postings format is
  * configured for a specific field the default postings format is used.
+ *
+ * @opensearch.internal
  */
 public class PerFieldMappingPostingFormatCodec extends Lucene91Codec {
     private final Logger logger;

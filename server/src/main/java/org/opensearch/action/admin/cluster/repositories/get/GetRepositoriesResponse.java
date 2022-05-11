@@ -49,6 +49,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 
 /**
  * Get repositories response
+ *
+ * @opensearch.internal
  */
 public class GetRepositoriesResponse extends ActionResponse implements ToXContentObject {
 

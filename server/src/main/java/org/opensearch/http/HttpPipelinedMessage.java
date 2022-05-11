@@ -31,6 +31,11 @@
 
 package org.opensearch.http;
 
+/**
+ * Pipeline messages for http connections
+ *
+ * @opensearch.internal
+ */
 public interface HttpPipelinedMessage extends Comparable<HttpPipelinedMessage> {
 
     /**

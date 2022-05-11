@@ -58,6 +58,11 @@ import java.util.Map;
 
 import static org.opensearch.ingest.IngestService.INGEST_ORIGIN;
 
+/**
+ * Perform the action of putting a pipeline
+ *
+ * @opensearch.internal
+ */
 public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPipelineRequest, AcknowledgedResponse> {
 
     private final IngestService ingestService;

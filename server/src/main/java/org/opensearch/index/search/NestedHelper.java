@@ -49,7 +49,10 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
 
 /** Utility class to filter parent and children clauses when building nested
- * queries. */
+ * queries.
+ *
+ * @opensearch.internal
+ */
 public final class NestedHelper {
 
     private final MapperService mapperService;

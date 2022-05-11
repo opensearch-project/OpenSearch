@@ -48,6 +48,11 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/**
+ * Aggregates inbound data
+ *
+ * @opensearch.internal
+ */
 public class InboundAggregator implements Releasable {
 
     private final Supplier<CircuitBreaker> circuitBreaker;
@@ -234,6 +239,11 @@ public class InboundAggregator implements Releasable {
         }
     }
 
+    /**
+     * Internal circuit breaker control
+     *
+     * @opensearch.internal
+     */
     private static class BreakerControl implements Releasable {
 
         private static final int CLOSED = -1;

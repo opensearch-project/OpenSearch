@@ -66,6 +66,8 @@ import static java.util.Objects.requireNonNull;
  * A scrollable source of results. Pumps data out into the passed onResponse consumer. Same data may come out several times in case
  * of failures during searching (though not yet). Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive
  * more data (only receives one response at a time).
+ *
+ * @opensearch.internal
  */
 public abstract class ScrollableHitSource {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
@@ -176,6 +178,11 @@ public abstract class ScrollableHitSource {
         this.scrollId.set(scrollId);
     }
 
+    /**
+     * Asynchronous response
+     *
+     * @opensearch.internal
+     */
     public interface AsyncResponse {
         /**
          * The response data made available.
@@ -191,6 +198,8 @@ public abstract class ScrollableHitSource {
 
     /**
      * Response from each scroll batch.
+     *
+     * @opensearch.internal
      */
     public static class Response {
         private final boolean timedOut;
@@ -246,6 +255,8 @@ public abstract class ScrollableHitSource {
     /**
      * A document returned as part of the response. Think of it like {@link SearchHit} but with all the things reindex needs in convenient
      * methods.
+     *
+     * @opensearch.internal
      */
     public interface Hit {
         /**
@@ -296,6 +307,8 @@ public abstract class ScrollableHitSource {
 
     /**
      * An implementation of {@linkplain Hit} that uses getters and setters.
+     *
+     * @opensearch.internal
      */
     public static class BasicHit implements Hit {
         private final String index;
@@ -376,6 +389,8 @@ public abstract class ScrollableHitSource {
 
     /**
      * A failure during search. Like {@link ShardSearchFailure} but useful for reindex from remote as well.
+     *
+     * @opensearch.internal
      */
     public static class SearchFailure implements Writeable, ToXContentObject {
         private final Throwable reason;

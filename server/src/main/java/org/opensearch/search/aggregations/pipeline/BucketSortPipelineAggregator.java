@@ -48,6 +48,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into sorted buckets
+ *
+ * @opensearch.internal
+ */
 public class BucketSortPipelineAggregator extends PipelineAggregator {
 
     private final List<FieldSortBuilder> sorts;

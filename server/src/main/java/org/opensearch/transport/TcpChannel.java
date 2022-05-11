@@ -43,6 +43,8 @@ import java.net.InetSocketAddress;
  * This is a tcp channel representing a single channel connection to another node. It is the base channel
  * abstraction used by the {@link TcpTransport} and {@link TransportService}. All tcp transport
  * implementations must return channels that adhere to the required method contracts.
+ *
+ * @opensearch.internal
  */
 public interface TcpChannel extends CloseableChannel {
 
@@ -94,6 +96,11 @@ public interface TcpChannel extends CloseableChannel {
      */
     ChannelStats getChannelStats();
 
+    /**
+     * Channel statistics
+     *
+     * @opensearch.internal
+     */
     class ChannelStats {
 
         private volatile long lastAccessedTime;

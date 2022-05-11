@@ -37,6 +37,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 /**
  * Specialization of {@link LeafFieldData} for data that is indexed with
  * ordinals.
+ *
+ * @opensearch.internal
  */
 public interface LeafOrdinalsFieldData extends LeafFieldData {
 

@@ -74,6 +74,8 @@ import java.util.List;
  *     </li>
  * </ul>
  *
+ *
+ * @opensearch.internal
  */
 public class AggregationPath {
 

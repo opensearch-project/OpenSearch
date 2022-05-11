@@ -41,6 +41,11 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilder;
 
+/**
+ * Base builder for bulk by scroll requests
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractBulkByScrollRequestBuilder<
     Request extends AbstractBulkByScrollRequest<Request>,
     Self extends AbstractBulkByScrollRequestBuilder<Request, Self>> extends ActionRequestBuilder<Request, BulkByScrollResponse> {

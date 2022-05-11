@@ -51,6 +51,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for deleting a composable index template
+ *
+ * @opensearch.internal
+ */
 public class TransportDeleteComposableIndexTemplateAction extends TransportMasterNodeAction<
     DeleteComposableIndexTemplateAction.Request,
     AcknowledgedResponse> {

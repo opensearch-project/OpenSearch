@@ -43,6 +43,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * The scope is determined by the calling code. For example you can use this class to count all documents across all pipeline,
  * or you can use this class to count documents for a given pipeline or a specific processor.
  * This class does not make assumptions about it's given scope.
+ *
+ * @opensearch.internal
  */
 class IngestMetric {
 

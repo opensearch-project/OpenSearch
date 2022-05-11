@@ -35,7 +35,7 @@ package org.opensearch.action.search;
 /**
  * Search type represent the manner at which the search operation is executed.
  *
- *
+ * @opensearch.internal
  */
 public enum SearchType {
     /**

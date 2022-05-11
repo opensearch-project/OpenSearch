@@ -37,6 +37,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Base analyzer component
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends AbstractIndexComponent implements AnalyzerProvider<T> {
 
     private final String name;

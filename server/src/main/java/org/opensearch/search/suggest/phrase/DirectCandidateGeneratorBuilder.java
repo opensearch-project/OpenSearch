@@ -57,6 +57,11 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+/**
+ * Builder for a phrase candidate directly retrieved from an IndexReader
+ *
+ * @opensearch.internal
+ */
 public final class DirectCandidateGeneratorBuilder implements CandidateGenerator {
 
     private static final String TYPE = "direct_generator";

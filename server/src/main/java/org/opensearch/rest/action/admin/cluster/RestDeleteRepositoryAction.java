@@ -48,6 +48,8 @@ import static org.opensearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Unregisters a repository
+ *
+ * @opensearch.api
  */
 public class RestDeleteRepositoryAction extends BaseRestHandler {
 

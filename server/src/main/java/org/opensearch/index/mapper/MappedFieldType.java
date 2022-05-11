@@ -77,6 +77,8 @@ import java.util.function.Supplier;
 
 /**
  * This defines the core properties and functions to operate on a field.
+ *
+ * @opensearch.internal
  */
 public abstract class MappedFieldType {
 
@@ -376,6 +378,8 @@ public abstract class MappedFieldType {
     /**
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
+     *
+     * @opensearch.internal
      */
     public enum Relation {
         WITHIN,

@@ -56,6 +56,8 @@ import static org.opensearch.rest.RestStatus.OK;
 
 /**
  * The REST handler for get template and head template APIs.
+ *
+ * @opensearch.api
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 

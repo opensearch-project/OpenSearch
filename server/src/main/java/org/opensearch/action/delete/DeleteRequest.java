@@ -64,6 +64,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @see DeleteResponse
  * @see org.opensearch.client.Client#delete(DeleteRequest)
  * @see org.opensearch.client.Requests#deleteRequest(String)
+ *
+ * @opensearch.internal
  */
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     implements

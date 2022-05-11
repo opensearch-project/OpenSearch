@@ -46,6 +46,8 @@ import java.util.Set;
 
 /**
  * Cluster state update request that allows to create an index
+ *
+ * @opensearch.internal
  */
 public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<CreateIndexClusterStateUpdateRequest> {
 

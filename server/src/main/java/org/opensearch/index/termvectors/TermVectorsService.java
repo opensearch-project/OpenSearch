@@ -83,6 +83,11 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+/**
+ * Service for Term Vectors
+ *
+ * @opensearch.internal
+ */
 public class TermVectorsService {
 
     private TermVectorsService() {}
@@ -418,7 +423,11 @@ public class TermVectorsService {
         return parallelFields;
     }
 
-    // Poached from Lucene ParallelLeafReader
+    /**
+     * Poached from Lucene ParallelLeafReader
+     *
+     * @opensearch.internal
+     */
     private static final class ParallelFields extends Fields {
         final Map<String, Terms> fields = new TreeMap<>();
 

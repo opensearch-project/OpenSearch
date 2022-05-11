@@ -47,6 +47,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for sampler agg
+ *
+ * @opensearch.internal
+ */
 public class SamplerAggregationBuilder extends AbstractAggregationBuilder<SamplerAggregationBuilder> {
     public static final String NAME = "sampler";
 

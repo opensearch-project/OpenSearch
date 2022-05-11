@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if there is an error truncating the translog
+ *
+ * @opensearch.internal
+ */
 public class TruncatedTranslogException extends TranslogCorruptedException {
 
     public TruncatedTranslogException(StreamInput in) throws IOException {

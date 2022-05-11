@@ -38,6 +38,11 @@ import org.opensearch.search.fetch.FetchSubPhase;
 
 import java.util.Map;
 
+/**
+ * Context used during field level highlighting
+ *
+ * @opensearch.internal
+ */
 public class FieldHighlightContext {
 
     public final String fieldName;

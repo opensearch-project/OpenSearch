@@ -44,6 +44,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Context used for the completion suggester
+ *
+ * @opensearch.internal
+ */
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
     protected CompletionSuggestionContext(QueryShardContext shardContext) {

@@ -36,6 +36,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Base index shard class
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractIndexShardComponent implements IndexShardComponent {
 
     protected final Logger logger;

@@ -42,6 +42,8 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * A task that can be canceled
+ *
+ * @opensearch.internal
  */
 public abstract class CancellableTask extends Task {
 

@@ -30,8 +30,6 @@
  * GitHub history for details.
  */
 
-package org.opensearch.search.aggregations.support;
-
 /**
  * <p>
  * This package holds shared code for the aggregations framework, especially around dealing with values.
@@ -88,3 +86,4 @@ package org.opensearch.search.aggregations.support;
  * </p>
  *
  */
+package org.opensearch.search.aggregations.support;

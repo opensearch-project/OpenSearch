@@ -48,6 +48,11 @@ import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to add index block
+ *
+ * @opensearch.api
+ */
 public class RestAddIndexBlockAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestAddIndexBlockAction.class);

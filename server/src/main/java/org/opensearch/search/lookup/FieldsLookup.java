@@ -34,6 +34,11 @@ package org.opensearch.search.lookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.index.mapper.MapperService;
 
+/**
+ * looks up multiple fields from a leaf reader
+ *
+ * @opensearch.internal
+ */
 public class FieldsLookup {
 
     private final MapperService mapperService;

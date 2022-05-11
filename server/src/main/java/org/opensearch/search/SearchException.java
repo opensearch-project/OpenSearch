@@ -39,6 +39,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Error thrown if there is a problem during search
+ *
+ * @opensearch.internal
+ */
 public class SearchException extends OpenSearchException implements OpenSearchWrapperException {
 
     private final SearchShardTarget shardTarget;

@@ -83,6 +83,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This class encapsulates the state needed to execute a search. It holds a reference to the
  * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
  * state from one query / fetch phase to another.
+ *
+ * @opensearch.internal
  */
 public abstract class SearchContext implements Releasable {
 

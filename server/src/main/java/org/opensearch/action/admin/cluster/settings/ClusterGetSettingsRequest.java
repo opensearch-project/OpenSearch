@@ -39,6 +39,8 @@ import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 /**
  * This request is specific to the REST client. {@link ClusterStateRequest}
  * is used on the transport layer.
+ *
+ * @opensearch.internal
  */
 public class ClusterGetSettingsRequest extends MasterNodeReadRequest<ClusterGetSettingsRequest> {
     private boolean includeDefaults = false;

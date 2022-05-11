@@ -50,6 +50,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to perform a multi get
+ *
+ * @opensearch.api
+ */
 public class RestMultiGetAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 

@@ -102,13 +102,22 @@ import java.util.Objects;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
-/** A {@link FieldMapper} for full-text fields. */
+/**
+ * A {@link FieldMapper} for full-text fields.
+ *
+ * @opensearch.internal
+ */
 public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
 
+    /**
+     * Default paramters for text fields
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final double FIELDDATA_MIN_FREQUENCY = 0;
         public static final double FIELDDATA_MAX_FREQUENCY = Integer.MAX_VALUE;
@@ -138,6 +147,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         return ((TextFieldMapper) in).builder;
     }
 
+    /**
+     * Prefix configuration
+     *
+     * @opensearch.internal
+     */
     private static final class PrefixConfig implements ToXContent {
         final int minChars;
         final int maxChars;
@@ -195,6 +209,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         return new PrefixConfig(minChars, maxChars);
     }
 
+    /**
+     * Frequency filter for field data
+     *
+     * @opensearch.internal
+     */
     private static final class FielddataFrequencyFilter implements ToXContent {
         final double minFreq;
         final double maxFreq;
@@ -252,6 +271,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
+    /**
+     * Builder for text fields
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Version indexCreatedVersion;
@@ -452,6 +476,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
 
+    /**
+     * A phrase wrapped field analyzer
+     *
+     * @opensearch.internal
+     */
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 
         private final Analyzer delegate;
@@ -472,6 +501,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * A prefix wrapped analyzer
+     *
+     * @opensearch.internal
+     */
     private static class PrefixWrappedAnalyzer extends AnalyzerWrapper {
 
         private final int minChars;
@@ -497,6 +531,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for phrase fields
+     *
+     * @opensearch.internal
+     */
     static final class PhraseFieldType extends StringFieldType {
 
         final TextFieldType parent;
@@ -529,6 +568,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for prefix fields
+     *
+     * @opensearch.internal
+     */
     static final class PrefixFieldType extends StringFieldType {
 
         final int minChars;
@@ -622,6 +666,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field mapper for phrase fields
+     *
+     * @opensearch.internal
+     */
     private static final class PhraseFieldMapper extends FieldMapper {
 
         PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType) {
@@ -644,6 +693,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field mapper for prefix fields
+     *
+     * @opensearch.internal
+     */
     private static final class PrefixFieldMapper extends FieldMapper {
 
         protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
@@ -675,6 +729,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for text fields
+     *
+     * @opensearch.internal
+     */
     public static class TextFieldType extends StringFieldType {
 
         private boolean fielddata;

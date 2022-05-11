@@ -69,6 +69,7 @@ import java.util.function.Supplier;
  *     </li>
  * </ul>
  *
+ * @opensearch.internal
 **/
 public final class IndexSortConfig {
     /**
@@ -243,6 +244,11 @@ public final class IndexSortConfig {
         }
     }
 
+    /**
+     * Field sort specification
+     *
+     * @opensearch.internal
+     */
     static class FieldSortSpec {
         final String field;
         SortOrder order;

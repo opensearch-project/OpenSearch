@@ -46,6 +46,11 @@ import java.util.Objects;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
+/**
+ * Aggregation Builder for cumulative_sum pipeline agg
+ *
+ * @opensearch.internal
+ */
 public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<CumulativeSumPipelineAggregationBuilder> {
     public static final String NAME = "cumulative_sum";
 

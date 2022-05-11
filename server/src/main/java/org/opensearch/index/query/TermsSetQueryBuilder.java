@@ -62,6 +62,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Query builder for terms_set queries
+ *
+ * @opensearch.internal
+ */
 public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
 
     public static final String NAME = "terms_set";
@@ -293,6 +298,11 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         return longValuesSource;
     }
 
+    /**
+     * Values Source for scripted long values
+     *
+     * @opensearch.internal
+     */
     static final class ScriptLongValueSource extends LongValuesSource {
 
         private final Script script;
@@ -361,8 +371,12 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     }
 
-    // Forked from LongValuesSource.FieldValuesSource and changed getValues() method to always use sorted numeric
-    // doc values, because that is what is being used in NumberFieldMapper.
+    /**
+     * Forked from LongValuesSource.FieldValuesSource and changed getValues() method to always use sorted numeric
+     * doc values, because that is what is being used in NumberFieldMapper.
+     *
+     * @opensearch.internal
+     */
     static class FieldValuesSource extends LongValuesSource {
 
         private final String fieldName;

@@ -62,6 +62,8 @@ import java.util.function.Function;
  *      Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
+ *
+ * @opensearch.internal
  */
 public class FsRepository extends BlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(FsRepository.class);

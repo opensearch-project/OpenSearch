@@ -66,6 +66,8 @@ import java.util.function.Consumer;
  * in the {@link CircuitBreaker#REQUEST} circuit breaker. Before any partial or final reduce, the memory
  * needed to reduce the aggregations is estimated and a {@link CircuitBreakingException} is thrown if it
  * exceeds the maximum memory allowed in this breaker.
+ *
+ * @opensearch.internal
  */
 public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> implements Releasable {
     private static final Logger logger = LogManager.getLogger(QueryPhaseResultConsumer.class);
@@ -240,6 +242,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return pendingMerges.numReducePhases;
     }
 
+    /**
+     * Class representing pending merges
+     *
+     * @opensearch.internal
+     */
     private class PendingMerges implements Releasable {
         private final int batchReduceSize;
         private final List<QuerySearchResult> buffer = new ArrayList<>();
@@ -496,6 +503,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
+    /**
+     * A single merge result
+     *
+     * @opensearch.internal
+     */
     private static class MergeResult {
         private final List<SearchShard> processedShards;
         private final TopDocs reducedTopDocs;
@@ -515,6 +527,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
+    /**
+     * A single merge task
+     *
+     * @opensearch.internal
+     */
     private static class MergeTask {
         private final List<SearchShard> emptyResults;
         private QuerySearchResult[] buffer;

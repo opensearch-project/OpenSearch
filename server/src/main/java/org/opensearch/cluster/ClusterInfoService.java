@@ -36,6 +36,8 @@ import java.util.function.Consumer;
 
 /**
  * Interface for a class used to gather information about a cluster periodically.
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface ClusterInfoService {

@@ -59,6 +59,11 @@ import java.util.Objects;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
+/**
+ * Query builder for script queries
+ *
+ * @opensearch.internal
+ */
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
 
@@ -159,6 +164,11 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         return new ScriptQuery(script, filterScript, queryName);
     }
 
+    /**
+     * Internal script query
+     *
+     * @opensearch.internal
+     */
     static class ScriptQuery extends Query {
 
         final Script script;

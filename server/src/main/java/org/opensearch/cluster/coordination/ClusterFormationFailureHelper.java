@@ -59,6 +59,11 @@ import java.util.stream.StreamSupport;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Helper for cluster failure events
+ *
+ * @opensearch.internal
+ */
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
 
@@ -218,7 +223,7 @@ public class ClusterFormationFailureHelper {
 
             assert clusterState.getLastCommittedConfiguration().isEmpty() == false;
 
-            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
+            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER)) {
                 return String.format(
                     Locale.ROOT,
                     "cluster-manager not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",

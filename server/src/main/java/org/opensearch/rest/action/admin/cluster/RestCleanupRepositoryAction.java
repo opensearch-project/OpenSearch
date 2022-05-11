@@ -48,6 +48,8 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
  * Cleans up a repository
+ *
+ * @opensearch.api
  */
 public class RestCleanupRepositoryAction extends BaseRestHandler {
 

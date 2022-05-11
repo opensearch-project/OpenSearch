@@ -70,11 +70,11 @@ dependencies {
   api 'com.google.auth:google-auth-library-credentials:0.20.0'
   api 'com.google.auth:google-auth-library-oauth2-http:0.20.0'
   api 'com.google.oauth-client:google-oauth-client:1.33.1'
-  api 'com.google.api-client:google-api-client:1.30.10'
-  api 'com.google.http-client:google-http-client-appengine:1.35.0'
+  api 'com.google.api-client:google-api-client:1.34.0'
+  api 'com.google.http-client:google-http-client-appengine:1.41.8'
   api 'com.google.http-client:google-http-client-jackson2:1.35.0'
   api 'com.google.http-client:google-http-client-gson:1.41.4'
-  api 'com.google.api:gax-httpjson:0.62.0'
+  api 'com.google.api:gax-httpjson:0.101.0'
   api 'io.grpc:grpc-context:1.45.1'
   api 'io.opencensus:opencensus-api:0.18.0'
   api 'io.opencensus:opencensus-contrib-http-util:0.18.0'
@@ -126,6 +126,7 @@ thirdPartyAudit {
   )
 
   ignoreMissingClasses(
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
     'com.google.appengine.api.datastore.Blob',
     'com.google.appengine.api.datastore.DatastoreService',
     'com.google.appengine.api.datastore.DatastoreServiceFactory',
@@ -145,6 +146,10 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    'com.google.api.gax.rpc.ApiCallContext$Key',
+    'com.google.api.gax.rpc.internal.ApiCallContextOptions',
+    'com.google.api.gax.rpc.mtls.MtlsProvider',
+    'com.google.api.gax.tracing.BaseApiTracer',
     // commons-logging optional dependencies
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
@@ -168,6 +173,8 @@ thirdPartyAudit {
     'org.apache.http.client.UserTokenHandler',
     'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
     'org.apache.http.client.methods.HttpRequestBase',
+    'org.apache.http.config.Registry',
+    'org.apache.http.config.RegistryBuilder',
     'org.apache.http.config.SocketConfig',
     'org.apache.http.config.SocketConfig$Builder',
     'org.apache.http.conn.ClientConnectionManager',
@@ -177,6 +184,7 @@ thirdPartyAudit {
     'org.apache.http.conn.routing.HttpRoutePlanner',
     'org.apache.http.conn.scheme.PlainSocketFactory',
     'org.apache.http.conn.scheme.SchemeRegistry',
+    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
     'org.apache.http.conn.ssl.SSLSocketFactory',
     'org.apache.http.conn.ssl.X509HostnameVerifier',
     'org.apache.http.entity.AbstractHttpEntity',

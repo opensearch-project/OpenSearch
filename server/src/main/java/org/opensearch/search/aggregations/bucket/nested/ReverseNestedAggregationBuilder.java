@@ -50,6 +50,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for reverse_nested agg
+ *
+ * @opensearch.internal
+ */
 public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<ReverseNestedAggregationBuilder> {
     public static final String NAME = "reverse_nested";
 

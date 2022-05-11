@@ -53,6 +53,8 @@ import java.util.Map;
  * {@code offset} and {@code value}, it returns the highest number that can be
  * written as {@code interval * x + offset} and yet is less than or equal to
  * {@code value}.
+ *
+ * @opensearch.internal
  */
 public class NumericHistogramAggregator extends AbstractHistogramAggregator {
     private final ValuesSource.Numeric valuesSource;

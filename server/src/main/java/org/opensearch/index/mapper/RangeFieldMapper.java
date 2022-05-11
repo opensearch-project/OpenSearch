@@ -77,11 +77,20 @@ import static org.opensearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LT_FIELD;
 
-/** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
+/**
+ * A {@link FieldMapper} for indexing numeric and date ranges, and creating queries
+ *
+ * @opensearch.internal
+ */
 public class RangeFieldMapper extends ParametrizedFieldMapper {
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
+    /**
+     * Default parameters for range fields
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -94,6 +103,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         return (RangeFieldMapper) in;
     }
 
+    /**
+     * Builder for range fields
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
@@ -229,6 +243,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for range fields
+     *
+     * @opensearch.internal
+     */
     public static final class RangeFieldType extends MappedFieldType {
         protected final RangeType rangeType;
         protected final DateFormatter dateTimeFormatter;
@@ -555,7 +574,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    /** Class defining a range */
+    /**
+     * Class defining a range
+     *
+     * @opensearch.internal
+     */
     public static class Range {
         RangeType type;
         Object from;
@@ -614,6 +637,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Doc values field for binary ranges
+     *
+     * @opensearch.internal
+     */
     static class BinaryRangesDocValuesField extends CustomDocValuesField {
 
         private final Set<Range> ranges;

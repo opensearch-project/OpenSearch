@@ -41,6 +41,8 @@ import java.util.Objects;
 
 /**
  * Basic information about a snapshot - a SnapshotId and the repository that the snapshot belongs to.
+ *
+ * @opensearch.internal
  */
 public final class Snapshot implements Writeable {
 

@@ -50,6 +50,8 @@ import java.util.function.Function;
 
 /**
  * A script used for adjusting the score on a per document basis.
+ *
+ * @opensearch.internal
  */
 public abstract class ScoreScript {
 

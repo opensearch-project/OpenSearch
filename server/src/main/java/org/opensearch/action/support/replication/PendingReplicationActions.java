@@ -46,6 +46,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+/**
+ * Pending Replication Actions
+ *
+ * @opensearch.internal
+ */
 public class PendingReplicationActions implements Consumer<ReplicationGroup>, Releasable {
 
     private final Map<String, Set<RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();

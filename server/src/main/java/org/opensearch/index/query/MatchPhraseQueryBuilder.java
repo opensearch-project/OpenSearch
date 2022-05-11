@@ -49,6 +49,8 @@ import java.util.Objects;
 /**
  * Match query is a query that analyzes the text and constructs a phrase query
  * as the result of the analysis.
+ *
+ * @opensearch.internal
  */
 public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQueryBuilder> {
     public static final String NAME = "match_phrase";

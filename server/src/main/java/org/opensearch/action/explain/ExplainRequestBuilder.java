@@ -41,6 +41,8 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A builder for {@link ExplainRequest}.
+ *
+ * @opensearch.internal
  */
 public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 

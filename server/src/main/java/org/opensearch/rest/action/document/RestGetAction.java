@@ -54,6 +54,11 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * Transport action to get a document
+ *
+ * @opensearch.api
+ */
 public class RestGetAction extends BaseRestHandler {
 
     @Override

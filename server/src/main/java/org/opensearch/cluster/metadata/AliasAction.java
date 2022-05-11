@@ -38,6 +38,8 @@ import org.opensearch.common.Strings;
 
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
+ *
+ * @opensearch.internal
  */
 public abstract class AliasAction {
     private final String index;

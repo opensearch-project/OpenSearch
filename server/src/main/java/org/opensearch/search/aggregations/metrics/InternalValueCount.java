@@ -43,6 +43,8 @@ import java.util.Objects;
 
 /**
  * An internal implementation of {@link ValueCount}.
+ *
+ * @opensearch.internal
  */
 public class InternalValueCount extends InternalNumericMetricsAggregation.SingleValue implements ValueCount {
     private final long value;

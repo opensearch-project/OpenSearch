@@ -51,6 +51,8 @@ import java.util.Objects;
  * Information about successfully completed restore operation.
  * <p>
  * Returned as part of {@link org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse}
+ *
+ * @opensearch.internal
  */
 public class RestoreInfo implements ToXContentObject, Writeable {
 

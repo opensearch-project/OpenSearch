@@ -63,6 +63,8 @@ import java.util.function.BiPredicate;
  * Note: Reducing the number of shards per node via the index update API can
  * trigger relocation and significant additional load on the clusters nodes.
  * </p>
+ *
+ * @opensearch.internal
  */
 public class ShardsLimitAllocationDecider extends AllocationDecider {
 

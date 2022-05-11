@@ -63,8 +63,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+/**
+ * The OpenSearch DocumentMapper
+ *
+ * @opensearch.internal
+ */
 public class DocumentMapper implements ToXContentFragment {
 
+    /**
+     * Builder for the Document Field Mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();

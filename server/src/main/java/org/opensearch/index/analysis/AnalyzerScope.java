@@ -32,6 +32,11 @@
 
 package org.opensearch.index.analysis;
 
+/**
+ * Enum to identify the scope of an analyzer
+ *
+ * @opensearch.internal
+ */
 public enum AnalyzerScope {
     INDEX,
     INDICES,

@@ -41,6 +41,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Sequence number statistics
+ *
+ * @opensearch.internal
+ */
 public class SeqNoStats implements ToXContentFragment, Writeable {
 
     private static final String SEQ_NO = "seq_no";

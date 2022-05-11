@@ -82,6 +82,11 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to get node information
+ *
+ * @opensearch.api
+ */
 public class RestNodesAction extends AbstractCatAction {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodesAction.class);
     static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act "

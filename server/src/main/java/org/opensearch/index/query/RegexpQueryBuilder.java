@@ -57,6 +57,8 @@ import java.util.Objects;
 
 /**
  * A Query that does fuzzy matching for a specific value.
+ *
+ * @opensearch.internal
  */
 public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "regexp";

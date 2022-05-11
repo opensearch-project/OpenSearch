@@ -35,6 +35,8 @@ import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
 
 /**
  * Cluster state update request that allows to close one or more indices
+ *
+ * @opensearch.internal
  */
 public class DeleteIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<DeleteIndexClusterStateUpdateRequest> {
 

@@ -47,6 +47,11 @@ import java.util.List;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to put composable index templates
+ *
+ * @opensearch.api
+ */
 public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutComposableIndexTemplateAction.class);

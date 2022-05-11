@@ -45,6 +45,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Filter the term vector (doc frequency, positions, offsets) for a
+ * document.
+ *
+ * @opensearch.internal
+ */
 public class TermVectorsFilter {
     public static final int DEFAULT_MAX_QUERY_TERMS = 25;
     public static final int DEFAULT_MIN_TERM_FREQ = 0;
@@ -170,6 +176,11 @@ public class TermVectorsFilter {
         this.maxWordLength = maxWordLength;
     }
 
+    /**
+     * Internal score term
+     *
+     * @opensearch.internal
+     */
     public static final class ScoreTerm {
         public String field;
         public String word;
@@ -289,6 +300,11 @@ public class TermVectorsFilter {
         return freq * similarity.idf(docFreq, numDocs);
     }
 
+    /**
+     * Internal queue of score terms
+     *
+     * @opensearch.internal
+     */
     private static class ScoreTermsQueue extends org.apache.lucene.util.PriorityQueue<ScoreTerm> {
         private final int limit;
 

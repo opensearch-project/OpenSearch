@@ -67,6 +67,8 @@ import java.util.function.LongSupplier;
 
 /**
  * Helper for translating an update request to an index, delete request or update response.
+ *
+ * @opensearch.internal
  */
 public class UpdateHelper {
 
@@ -388,6 +390,11 @@ public class UpdateHelper {
         );
     }
 
+    /**
+     * Internal result
+     *
+     * @opensearch.internal
+     */
     public static class Result {
 
         private final Writeable action;
@@ -466,6 +473,8 @@ public class UpdateHelper {
 
     /**
      * Field names used to populate the script context
+     *
+     * @opensearch.internal
      */
     public static class ContextFields {
         public static final String CTX = "ctx";

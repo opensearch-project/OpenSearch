@@ -39,6 +39,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown when there is a timeout processing cluster events
+ *
+ * @opensearch.internal
+ */
 public class ProcessClusterEventTimeoutException extends OpenSearchException {
 
     public ProcessClusterEventTimeoutException(TimeValue timeValue, String source) {

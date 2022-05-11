@@ -70,6 +70,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Transport action for rerouting cluster allocation commands
+ *
+ * @opensearch.internal
+ */
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
@@ -209,6 +214,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         );
     }
 
+    /**
+     * Inner Reroute Response Acknowledged the Cluster State Update
+     *
+     * @opensearch.internal
+     */
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {
 
         private final ClusterRerouteRequest request;

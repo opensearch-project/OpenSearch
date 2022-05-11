@@ -38,6 +38,11 @@ import org.opensearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
+/**
+ * Thrown if there are any errors in the query phase
+ *
+ * @opensearch.internal
+ */
 public class QueryPhaseExecutionException extends SearchException {
 
     public QueryPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable cause) {

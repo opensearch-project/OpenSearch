@@ -69,6 +69,8 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIEL
  * the latest updated settings instance. Classes that need to listen to settings updates can register
  * a settings consumer at index creation via {@link IndexModule#addSettingsUpdateConsumer(Setting, Consumer)} that will
  * be called for each settings update.
+ *
+ * @opensearch.internal
  */
 public final class IndexSettings {
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(

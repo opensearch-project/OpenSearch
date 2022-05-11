@@ -56,6 +56,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * in {@link org.opensearch.search.SearchService} a SearchContext can be closed concurrently due to independent events
  * ie. when an index gets removed. To prevent accessing closed IndexReader / IndexSearcher instances the SearchContext
  * can be guarded by a reference count and fail if it's been closed by an external event.
+ *
+ * @opensearch.internal
  */
 public class ReaderContext implements Releasable {
     private final ShardSearchContextId id;

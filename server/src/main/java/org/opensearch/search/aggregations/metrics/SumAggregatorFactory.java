@@ -46,6 +46,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for sum agg
+ *
+ * @opensearch.internal
+ */
 class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     SumAggregatorFactory(

@@ -50,6 +50,8 @@ import java.util.TreeSet;
 
 /**
  * Represents a node role.
+ *
+ * @opensearch.internal
  */
 public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 

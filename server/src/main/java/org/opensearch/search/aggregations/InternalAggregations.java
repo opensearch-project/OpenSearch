@@ -59,6 +59,8 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * An internal implementation of {@link Aggregations}.
+ *
+ * @opensearch.internal
  */
 public final class InternalAggregations extends Aggregations implements Writeable {
 

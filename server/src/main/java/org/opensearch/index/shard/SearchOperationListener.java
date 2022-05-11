@@ -43,6 +43,8 @@ import java.util.List;
 
 /**
  * An listener for search, fetch and context events.
+ *
+ * @opensearch.internal
  */
 public interface SearchOperationListener {
 

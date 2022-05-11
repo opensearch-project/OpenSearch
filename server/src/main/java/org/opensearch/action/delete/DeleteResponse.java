@@ -47,6 +47,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  *
  * @see org.opensearch.action.delete.DeleteRequest
  * @see org.opensearch.client.Client#delete(DeleteRequest)
+ *
+ * @opensearch.internal
  */
 public class DeleteResponse extends DocWriteResponse {
 
@@ -109,6 +111,8 @@ public class DeleteResponse extends DocWriteResponse {
      * Builder class for {@link DeleteResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
      * instantiate the {@link DeleteResponse}.
+     *
+     * @opensearch.internal
      */
     public static class Builder extends DocWriteResponse.Builder {
 

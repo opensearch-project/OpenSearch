@@ -46,7 +46,11 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-/** {@link LeafFieldData} impl on top of Lucene's binary doc values. */
+/**
+ * {@link LeafFieldData} impl on top of Lucene's binary doc values.
+ *
+ * @opensearch.internal
+ */
 public class BinaryDVLeafFieldData implements LeafFieldData {
 
     private final LeafReader reader;

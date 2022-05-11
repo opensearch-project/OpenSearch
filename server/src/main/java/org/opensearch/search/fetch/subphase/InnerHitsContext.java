@@ -58,6 +58,8 @@ import java.util.Objects;
 
 /**
  * Context used for inner hits retrieval
+ *
+ * @opensearch.internal
  */
 public final class InnerHitsContext {
     private final Map<String, InnerHitSubContext> innerHits;

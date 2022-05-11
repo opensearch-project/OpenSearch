@@ -41,6 +41,8 @@ import java.util.function.Supplier;
 
 /**
  * Rate limiting wrapper for InputStream
+ *
+ * @opensearch.internal
  */
 public class RateLimitingInputStream extends FilterInputStream {
 
@@ -50,6 +52,11 @@ public class RateLimitingInputStream extends FilterInputStream {
 
     private long bytesSinceLastRateLimit;
 
+    /**
+     * Internal listener
+     *
+     * @opensearch.internal
+     */
     public interface Listener {
         void onPause(long nanos);
     }

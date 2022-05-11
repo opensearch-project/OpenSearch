@@ -55,6 +55,11 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
+/**
+ * Aggregate all docs into a moving average bucket
+ *
+ * @opensearch.internal
+ */
 public class MovAvgPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final GapPolicy gapPolicy;

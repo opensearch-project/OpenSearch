@@ -76,6 +76,8 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
+ *
+ * @opensearch.internal
  */
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
     protected final ResultStrategy<?, ?, ?> resultStrategy;

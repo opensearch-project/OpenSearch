@@ -38,6 +38,11 @@ import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 
 import java.io.IOException;
 
+/**
+ * naive backoff scorer
+ *
+ * @opensearch.internal
+ */
 class StupidBackoffScorer extends WordScorer {
     private final double discount;
 

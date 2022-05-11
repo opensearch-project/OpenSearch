@@ -56,6 +56,8 @@ import java.util.function.LongSupplier;
  * <p>
  * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
+ *
+ * @opensearch.internal
  */
 public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final Logger logger;
@@ -263,6 +265,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     /**
      * A wrapper of an index commit that prevents it from being deleted.
+     *
+     * @opensearch.internal
      */
     private static class SnapshotIndexCommit extends IndexCommit {
         private final IndexCommit delegate;

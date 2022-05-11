@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.action.RequestValidators;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
@@ -143,8 +142,6 @@ public class ValidateIndicesAliasesRequestIT extends OpenSearchSingleNodeTestCas
         final Exception e = expectThrows(IllegalStateException.class, () -> client().admin().indices().aliases(request).actionGet());
         final String index = "foo_allowed".equals(origin) ? "bar" : "foo";
         assertThat(e, hasToString(containsString("origin [" + origin + "] not allowed for index [" + index + "]")));
-        final AliasesExistResponse response = client().admin().indices().aliasesExist(new GetAliasesRequest("alias")).actionGet();
-        assertFalse(response.exists());
+        assertTrue(client().admin().indices().getAliases(new GetAliasesRequest("alias")).actionGet().getAliases().isEmpty());
     }
-
 }

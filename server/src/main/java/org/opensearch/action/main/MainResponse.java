@@ -48,6 +48,11 @@ import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * The main response of opensearch
+ *
+ * @opensearch.internal
+ */
 public class MainResponse extends ActionResponse implements ToXContentObject {
 
     private String nodeName;

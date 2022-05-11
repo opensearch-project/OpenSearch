@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of stats agg
+ *
+ * @opensearch.internal
+ */
 public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
     enum Metrics {
 

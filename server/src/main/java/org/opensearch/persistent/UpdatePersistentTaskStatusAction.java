@@ -55,6 +55,11 @@ import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for updating persistent tasks
+ *
+ * @opensearch.internal
+ */
 public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskResponse> {
 
     public static final UpdatePersistentTaskStatusAction INSTANCE = new UpdatePersistentTaskStatusAction();

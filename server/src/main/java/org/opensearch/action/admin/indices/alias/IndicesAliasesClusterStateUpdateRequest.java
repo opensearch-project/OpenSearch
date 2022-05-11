@@ -38,6 +38,8 @@ import java.util.List;
 
 /**
  * Cluster state update request that allows to add or remove aliases
+ *
+ * @opensearch.internal
  */
 public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateRequest<IndicesAliasesClusterStateUpdateRequest> {
     private final List<AliasAction> actions;
