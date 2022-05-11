@@ -717,7 +717,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(
                 Collections.singleton(clusterManagerNode),
-                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(clusterManagerNode) == false).collect(Collectors.toSet())
+                Arrays.stream(internalCluster().getNodeNames())
+                    .filter(name -> name.equals(clusterManagerNode) == false)
+                    .collect(Collectors.toSet())
             ),
             disruptionType
         );
@@ -953,8 +955,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // cluster state where it is cluster-manager but where the node that was stopped hasn't been removed yet from the cluster state.
             // It will only subsequently publish a second state where the old cluster-manager is removed.
             // If the ensureGreen/ensureYellow is timed just right, it will get to execute before the second cluster state update removes
-            // the old cluster-manager and the condition ensureGreen / ensureYellow will trivially hold if it held before the node was 
-            // shut down. The following "waitForNodes" condition ensures that the node has been removed by the cluster-manager 
+            // the old cluster-manager and the condition ensureGreen / ensureYellow will trivially hold if it held before the node was
+            // shut down. The following "waitForNodes" condition ensures that the node has been removed by the cluster-manager
             // so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
@@ -1112,7 +1114,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 if (clusterManagerClusterState.version() == localClusterState.version()
                     && clusterManagerId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
-                        assertEquals("cluster state UUID does not match", clusterManagerClusterState.stateUUID(), localClusterState.stateUUID());
+                        assertEquals(
+                            "cluster state UUID does not match",
+                            clusterManagerClusterState.stateUUID(),
+                            localClusterState.stateUUID()
+                        );
                         // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                         // We also cannot compare byte array size because CompressedXContent's DeflateCompressor uses
                         // a synced flush that can affect the size of the compressed byte array

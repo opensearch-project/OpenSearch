@@ -376,7 +376,7 @@ public final class InternalTestCluster extends TestCluster {
                 + "[{}] (data) nodes and [{}] coord only nodes (min_cluster_manager_nodes are [{}])",
             clusterName,
             SeedUtils.formatSeed(clusterSeed),
-                numSharedDedicatedClusterManagerNodes,
+            numSharedDedicatedClusterManagerNodes,
             numSharedDataNodes,
             numSharedCoordOnlyNodes,
             autoManageClusterManagerNodes ? "auto-managed" : "manual"
@@ -454,7 +454,8 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void setBootstrapClusterManagerNodeIndex(int bootstrapClusterManagerNodeIndex) {
         assert autoManageClusterManagerNodes == false || bootstrapClusterManagerNodeIndex == -1
-            : "bootstrapClusterManagerNodeIndex should be -1 if autoManageClusterManagerNodes is true, but was " + bootstrapClusterManagerNodeIndex;
+            : "bootstrapClusterManagerNodeIndex should be -1 if autoManageClusterManagerNodes is true, but was "
+                + bootstrapClusterManagerNodeIndex;
         this.bootstrapClusterManagerNodeIndex = bootstrapClusterManagerNodeIndex;
     }
 
@@ -686,7 +687,12 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private Settings getNodeSettings(final int nodeId, final long seed, final Settings extraSettings, final int defaultMinClusterManagerNodes) {
+    private Settings getNodeSettings(
+        final int nodeId,
+        final long seed,
+        final Settings extraSettings,
+        final int defaultMinClusterManagerNodes
+    ) {
         final Settings settings = getSettings(nodeId, seed, extraSettings);
 
         final String name = buildNodeName(nodeId, settings);
@@ -1128,7 +1134,9 @@ public final class InternalTestCluster extends TestCluster {
 
         // start any missing node
         assert newSize == numSharedDedicatedClusterManagerNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
-        final int numberOfClusterManagerNodes = numSharedDedicatedClusterManagerNodes > 0 ? numSharedDedicatedClusterManagerNodes : numSharedDataNodes;
+        final int numberOfClusterManagerNodes = numSharedDedicatedClusterManagerNodes > 0
+            ? numSharedDedicatedClusterManagerNodes
+            : numSharedDataNodes;
         final int defaultMinClusterManagerNodes = (numberOfClusterManagerNodes / 2) + 1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
@@ -1148,8 +1156,8 @@ public final class InternalTestCluster extends TestCluster {
                 settings.add(nodeSettings);
             }
         }
-        for (int i = numSharedDedicatedClusterManagerNodes + numSharedDataNodes; i < numSharedDedicatedClusterManagerNodes + numSharedDataNodes
-            + numSharedCoordOnlyNodes; i++) {
+        for (int i = numSharedDedicatedClusterManagerNodes + numSharedDataNodes; i < numSharedDedicatedClusterManagerNodes
+            + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             final Builder extraSettings = Settings.builder().put(noRoles());
             settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinClusterManagerNodes));
         }

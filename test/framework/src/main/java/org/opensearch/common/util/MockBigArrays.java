@@ -75,7 +75,8 @@ public class MockBigArrays extends BigArrays {
                 assertBusy(() -> assertTrue(Sets.haveEmptyIntersection(clusterManagerCopy.keySet(), ACQUIRED_ARRAYS.keySet())));
             } catch (AssertionError ex) {
                 clusterManagerCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
-                ACQUIRED_ARRAYS.keySet().removeAll(clusterManagerCopy.keySet()); // remove all existing cluster-manager copy we will report on
+                // remove all existing cluster-manager copy we will report on
+                ACQUIRED_ARRAYS.keySet().removeAll(clusterManagerCopy.keySet());
                 if (!clusterManagerCopy.isEmpty()) {
                     Iterator<Object> causes = clusterManagerCopy.values().iterator();
                     Object firstCause = causes.next();

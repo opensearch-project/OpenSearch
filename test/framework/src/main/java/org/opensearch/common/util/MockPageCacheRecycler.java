@@ -61,11 +61,15 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
             final boolean success = waitUntil(() -> Sets.haveEmptyIntersection(clusterManagerCopy.keySet(), ACQUIRED_PAGES.keySet()));
             if (!success) {
                 clusterManagerCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
-                ACQUIRED_PAGES.keySet().removeAll(clusterManagerCopy.keySet()); // remove all existing cluster-manager copy we will report on
+                // remove all existing cluster-manager copy we will report on
+                ACQUIRED_PAGES.keySet().removeAll(clusterManagerCopy.keySet());
                 if (!clusterManagerCopy.isEmpty()) {
                     Iterator<Throwable> causes = clusterManagerCopy.values().iterator();
                     Throwable firstCause = causes.next();
-                    RuntimeException exception = new RuntimeException(clusterManagerCopy.size() + " pages have not been released", firstCause);
+                    RuntimeException exception = new RuntimeException(
+                        clusterManagerCopy.size() + " pages have not been released",
+                        firstCause
+                    );
                     while (causes.hasNext()) {
                         exception.addSuppressed(causes.next());
                     }

@@ -328,7 +328,9 @@ public class CoordinationStateTestCluster {
             .filter(m -> m.payload instanceof PublishRequest)
             .collect(Collectors.groupingBy(m -> ((PublishRequest) m.payload).getAcceptedState().term()))
             .forEach((term, publishMessages) -> {
-                Set<DiscoveryNode> clusterManagersForTerm = publishMessages.stream().collect(Collectors.groupingBy(m -> m.sourceNode)).keySet();
+                Set<DiscoveryNode> clusterManagersForTerm = publishMessages.stream()
+                    .collect(Collectors.groupingBy(m -> m.sourceNode))
+                    .keySet();
                 assertThat("Multiple cluster-managers " + clusterManagersForTerm + " for term " + term, clusterManagersForTerm, hasSize(1));
             });
 
