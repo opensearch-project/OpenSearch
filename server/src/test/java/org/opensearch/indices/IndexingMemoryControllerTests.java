@@ -422,8 +422,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             config.getGlobalCheckpointSupplier(),
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier(),
-            false
+            config.getTombstoneDocSupplier()
         );
     }
 

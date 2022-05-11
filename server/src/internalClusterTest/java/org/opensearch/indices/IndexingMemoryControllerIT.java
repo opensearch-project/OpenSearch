@@ -103,8 +103,7 @@ public class IndexingMemoryControllerIT extends OpenSearchSingleNodeTestCase {
                 config.getGlobalCheckpointSupplier(),
                 config.retentionLeasesSupplier(),
                 config.getPrimaryTermSupplier(),
-                config.getTombstoneDocSupplier(),
-                config.isReadOnlyReplica()
+                config.getTombstoneDocSupplier()
             );
         }
 

@@ -4437,8 +4437,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getGlobalCheckpointSupplier(),
                 config.retentionLeasesSupplier(),
                 config.getPrimaryTermSupplier(),
-                config.getTombstoneDocSupplier(),
-                false
+                config.getTombstoneDocSupplier()
             );
             return new InternalEngine(configWithWarmer);
         });

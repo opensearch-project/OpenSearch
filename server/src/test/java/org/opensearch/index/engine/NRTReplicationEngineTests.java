@@ -8,9 +8,11 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.hamcrest.MatcherAssert;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -37,7 +39,14 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             assertEquals(latestSegmentInfos.getGeneration(), lastCommittedSegmentInfos.getGeneration());
             assertEquals(latestSegmentInfos.getUserData(), lastCommittedSegmentInfos.getUserData());
             assertEquals(latestSegmentInfos.files(true), lastCommittedSegmentInfos.files(true));
+
             assertTrue(nrtEngine.segments(true).isEmpty());
+
+            try (final GatedCloseable<IndexCommit> indexCommitGatedCloseable = nrtEngine.acquireLastIndexCommit(false)) {
+                final IndexCommit indexCommit = indexCommitGatedCloseable.get();
+                assertEquals(indexCommit.getUserData(), lastCommittedSegmentInfos.getUserData());
+                assertTrue(indexCommit.getFileNames().containsAll(lastCommittedSegmentInfos.files(true)));
+            }
         }
     }
 

@@ -170,8 +170,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             () -> RetentionLeases.EMPTY,
             () -> primaryTerm,
-            EngineTestCase.tombstoneDocSupplier(),
-            false
+            EngineTestCase.tombstoneDocSupplier()
         );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);

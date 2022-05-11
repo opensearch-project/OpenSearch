@@ -63,21 +63,16 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     public synchronized void updateSegments(final SegmentInfos infos, long seqNo) throws IOException {
-        try {
-            store.incRef();
-            // Update the current infos reference on the Engine's reader.
-            readerManager.updateSegments(infos);
+        // Update the current infos reference on the Engine's reader.
+        readerManager.updateSegments(infos);
 
-            // only update the persistedSeqNo and "lastCommitted" infos reference if the incoming segments have a higher
-            // generation. We can still refresh with incoming SegmentInfos that are not part of a commit point.
-            if (infos.getGeneration() > lastCommittedSegmentInfos.getGeneration()) {
-                this.lastCommittedSegmentInfos = infos;
-                localCheckpointTracker.fastForwardPersistedSeqNo(seqNo);
-            }
-            readerManager.maybeRefresh();
-        } finally {
-            store.decRef();
+        // only update the persistedSeqNo and "lastCommitted" infos reference if the incoming segments have a higher
+        // generation. We can still refresh with incoming SegmentInfos that are not part of a commit point.
+        if (infos.getGeneration() > lastCommittedSegmentInfos.getGeneration()) {
+            this.lastCommittedSegmentInfos = infos;
+            localCheckpointTracker.fastForwardPersistedSeqNo(seqNo);
         }
+        readerManager.maybeRefresh();
     }
 
     @Override
@@ -207,7 +202,8 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {}
+    public void refresh(String source) throws EngineException {
+    }
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
@@ -215,7 +211,8 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {}
+    public void writeIndexingBuffer() throws EngineException {
+    }
 
     @Override
     public boolean shouldPeriodicallyFlush() {
@@ -223,7 +220,8 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {}
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    }
 
     @Override
     public void forceMerge(
@@ -233,14 +231,15 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
         boolean upgrade,
         boolean upgradeOnlyAncientSegments,
         String forceMergeUUID
-    ) throws EngineException, IOException {}
+    ) throws EngineException, IOException {
+    }
 
     @Override
     public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
-        store.incRef();
         try {
             final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
-            return new GatedCloseable<>(indexCommit, store::decRef);
+            return new GatedCloseable<>(indexCommit, () -> {
+            });
         } catch (IOException e) {
             throw new EngineException(shardId, "Unable to build latest IndexCommit", e);
         }
@@ -276,13 +275,16 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    protected void deleteUnusedFiles() {}
+    protected void deleteUnusedFiles() {
+    }
 
     @Override
-    public void activateThrottling() {}
+    public void activateThrottling() {
+    }
 
     @Override
-    public void deactivateThrottling() {}
+    public void deactivateThrottling() {
+    }
 
     @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
@@ -300,10 +302,12 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public void maybePruneDeletes() {}
+    public void maybePruneDeletes() {
+    }
 
     @Override
-    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {}
+    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
+    }
 
     @Override
     public long getMaxSeqNoOfUpdatesOrDeletes() {
@@ -311,7 +315,8 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {}
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+    }
 
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
