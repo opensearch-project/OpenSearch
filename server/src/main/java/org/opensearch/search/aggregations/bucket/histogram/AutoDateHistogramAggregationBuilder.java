@@ -286,6 +286,11 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         return Objects.equals(numBuckets, other.numBuckets) && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
     }
 
+    /**
+     * Round off information
+     *
+     * @opensearch.internal
+     */
     public static class RoundingInfo implements Writeable {
         final Rounding rounding;
         final int[] innerIntervals;

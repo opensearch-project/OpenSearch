@@ -113,6 +113,8 @@ public abstract class CardinalityUpperBound {
 
     /**
      * Cardinality estimate with a known upper bound.
+     *
+     * @opensearch.internal
      */
     private static class KnownCardinalityUpperBound extends CardinalityUpperBound {
         private final int estimate;

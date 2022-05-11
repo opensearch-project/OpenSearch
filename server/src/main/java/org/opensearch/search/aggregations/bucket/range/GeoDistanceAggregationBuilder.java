@@ -121,6 +121,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         return builder;
     }
 
+    /**
+     * Range for a geo distance agg
+     *
+     * @opensearch.internal
+     */
     public static class Range extends RangeAggregator.Range {
         public Range(String key, Double from, Double to) {
             super(key(key, from, to), from == null ? 0 : from, to);

@@ -219,6 +219,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
 
     /**
      * Builder for {@link CategoryContextMapping}
+     *
+     * @opensearch.internal
      */
     public static class Builder extends ContextBuilder<CategoryContextMapping> {
 

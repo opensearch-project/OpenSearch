@@ -230,6 +230,11 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         }
     }
 
+    /**
+     * A cached scorable doc
+     *
+     * @opensearch.internal
+     */
     private static class CachedScorable extends Scorable {
         int doc;
         float score;

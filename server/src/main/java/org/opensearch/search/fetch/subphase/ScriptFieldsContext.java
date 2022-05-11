@@ -44,6 +44,11 @@ import java.util.List;
  */
 public class ScriptFieldsContext {
 
+    /**
+     * Script field use in the script fields context
+     *
+     * @opensearch.internal
+     */
     public static class ScriptField {
         private final String name;
         private final FieldScript.LeafFactory script;

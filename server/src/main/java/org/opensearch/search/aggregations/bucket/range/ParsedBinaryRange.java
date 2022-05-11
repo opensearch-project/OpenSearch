@@ -82,6 +82,11 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a binary range
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Range.Bucket {
 
         private String key;

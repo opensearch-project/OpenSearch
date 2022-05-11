@@ -63,6 +63,11 @@ public class HoltWintersModel extends MovAvgModel {
     private static final SeasonalityType DEFAULT_SEASONALITY_TYPE = SeasonalityType.ADDITIVE;
     private static final boolean DEFAULT_PAD = false;
 
+    /**
+     * The seasonality type
+     *
+     * @opensearch.internal
+     */
     public enum SeasonalityType {
         ADDITIVE((byte) 0, "add"),
         MULTIPLICATIVE((byte) 1, "mult");
@@ -392,6 +397,11 @@ public class HoltWintersModel extends MovAvgModel {
             && Objects.equals(pad, other.pad);
     }
 
+    /**
+     * Builder for the holt winters model
+     *
+     * @opensearch.internal
+     */
     public static class HoltWintersModelBuilder implements MovAvgModelBuilder {
 
         private double alpha = DEFAULT_ALPHA;

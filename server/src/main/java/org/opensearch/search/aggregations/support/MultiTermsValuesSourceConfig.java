@@ -36,6 +36,11 @@ public class MultiTermsValuesSourceConfig extends BaseMultiValuesSourceFieldConf
     private static final String NAME = "field_config";
     public static final ParseField FILTER = new ParseField("filter");
 
+    /**
+     * Parser supplier function
+     *
+     * @opensearch.internal
+     */
     public interface ParserSupplier {
         ObjectParser<MultiTermsValuesSourceConfig.Builder, Void> apply(
             Boolean scriptable,
@@ -156,6 +161,11 @@ public class MultiTermsValuesSourceConfig extends BaseMultiValuesSourceFieldConf
         return Objects.hash(super.hashCode(), userValueTypeHint, format, includeExclude);
     }
 
+    /**
+     * Builder for the multi terms values source configuration
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends BaseMultiValuesSourceFieldConfig.Builder<MultiTermsValuesSourceConfig, Builder> {
         private ValueType userValueTypeHint = null;
         private String format;

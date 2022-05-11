@@ -49,6 +49,11 @@ import java.util.Objects;
 public abstract class MultiValuesSource<VS extends ValuesSource> {
     protected Map<String, VS> values;
 
+    /**
+     * Numeric format
+     *
+     * @opensearch.internal
+     */
     public static class NumericMultiValuesSource extends MultiValuesSource<ValuesSource.Numeric> {
         public NumericMultiValuesSource(Map<String, ValuesSourceConfig> valuesSourceConfigs, QueryShardContext context) {
             values = new HashMap<>(valuesSourceConfigs.size());

@@ -75,6 +75,11 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
     private static final ParseField CALENDAR_INTERVAL_FIELD = new ParseField("calendar_interval");
 
+    /**
+     * The type of interval
+     *
+     * @opensearch.internal
+     */
     public enum IntervalTypeEnum implements Writeable {
         NONE,
         FIXED,

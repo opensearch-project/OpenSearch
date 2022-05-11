@@ -114,6 +114,11 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
         return percentileRank;
     }
 
+    /**
+     * Terator for HDR percentile ranks agg
+     *
+     * @opensearch.internal
+     */
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;

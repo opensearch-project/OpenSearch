@@ -577,6 +577,11 @@ final class CompositeAggregator extends BucketsAggregator {
         };
     }
 
+    /**
+     * An entry in the composite aggregator
+     *
+     * @opensearch.internal
+     */
     private static class Entry {
         final LeafReaderContext context;
         final DocIdSet docIdSet;

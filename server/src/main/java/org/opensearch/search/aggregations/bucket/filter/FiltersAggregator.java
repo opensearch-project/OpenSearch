@@ -71,6 +71,11 @@ public class FiltersAggregator extends BucketsAggregator {
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
 
+    /**
+     * Keyed filter for the filters agg
+     *
+     * @opensearch.internal
+     */
     public static class KeyedFilter implements Writeable, ToXContentFragment {
         private final String key;
         private final QueryBuilder filter;

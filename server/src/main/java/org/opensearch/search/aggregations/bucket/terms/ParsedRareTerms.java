@@ -85,6 +85,11 @@ public abstract class ParsedRareTerms extends ParsedMultiBucketAggregation<Parse
         declareMultiBucketAggregationFields(objectParser, bucketParser::apply, bucketParser::apply);
     }
 
+    /**
+     * Parsed Bucket for rare term values
+     *
+     * @opensearch.internal
+     */
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements RareTerms.Bucket {
 
         @Override

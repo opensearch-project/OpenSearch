@@ -304,6 +304,8 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     /**
      * Multi_Term ValuesSource, it is a collection of {@link InternalValuesSource}
+     *
+     * @opensearch.internal
      */
     static class MultiTermsValuesSource {
         private final List<InternalValuesSource> valuesSources;
@@ -354,6 +356,8 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     /**
      * Factory for construct {@link InternalValuesSource}.
+     *
+     * @opensearch.internal
      */
     static class InternalValuesSourceFactory {
         static InternalValuesSource bytesValuesSource(ValuesSource valuesSource, IncludeExclude.StringFilter includeExclude) {
