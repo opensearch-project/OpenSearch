@@ -122,6 +122,11 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         return indexShards.values().iterator();
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String SHARDS = "shards";
     }

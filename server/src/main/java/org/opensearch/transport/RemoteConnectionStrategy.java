@@ -422,6 +422,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
     }
 
+    /**
+     * Internal strategy validation object
+     *
+     * @opensearch.internal
+     */
     static class StrategyValidator<T> implements Setting.Validator<T> {
 
         private final String key;

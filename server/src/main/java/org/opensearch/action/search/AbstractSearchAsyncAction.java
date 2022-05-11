@@ -751,6 +751,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
+    /**
+     * Pending Executions
+     *
+     * @opensearch.internal
+     */
     private static final class PendingExecutions {
         private final int permits;
         private int permitsTaken = 0;

@@ -129,6 +129,11 @@ public class MultiOrdinals extends Ordinals {
         }
     }
 
+    /**
+     * Single doc type
+     *
+     * @opensearch.internal
+     */
     private static class SingleDocs extends AbstractSortedDocValues {
 
         private final int valueCount;
@@ -177,6 +182,11 @@ public class MultiOrdinals extends Ordinals {
 
     }
 
+    /**
+     * Multiple docs
+     *
+     * @opensearch.internal
+     */
     private static class MultiDocs extends AbstractSortedSetDocValues {
 
         private final long valueCount;

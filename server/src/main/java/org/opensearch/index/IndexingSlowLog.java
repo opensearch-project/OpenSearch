@@ -211,6 +211,11 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         }
     }
 
+    /**
+     * Slow log message for indexing
+     *
+     * @opensearch.internal
+     */
     static final class IndexingSlowLogMessage extends OpenSearchLogMessage {
 
         IndexingSlowLogMessage(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {

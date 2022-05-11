@@ -161,6 +161,11 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         out.writeOptionalString(failure);
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String STAGE = "stage";
         static final String REASON = "reason";

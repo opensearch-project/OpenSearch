@@ -52,6 +52,11 @@ public class RateLimitingInputStream extends FilterInputStream {
 
     private long bytesSinceLastRateLimit;
 
+    /**
+     * Internal listener
+     *
+     * @opensearch.internal
+     */
     public interface Listener {
         void onPause(long nanos);
     }

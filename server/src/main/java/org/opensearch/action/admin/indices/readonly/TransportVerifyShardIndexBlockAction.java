@@ -168,6 +168,8 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
      * A {@link ReplicasProxy} that marks as stale the shards that are unavailable during the verification
      * and the flush of the shard. This is done to ensure that such shards won't be later promoted as primary
      * or reopened in an unverified state with potential non flushed translog operations.
+     *
+     * @opensearch.internal
      */
     class VerifyShardReadOnlyActionReplicasProxy extends ReplicasProxy {
         @Override
@@ -181,6 +183,11 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         }
     }
 
+    /**
+     * Per shard request
+     *
+     * @opensearch.internal
+     */
     public static class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;

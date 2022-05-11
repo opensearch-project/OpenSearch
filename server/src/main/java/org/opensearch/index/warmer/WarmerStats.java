@@ -120,6 +120,11 @@ public class WarmerStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for warmer statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String WARMER = "warmer";
         static final String CURRENT = "current";

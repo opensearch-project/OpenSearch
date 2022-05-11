@@ -62,6 +62,8 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
     /**
      * Request that to retrieve one or more component templates
+     *
+     * @opensearch.internal
      */
     public static class Request extends MasterNodeReadRequest<Request> {
 
@@ -106,6 +108,11 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
     }
 
+    /**
+     * Inner response for getting component template
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField NAME = new ParseField("name");
         public static final ParseField COMPONENT_TEMPLATES = new ParseField("component_templates");

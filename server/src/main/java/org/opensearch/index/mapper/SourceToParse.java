@@ -90,6 +90,11 @@ public class SourceToParse {
         return this.xContentType;
     }
 
+    /**
+     * Origin of the source
+     *
+     * @opensearch.internal
+     */
     public enum Origin {
         PRIMARY,
         REPLICA

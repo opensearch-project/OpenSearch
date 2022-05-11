@@ -208,6 +208,11 @@ public class IndicesStatsResponse extends BroadcastResponse {
         }
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
         static final String SHARDS = "shards";

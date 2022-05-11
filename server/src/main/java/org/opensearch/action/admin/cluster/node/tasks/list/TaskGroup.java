@@ -60,6 +60,11 @@ public class TaskGroup implements ToXContentObject {
         return new Builder(taskInfo);
     }
 
+    /**
+     * Builder for the Task Group
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private TaskInfo taskInfo;
         private List<Builder> childTasks;

@@ -112,6 +112,11 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         out.writeInt(numDocs);
     }
 
+    /**
+     * Fields used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String GENERATION = "generation";
         static final String USER_DATA = "user_data";

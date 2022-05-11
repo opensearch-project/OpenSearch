@@ -952,6 +952,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return deletionPolicy;
     }
 
+    /**
+     * Location in the translot
+     *
+     * @opensearch.internal
+     */
     public static class Location implements Comparable<Location> {
 
         public final long generation;
@@ -1008,6 +1013,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
+     *
+     * @opensearch.internal
      */
     public interface Snapshot extends Closeable {
 
@@ -1035,6 +1042,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * between {@code fromSeqNo} (inclusive) and {@code toSeqNo} (inclusive). This filtered snapshot
      * shares the same underlying resources with the {@code delegate} snapshot, therefore we should not
      * use the {@code delegate} after passing it to this filtered snapshot.
+     *
+     * @opensearch.internal
      */
     private static final class SeqNoFilterSnapshot implements Snapshot {
         private final Snapshot delegate;
@@ -1090,8 +1099,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
+     *
+     * @opensearch.internal
      */
     public interface Operation {
+        /**
+         * The type of operation
+         *
+         * @opensearch.internal
+         */
         enum Type {
             @Deprecated
             CREATE((byte) 1),
@@ -1179,6 +1195,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     }
 
+    /**
+     * The source in the translog
+     *
+     * @opensearch.internal
+     */
     public static class Source {
 
         public final BytesReference source;
@@ -1191,6 +1212,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     }
 
+    /**
+     * Indexing operation
+     *
+     * @opensearch.internal
+     */
     public static class Index implements Operation {
 
         public static final int FORMAT_6_0 = 8; // since 6.0.0
@@ -1378,6 +1404,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     }
 
+    /**
+     * Delete operation
+     *
+     * @opensearch.internal
+     */
     public static class Delete implements Operation {
 
         private static final int FORMAT_6_0 = 4; // 6.0 - *
@@ -1509,6 +1540,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * Translog no op
+     *
+     * @opensearch.internal
+     */
     public static class NoOp implements Operation {
 
         private final long seqNo;
@@ -1588,6 +1624,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * How to sync the translog
+     *
+     * @opensearch.internal
+     */
     public enum Durability {
 
         /**
@@ -1844,6 +1885,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * References a transaction log generation
+     *
+     * @opensearch.internal
      */
     public static final class TranslogGeneration {
         public final String translogUUID;

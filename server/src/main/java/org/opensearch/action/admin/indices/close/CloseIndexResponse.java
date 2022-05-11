@@ -100,6 +100,11 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         return Strings.toString(this);
     }
 
+    /**
+     * Inner index result
+     *
+     * @opensearch.internal
+     */
     public static class IndexResult implements Writeable, ToXContentFragment {
 
         private final Index index;
@@ -195,6 +200,11 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         }
     }
 
+    /**
+     * Shard Result from Close Index Response
+     *
+     * @opensearch.internal
+     */
     public static class ShardResult implements Writeable, ToXContentFragment {
 
         private final int id;
@@ -248,6 +258,11 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
             return Strings.toString(this);
         }
 
+        /**
+         * Inner Failure if something goes wrong
+         *
+         * @opensearch.internal
+         */
         public static class Failure extends DefaultShardOperationFailedException {
 
             private @Nullable String nodeId;

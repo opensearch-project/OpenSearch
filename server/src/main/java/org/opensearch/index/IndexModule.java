@@ -387,6 +387,11 @@ public final class IndexModule {
         return false;
     }
 
+    /**
+     * Type of file system
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         HYBRIDFS("hybridfs"),
         NIOFS("niofs"),

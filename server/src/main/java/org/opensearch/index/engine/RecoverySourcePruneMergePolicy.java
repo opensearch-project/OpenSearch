@@ -100,6 +100,11 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         }
     }
 
+    /**
+     * A codec reader that prunes the source using a filter
+     *
+     * @opensearch.internal
+     */
     private static class SourcePruningFilterCodecReader extends FilterCodecReader {
         private final BitSet recoverySourceToKeep;
         private final String recoverySourceField;
@@ -166,6 +171,11 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             return null;
         }
 
+        /**
+         * A producer of filtered doc vlaues
+         *
+         * @opensearch.internal
+         */
         private static class FilterDocValuesProducer extends DocValuesProducer {
             private final DocValuesProducer in;
 
@@ -209,6 +219,11 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             }
         }
 
+        /**
+         * A fields reader that provides a filtered stored field
+         *
+         * @opensearch.internal
+         */
         private abstract static class FilterStoredFieldsReader extends StoredFieldsReader {
 
             protected final StoredFieldsReader in;
@@ -236,6 +251,11 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             }
         }
 
+        /**
+         * A reader of pruned stored fields
+         *
+         * @opensearch.internal
+         */
         private static class RecoverySourcePruningStoredFieldsReader extends FilterStoredFieldsReader {
 
             private final BitSet recoverySourceToKeep;
@@ -276,6 +296,11 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         }
 
+        /**
+         * A visitor pattern for filtered stored fields
+         *
+         * @opensearch.internal
+         */
         private static class FilterStoredFieldVisitor extends StoredFieldVisitor {
             private final StoredFieldVisitor visitor;
 

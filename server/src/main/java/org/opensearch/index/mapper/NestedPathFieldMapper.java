@@ -31,6 +31,11 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     public static final String LEGACY_NAME = "_type";
     public static final String NAME = "_nested_path";
 
+    /**
+     * Default parameters for the field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
         static {
@@ -77,7 +82,11 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         return new TermQuery(new Term(name(version), new BytesRef(path)));
     }
 
-    /** field type for the NestPath field */
+    /**
+     * field type for the NestPath field
+     *
+     * @opensearch.internal
+     */
     public static final class NestedPathFieldType extends StringFieldType {
         private NestedPathFieldType(String name) {
             super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());

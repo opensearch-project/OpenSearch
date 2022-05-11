@@ -108,6 +108,11 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         return builder;
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
 
         static final String TASKS = "tasks";

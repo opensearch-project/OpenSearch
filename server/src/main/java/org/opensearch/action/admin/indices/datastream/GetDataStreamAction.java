@@ -82,6 +82,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         super(NAME, Response::new);
     }
 
+    /**
+     * Request for getting data streams
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
@@ -143,9 +148,19 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
     }
 
+    /**
+     * Response for getting data streams
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField DATASTREAMS_FIELD = new ParseField("data_streams");
 
+        /**
+         * Data streams information
+         *
+         * @opensearch.internal
+         */
         public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo> implements ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
@@ -262,6 +277,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
     }
 
+    /**
+     * Transport Action for getting data streams
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
 
         private static final Logger logger = LogManager.getLogger(TransportAction.class);

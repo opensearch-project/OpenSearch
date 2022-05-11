@@ -200,6 +200,11 @@ public class UpgradeStatusResponse extends BroadcastResponse {
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
         static final String SHARDS = "shards";

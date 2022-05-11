@@ -168,6 +168,11 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         };
     }
 
+    /**
+     * Class holder for only live docs and the postings enumerator
+     *
+     * @opensearch.internal
+     */
     private static final class OnlyLiveDocsPostingsEnum extends PostingsEnum {
 
         private final Bits liveDocs;

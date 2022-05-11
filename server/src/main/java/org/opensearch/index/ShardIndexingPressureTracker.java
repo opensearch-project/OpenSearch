@@ -92,6 +92,8 @@ public class ShardIndexingPressureTracker {
      * a. StatsTracker : To track request level aggregated statistics for a shard
      * b. RejectionTracker : To track the rejection statistics for a shard
      * c. Performance Tracker : To track the request performance statistics for a shard
+     *
+     * @opensearch.internal
      */
     public static class OperationTracker {
         private final StatsTracker statsTracker = new StatsTracker();
@@ -116,6 +118,8 @@ public class ShardIndexingPressureTracker {
      * a. currentBytes - Bytes of data that is inflight/processing for a shard.
      * b. totalBytes - Total bytes that are processed/completed successfully for a shard.
      * c. requestCount - Total number of requests that are processed/completed successfully for a shard.
+     *
+     * @opensearch.internal
      */
     public static class StatsTracker {
         private final AtomicLong currentBytes = new AtomicLong();
@@ -156,6 +160,8 @@ public class ShardIndexingPressureTracker {
      *          last successful request limits breached for a shard i.e. complete path failure (black-hole).
      * d. throughputDegradationLimitsBreachedRejections - Total number of requests that were rejected due to the
      *          throughput degradation in the request path for a shard i.e. partial failure.
+     *
+     * @opensearch.internal
      */
     public static class RejectionTracker {
         private final AtomicLong totalRejections = new AtomicLong();
@@ -205,6 +211,8 @@ public class ShardIndexingPressureTracker {
      * e. ThroughputMovingQueue - Queue that holds the last N requests throughput such that there exists a sliding window
      *          which keeps moving everytime a new request comes. At any given point it tracks last N requests only.
      *          EWMA cannot be used here as it evaluate the historical average, while here it just needs the average of last N requests.
+     *
+     * @opensearch.internal
      */
     public static class PerformanceTracker {
         private final AtomicLong latencyInMillis = new AtomicLong();
@@ -273,6 +281,8 @@ public class ShardIndexingPressureTracker {
      *      when primary is local to coordinator node. Hence common accounting for coordinator and primary operation.
      * b. totalCombinedCoordinatingAndPrimaryBytes - Total bytes that are processed/completed successfully for a shard
      *      when primary is local to coordinator node. Hence common accounting for coordinator and primary operation.
+     *
+     * @opensearch.internal
      */
     public static class CommonOperationTracker {
         private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong();

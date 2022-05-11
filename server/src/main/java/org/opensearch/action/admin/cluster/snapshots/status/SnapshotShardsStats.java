@@ -139,6 +139,11 @@ public class SnapshotShardsStats implements ToXContentObject {
         return totalShards;
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String SHARDS_STATS = "shards_stats";
         static final String INITIALIZING = "initializing";

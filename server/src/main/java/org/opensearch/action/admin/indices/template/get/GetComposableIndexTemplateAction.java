@@ -59,6 +59,8 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
 
     /**
      * Request that to retrieve one or more index templates
+     *
+     * @opensearch.internal
      */
     public static class Request extends MasterNodeReadRequest<Request> {
 
@@ -120,6 +122,11 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         }
     }
 
+    /**
+     * Inner response for getting composable index template
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField NAME = new ParseField("name");
         public static final ParseField INDEX_TEMPLATES = new ParseField("index_templates");

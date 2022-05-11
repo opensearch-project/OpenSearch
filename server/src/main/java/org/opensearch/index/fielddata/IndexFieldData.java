@@ -108,9 +108,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         BucketedSort.ExtraData extra
     );
 
-    // we need this extended source we we have custom comparators to reuse our field data
-    // in this case, we need to reduce type that will be used when search results are reduced
-    // on another node (we don't have the custom source them...)
+    /**
+     *  we need this extended source we we have custom comparators to reuse our field data
+     *  in this case, we need to reduce type that will be used when search results are reduced
+     *  on another node (we don't have the custom source them...)
+     *
+     * @opensearch.internal
+     */
     abstract class XFieldComparatorSource extends FieldComparatorSource {
 
         protected final MultiValueMode sortMode;
@@ -273,11 +277,21 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         );
     }
 
+    /**
+     * Base builder interface
+     *
+     * @opensearch.internal
+     */
     interface Builder {
 
         IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService);
     }
 
+    /**
+     * Base Global field data class
+     *
+     * @opensearch.internal
+     */
     interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);

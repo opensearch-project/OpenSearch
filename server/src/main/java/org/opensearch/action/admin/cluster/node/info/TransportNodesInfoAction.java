@@ -116,6 +116,11 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         );
     }
 
+    /**
+     * Inner Node Info Request
+     *
+     * @opensearch.internal
+     */
     public static class NodeInfoRequest extends BaseNodeRequest {
 
         NodesInfoRequest request;

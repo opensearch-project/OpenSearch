@@ -96,6 +96,11 @@ public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<Expone
         return EXP_DECAY_FUNCTION;
     }
 
+    /**
+     * Exponential decay
+     *
+     * @opensearch.internal
+     */
     private static final class ExponentialDecayScoreFunction implements DecayFunction {
 
         @Override

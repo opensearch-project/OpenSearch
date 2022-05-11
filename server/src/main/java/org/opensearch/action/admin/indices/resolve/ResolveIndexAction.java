@@ -88,6 +88,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         super(NAME, Response::new);
     }
 
+    /**
+     * Request for resolving an index
+     *
+     * @opensearch.internal
+     */
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
@@ -157,6 +162,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * Abstraction class for resolving an index
+     *
+     * @opensearch.internal
+     */
     public static class ResolvedIndexAbstraction {
 
         static final ParseField NAME_FIELD = new ParseField("name");
@@ -178,6 +188,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * The resolved index
+     *
+     * @opensearch.internal
+     */
     public static class ResolvedIndex extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
@@ -261,6 +276,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * The resolved index alias
+     *
+     * @opensearch.internal
+     */
     public static class ResolvedAlias extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -318,6 +338,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * The resolved data stream
+     *
+     * @opensearch.internal
+     */
     public static class ResolvedDataStream extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
         static final ParseField BACKING_INDICES_FIELD = new ParseField("backing_indices");
@@ -385,6 +410,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * Response for resolving an index
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse implements ToXContentObject {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -450,6 +480,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * Transport action for resolving an index
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final ThreadPool threadPool;

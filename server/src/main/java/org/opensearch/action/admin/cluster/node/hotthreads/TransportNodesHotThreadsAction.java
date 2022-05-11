@@ -107,6 +107,11 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
         }
     }
 
+    /**
+     * Inner node request
+     *
+     * @opensearch.internal
+     */
     public static class NodeRequest extends BaseNodeRequest {
 
         NodesHotThreadsRequest request;

@@ -78,6 +78,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         FIELD_TYPE.freeze();
     }
 
+    /**
+     * Concrete builder for geo_point types
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldType> {
 
         public Builder(String name) {
@@ -107,6 +112,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
     }
 
+    /**
+     * Concrete parser for geo_point types
+     *
+     * @opensearch.internal
+     */
     public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<Builder> {
         @Override
         protected Builder newBuilder(String name, Map<String, Object> params) {
@@ -189,6 +199,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         return (GeoPointFieldType) mappedFieldType;
     }
 
+    /**
+     * Concrete field type for geo_point
+     *
+     * @opensearch.internal
+     */
     public static class GeoPointFieldType extends AbstractPointGeometryFieldType<List<ParsedGeoPoint>, List<? extends GeoPoint>>
         implements
             GeoShapeQueryable {
@@ -242,6 +257,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
 
     // Eclipse requires the AbstractPointGeometryFieldMapper prefix or it can't find ParsedPoint
     // See https://bugs.eclipse.org/bugs/show_bug.cgi?id=565255
+    /**
+     * A geo point parsed from geojson
+     *
+     * @opensearch.internal
+     */
     protected static class ParsedGeoPoint extends GeoPoint implements AbstractPointGeometryFieldMapper.ParsedPoint {
         @Override
         public void validate(String fieldName) {
@@ -299,6 +319,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
     }
 
+    /**
+     * The indexer for geo_point
+     *
+     * @opensearch.internal
+     */
     protected static class GeoPointIndexer implements Indexer<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
 
         protected final GeoPointFieldType fieldType;
