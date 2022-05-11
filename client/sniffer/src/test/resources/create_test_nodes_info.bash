@@ -14,7 +14,7 @@
 # when we do rebuild the files they don't jump around too much. That
 # way the diffs are smaller.
 
-set -e -o pipefail
+set -e
 
 script_path="$( cd "$(dirname "$0")" ; pwd -P )"
 work=$(mktemp -d)

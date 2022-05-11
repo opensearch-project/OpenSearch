@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e -o pipefail
+set -e
 
 OPENSEARCH_MAIN_CLASS=org.opensearch.plugins.PluginCli \
   OPENSEARCH_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/plugin-cli \

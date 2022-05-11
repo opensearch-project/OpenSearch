@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e -o pipefail
+set -e
 
 cd /usr/share/opensearch/bin/
 ./opensearch-users useradd rest_user -p test-password -r superuser || true

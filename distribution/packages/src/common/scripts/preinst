@@ -10,7 +10,7 @@
 #       $1=1       : indicates an new install
 #       $1=2       : indicates an upgrade
 
-set -e -o pipefail
+set -e
 
 err_exit() {
     echo "$@" >&2

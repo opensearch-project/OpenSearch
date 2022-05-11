@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e -o pipefail
+set -e
 
 if [ "$#" -eq 0 ]; then
     printf 'Usage: %s <origin> <branch> <branch> ...\n' "$(basename "$0")"

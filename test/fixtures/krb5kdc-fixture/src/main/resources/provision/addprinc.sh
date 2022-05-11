@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e -o pipefail
+set -e
 
 krb5kdc
 kadmind

@@ -10,7 +10,7 @@
 # GitHub history for details.
 #
 
-set -e -o pipefail
+set -e
 
 addprinc.sh "opensearch"
 #TODO(OpenSearch): fix username

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e -o pipefail
+set -e
 
 OPENSEARCH_MAIN_CLASS=org.opensearch.upgrade.UpgradeCli \
   OPENSEARCH_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/upgrade-cli \
