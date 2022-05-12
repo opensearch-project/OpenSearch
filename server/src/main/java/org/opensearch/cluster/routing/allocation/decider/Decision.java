@@ -97,6 +97,8 @@ public abstract class Decision implements ToXContent, Writeable {
     /**
      * This enumeration defines the
      * possible types of decisions
+     *
+     * @opensearch.internal
      */
     public enum Type implements Writeable {
         YES(1),
@@ -170,6 +172,8 @@ public abstract class Decision implements ToXContent, Writeable {
 
     /**
      * Simple class representing a single decision
+     *
+     * @opensearch.internal
      */
     public static class Single extends Decision implements ToXContentObject {
         private Type type;
@@ -287,6 +291,8 @@ public abstract class Decision implements ToXContent, Writeable {
 
     /**
      * Simple class representing a list of decisions
+     *
+     * @opensearch.internal
      */
     public static class Multi extends Decision implements ToXContentFragment {
 

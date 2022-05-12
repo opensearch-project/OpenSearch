@@ -176,6 +176,8 @@ public class FieldValueFactorFunction extends ScoreFunction {
     /**
      * The Type class encapsulates the modification types that can be applied
      * to the score/value product.
+     *
+     * @opensearch.internal
      */
     public enum Modifier implements Writeable {
         NONE {

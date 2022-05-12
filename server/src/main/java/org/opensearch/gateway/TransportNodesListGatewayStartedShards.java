@@ -211,6 +211,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
+    /**
+     * The nodes request.
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BaseNodesRequest<Request> {
 
         private final ShardId shardId;
@@ -257,6 +262,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
+    /**
+     *  The nodes response.
+     *
+     * @opensearch.internal
+     */
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
 
         public NodesGatewayStartedShards(StreamInput in) throws IOException {
@@ -282,6 +292,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
     public static class NodeRequest extends BaseNodeRequest {
 
         private final ShardId shardId;
@@ -328,6 +343,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
+    /**
+     * The response.
+     *
+     * @opensearch.internal
+     */
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
         private final String allocationId;

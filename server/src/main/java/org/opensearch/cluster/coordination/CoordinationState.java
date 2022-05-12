@@ -569,6 +569,8 @@ public class CoordinationState {
 
     /**
      * Pluggable persistence layer for {@link CoordinationState}.
+     *
+     * @opensearch.internal
      */
     public interface PersistedState extends Closeable {
 
@@ -641,6 +643,8 @@ public class CoordinationState {
 
     /**
      * A collection of votes, used to calculate quorums. Optionally records the Joins as well.
+     *
+     * @opensearch.internal
      */
     public static class VoteCollection {
 

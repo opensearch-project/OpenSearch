@@ -232,6 +232,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return Objects.hash(name, timeStampField, indices, generation);
     }
 
+    /**
+     * A timestamp field.
+     *
+     * @opensearch.internal
+     */
     public static final class TimestampField implements Writeable, ToXContentObject {
 
         static ParseField NAME_FIELD = new ParseField("name");

@@ -40,6 +40,11 @@ package org.opensearch.monitor;
  */
 public class StatusInfo {
 
+    /**
+     * The status.
+     *
+     * @opensearch.internal
+     */
     public enum Status {
         HEALTHY,
         UNHEALTHY

@@ -81,6 +81,11 @@ import java.util.concurrent.TimeUnit;
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
+    /**
+     * A Date Time Unit
+     *
+     * @opensearch.internal
+     */
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR((byte) 1, "week", IsoFields.WEEK_OF_WEEK_BASED_YEAR, true, TimeUnit.DAYS.toMillis(7)) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
@@ -262,6 +267,8 @@ public abstract class Rounding implements Writeable {
 
     /**
      * A strategy for rounding milliseconds since epoch.
+     *
+     * @opensearch.internal
      */
     public interface Prepared {
         /**

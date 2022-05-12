@@ -113,6 +113,8 @@ public final class NetworkService {
     /**
      * A custom name resolver can support custom lookup keys (my_net_key:ipv4) and also change
      * the default inet address used in case no settings is provided.
+     *
+     * @opensearch.internal
      */
     public interface CustomNameResolver {
         /**

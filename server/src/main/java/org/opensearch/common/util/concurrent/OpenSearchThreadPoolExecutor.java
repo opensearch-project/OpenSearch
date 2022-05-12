@@ -114,6 +114,11 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
         }
     }
 
+    /**
+     * Listener on shut down
+     *
+     * @opensearch.internal
+     */
     public interface ShutdownListener {
         void onTerminated();
     }

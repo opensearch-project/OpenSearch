@@ -157,6 +157,11 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
+    /**
+     * A diff between composable metadata templates.
+     *
+     * @opensearch.internal
+     */
     static class ComposableIndexTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, ComposableIndexTemplate>> indexTemplateDiff;

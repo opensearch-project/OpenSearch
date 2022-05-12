@@ -324,6 +324,11 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         }
     }
 
+    /**
+     * The executor status.
+     *
+     * @opensearch.internal
+     */
     public static class Status implements Task.Status {
 
         public static final String NAME = "persistent_executor";

@@ -77,6 +77,11 @@ package org.opensearch.common.component;
  */
 public class Lifecycle {
 
+    /**
+     * State in the lifecycle
+     *
+     * @opensearch.internal
+     */
     public enum State {
         INITIALIZED,
         STOPPED,

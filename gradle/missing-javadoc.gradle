@@ -178,8 +178,7 @@ configure([
 
 configure(project(":server")) {
   project.tasks.withType(MissingJavadocTask) {
-    isExcluded = true
-    // TODO: reenable after fixing missing javadocs
+    // TODO: bump to variable missing level after increasing javadoc coverage
     javadocMissingLevel = "class"
   }
 }
