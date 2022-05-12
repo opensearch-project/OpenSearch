@@ -68,10 +68,12 @@ public class NRTReplicationEngine extends Engine {
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager = readerManager;
             this.readerManager.addListener(completionStatsCache);
-            this.translog = openTranslog(engineConfig,
+            this.translog = openTranslog(
+                engineConfig,
                 getTranslogDeletionPolicy(engineConfig),
                 engineConfig.getGlobalCheckpointSupplier(),
-                localCheckpointTracker::markSeqNoAsPersisted);
+                localCheckpointTracker::markSeqNoAsPersisted
+            );
         } catch (IOException e) {
             IOUtils.closeWhileHandlingException(store::decRef, readerManager);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -260,8 +262,7 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {
-    }
+    public void refresh(String source) throws EngineException {}
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
@@ -269,8 +270,7 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {
-    }
+    public void writeIndexingBuffer() throws EngineException {}
 
     @Override
     public boolean shouldPeriodicallyFlush() {
@@ -278,8 +278,7 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-    }
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {}
 
     @Override
     public void trimUnreferencedTranslogFiles() throws EngineException {
@@ -314,15 +313,13 @@ public class NRTReplicationEngine extends Engine {
         boolean upgrade,
         boolean upgradeOnlyAncientSegments,
         String forceMergeUUID
-    ) throws EngineException, IOException {
-    }
+    ) throws EngineException, IOException {}
 
     @Override
     public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
         try {
             final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
-            return new GatedCloseable<>(indexCommit, () -> {
-            });
+            return new GatedCloseable<>(indexCommit, () -> {});
         } catch (IOException e) {
             throw new EngineException(shardId, "Unable to build latest IndexCommit", e);
         }
@@ -358,12 +355,10 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void activateThrottling() {
-    }
+    public void activateThrottling() {}
 
     @Override
-    public void deactivateThrottling() {
-    }
+    public void deactivateThrottling() {}
 
     @Override
     public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
@@ -386,12 +381,10 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void maybePruneDeletes() {
-    }
+    public void maybePruneDeletes() {}
 
     @Override
-    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
-    }
+    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {}
 
     @Override
     public long getMaxSeqNoOfUpdatesOrDeletes() {
@@ -399,8 +392,7 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
-    }
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {}
 
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
