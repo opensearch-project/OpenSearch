@@ -33,7 +33,7 @@ import java.util.Objects;
  */
 public class NRTReplicationReaderManager extends OpenSearchReaderManager {
 
-    protected static Logger logger = LogManager.getLogger(NRTReplicationReaderManager.class);
+    private final static Logger logger = LogManager.getLogger(NRTReplicationReaderManager.class);
     private volatile SegmentInfos currentInfos;
 
     /**

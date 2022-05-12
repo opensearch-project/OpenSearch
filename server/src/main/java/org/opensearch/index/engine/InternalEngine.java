@@ -2280,13 +2280,13 @@ public class InternalEngine extends Engine {
     public SegmentInfos getLatestSegmentInfos() {
         OpenSearchDirectoryReader reader = null;
         try {
-            reader = externalReaderManager.internalReaderManager.acquire();
+            reader = internalReaderManager.acquire();
             return ((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos();
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
         } finally {
             try {
-                externalReaderManager.internalReaderManager.release(reader);
+                internalReaderManager.release(reader);
             } catch (IOException e) {
                 throw new EngineException(shardId, e.getMessage(), e);
             }

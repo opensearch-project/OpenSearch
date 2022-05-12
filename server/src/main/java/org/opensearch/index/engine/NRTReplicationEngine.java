@@ -92,7 +92,6 @@ public class NRTReplicationEngine extends Engine {
             this.lastCommittedSegmentInfos = infos;
         }
         localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
-        readerManager.maybeRefresh();
     }
 
     @Override
@@ -132,6 +131,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
+        ensureOpen();
         IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
         final Translog.Location location = translog.add(new Translog.Index(index, indexResult));
         indexResult.setTranslogLocation(location);
@@ -143,6 +143,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
+        ensureOpen();
         DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
         final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
         deleteResult.setTranslogLocation(location);
@@ -154,6 +155,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public NoOpResult noOp(NoOp noOp) throws IOException {
+        ensureOpen();
         NoOpResult noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
         final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
         noOpResult.setTranslogLocation(location);
@@ -299,6 +301,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
+        ensureOpen();
         try {
             translog.rollGeneration();
             translog.trimUnreferencedReaders();
