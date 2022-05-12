@@ -91,7 +91,6 @@ public class CreatePitController {
             task.getId(),
             task.getType(),
             task.getAction(),
-            task::getDescription,
             task.getParentTaskId(),
             Collections.emptyMap()
         );
