@@ -8,7 +8,9 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.service.ClusterService;
@@ -25,6 +27,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Transport action for creating PIT reader context
@@ -57,19 +60,26 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
 
     @Override
     protected void doExecute(Task task, CreatePitRequest request, ActionListener<CreatePitResponse> listener) {
-        Thread t = new Thread(() -> {
-            CreatePitController controller = new CreatePitController(
-                request,
-                searchTransportService,
-                clusterService,
-                transportSearchAction,
-                namedWriteableRegistry,
-                task,
-                listener
+        CreatePitController controller = new CreatePitController(
+            request,
+            searchTransportService,
+            clusterService,
+            transportSearchAction,
+            namedWriteableRegistry,
+            task,
+            listener
+        );
+        final StepListener<SearchResponse> createPitListener = new StepListener<>();
+        final ActionListener<CreatePitResponse> updatePitIdListener = ActionListener.wrap(r -> listener.onResponse(r), e -> {
+            logger.error(
+                () -> new ParameterizedMessage(
+                    "PIT creation failed while updating PIT ID for indices [{}]",
+                    Arrays.toString(request.indices())
+                )
             );
-            controller.execute();
+            listener.onFailure(e);
         });
-        t.start();
+        controller.executeCreatePit(createPitListener, updatePitIdListener);
     }
 
     public static class CreateReaderContextRequest extends TransportRequest {
