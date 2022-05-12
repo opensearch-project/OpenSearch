@@ -244,6 +244,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     /**
      * Represents a data path on a node
+     *
+     * @opensearch.internal
      */
     public static class NodeAndPath implements Writeable {
         public final String nodeId;
@@ -281,6 +283,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     /**
      * Represents the total amount of "reserved" space on a particular data path, together with the set of shards considered.
+     *
+     * @opensearch.internal
      */
     public static class ReservedSpace implements Writeable {
 
@@ -344,6 +348,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             builder.endArray(); // end "shards"
         }
 
+        /**
+         * Builder for Reserved Space.
+         *
+         * @opensearch.internal
+         */
         public static class Builder {
             private long total;
             private ObjectHashSet<ShardId> shardIds = new ObjectHashSet<>();

@@ -75,6 +75,11 @@ public interface WriteRequest<R extends WriteRequest<R>> extends Writeable {
 
     ActionRequestValidationException validate();
 
+    /**
+     * The refresh policy of the request.
+     *
+     * @opensearch.internal
+     */
     enum RefreshPolicy implements Writeable {
         /**
          * Don't refresh after this request. The default.

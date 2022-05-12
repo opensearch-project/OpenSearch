@@ -365,6 +365,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return new Builder(index);
     }
 
+    /**
+     * Builder of a routing table.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final Index index;

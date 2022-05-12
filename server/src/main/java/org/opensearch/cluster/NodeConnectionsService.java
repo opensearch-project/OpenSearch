@@ -229,6 +229,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         runnables.forEach(Runnable::run);
     }
 
+    /**
+     * A connection checker.
+     *
+     * @opensearch.internal
+     */
     class ConnectionChecker extends AbstractRunnable {
         protected void doRun() {
             if (connectionChecker == this) {
@@ -311,6 +316,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      * Similarly if we are currently disconnecting and then {@link ConnectionTarget#connect(ActionListener)} is called then all
      * disconnection listeners are immediately removed for failure notification and a connection is started once the disconnection is
      * complete.
+     *
+     * @opensearch.internal
      */
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;

@@ -161,6 +161,11 @@ public class VerifyNodeRepositoryAction {
         repository.verify(verificationToken, localNode);
     }
 
+    /**
+     * Request to verify a node repository.
+     *
+     * @opensearch.internal
+     */
     public static class VerifyNodeRepositoryRequest extends TransportRequest {
 
         private String repository;

@@ -1347,12 +1347,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return onJoinValidators;
     }
 
+    /**
+     * The mode of the coordinator.
+     *
+     * @opensearch.internal
+     */
     public enum Mode {
         CANDIDATE,
         LEADER,
         FOLLOWER
     }
 
+    /**
+     * The coordinator peer finder.
+     *
+     * @opensearch.internal
+     */
     private class CoordinatorPeerFinder extends PeerFinder {
 
         CoordinatorPeerFinder(
@@ -1476,6 +1486,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    /**
+     * The coordinator publication.
+     *
+     * @opensearch.internal
+     */
     class CoordinatorPublication extends Publication {
 
         private final PublishRequest publishRequest;

@@ -486,6 +486,11 @@ public final class ThreadContext implements Writeable {
         return threadLocal.get().isSystemContext;
     }
 
+    /**
+     * A stored context
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface StoredContext extends AutoCloseable {
         @Override

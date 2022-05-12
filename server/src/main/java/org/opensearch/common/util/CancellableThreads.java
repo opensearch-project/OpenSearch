@@ -180,10 +180,20 @@ public class CancellableThreads {
         threads.clear();
     }
 
+    /**
+     * Interruptible interface
+     *
+     * @opensearch.internal
+     */
     public interface Interruptible extends IOInterruptible {
         void run() throws InterruptedException;
     }
 
+    /**
+     * IO Interruptible
+     *
+     * @opensearch.internal
+     */
     public interface IOInterruptible {
         void run() throws IOException, InterruptedException;
     }
@@ -211,6 +221,11 @@ public class CancellableThreads {
         this.onCancel.set(onCancel);
     }
 
+    /**
+     * Called when a thread is cancelled
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface OnCancel {
         /**

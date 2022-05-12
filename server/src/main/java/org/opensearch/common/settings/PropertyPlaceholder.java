@@ -162,6 +162,8 @@ class PropertyPlaceholder {
      * Strategy interface used to resolve replacement values for placeholders contained in Strings.
      *
      * @see PropertyPlaceholder
+     *
+     * @opensearch.internal
      */
     interface PlaceholderResolver {
 

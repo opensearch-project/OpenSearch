@@ -167,6 +167,8 @@ public abstract class AggregationScript implements ScorerAware {
 
     /**
      * A factory to construct {@link AggregationScript} instances.
+     *
+     * @opensearch.internal
      */
     public interface LeafFactory {
         AggregationScript newInstance(LeafReaderContext ctx) throws IOException;
@@ -179,6 +181,8 @@ public abstract class AggregationScript implements ScorerAware {
 
     /**
      * A factory to construct stateful {@link AggregationScript} factories for a specific index.
+     *
+     * @opensearch.internal
      */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);

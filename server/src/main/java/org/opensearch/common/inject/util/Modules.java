@@ -130,6 +130,8 @@ public final class Modules {
 
     /**
      * See the EDSL example at {@link Modules#override(Module[]) override()}.
+     *
+     * @opensearch.internal
      */
     public interface OverriddenModuleBuilder {
 

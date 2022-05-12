@@ -42,10 +42,20 @@ import org.opensearch.common.lease.Releasable;
  */
 public interface Recycler<T> {
 
+    /**
+     * Base factory interface
+     *
+     * @opensearch.internal
+     */
     interface Factory<T> {
         Recycler<T> build();
     }
 
+    /**
+     * Generic for recycler
+     *
+     * @opensearch.internal
+     */
     interface C<T> {
 
         /** Create a new empty instance of the given size. */
@@ -58,6 +68,11 @@ public interface Recycler<T> {
         void destroy(T value);
     }
 
+    /**
+     * Generic releasable
+     *
+     * @opensearch.internal
+     */
     interface V<T> extends Releasable {
 
         /** Reference to the value. */

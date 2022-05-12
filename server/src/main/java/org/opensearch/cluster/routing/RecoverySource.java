@@ -106,6 +106,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     }
 
+    /**
+     * Type of recovery.
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         EMPTY_STORE,
         EXISTING_STORE,
@@ -141,6 +146,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     /**
      * Recovery from a fresh copy
+     *
+     * @opensearch.internal
      */
     public static final class EmptyStoreRecoverySource extends RecoverySource {
         public static final EmptyStoreRecoverySource INSTANCE = new EmptyStoreRecoverySource();
@@ -158,6 +165,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     /**
      * Recovery from an existing on-disk store
+     *
+     * @opensearch.internal
      */
     public static final class ExistingStoreRecoverySource extends RecoverySource {
         /**
@@ -211,6 +220,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     /**
      * recovery from other shards on same node (shrink index action)
+     *
+     * @opensearch.internal
      */
     public static class LocalShardsRecoverySource extends RecoverySource {
 
@@ -232,6 +243,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     /**
      * recovery from a snapshot
+     *
+     * @opensearch.internal
      */
     public static class SnapshotRecoverySource extends RecoverySource {
 
@@ -338,6 +351,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     /**
      * peer recovery from a primary shard
+     *
+     * @opensearch.internal
      */
     public static class PeerRecoverySource extends RecoverySource {
 

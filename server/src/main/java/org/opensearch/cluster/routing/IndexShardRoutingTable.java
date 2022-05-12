@@ -698,6 +698,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return count;
     }
 
+    /**
+     * Builder of an index shard routing table.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private ShardId shardId;

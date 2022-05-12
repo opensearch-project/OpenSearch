@@ -63,6 +63,11 @@ public abstract class BucketAggregationScript {
 
     public abstract Number execute();
 
+    /**
+     * Factory for bucket agg script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         BucketAggregationScript newInstance(Map<String, Object> params);
     }

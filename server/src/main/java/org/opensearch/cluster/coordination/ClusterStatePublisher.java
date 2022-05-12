@@ -56,6 +56,11 @@ public interface ClusterStatePublisher {
      */
     void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener);
 
+    /**
+     * An acknowledgement listener.
+     *
+     * @opensearch.internal
+     */
     interface AckListener {
         /**
          * Should be called when the cluster coordination layer has committed the cluster state (i.e. even if this publication fails,

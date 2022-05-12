@@ -105,6 +105,11 @@ public class DeprecationLogger {
         return new DeprecationLoggerBuilder().withDeprecation(key, msg, params);
     }
 
+    /**
+     * The builder for the deprecation logger
+     *
+     * @opensearch.internal
+     */
     public class DeprecationLoggerBuilder {
 
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {

@@ -139,6 +139,8 @@ public interface IndexAbstraction {
 
     /**
      * Represents an concrete index and encapsulates its {@link IndexMetadata}
+     *
+     * @opensearch.internal
      */
     class Index implements IndexAbstraction {
 
@@ -192,6 +194,8 @@ public interface IndexAbstraction {
 
     /**
      * Represents an alias and groups all {@link IndexMetadata} instances sharing the same alias name together.
+     *
+     * @opensearch.internal
      */
     class Alias implements IndexAbstraction {
 
@@ -329,6 +333,11 @@ public interface IndexAbstraction {
         }
     }
 
+    /**
+     * A data stream.
+     *
+     * @opensearch.internal
+     */
     class DataStream implements IndexAbstraction {
 
         private final org.opensearch.cluster.metadata.DataStream dataStream;

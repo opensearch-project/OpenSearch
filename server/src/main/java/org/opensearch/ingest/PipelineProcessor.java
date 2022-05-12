@@ -91,6 +91,11 @@ public class PipelineProcessor extends AbstractProcessor {
         return pipelineTemplate;
     }
 
+    /**
+     * Factory for the processor.
+     *
+     * @opensearch.internal
+     */
     public static final class Factory implements Processor.Factory {
 
         private final IngestService ingestService;

@@ -845,6 +845,11 @@ public final class IngestDocument {
         return "IngestDocument{" + " sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
     }
 
+    /**
+     * The ingest metadata.
+     *
+     * @opensearch.internal
+     */
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
