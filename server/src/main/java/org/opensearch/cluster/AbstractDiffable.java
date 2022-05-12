@@ -66,6 +66,11 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
         return (Diff<T>) EMPTY;
     }
 
+    /**
+     * A complete diff.
+     *
+     * @opensearch.internal
+     */
     private static class CompleteDiff<T extends Diffable<T>> implements Diff<T> {
 
         @Nullable

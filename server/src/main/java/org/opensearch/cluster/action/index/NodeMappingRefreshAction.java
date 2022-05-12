@@ -87,6 +87,11 @@ public class NodeMappingRefreshAction {
         transportService.sendRequest(clusterManagerNode, ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
+    /**
+     * A handler for a node mapping refresh transport request.
+     *
+     * @opensearch.internal
+     */
     private class NodeMappingRefreshTransportHandler implements TransportRequestHandler<NodeMappingRefreshRequest> {
 
         @Override
@@ -96,6 +101,11 @@ public class NodeMappingRefreshAction {
         }
     }
 
+    /**
+     * Request to refresh node mapping.
+     *
+     * @opensearch.internal
+     */
     public static class NodeMappingRefreshRequest extends TransportRequest implements IndicesRequest {
 
         private String index;

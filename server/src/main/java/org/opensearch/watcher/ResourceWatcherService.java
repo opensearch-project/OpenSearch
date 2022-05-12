@@ -59,6 +59,11 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public class ResourceWatcherService implements Closeable {
     private static final Logger logger = LogManager.getLogger(ResourceWatcherService.class);
 
+    /**
+     * Frequency level to watch.
+     *
+     * @opensearch.internal
+     */
     public enum Frequency {
 
         /**

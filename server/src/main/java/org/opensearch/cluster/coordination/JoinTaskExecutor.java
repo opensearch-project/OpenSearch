@@ -75,6 +75,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final RerouteService rerouteService;
     private final TransportService transportService;
 
+    /**
+     * Task for the join task executor.
+     *
+     * @opensearch.internal
+     */
     public static class Task {
 
         private final DiscoveryNode node;

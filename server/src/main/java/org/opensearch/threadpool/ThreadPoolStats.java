@@ -51,6 +51,11 @@ import java.util.List;
  */
 public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<ThreadPoolStats.Stats> {
 
+    /**
+     * The statistics.
+     *
+     * @opensearch.internal
+     */
     public static class Stats implements Writeable, ToXContentFragment, Comparable<Stats> {
 
         private final String name;

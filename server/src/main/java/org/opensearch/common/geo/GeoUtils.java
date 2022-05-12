@@ -421,6 +421,8 @@ public class GeoUtils {
 
     /**
      * Represents the point of the geohash cell that should be used as the value of geohash
+     *
+     * @opensearch.internal
      */
     public enum EffectivePoint {
         TOP_LEFT,

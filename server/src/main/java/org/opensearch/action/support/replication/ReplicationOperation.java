@@ -616,6 +616,11 @@ public class ReplicationOperation<
         }
     }
 
+    /**
+     * The result of the primary.
+     *
+     * @opensearch.internal
+     */
     public interface PrimaryResult<RequestT extends ReplicationRequest<RequestT>> {
 
         /**

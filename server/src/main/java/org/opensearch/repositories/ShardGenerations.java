@@ -195,6 +195,11 @@ public final class ShardGenerations {
         return new Builder();
     }
 
+    /**
+     * Builder for the shard generations.
+     *
+     * @opensearch.internal
+     */
     public static final class Builder {
 
         private final Map<IndexId, Map<Integer, String>> generations = new HashMap<>();

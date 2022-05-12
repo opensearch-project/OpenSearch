@@ -424,6 +424,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     /**
      * Builder for the routing table. Note that build can only be called one time.
+     *
+     * @opensearch.internal
      */
     public static class Builder {
 

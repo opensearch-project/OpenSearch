@@ -171,6 +171,11 @@ public class MappingUpdatedAction {
         return new UncategorizedExecutionException("Failed execution", root);
     }
 
+    /**
+     * An adjustable semaphore
+     *
+     * @opensearch.internal
+     */
     static class AdjustableSemaphore extends Semaphore {
 
         private final Object maxPermitsMutex = new Object();

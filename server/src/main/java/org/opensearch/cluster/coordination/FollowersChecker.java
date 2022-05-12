@@ -294,6 +294,11 @@ public class FollowersChecker {
         }
     }
 
+    /**
+     * A fast response state.
+     *
+     * @opensearch.internal
+     */
     static class FastResponseState {
         final long term;
         final Mode mode;
@@ -311,6 +316,8 @@ public class FollowersChecker {
 
     /**
      * A checker for an individual follower.
+     *
+     * @opensearch.internal
      */
     private class FollowerChecker {
         private final DiscoveryNode discoveryNode;
@@ -449,6 +456,11 @@ public class FollowersChecker {
         }
     }
 
+    /**
+     * Request to check follower.
+     *
+     * @opensearch.internal
+     */
     public static class FollowerCheckRequest extends TransportRequest {
 
         private final long term;

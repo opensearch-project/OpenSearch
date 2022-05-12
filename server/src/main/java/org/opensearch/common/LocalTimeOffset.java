@@ -148,6 +148,11 @@ public abstract class LocalTimeOffset {
      */
     public abstract long localToUtc(long localMillis, Strategy strat);
 
+    /**
+     * Strategy for a local time
+     *
+     * @opensearch.internal
+     */
     public interface Strategy {
         /**
          * Handle a local time that never actually happened because a "gap"

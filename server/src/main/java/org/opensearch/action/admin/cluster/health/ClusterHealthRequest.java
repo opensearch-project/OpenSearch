@@ -289,6 +289,11 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return null;
     }
 
+    /**
+     * The level of the health request.
+     *
+     * @opensearch.internal
+     */
     public enum Level {
         CLUSTER,
         INDICES,

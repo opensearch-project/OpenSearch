@@ -58,6 +58,11 @@ public final class DropProcessor extends AbstractProcessor {
         return TYPE;
     }
 
+    /**
+     * A factory for the processor.
+     *
+     * @opensearch.internal
+     */
     public static final class Factory implements Processor.Factory {
 
         @Override

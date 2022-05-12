@@ -231,6 +231,11 @@ public class PageCacheRecycler {
         return recycler;
     }
 
+    /**
+     * Type of the page cache recycler
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         QUEUE {
             @Override

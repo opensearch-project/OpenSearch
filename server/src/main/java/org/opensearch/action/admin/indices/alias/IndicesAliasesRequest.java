@@ -120,6 +120,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField REMOVE = new ParseField("remove");
         private static final ParseField REMOVE_INDEX = new ParseField("remove_index");
 
+        /**
+         * The type of request.
+         *
+         * @opensearch.internal
+         */
         public enum Type {
             ADD((byte) 0, AliasActions.ADD),
             REMOVE((byte) 1, AliasActions.REMOVE),

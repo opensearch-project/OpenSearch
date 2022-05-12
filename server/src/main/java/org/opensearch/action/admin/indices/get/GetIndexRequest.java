@@ -46,6 +46,11 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
+    /**
+     * The features to get.
+     *
+     * @opensearch.internal
+     */
     public enum Feature {
         ALIASES((byte) 0),
         MAPPINGS((byte) 1),

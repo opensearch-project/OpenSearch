@@ -121,6 +121,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         return new NodeGatewayMetaState(clusterService.localNode(), metaState.getMetadata());
     }
 
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BaseNodesRequest<Request> {
 
         public Request(StreamInput in) throws IOException {
@@ -132,6 +137,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         }
     }
 
+    /**
+     * The nodes gateway metastate.
+     *
+     * @opensearch.internal
+     */
     public static class NodesGatewayMetaState extends BaseNodesResponse<NodeGatewayMetaState> {
 
         public NodesGatewayMetaState(StreamInput in) throws IOException {
@@ -153,6 +163,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         }
     }
 
+    /**
+     * The node request.
+     *
+     * @opensearch.internal
+     */
     public static class NodeRequest extends BaseNodeRequest {
         NodeRequest() {}
 
@@ -161,6 +176,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         }
     }
 
+    /**
+     * The node gateway metastate.
+     *
+     * @opensearch.internal
+     */
     public static class NodeGatewayMetaState extends BaseNodeResponse {
 
         private Metadata metadata;

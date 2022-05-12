@@ -188,6 +188,11 @@ public class ScriptException extends OpenSearchException {
         return RestStatus.BAD_REQUEST;
     }
 
+    /**
+     * Position data
+     *
+     * @opensearch.internal
+     */
     public static class Position {
         public final int offset;
         public final int start;
