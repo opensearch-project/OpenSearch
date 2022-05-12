@@ -181,8 +181,8 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
     private DiscoveryNodes.Builder generateDiscoveryNodes(boolean masterEligible) {
         Set<DiscoveryNodeRole> dataOnlyRoles = Collections.singleton(DiscoveryNodeRole.DATA_ROLE);
         return DiscoveryNodes.builder()
-            .add(newNode("node1", masterEligible ? MASTER_DATA_ROLES : dataOnlyRoles))
-            .add(newNode("master_node", MASTER_DATA_ROLES))
+            .add(newNode("node1", masterEligible ? CLUSTER_MANAGER_DATA_ROLES : dataOnlyRoles))
+            .add(newNode("master_node", CLUSTER_MANAGER_DATA_ROLES))
             .localNodeId("node1")
             .masterNodeId(masterEligible ? "node1" : "master_node");
     }

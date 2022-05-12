@@ -511,7 +511,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     }
 
     public void testReuseInFileBasedPeerRecovery() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String primaryNode = internalCluster().startDataOnlyNode(nodeSettings(0));
 
         // create the index with our mapping

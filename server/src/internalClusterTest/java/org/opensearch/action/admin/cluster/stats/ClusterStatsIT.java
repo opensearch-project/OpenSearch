@@ -97,7 +97,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numNodes; i++) {
             boolean isDataNode = randomBoolean();
             boolean isIngestNode = randomBoolean();
-            boolean isMasterNode = randomBoolean();
+            boolean isClusterManagerNode = randomBoolean();
             boolean isRemoteClusterClientNode = false;
             final Set<DiscoveryNodeRole> roles = new HashSet<>();
             if (isDataNode) {
@@ -106,7 +106,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             if (isIngestNode) {
                 roles.add(DiscoveryNodeRole.INGEST_ROLE);
             }
-            if (isMasterNode) {
+            if (isClusterManagerNode) {
                 roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
             }
             if (isRemoteClusterClientNode) {
@@ -128,14 +128,14 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             if (isIngestNode) {
                 incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
             }
-            if (isMasterNode) {
+            if (isClusterManagerNode) {
                 incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
                 incrementCountForRole(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), expectedCounts);
             }
             if (isRemoteClusterClientNode) {
                 incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
             }
-            if (!isDataNode && !isMasterNode && !isIngestNode && !isRemoteClusterClientNode) {
+            if (!isDataNode && !isClusterManagerNode && !isIngestNode && !isRemoteClusterClientNode) {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
             }
 
@@ -254,12 +254,12 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testClusterStatusWhenStateNotRecovered() throws Exception {
-        internalCluster().startMasterOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
         if (randomBoolean()) {
-            internalCluster().startMasterOnlyNode();
+            internalCluster().startClusterManagerOnlyNode();
         } else {
             internalCluster().startDataOnlyNode();
         }

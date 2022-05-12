@@ -83,7 +83,7 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
         allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
-        when(clusterService.getSettings()).thenReturn(NodeRoles.masterOnlyNode());
+        when(clusterService.getSettings()).thenReturn(NodeRoles.clusterManagerOnlyNode());
         delayedAllocationService = new TestDelayAllocationService(threadPool, clusterService, allocationService);
         verify(clusterService).addListener(delayedAllocationService);
         verify(clusterService).getSettings();

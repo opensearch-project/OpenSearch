@@ -63,7 +63,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends OpenSearchIntegTestCas
          * primary that is recovering from store creates a lease for itself.
          */
 
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final Path[] nodeDataPaths = internalCluster().getInstance(NodeEnvironment.class, dataNode).nodeDataPaths();
 

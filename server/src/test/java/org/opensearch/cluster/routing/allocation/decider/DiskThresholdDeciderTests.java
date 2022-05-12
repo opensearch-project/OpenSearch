@@ -921,14 +921,14 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             "node1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         DiscoveryNode discoveryNode2 = new DiscoveryNode(
             "node2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();

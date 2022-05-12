@@ -65,7 +65,7 @@ public class VersionUtils {
         Map<Integer, List<Version>> majorVersions = Version.getDeclaredVersions(versionClass)
             .stream()
             .collect(Collectors.groupingBy(v -> (int) v.major));
-        // this breaks b/c 5.x is still in version list but master doesn't care about it!
+        // this breaks b/c 5.x is still in version list but cluster-manager doesn't care about it!
         // assert majorVersions.size() == 2;
         List<List<Version>> oldVersions = new ArrayList<>(0);
         List<List<Version>> previousMajor = new ArrayList<>(0);
@@ -85,7 +85,7 @@ public class VersionUtils {
         List<Version> unreleasedVersions = new ArrayList<>();
         final List<List<Version>> stableVersions;
         if (currentMajor.size() == 1) {
-            // on master branch
+            // on main branch
             stableVersions = previousMajor;
             // remove current
             moveLastToUnreleased(currentMajor, unreleasedVersions);

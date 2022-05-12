@@ -62,19 +62,19 @@ import static junit.framework.TestCase.fail;
 public class ClusterServiceUtils {
 
     public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
-        MasterService masterService = new MasterService(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_master_node").build(),
+        MasterService clusterManagerService = new MasterService(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_cluster_manager_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+        clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             clusterStateRef.set(event.state());
             publishListener.onResponse(null);
         });
-        masterService.setClusterStateSupplier(clusterStateRef::get);
-        masterService.start();
-        return masterService;
+        clusterManagerService.setClusterStateSupplier(clusterStateRef::get);
+        clusterManagerService.start();
+        return clusterManagerService;
     }
 
     public static MasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
