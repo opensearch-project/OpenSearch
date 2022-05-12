@@ -60,6 +60,11 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStrin
  */
 public class IndicesOptions implements ToXContentFragment {
 
+    /**
+     * The wildcard states.
+     *
+     * @opensearch.internal
+     */
     public enum WildcardStates {
         OPEN,
         CLOSED,
@@ -120,6 +125,11 @@ public class IndicesOptions implements ToXContentFragment {
         }
     }
 
+    /**
+     * The options.
+     *
+     * @opensearch.internal
+     */
     public enum Option {
         IGNORE_UNAVAILABLE,
         IGNORE_ALIASES,

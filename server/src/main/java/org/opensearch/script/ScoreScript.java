@@ -55,7 +55,11 @@ import java.util.function.Function;
  */
 public abstract class ScoreScript {
 
-    /** A helper to take in an explanation from a script and turn it into an {@link org.apache.lucene.search.Explanation}  */
+    /**
+     * A helper to take in an explanation from a script and turn it into an {@link org.apache.lucene.search.Explanation}
+     *
+     * @opensearch.internal
+     */
     public static class ExplanationHolder {
         private String description;
 
@@ -242,7 +246,11 @@ public abstract class ScoreScript {
         this.indexVersion = indexVersion;
     }
 
-    /** A factory to construct {@link ScoreScript} instances. */
+    /**
+     * A factory to construct {@link ScoreScript} instances.
+     *
+     * @opensearch.internal
+     */
     public interface LeafFactory {
 
         /**
@@ -253,7 +261,11 @@ public abstract class ScoreScript {
         ScoreScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    /** A factory to construct stateful {@link ScoreScript} factories for a specific index. */
+    /**
+     * A factory to construct stateful {@link ScoreScript} factories for a specific index.
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
 
         ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);

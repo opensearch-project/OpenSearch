@@ -102,6 +102,11 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         return channel -> client.admin().indices().resizeIndex(resizeRequest, new RestToXContentListener<>(channel));
     }
 
+    /**
+     * Shrink index action.
+     *
+     * @opensearch.internal
+     */
     public static class RestShrinkIndexAction extends RestResizeHandler {
 
         @Override
@@ -121,6 +126,11 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
+    /**
+     * Split index action.
+     *
+     * @opensearch.internal
+     */
     public static class RestSplitIndexAction extends RestResizeHandler {
 
         @Override
@@ -140,6 +150,11 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
+    /**
+     * Clone index action.
+     *
+     * @opensearch.internal
+     */
     public static class RestCloneIndexAction extends RestResizeHandler {
 
         @Override

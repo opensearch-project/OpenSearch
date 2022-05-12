@@ -406,6 +406,11 @@ public final class InjectionPoint {
         return Modifier.isStatic(member.getModifiers());
     }
 
+    /**
+     * Factory for the injection point
+     *
+     * @opensearch.internal
+     */
     private interface Factory<M extends Member & AnnotatedElement> {
         Factory<Field> FIELDS = new Factory<Field>() {
             @Override

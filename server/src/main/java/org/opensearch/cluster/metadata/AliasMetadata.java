@@ -276,6 +276,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return builder;
     }
 
+    /**
+     * Builder of alias metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final String alias;

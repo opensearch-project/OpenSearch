@@ -206,6 +206,11 @@ public class AllocatedPersistentTask extends CancellableTask {
         }
     }
 
+    /**
+     * The state of the task.
+     *
+     * @opensearch.internal
+     */
     public enum State {
         STARTED,  // the task is currently running
         PENDING_CANCEL, // the task is cancelled on master, cancelling it locally

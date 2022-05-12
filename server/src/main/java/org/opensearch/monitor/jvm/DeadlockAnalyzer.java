@@ -140,6 +140,11 @@ public class DeadlockAnalyzer {
         return unmodifiableMap(threadInfoMap);
     }
 
+    /**
+     * The deadlock being analyzed.
+     *
+     * @opensearch.internal
+     */
     public static class Deadlock {
         private final ThreadInfo members[];
         private final String description;

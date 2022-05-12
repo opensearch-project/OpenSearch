@@ -77,6 +77,11 @@ public class PathTrie<T> {
         TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED
     );
 
+    /**
+     * Decoder for the path
+     *
+     * @opensearch.internal
+     */
     public interface Decoder {
         String decode(String value);
     }
@@ -93,6 +98,11 @@ public class PathTrie<T> {
         root = new TrieNode(SEPARATOR, null, WILDCARD);
     }
 
+    /**
+     * Node for the trie
+     *
+     * @opensearch.internal
+     */
     public class TrieNode {
         private transient String key;
         private transient T value;

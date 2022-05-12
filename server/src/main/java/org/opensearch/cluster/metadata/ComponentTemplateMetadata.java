@@ -156,6 +156,11 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
+    /**
+     * A diff between component template metadata.
+     *
+     * @opensearch.internal
+     */
     static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, ComponentTemplate>> componentTemplateDiff;

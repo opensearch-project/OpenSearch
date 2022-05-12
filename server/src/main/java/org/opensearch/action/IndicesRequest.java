@@ -64,6 +64,11 @@ public interface IndicesRequest {
         return false;
     }
 
+    /**
+     * Replaceable interface.
+     *
+     * @opensearch.internal
+     */
     interface Replaceable extends IndicesRequest {
         /**
          * Sets the indices that the action relates to.

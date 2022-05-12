@@ -85,6 +85,11 @@ public interface ClusterStateTaskConfig {
         return new Basic(priority, timeout);
     }
 
+    /**
+     * Basic task config.
+     *
+     * @opensearch.internal
+     */
     class Basic implements ClusterStateTaskConfig {
         final TimeValue timeout;
         final Priority priority;

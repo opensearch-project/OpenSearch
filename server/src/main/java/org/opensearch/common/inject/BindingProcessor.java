@@ -314,6 +314,11 @@ class BindingProcessor extends AbstractProcessor {
     );
     // TODO(jessewilson): fix BuiltInModule, then add Stage
 
+    /**
+     * A listener for a process creation
+     *
+     * @opensearch.internal
+     */
     interface CreationListener {
         void notify(Errors errors);
     }

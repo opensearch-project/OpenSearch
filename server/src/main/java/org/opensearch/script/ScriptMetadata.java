@@ -72,6 +72,8 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
      * the {@link ClusterState}.  Scripts can be added or deleted, then built
      * to generate a new {@link Map} of scripts that will be used to update
      * the current {@link ClusterState}.
+     *
+     * @opensearch.internal
      */
     public static final class Builder {
 
