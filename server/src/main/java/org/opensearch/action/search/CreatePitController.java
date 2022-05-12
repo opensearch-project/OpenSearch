@@ -30,6 +30,7 @@ import org.opensearch.transport.Transport;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -53,8 +54,8 @@ public class CreatePitController {
     private final ActionListener<CreatePitResponse> listener;
     private final CreatePitRequest request;
     private static final Logger logger = LogManager.getLogger(CreatePitController.class);
-    public static final Setting<TimeValue> PIT_CREATE_PHASE_KEEP_ALIVE = Setting.positiveTimeSetting(
-        "pit.create.phase.keep_alive",
+    public static final Setting<TimeValue> PIT_INIT_KEEP_ALIVE = Setting.positiveTimeSetting(
+        "pit.init.keep_alive",
         timeValueSeconds(30),
         Setting.Property.NodeScope
     );
@@ -77,19 +78,6 @@ public class CreatePitController {
         this.request = request;
     }
 
-    private TimeValue getCreatePitTemporaryKeepAlive() {
-        return PIT_CREATE_PHASE_KEEP_ALIVE.get(clusterService.getSettings());
-    }
-
-    public void execute() {
-        final StepListener<SearchResponse> createPitListener = new StepListener<>();
-        final ActionListener<CreatePitResponse> updatePitIdListener = ActionListener.wrap(r -> listener.onResponse(r), e -> {
-            logger.error("PIT creation failed while updating PIT ID", e);
-            listener.onFailure(e);
-        });
-        executeCreatePit(createPitListener, updatePitIdListener);
-    }
-
     /**
      * This method creates PIT reader context
      */
@@ -99,14 +87,13 @@ public class CreatePitController {
         searchRequest.routing(request.getRouting());
         searchRequest.indicesOptions(request.getIndicesOptions());
         searchRequest.allowPartialSearchResults(request.shouldAllowPartialPitCreation());
-
-        SearchTask searchTask = new SearchTask(
+        SearchTask searchTask = searchRequest.createTask(
             task.getId(),
             task.getType(),
             task.getAction(),
-            () -> task.getDescription(),
+            task::getDescription,
             task.getParentTaskId(),
-            null
+            Collections.emptyMap()
         );
         /**
          * Phase 1 of create PIT
@@ -144,7 +131,10 @@ public class CreatePitController {
                 ) {
                     searchTransportService.createPitContext(
                         connection,
-                        new TransportCreatePitAction.CreateReaderContextRequest(target.getShardId(), getCreatePitTemporaryKeepAlive()),
+                        new TransportCreatePitAction.CreateReaderContextRequest(
+                            target.getShardId(),
+                            PIT_INIT_KEEP_ALIVE.get(clusterService.getSettings())
+                        ),
                         searchTask,
                         ActionListener.wrap(r -> searchPhaseResultActionListener.onResponse(r), searchPhaseResultActionListener::onFailure)
                     );

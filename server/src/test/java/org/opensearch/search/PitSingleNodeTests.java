@@ -46,7 +46,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1))
-            .put(CreatePitController.PIT_CREATE_PHASE_KEEP_ALIVE.getKey(), TimeValue.timeValueSeconds(1))
+            .put(CreatePitController.PIT_INIT_KEEP_ALIVE.getKey(), TimeValue.timeValueSeconds(1))
             .build();
     }
 

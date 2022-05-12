@@ -440,6 +440,8 @@ final class RequestConverters {
         }
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
         if (searchRequest.pointInTimeBuilder() == null) {
+            params.putParam("ccs_minimize_roundtrips", "false");
+        } else {
             params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
         }
         if (searchRequest.getPreFilterShardSize() != null) {
@@ -466,9 +468,8 @@ final class RequestConverters {
 
     static Request createPit(CreatePitRequest createPitRequest) throws IOException {
         Params params = new Params();
-
-        params.putParam(RestCreatePitAction.ALLOW_PARTIAL_PIT_CREATION, "true");
-        params.putParam(RestCreatePitAction.KEEP_ALIVE, "1d");
+        params.putParam(RestCreatePitAction.ALLOW_PARTIAL_PIT_CREATION, Boolean.toString(createPitRequest.shouldAllowPartialPitCreation()));
+        params.putParam(RestCreatePitAction.KEEP_ALIVE, createPitRequest.getKeepAlive());
         params.withIndicesOptions(createPitRequest.indicesOptions());
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(createPitRequest.indices(), "_search/point_in_time"));
         request.addParameters(params.asMap());

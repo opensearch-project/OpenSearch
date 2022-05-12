@@ -55,6 +55,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -676,6 +677,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
+    }
+
+    public SearchTask createTask(
+        long id,
+        String type,
+        String action,
+        Supplier<String> description,
+        TaskId parentTaskId,
+        Map<String, String> headers
+    ) {
+        return new SearchTask(id, type, action, description, parentTaskId, headers, cancelAfterTimeInterval);
     }
 
     public final String buildDescription() {
