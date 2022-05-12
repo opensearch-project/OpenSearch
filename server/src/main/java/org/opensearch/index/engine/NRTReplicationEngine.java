@@ -20,15 +20,24 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
+import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 /**
  * This is an {@link Engine} implementation intended for replica shards when Segment Replication
@@ -37,16 +46,18 @@ import java.util.function.BiFunction;
  *
  * @opensearch.internal
  */
-public class NRTReplicationEngine extends TranslogAwareEngine {
+public class NRTReplicationEngine extends Engine {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
     private final NRTReplicationReaderManager readerManager;
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
+    private final Translog translog;
 
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
         store.incRef();
+        NRTReplicationReaderManager readerManager = null;
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             readerManager = new NRTReplicationReaderManager(OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId));
@@ -55,9 +66,14 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
             );
             this.localCheckpointTracker = new LocalCheckpointTracker(commitInfo.maxSeqNo, commitInfo.localCheckpoint);
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+            this.readerManager = readerManager;
             this.readerManager.addListener(completionStatsCache);
+            this.translog = openTranslog(engineConfig,
+                getTranslogDeletionPolicy(engineConfig),
+                engineConfig.getGlobalCheckpointSupplier(),
+                localCheckpointTracker::markSeqNoAsPersisted);
         } catch (IOException e) {
-            IOUtils.closeWhileHandlingException(store::decRef, translog);
+            IOUtils.closeWhileHandlingException(store::decRef, readerManager);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
         }
     }
@@ -70,8 +86,8 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
         // generation. We can still refresh with incoming SegmentInfos that are not part of a commit point.
         if (infos.getGeneration() > lastCommittedSegmentInfos.getGeneration()) {
             this.lastCommittedSegmentInfos = infos;
-            localCheckpointTracker.fastForwardPersistedSeqNo(seqNo);
         }
+        localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
         readerManager.maybeRefresh();
     }
 
@@ -101,22 +117,34 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
+        ensureOpen();
+        try {
+            translog.trimOperations(belowTerm, aboveSeqNo);
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to trim translog operations", e);
+        }
+    }
+
+    @Override
     public IndexResult index(Index index) throws IOException {
         IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
-        addIndexOperationToTranslog(index, indexResult);
+        final Translog.Location location = translog.add(new Translog.Index(index, indexResult));
+        indexResult.setTranslogLocation(location);
         indexResult.setTook(System.nanoTime() - index.startTime());
         indexResult.freeze();
-        localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
+        localCheckpointTracker.advanceMaxSeqNo(index.seqNo());
         return indexResult;
     }
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
         DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
-        addDeleteOperationToTranslog(delete, deleteResult);
+        final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
+        deleteResult.setTranslogLocation(location);
         deleteResult.setTook(System.nanoTime() - delete.startTime());
         deleteResult.freeze();
-        localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
+        localCheckpointTracker.advanceMaxSeqNo(delete.seqNo());
         return deleteResult;
     }
 
@@ -127,7 +155,7 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
         noOpResult.setTranslogLocation(location);
         noOpResult.setTook(System.nanoTime() - noOp.startTime());
         noOpResult.freeze();
-        localCheckpointTracker.markSeqNoAsProcessed(noOpResult.getSeqNo());
+        localCheckpointTracker.advanceMaxSeqNo(noOp.seqNo());
         return noOpResult;
     }
 
@@ -139,6 +167,26 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     @Override
     protected ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
+    }
+
+    @Override
+    public boolean isTranslogSyncNeeded() {
+        return false;
+    }
+
+    @Override
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        boolean synced = translog.ensureSynced(locations);
+        if (synced) {
+            translog.trimUnreferencedReaders();
+        }
+        return synced;
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        translog.sync();
+        translog.trimUnreferencedReaders();
     }
 
     @Override
@@ -173,6 +221,16 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
+    public TranslogStats getTranslogStats() {
+        return null;
+    }
+
+    @Override
+    public Translog.Location getTranslogLastWriteLocation() {
+        return null;
+    }
+
+    @Override
     public long getPersistedLocalCheckpoint() {
         return localCheckpointTracker.getPersistedCheckpoint();
     }
@@ -187,8 +245,8 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    protected LocalCheckpointTracker getLocalCheckpointTracker() {
-        return localCheckpointTracker;
+    public long getLastSyncedGlobalCheckpoint() {
+        return 0;
     }
 
     @Override
@@ -198,11 +256,12 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
 
     @Override
     public List<Segment> segments(boolean verbose) {
-        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, verbose));
+        return Arrays.asList(getSegmentInfo(getLatestSegmentInfos(), verbose));
     }
 
     @Override
-    public void refresh(String source) throws EngineException {}
+    public void refresh(String source) throws EngineException {
+    }
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
@@ -210,7 +269,8 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {}
+    public void writeIndexingBuffer() throws EngineException {
+    }
 
     @Override
     public boolean shouldPeriodicallyFlush() {
@@ -218,7 +278,33 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {}
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    }
+
+    @Override
+    public void trimUnreferencedTranslogFiles() throws EngineException {
+        ensureOpen();
+        try {
+            translog.trimUnreferencedReaders();
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to trim translog", e);
+        }
+    }
+
+    @Override
+    public boolean shouldRollTranslogGeneration() {
+        return translog.shouldRollGeneration();
+    }
+
+    @Override
+    public void rollTranslogGeneration() throws EngineException {
+        try {
+            translog.rollGeneration();
+            translog.trimUnreferencedReaders();
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to roll translog", e);
+        }
+    }
 
     @Override
     public void forceMerge(
@@ -228,13 +314,15 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
         boolean upgrade,
         boolean upgradeOnlyAncientSegments,
         String forceMergeUUID
-    ) throws EngineException, IOException {}
+    ) throws EngineException, IOException {
+    }
 
     @Override
     public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
         try {
             final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
-            return new GatedCloseable<>(indexCommit, () -> {});
+            return new GatedCloseable<>(indexCommit, () -> {
+            });
         } catch (IOException e) {
             throw new EngineException(shardId, "Unable to build latest IndexCommit", e);
         }
@@ -270,13 +358,17 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    protected void deleteUnusedFiles() {}
+    public void activateThrottling() {
+    }
 
     @Override
-    public void activateThrottling() {}
+    public void deactivateThrottling() {
+    }
 
     @Override
-    public void deactivateThrottling() {}
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
+        return 0;
+    }
 
     @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
@@ -294,10 +386,12 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public void maybePruneDeletes() {}
+    public void maybePruneDeletes() {
+    }
 
     @Override
-    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {}
+    public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
+    }
 
     @Override
     public long getMaxSeqNoOfUpdatesOrDeletes() {
@@ -305,7 +399,8 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     }
 
     @Override
-    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {}
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+    }
 
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
@@ -320,5 +415,49 @@ public class NRTReplicationEngine extends TranslogAwareEngine {
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
         return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
+    }
+
+    private Translog openTranslog(
+        EngineConfig engineConfig,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongConsumer persistedSequenceNumberConsumer
+    ) throws IOException {
+        final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
+        final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
+        final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
+        // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
+        return new Translog(
+            translogConfig,
+            translogUUID,
+            translogDeletionPolicy,
+            globalCheckpointSupplier,
+            engineConfig.getPrimaryTermSupplier(),
+            persistedSequenceNumberConsumer
+        );
+    }
+
+    private TranslogDeletionPolicy getTranslogDeletionPolicy(EngineConfig engineConfig) {
+        TranslogDeletionPolicy customTranslogDeletionPolicy = null;
+        if (engineConfig.getCustomTranslogDeletionPolicyFactory() != null) {
+            customTranslogDeletionPolicy = engineConfig.getCustomTranslogDeletionPolicyFactory()
+                .create(engineConfig.getIndexSettings(), engineConfig.retentionLeasesSupplier());
+        }
+        return Objects.requireNonNullElseGet(
+            customTranslogDeletionPolicy,
+            () -> new DefaultTranslogDeletionPolicy(
+                engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
+                engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
+            )
+        );
+    }
+
+    public Translog getTranslog() {
+        return translog;
+    }
+
+    protected LocalCheckpointTracker getLocalCheckpointTracker() {
+        return localCheckpointTracker;
     }
 }

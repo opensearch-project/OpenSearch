@@ -68,8 +68,6 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 applyOperation(nrtEngine, op);
             }
 
-            assertEquals(nrtEngine.getProcessedLocalCheckpoint(), engine.getProcessedLocalCheckpoint());
-
             // we don't index into nrtEngine, so get the doc ids from the regular engine.
             final List<DocIdSeqNoAndSource> docs = getDocIds(engine, true);
 
@@ -99,7 +97,6 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 applyOperation(engine, op);
                 applyOperation(nrtEngine, op);
             }
-            assertEquals(nrtEngine.getProcessedLocalCheckpoint(), engine.getProcessedLocalCheckpoint());
 
             engine.refresh("test");
 
@@ -108,7 +105,9 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
             // Flush the primary and update the NRTEngine with the latest committed infos.
             engine.flush();
-            nrtEngine.updateSegments(engine.getLastCommittedSegmentInfos(), engine.getPersistedLocalCheckpoint());
+            nrtEngine.syncTranslog(); // to advance persisted checkpoint
+
+            nrtEngine.updateSegments(engine.getLastCommittedSegmentInfos(), engine.getProcessedLocalCheckpoint());
             assertMatchingSegmentsAndCheckpoints(nrtEngine);
 
             // Ensure the same hit count between engines.
@@ -121,10 +120,13 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    private void assertMatchingSegmentsAndCheckpoints(NRTReplicationEngine nrtEngine) {
+    private void assertMatchingSegmentsAndCheckpoints(NRTReplicationEngine nrtEngine) throws IOException {
         assertEquals(engine.getPersistedLocalCheckpoint(), nrtEngine.getPersistedLocalCheckpoint());
         assertEquals(engine.getProcessedLocalCheckpoint(), nrtEngine.getProcessedLocalCheckpoint());
         assertEquals(engine.getLocalCheckpointTracker().getMaxSeqNo(), nrtEngine.getLocalCheckpointTracker().getMaxSeqNo());
+        assertEquals(engine.getLatestSegmentInfos().files(true), nrtEngine.getLatestSegmentInfos().files(true));
+        assertEquals(engine.getLatestSegmentInfos().getUserData(), nrtEngine.getLatestSegmentInfos().getUserData());
+        assertEquals(engine.getLatestSegmentInfos().getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
         assertEquals(engine.segments(true), nrtEngine.segments(true));
     }
 
