@@ -19,18 +19,22 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.MultiFileWriter;
-import org.opensearch.indices.recovery.RecoveryRequestTracker;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Implemented to represent recovery or segment replication where the current node is the target of the process.
+ *
+ * @opensearch.internal
+ */
 public abstract class ReplicationTarget extends AbstractRefCounted {
 
     private static final AtomicLong ID_GENERATOR = new AtomicLong();
 
     // last time the target/status was accessed
     private volatile long lastAccessTime = System.nanoTime();
-    private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
+    private final ReplicationRequestTracker requestTracker = new ReplicationRequestTracker();
     private final long id;
 
     protected final AtomicBoolean finished = new AtomicBoolean();
@@ -70,7 +74,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     }
 
     /**
-     * return the last time this RecoveryStatus was used (based on System.nanoTime()
+     * return the last time this ReplicationStatus was used (based on System.nanoTime()
      */
     public long lastAccessTime() {
         return lastAccessTime;
@@ -113,14 +117,14 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     }
 
     /**
-     * mark the current recovery as done
+     * mark the current replication as done
      */
     public void markAsDone() {
         if (finished.compareAndSet(false, true)) {
             try {
                 onDone();
             } finally {
-                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+                // release the initial reference. replication files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();
             }
             listener.onDone(state());
@@ -128,26 +132,26 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     }
 
     /**
-     * cancel the recovery. calling this method will clean temporary files and release the store
+     * cancel the replication. calling this method will clean temporary files and release the store
      * unless this object is in use (in which case it will be cleaned once all ongoing users call
      * {@link #decRef()}
      */
     public void cancel(String reason) {
         if (finished.compareAndSet(false, true)) {
             try {
-                logger.debug("recovery canceled (reason: [{}])", reason);
+                logger.debug("replication cancelled (reason: [{}])", reason);
                 onCancel(reason);
             } finally {
-                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+                // release the initial reference. replication files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();
             }
         }
     }
 
     /**
-     * fail the recovery and call listener
+     * fail the replication and call listener
      *
-     * @param e                exception that encapsulating the failure
+     * @param e                exception that encapsulates the failure
      * @param sendShardFailure indicates whether to notify the master of the shard failure
      */
     public void fail(OpenSearchException e, boolean sendShardFailure) {
@@ -158,7 +162,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
                 try {
                     onFail(e, sendShardFailure);
                 } finally {
-                    // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+                    // release the initial reference. replication files will be cleaned as soon as ref count goes to zero, potentially now
                     decRef();
                 }
             }

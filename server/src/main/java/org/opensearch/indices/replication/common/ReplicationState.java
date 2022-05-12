@@ -8,7 +8,12 @@
 
 package org.opensearch.indices.replication.common;
 
-public class ReplicationState {
+/**
+ * Keeps track of different stages involved in replication
+ *
+ * @opensearch.internal
+ */
+public abstract class ReplicationState {
 
     protected ReplicationTimer timer;
     protected ReplicationLuceneIndex index;

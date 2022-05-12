@@ -36,6 +36,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.indices.replication.common.ReplicationRequestTracker;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 
@@ -44,7 +45,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
-public class RecoveryRequestTrackerTests extends OpenSearchTestCase {
+public class ReplicationRequestTrackerTests extends OpenSearchTestCase {
 
     private TestThreadPool threadPool;
 
@@ -64,7 +65,7 @@ public class RecoveryRequestTrackerTests extends OpenSearchTestCase {
         Set<Long> seqNosReturned = ConcurrentCollections.newConcurrentSet();
         ConcurrentMap<Long, Set<PlainActionFuture<Void>>> seqToResult = ConcurrentCollections.newConcurrentMap();
 
-        RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
+        ReplicationRequestTracker requestTracker = new ReplicationRequestTracker();
 
         int numberOfRequests = randomIntBetween(100, 200);
         for (int j = 0; j < numberOfRequests; ++j) {

@@ -35,7 +35,6 @@ package org.opensearch.indices.cluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -79,9 +78,8 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.common.ReplicationListener;
-import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.snapshots.SnapshotShardsService;
@@ -204,6 +202,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
+    }
+
+    public ShardStateAction getShardStateAction() {
+        return shardStateAction;
+    }
+
+    public ClusterService getClusterService() {
+        return clusterService;
+    }
+
+    public ActionListener<Void> getShardStateActionListener() {
+        return SHARD_STATE_ACTION_LISTENER;
     }
 
     @Override
@@ -626,7 +636,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             indicesService.createShard(
                 shardRouting,
                 recoveryTargetService,
-                new RecoveryListener(shardRouting, primaryTerm),
+                new RecoveryListener(shardRouting, primaryTerm, this),
                 repositoriesService,
                 failedShardHandler,
                 globalCheckpointSyncer,
@@ -741,37 +751,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return sourceNode;
     }
 
-    private class RecoveryListener implements ReplicationListener {
-
-        /**
-         * ShardRouting with which the shard was created
-         */
-        private final ShardRouting shardRouting;
-
-        /**
-         * Primary term with which the shard was created
-         */
-        private final long primaryTerm;
-
-        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
-            this.shardRouting = shardRouting;
-            this.primaryTerm = primaryTerm;
-        }
-
-        @Override
-        public void onDone(ReplicationState state) {
-            RecoveryState RecState = (RecoveryState) state;
-            shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + RecState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
-        }
-
-        @Override
-        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
-            handleRecoveryFailure(shardRouting, sendShardFailure, e);
-        }
-    }
-
     // package-private for testing
-    synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
+    public synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
         failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
     }
 
@@ -1007,7 +988,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         T createShard(
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
-            ReplicationListener recoveryListener,
+            RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,
             Consumer<ShardId> globalCheckpointSyncer,

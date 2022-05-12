@@ -10,6 +10,11 @@ package org.opensearch.indices.replication.common;
 
 import org.opensearch.OpenSearchException;
 
+/**
+ * Interface for listeners that run when there's a change in replication state
+ *
+ * @opensearch.internal
+ */
 public interface ReplicationListener {
 
     void onDone(ReplicationState state);
