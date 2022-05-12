@@ -28,6 +28,19 @@ public final class QueueResizableOpenSearchThreadPoolExecutor extends OpenSearch
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
 
+    /**
+     * Create new resizable at runtime thread pool executor
+     * @param name thread pool name
+     * @param corePoolSize core pool size
+     * @param maximumPoolSize maximum pool size
+     * @param keepAliveTime keep alive time
+     * @param unit time unit for keep alive time
+     * @param workQueue work queue
+     * @param runnableWrapper runnable wrapper
+     * @param threadFactory thread factory
+     * @param handler rejected execution handler
+     * @param contextHolder context holder
+     */
     QueueResizableOpenSearchThreadPoolExecutor(
         String name,
         int corePoolSize,
@@ -40,10 +53,54 @@ public final class QueueResizableOpenSearchThreadPoolExecutor extends OpenSearch
         XRejectedExecutionHandler handler,
         ThreadContext contextHolder
     ) {
+        this(
+            name,
+            corePoolSize,
+            maximumPoolSize,
+            keepAliveTime,
+            unit,
+            workQueue,
+            runnableWrapper,
+            threadFactory,
+            handler,
+            contextHolder,
+            EWMA_ALPHA
+        );
+    }
+
+    /**
+     * Create new resizable at runtime thread pool executor
+     * @param name thread pool name
+     * @param corePoolSize core pool size
+     * @param maximumPoolSize maximum pool size
+     * @param keepAliveTime keep alive time
+     * @param unit time unit for keep alive time
+     * @param workQueue work queue
+     * @param runnableWrapper runnable wrapper
+     * @param threadFactory thread factory
+     * @param handler rejected execution handler
+     * @param contextHolder context holder
+     * @param ewmaAlpha the alpha parameter for exponentially weighted moving average (a smaller alpha means
+     * that new data points will have less weight, where a high alpha means older data points will
+     * have a lower influence)
+     */
+    QueueResizableOpenSearchThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        ResizableBlockingQueue<Runnable> workQueue,
+        Function<Runnable, WrappedRunnable> runnableWrapper,
+        ThreadFactory threadFactory,
+        XRejectedExecutionHandler handler,
+        ThreadContext contextHolder,
+        double ewmaAlpha
+    ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
         this.workQueue = workQueue;
         this.runnableWrapper = runnableWrapper;
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(EWMA_ALPHA, 0);
+        this.executionEWMA = new ExponentiallyWeightedMovingAverage(ewmaAlpha, 0);
     }
 
     @Override

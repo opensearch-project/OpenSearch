@@ -10,9 +10,13 @@ package org.opensearch.common.util.concurrent;
 
 /**
  * Marks the thread pool executor as supporting EWMA (exponential weighted moving average) tracking
+ *
+ * @opensearch.internal
  */
 public interface EWMATrackingThreadPoolExecutor {
-    // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
+    /**
+     * This is a random starting point alpha
+     */
     double EWMA_ALPHA = 0.3;
 
     /**
