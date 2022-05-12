@@ -8,6 +8,12 @@
 
 package org.opensearch.index.engine;
 
+/**
+ * Engine Factory implementation used with Segment Replication that wires up replica shards with an ${@link NRTReplicationEngine}
+ * and primary with an ${@link InternalEngine}
+ *
+ * @opensearch.internal
+ */
 public class NRTReplicationEngineFactory implements EngineFactory {
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
