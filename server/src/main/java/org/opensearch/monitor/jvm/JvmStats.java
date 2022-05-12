@@ -486,7 +486,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
      * most recently expended effort in recycling unused objects
      * in particular memory pool.
      *
-     * @openesearch.internal
+     * @opensearch.internal
      */
     public static class MemoryPoolGcStats implements Writeable {
 

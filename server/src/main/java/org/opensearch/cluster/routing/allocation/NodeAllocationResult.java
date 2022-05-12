@@ -191,7 +191,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
     /**
      * A class that captures metadata about a shard store on a node.
      *
-     * @openserach.internal
+     * @opensearch.internal
      */
     public static final class ShardStoreInfo implements ToXContentFragment, Writeable {
         private final boolean inSync;
