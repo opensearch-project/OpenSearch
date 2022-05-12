@@ -24,8 +24,15 @@ import java.util.stream.Collectors;
 /**
  * Parses the list of JVM versions which should be denied to run Opensearch engine with due to discovered
  * issues or flaws.
+ *
+ * @opensearch.internal
  */
 public class DenyJvmVersionsParser {
+    /**
+     * Provides the reason for the denial
+     *
+     * @opensearch.internal
+     */
     public interface VersionPredicate extends Predicate<Version> {
         String getReason();
     }
