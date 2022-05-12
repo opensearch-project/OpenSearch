@@ -15,15 +15,22 @@ import org.hamcrest.MatcherAssert;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 public class NRTReplicationEngineTests extends EngineTestCase {
 
@@ -68,6 +75,9 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 applyOperation(nrtEngine, op);
             }
 
+            assertEquals(nrtEngine.getTranslogLastWriteLocation(), engine.getTranslogLastWriteLocation());
+            assertEquals(nrtEngine.getLastSyncedGlobalCheckpoint(), engine.getLastSyncedGlobalCheckpoint());
+
             // we don't index into nrtEngine, so get the doc ids from the regular engine.
             final List<DocIdSeqNoAndSource> docs = getDocIds(engine, true);
 
@@ -103,6 +113,18 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             nrtEngine.updateSegments(engine.getLatestSegmentInfos(), engine.getProcessedLocalCheckpoint());
             assertMatchingSegmentsAndCheckpoints(nrtEngine);
 
+            // assert a doc from the operations exists.
+            final ParsedDocument parsedDoc = createParsedDoc(operations.stream().findFirst().get().id(), null);
+            try (Engine.GetResult getResult = engine.get(newGet(true, parsedDoc), engine::acquireSearcher)) {
+                assertThat(getResult.exists(), equalTo(true));
+                assertThat(getResult.docIdAndVersion(), notNullValue());
+            }
+
+            try (Engine.GetResult getResult = nrtEngine.get(newGet(true, parsedDoc), nrtEngine::acquireSearcher)) {
+                assertThat(getResult.exists(), equalTo(true));
+                assertThat(getResult.docIdAndVersion(), notNullValue());
+            }
+
             // Flush the primary and update the NRTEngine with the latest committed infos.
             engine.flush();
             nrtEngine.syncTranslog(); // to advance persisted checkpoint
@@ -117,6 +139,37 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 assertSearcherHits(nrtEngine, expectedDocCount);
             }
             assertEngineCleanedUp(nrtEngine, nrtEngine.getTranslog());
+        }
+    }
+
+    public void testTrimTranslogOps() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        try (
+            final Store nrtEngineStore = createStore();
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore);
+        ) {
+            List<Engine.Operation> operations = generateHistoryOnReplica(
+                between(1, 100),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            applyOperations(nrtEngine, operations);
+            Set<Long> seqNos = operations.stream().map(Engine.Operation::seqNo).collect(Collectors.toSet());
+            try (Translog.Snapshot snapshot = nrtEngine.getTranslog().newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(operations.size()));
+                assertThat(
+                    TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),
+                    equalTo(seqNos)
+                );
+            }
+            nrtEngine.rollTranslogGeneration();
+            nrtEngine.trimOperationsFromTranslog(primaryTerm.get(), NO_OPS_PERFORMED);
+            try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(0));
+                assertNull(snapshot.next());
+            }
         }
     }
 

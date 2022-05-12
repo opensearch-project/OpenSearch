@@ -436,7 +436,7 @@ public class NRTReplicationEngine extends Engine {
         LongConsumer persistedSequenceNumberConsumer
     ) throws IOException {
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
+        final Map<String, String> userData = lastCommittedSegmentInfos.getUserData();
         final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
         // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
         return new Translog(
