@@ -16,6 +16,8 @@ import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -173,7 +175,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public boolean isTranslogSyncNeeded() {
-        return false;
+        return translog.syncNeeded();
     }
 
     @Override
@@ -224,12 +226,12 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public TranslogStats getTranslogStats() {
-        return null;
+        return translog.stats();
     }
 
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
-        return null;
+        return translog.getLastWriteLocation();
     }
 
     @Override
@@ -248,7 +250,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
-        return 0;
+        return translog.getLastSyncedGlobalCheckpoint();
     }
 
     @Override
@@ -394,6 +396,17 @@ public class NRTReplicationEngine extends Engine {
     @Override
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {}
 
+    public Translog getTranslog() {
+        return translog;
+    }
+
+    @Override
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+        final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
+        translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
+        translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
+    }
+
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
@@ -402,6 +415,10 @@ public class NRTReplicationEngine extends Engine {
     @Override
     protected SegmentInfos getLatestSegmentInfos() {
         return readerManager.getSegmentInfos();
+    }
+
+    protected LocalCheckpointTracker getLocalCheckpointTracker() {
+        return localCheckpointTracker;
     }
 
     private DirectoryReader getDirectoryReader() throws IOException {
@@ -445,11 +462,4 @@ public class NRTReplicationEngine extends Engine {
         );
     }
 
-    public Translog getTranslog() {
-        return translog;
-    }
-
-    protected LocalCheckpointTracker getLocalCheckpointTracker() {
-        return localCheckpointTracker;
-    }
 }
