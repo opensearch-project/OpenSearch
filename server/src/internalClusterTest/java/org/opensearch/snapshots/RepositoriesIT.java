@@ -177,15 +177,15 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         // Make repository to throw exception when trying to delete stale indices
         // This will make sure stale indices stays in repository after snapshot delete
-        String masterNode = internalCluster().getMasterName();
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, masterNode).repository("test-repo"))
+        String clusterManagerNode = internalCluster().getMasterName();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repository("test-repo"))
             .setThrowExceptionWhileDelete(true);
 
         logger.info("--> delete the bulk of the snapshots");
         client.admin().cluster().prepareDeleteSnapshot(repositoryName, bulkSnapshotsPattern).get();
 
         // Make repository to work normally
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, masterNode).repository("test-repo"))
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repository("test-repo"))
             .setThrowExceptionWhileDelete(false);
 
         // This snapshot should delete last snapshot's residual stale indices as well

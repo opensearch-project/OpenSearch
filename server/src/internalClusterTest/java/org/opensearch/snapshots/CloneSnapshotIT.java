@@ -392,9 +392,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String cloneName = "target-snapshot";
         final ActionFuture<AcknowledgedResponse> cloneFuture = startCloneFromDataNode(repoName, sourceSnapshot, cloneName, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
-        final String masterNode = internalCluster().getMasterName();
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
-        internalCluster().restartNode(masterNode);
+        final String clusterManagerNode = internalCluster().getMasterName();
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
+        internalCluster().restartNode(clusterManagerNode);
         boolean cloneSucceeded = false;
         try {
             cloneFuture.actionGet(TimeValue.timeValueSeconds(30L));
@@ -406,7 +406,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
 
-        // Check if the clone operation worked out by chance as a result of the clone request being retried because of the master failover
+        // Check if the clone operation worked out by chance as a result of the clone request being retried
+        // because of the cluster-manager failover
         cloneSucceeded = cloneSucceeded
             || getRepositoryData(repoName).getSnapshotIds().stream().anyMatch(snapshotId -> snapshotId.getName().equals(cloneName));
         assertAllSnapshotsSuccessful(getRepositoryData(repoName), cloneSucceeded ? 2 : 1);
@@ -471,9 +472,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         blockMasterFromFinalizingSnapshotOnSnapFile(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture = startCloneFromDataNode(repoName, sourceSnapshot, targetSnapshot, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
-        final String masterNode = internalCluster().getMasterName();
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
-        unblockNode(repoName, masterNode);
+        final String clusterManagerNode = internalCluster().getMasterName();
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
+        unblockNode(repoName, clusterManagerNode);
         expectThrows(SnapshotException.class, cloneFuture::actionGet);
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
         assertAllSnapshotsSuccessful(getRepositoryData(repoName), 1);

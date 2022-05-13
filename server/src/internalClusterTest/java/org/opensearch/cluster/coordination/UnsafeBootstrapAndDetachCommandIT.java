@@ -285,10 +285,10 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     public void test3MasterNodes2Failed() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(2);
-        List<String> masterNodes = new ArrayList<>();
+        List<String> clusterManagerNodes = new ArrayList<>();
 
         logger.info("--> start 1st cluster-manager-eligible node");
-        masterNodes.add(
+        clusterManagerNodes.add(
             internalCluster().startClusterManagerOnlyNode(
                 Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
             )
@@ -300,12 +300,12 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         ); // node ordinal 1
 
         logger.info("--> start 2nd and 3rd cluster-manager-eligible nodes and bootstrap");
-        masterNodes.addAll(internalCluster().startMasterOnlyNodes(2)); // node ordinals 2 and 3
+        clusterManagerNodes.addAll(internalCluster().startMasterOnlyNodes(2)); // node ordinals 2 and 3
 
         logger.info("--> wait for all nodes to join the cluster");
         ensureStableCluster(4);
 
-        List<String> currentClusterNodes = new ArrayList<>(masterNodes);
+        List<String> currentClusterNodes = new ArrayList<>(clusterManagerNodes);
         currentClusterNodes.add(dataNode);
         currentClusterNodes.forEach(node -> ensureReadOnlyBlock(false, node));
 
@@ -313,14 +313,14 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen("test");
 
-        Settings master1DataPathSettings = internalCluster().dataPathSettings(masterNodes.get(0));
-        Settings master2DataPathSettings = internalCluster().dataPathSettings(masterNodes.get(1));
-        Settings master3DataPathSettings = internalCluster().dataPathSettings(masterNodes.get(2));
+        Settings master1DataPathSettings = internalCluster().dataPathSettings(clusterManagerNodes.get(0));
+        Settings master2DataPathSettings = internalCluster().dataPathSettings(clusterManagerNodes.get(1));
+        Settings master3DataPathSettings = internalCluster().dataPathSettings(clusterManagerNodes.get(2));
         Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
 
-        logger.info("--> stop 2nd and 3d master eligible node");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(1)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(2)));
+        logger.info("--> stop 2nd and 3d cluster-manager eligible node");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(clusterManagerNodes.get(1)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(clusterManagerNodes.get(2)));
 
         logger.info("--> ensure NO_MASTER_BLOCK on data-only node");
         assertBusy(() -> {
@@ -343,7 +343,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
         logger.info("--> stop 1st cluster-manager-eligible node and data-only node");
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(clusterManagerNodes.get(0)));
         assertBusy(() -> internalCluster().getInstance(GatewayMetaState.class, dataNode).allPendingAsyncStatesWritten());
         internalCluster().stopRandomDataNode();
 
@@ -490,7 +490,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
         String node = internalCluster().startClusterManagerOnlyNode(
             Settings.builder()
-                // give the cluster 2 seconds to elect the master (it should not)
+                // give the cluster 2 seconds to elect the cluster-manager (it should not)
                 .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
                 .put(clusterManagerNodeDataPathSettings)
                 .build()

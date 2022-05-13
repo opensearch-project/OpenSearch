@@ -179,7 +179,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen("test");
 
-        // block none master node.
+        // block none cluster-manager node.
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(dataNode, random());
         internalCluster().setDisruptionScheme(disruption);
         logger.info("--> indexing a doc");
@@ -212,7 +212,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
     public void testDelayedMappingPropagationOnPrimary() throws Exception {
         // Here we want to test that things go well if there is a first request
         // that adds mappings but before mappings are propagated to all nodes
-        // another index request introduces the same mapping. The master node
+        // another index request introduces the same mapping. The cluster-manager node
         // will reply immediately since it did not change the cluster state
         // but the change might not be on the node that performed the indexing
         // operation yet
@@ -341,7 +341,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         assertThat(shards, hasSize(2));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
-                // primary must be on the master
+                // primary must be on the cluster-manager
                 assertEquals(state.nodes().getMasterNodeId(), shard.currentNodeId());
             } else {
                 assertTrue(shard.active());
@@ -357,7 +357,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         );
 
         final Index index = resolveIndex("index");
-        // Wait for mappings to be available on master
+        // Wait for mappings to be available on cluster-manager
         assertBusy(() -> {
             final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, clusterManager);
             final IndexService indexService = indicesService.indexServiceSafe(index);
@@ -381,7 +381,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
             client().prepareIndex("index").setId("2").setSource("field2", 42)
         );
 
-        // ...and wait for second mapping to be available on master
+        // ...and wait for second mapping to be available on cluster-manager
         assertBusy(() -> {
             final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, clusterManager);
             final IndexService indexService = indicesService.indexServiceSafe(index);

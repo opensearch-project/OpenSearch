@@ -336,7 +336,7 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
             assertFalse(client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
 
             // at this point the original health response should not have returned: there was never a point where the index was green AND
-            // the master had processed all pending tasks above LANGUID priority.
+            // the cluster-manager had processed all pending tasks above LANGUID priority.
             assertFalse(healthResponseFuture.isDone());
             keepSubmittingTasks.set(false);
             assertFalse(healthResponseFuture.actionGet(TimeValue.timeValueSeconds(30)).isTimedOut());
@@ -346,7 +346,7 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testHealthOnMasterFailover() throws Exception {
+    public void testHealthOnClusterManagerFailover() throws Exception {
         final String node = internalCluster().startDataOnlyNode();
         final boolean withIndex = randomBoolean();
         if (withIndex) {
@@ -395,7 +395,7 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testWaitForEventsTimesOutIfMasterBusy() {
+    public void testWaitForEventsTimesOutIfClusterManagerBusy() {
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();

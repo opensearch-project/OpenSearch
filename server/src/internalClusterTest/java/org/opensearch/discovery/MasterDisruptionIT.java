@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.not;
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     /**
-     * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
+     * Test that cluster recovers from a long GC on cluster-manager that causes other nodes to elect a new one
      */
     public void testMasterNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
@@ -89,7 +89,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         List<String> oldNonClusterManagerNodes = new ArrayList<>(oldNonClusterManagerNodesSet);
 
-        logger.info("waiting for nodes to de-elect master [{}]", oldClusterManagerNode);
+        logger.info("waiting for nodes to de-elect cluster-manager [{}]", oldClusterManagerNode);
         for (String node : oldNonClusterManagerNodesSet) {
             assertDifferentMaster(node, oldClusterManagerNode);
         }
@@ -103,13 +103,13 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3, waitTime, false, oldNonClusterManagerNodes.get(0));
 
         // make sure all nodes agree on master
-        String newMaster = internalCluster().getMasterName();
+        String newClusterManager = internalCluster().getMasterName();
         assertThat(newMaster, not(equalTo(oldClusterManagerNode)));
         assertMaster(newMaster, nodes);
     }
 
     /**
-     * This test isolates the master from rest of the cluster, waits for a new master to be elected, restores the partition
+     * This test isolates the cluster-manager from rest of the cluster, waits for a new cluster-manager to be elected, restores the partition
      * and verifies that all node agree on the new cluster state
      */
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
@@ -221,13 +221,13 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // Simulate a network issue between the unlucky node and the rest of the cluster.
         networkDisruption.startDisrupting();
 
-        // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
+        // The unlucky node must report *no* cluster-manager node, since it can't connect to cluster-manager and in fact it should
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
         assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(30));
 
-        logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
+        logger.info("wait until elected cluster-manager has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
         ensureStableCluster(2, nonIsolatedNode);
 
         for (String node : partitions.getMajoritySide()) {
@@ -251,7 +251,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         networkDisruption.stopDisrupting();
 
-        // Wait until the master node sees al 3 nodes again.
+        // Wait until the cluster-manager node sees al 3 nodes again.
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
         logger.info(
@@ -267,7 +267,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         networkDisruption.startDisrupting();
 
-        // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
+        // The unlucky node must report *no* cluster-manager node, since it can't connect to cluster-manager and in fact it should
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);

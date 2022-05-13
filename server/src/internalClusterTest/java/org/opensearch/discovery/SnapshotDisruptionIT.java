@@ -158,7 +158,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNotNull(sne);
             assertThat(
                 sne.getMessage(),
-                either(endsWith(" Failed to update cluster state during snapshot finalization")).or(endsWith(" no longer master"))
+                either(endsWith(" Failed to update cluster state during snapshot finalization")).or(endsWith(" no longer cluster-manager"))
             );
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
@@ -267,7 +267,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
         awaitNoMoreRunningOperations(dataNode);
 
-        logger.info("--> make sure isolated master responds to snapshot request");
+        logger.info("--> make sure isolated cluster-manager responds to snapshot request");
         final SnapshotException sne = expectThrows(
             SnapshotException.class,
             () -> snapshotResponse.actionGet(TimeValue.timeValueSeconds(30L))

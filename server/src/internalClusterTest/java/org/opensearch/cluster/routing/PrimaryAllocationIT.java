@@ -110,7 +110,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     public void testBulkWeirdScenario() throws Exception {
-        String master = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
+        String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
 
         assertAcked(
@@ -206,7 +206,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
 
     public void testDoNotAllowStaleReplicasToBePromotedToPrimary() throws Exception {
         logger.info("--> starting 3 nodes, 1 cluster-manager, 2 data");
-        String master = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
+        String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
         assertAcked(
             client().admin()
@@ -660,7 +660,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
      * This test asserts that replicas failed to execute resync operations will be failed but not marked as stale.
      */
     public void testPrimaryReplicaResyncFailed() throws Exception {
-        String master = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
+        String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);
         final String oldPrimary = internalCluster().startDataOnlyNode();
         assertAcked(

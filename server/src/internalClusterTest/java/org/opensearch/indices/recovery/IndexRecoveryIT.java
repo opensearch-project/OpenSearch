@@ -852,7 +852,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "500ms")
             .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "10s")
             .build();
-        // start a master node
+        // start a cluster-manager node
         internalCluster().startNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
@@ -1054,7 +1054,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "1s")
             .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "1s")
             .build();
-        // start a master node
+        // start a cluster-manager node
         internalCluster().startNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
@@ -1211,7 +1211,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             )
             .build();
         TimeValue disconnectAfterDelay = TimeValue.timeValueMillis(randomIntBetween(0, 100));
-        // start a master node
+        // start a cluster-manager node
         String masterNodeName = internalCluster().startClusterManagerOnlyNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
@@ -1466,7 +1466,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         assertHitCount(client().prepareSearch().get(), numDocs);
     }
 
-    /** Makes sure the new master does not repeatedly fetch index metadata from recovering replicas */
+    /** Makes sure the new cluster-manager does not repeatedly fetch index metadata from recovering replicas */
     public void testOngoingRecoveryAndMasterFailOver() throws Exception {
         String indexName = "test";
         internalCluster().startNodes(2);

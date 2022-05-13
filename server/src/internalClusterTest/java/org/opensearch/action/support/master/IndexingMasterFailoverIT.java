@@ -58,12 +58,12 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Indexing operations which entail mapping changes require a blocking request to the master node to update the mapping.
-     * If the master node is being disrupted or if it cannot commit cluster state changes, it needs to retry within timeout limits.
-     * This retry logic is implemented in TransportMasterNodeAction and tested by the following master failover scenario.
+     * Indexing operations which entail mapping changes require a blocking request to the cluster-manager node to update the mapping.
+     * If the cluster-manager node is being disrupted or if it cannot commit cluster state changes, it needs to retry within timeout limits.
+     * This retry logic is implemented in TransportMasterNodeAction and tested by the following cluster-manager failover scenario.
      */
     public void testMasterFailoverDuringIndexingWithMappingChanges() throws Throwable {
-        logger.info("--> start 4 nodes, 3 master, 1 data");
+        logger.info("--> start 4 nodes, 3 cluster-manager, 1 data");
 
         internalCluster().setBootstrapClusterManagerNodeIndex(2);
 

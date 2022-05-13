@@ -89,9 +89,9 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureSearchable("test");
         RecoveryResponse r = client().admin().indices().prepareRecoveries("test").get();
-        int numRecoveriesBeforeNewMaster = r.shardRecoveryStates().get("test").size();
+        int numRecoveriesBeforeNewClusterManager = r.shardRecoveryStates().get("test").size();
 
-        final String oldMaster = internalCluster().getMasterName();
+        final String oldClusterManager = internalCluster().getMasterName();
         internalCluster().stopCurrentMasterNode();
         assertBusy(() -> {
             String current = internalCluster().getMasterName();
@@ -101,7 +101,7 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
         ensureSearchable("test");
 
         r = client().admin().indices().prepareRecoveries("test").get();
-        int numRecoveriesAfterNewMaster = r.shardRecoveryStates().get("test").size();
+        int numRecoveriesAfterNewClusterManager = r.shardRecoveryStates().get("test").size();
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
     }
 

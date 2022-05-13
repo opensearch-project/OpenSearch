@@ -107,7 +107,7 @@ public class PendingTasksBlocksIT extends OpenSearchIntegTestCase {
         assertNotNull(client().admin().cluster().preparePendingClusterTasks().get().getPendingTasks());
 
         // starting one more node allows the cluster to recover
-        internalCluster().startDataOnlyNode(); // cannot update minimum_master_nodes before the cluster has formed
+        internalCluster().startDataOnlyNode(); // cannot update minimum_cluster_manager_nodes before the cluster has formed
         ensureGreen();
     }
 

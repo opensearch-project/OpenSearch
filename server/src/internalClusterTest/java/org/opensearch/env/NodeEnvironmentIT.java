@@ -100,7 +100,7 @@ public class NodeEnvironmentIT extends OpenSearchIntegTestCase {
             assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
         }
 
-        logger.info("--> start the node again with data and master roles");
+        logger.info("--> start the node again with data and cluster-manager roles");
         internalCluster().startNode(dataPathSettings);
 
         logger.info("--> indexing a simple document");
