@@ -51,6 +51,11 @@ import org.opensearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Transport request for query search
+ *
+ * @opensearch.internal
+ */
 public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
 
     private final ShardSearchContextId contextId;

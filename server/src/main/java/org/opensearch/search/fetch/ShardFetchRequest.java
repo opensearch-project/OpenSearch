@@ -54,6 +54,8 @@ import java.util.Map;
 /**
  * Shard level fetch base request. Holds all the info needed to execute a fetch.
  * Used with search scroll as the original request doesn't hold indices.
+ *
+ * @opensearch.internal
  */
 public class ShardFetchRequest extends TransportRequest {
 

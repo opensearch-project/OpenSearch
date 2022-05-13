@@ -84,6 +84,8 @@ import java.util.concurrent.Executor;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
+ *
+ * @opensearch.internal
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /**

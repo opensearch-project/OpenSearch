@@ -41,6 +41,11 @@ import org.opensearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Internal builder used during simple highlighting
+ *
+ * @opensearch.internal
+ */
 public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
     private final SourceLookup sourceLookup;

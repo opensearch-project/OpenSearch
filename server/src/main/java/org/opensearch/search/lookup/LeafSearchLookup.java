@@ -41,6 +41,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * Per-segment version of {@link SearchLookup}.
+ *
+ * @opensearch.internal
  */
 public class LeafSearchLookup {
 

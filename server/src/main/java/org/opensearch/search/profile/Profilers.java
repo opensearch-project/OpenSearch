@@ -40,7 +40,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Wrapper around all the profilers that makes management easier. */
+/**
+ * Wrapper around all the profilers that makes management easier.
+ *
+ * @opensearch.internal
+ */
 public final class Profilers {
 
     private final ContextIndexSearcher searcher;

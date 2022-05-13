@@ -49,6 +49,11 @@ import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
 
+/**
+ * Context for a sub search phase
+ *
+ * @opensearch.internal
+ */
 public class SubSearchContext extends FilteredSearchContext {
 
     // By default return 3 hits per bucket. A higher default would make the response really large by default, since

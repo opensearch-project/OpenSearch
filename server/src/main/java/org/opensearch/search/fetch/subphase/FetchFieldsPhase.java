@@ -50,6 +50,8 @@ import java.util.Set;
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
  * retrieves the field values from _source and returns them as document fields.
+ *
+ * @opensearch.internal
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
 
