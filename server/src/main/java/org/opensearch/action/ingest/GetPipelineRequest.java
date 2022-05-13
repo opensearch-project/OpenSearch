@@ -40,6 +40,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * transport request to get a pipeline
+ *
+ * @opensearch.internal
+ */
 public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest> {
 
     private String[] ids;

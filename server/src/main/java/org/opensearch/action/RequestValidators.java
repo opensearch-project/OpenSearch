@@ -38,6 +38,11 @@ import org.opensearch.index.Index;
 import java.util.Collection;
 import java.util.Optional;
 
+/**
+ * Validates transport requests
+ *
+ * @opensearch.internal
+ */
 public class RequestValidators<T extends ActionRequest> {
 
     private final Collection<RequestValidator<T>> validators;

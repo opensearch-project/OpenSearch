@@ -55,6 +55,8 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStrin
 /**
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
  * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
+ *
+ * @opensearch.internal
  */
 public class IndicesOptions implements ToXContentFragment {
 

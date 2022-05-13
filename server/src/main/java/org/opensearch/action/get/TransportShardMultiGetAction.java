@@ -53,6 +53,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Perform the shard multi get action
+ *
+ * @opensearch.internal
+ */
 public class TransportShardMultiGetAction extends TransportSingleShardAction<MultiGetShardRequest, MultiGetShardResponse> {
 
     private static final String ACTION_NAME = MultiGetAction.NAME + "[shard]";

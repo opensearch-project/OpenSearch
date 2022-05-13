@@ -39,7 +39,9 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
 /**
- * Base request builder for master node operations
+ * Base request builder for cluster-manager node operations
+ *
+ * @opensearch.internal
  */
 public abstract class MasterNodeOperationRequestBuilder<
     Request extends MasterNodeRequest<Request>,

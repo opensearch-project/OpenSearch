@@ -48,6 +48,8 @@ import java.util.Arrays;
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
  * More specifically, it maintains an index to the current executing bulk item, which allows execution
  * to stop and wait for external events such as mapping updates.
+ *
+ * @opensearch.internal
  */
 class BulkPrimaryExecutionContext {
 

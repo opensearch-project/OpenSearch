@@ -34,6 +34,11 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport Action for clearing a scroll
+ *
+ * @opensearch.internal
+ */
 public class ClearScrollAction extends ActionType<ClearScrollResponse> {
 
     public static final ClearScrollAction INSTANCE = new ClearScrollAction();

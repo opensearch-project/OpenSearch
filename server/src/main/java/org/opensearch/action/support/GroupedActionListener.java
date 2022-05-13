@@ -46,6 +46,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * it has received N results (either successes or failures). This allows synchronous
  * tasks to be forked off in a loop with the same listener and respond to a
  * higher level listener once all tasks responded.
+ *
+ * @opensearch.internal
  */
 public final class GroupedActionListener<T> implements ActionListener<T> {
     private final CountDown countDown;

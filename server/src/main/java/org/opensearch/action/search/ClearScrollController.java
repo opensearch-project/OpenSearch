@@ -53,6 +53,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+/**
+ * Main controller for clearing a scroll
+ *
+ * @opensearch.internal
+ */
 public final class ClearScrollController implements Runnable {
     private final DiscoveryNodes nodes;
     private final SearchTransportService searchTransportService;

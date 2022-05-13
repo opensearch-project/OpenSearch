@@ -68,6 +68,8 @@ import java.util.Set;
 
 /**
  * Explain transport action. Computes the explain on the targeted shard.
+ *
+ * @opensearch.internal
  */
 // TODO: AggregatedDfs. Currently the idf can be different then when executing a normal search with explain.
 public class TransportExplainAction extends TransportSingleShardAction<ExplainRequest, ExplainResponse> {

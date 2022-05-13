@@ -37,6 +37,11 @@ import org.opensearch.client.OpenSearchClient;
 
 import java.util.List;
 
+/**
+ * Transport request builder for clearing a search scroll
+ *
+ * @opensearch.internal
+ */
 public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse> {
 
     public ClearScrollRequestBuilder(OpenSearchClient client, ClearScrollAction action) {

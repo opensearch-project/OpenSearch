@@ -67,6 +67,8 @@ import java.util.function.LongSupplier;
 
 /**
  * Helper for translating an update request to an index, delete request or update response.
+ *
+ * @opensearch.internal
  */
 public class UpdateHelper {
 
