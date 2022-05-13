@@ -181,14 +181,6 @@ configure(project(":server")) {
   }
 }
 
-configure(project(":server")) {
-  project.tasks.withType(MissingJavadocTask) {
-    isExcluded = true
-    // TODO: reenable after fixing missing javadocs
-    javadocMissingLevel = "class"
-  }
-}
-
 class MissingJavadocTask extends DefaultTask {
   @InputFiles
   @SkipWhenEmpty
