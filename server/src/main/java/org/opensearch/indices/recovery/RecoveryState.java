@@ -576,6 +576,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
+    /**
+     * Details about the file
+     *
+     * @opensearch.internal
+     */
     public static class FileDetail implements ToXContentObject, Writeable {
         private String name;
         private long length;
@@ -677,6 +682,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
+    /**
+     * Details about the Recovery Files
+     *
+     * @opensearch.internal
+     */
     public static class RecoveryFilesDetails implements ToXContentFragment, Writeable {
         protected final Map<String, FileDetail> fileDetails = new HashMap<>();
         protected boolean complete;
@@ -767,6 +777,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
+    /**
+     * File details per Index
+     *
+     * @opensearch.internal
+     */
     public static class Index extends ReplicationTimer implements ToXContentFragment, Writeable {
         private final RecoveryFilesDetails fileDetails;
 
