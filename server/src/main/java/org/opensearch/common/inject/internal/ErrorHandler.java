@@ -35,6 +35,8 @@ import org.opensearch.common.inject.spi.Message;
  * Handles errors in the Injector.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public interface ErrorHandler {
 

@@ -36,5 +36,7 @@ import org.opensearch.common.inject.Provider;
  * aren't specified in injections, this interface should be used to expose all dependencies.
  *
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface ProviderWithDependencies<T> extends Provider<T>, HasDependencies {}

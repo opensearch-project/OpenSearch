@@ -33,7 +33,11 @@ import org.opensearch.common.inject.internal.ErrorsException;
 import org.opensearch.common.inject.internal.InternalContext;
 
 /**
+ * Contextual callable
+ *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 interface ContextualCallable<T> {
     T call(InternalContext context) throws ErrorsException;

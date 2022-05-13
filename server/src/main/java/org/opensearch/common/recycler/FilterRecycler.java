@@ -32,6 +32,11 @@
 
 package org.opensearch.common.recycler;
 
+/**
+ * Base filter recycler.
+ *
+ * @opensearch.internal
+ */
 abstract class FilterRecycler<T> implements Recycler<T> {
 
     /** Get the delegate instance to forward calls to. */

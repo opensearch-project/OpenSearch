@@ -39,6 +39,8 @@ import org.opensearch.common.inject.Binding;
  *            {@code return null} if no return type is needed.
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public abstract class DefaultBindingTargetVisitor<T, V> implements BindingTargetVisitor<T, V> {
 

@@ -42,6 +42,11 @@ import org.apache.lucene.search.SimpleCollector;
 
 import java.io.IOException;
 
+/**
+ * A minimum score collector.
+ *
+ * @opensearch.internal
+ */
 public class MinimumScoreCollector extends SimpleCollector {
 
     private final Collector collector;

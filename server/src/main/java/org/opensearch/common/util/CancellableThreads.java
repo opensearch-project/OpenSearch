@@ -47,6 +47,8 @@ import java.util.Set;
  * of cancellation.
  *
  * Cancellation policy: This class does not support external interruption via <code>Thread#interrupt()</code>. Always use #cancel() instead.
+ *
+ * @opensearch.internal
  */
 public class CancellableThreads {
     private final Set<Thread> threads = new HashSet<>();
@@ -186,6 +188,11 @@ public class CancellableThreads {
         void run() throws IOException, InterruptedException;
     }
 
+    /**
+     * Thrown if there is an error cancelling execution
+     *
+     * @opensearch.internal
+     */
     public static class ExecutionCancelledException extends OpenSearchException {
 
         public ExecutionCancelledException(String msg) {

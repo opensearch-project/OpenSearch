@@ -38,6 +38,8 @@ import java.util.function.Supplier;
  * A {@link Supplier} that caches its return value. This may be useful to make
  * a {@link Supplier} idempotent or for performance reasons if always returning
  * the same instance is acceptable.
+ *
+ * @opensearch.internal
  */
 public final class CachedSupplier<T> implements Supplier<T> {
 

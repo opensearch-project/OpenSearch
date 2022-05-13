@@ -32,6 +32,11 @@
 
 package org.opensearch.common.util;
 
+/**
+ * Base countable interface.
+ *
+ * @opensearch.internal
+ */
 public interface Countable {
     int size();
 }

@@ -800,6 +800,11 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
+    /**
+     * Updates based on restore progress
+     *
+     * @opensearch.internal
+     */
     public static class RestoreInProgressUpdater extends RoutingChangesObserver.AbstractRoutingChangesObserver {
         // Map of RestoreUUID to a of changes to the shards' restore statuses
         private final Map<String, Map<ShardId, ShardRestoreStatus>> shardChanges = new HashMap<>();

@@ -48,6 +48,8 @@ import java.io.IOException;
 
 /**
  * A frequency terms enum that maintains a cache of docFreq, totalTermFreq, or both for repeated term lookup.
+ *
+ * @opensearch.internal
  */
 public class FreqTermsEnum extends FilterableTermsEnum implements Releasable {
 

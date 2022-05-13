@@ -43,6 +43,11 @@ import org.opensearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
+/**
+ * A filtered collector.
+ *
+ * @opensearch.internal
+ */
 public class FilteredCollector implements Collector {
 
     private final Collector collector;

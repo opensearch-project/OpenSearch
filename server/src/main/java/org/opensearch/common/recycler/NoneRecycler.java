@@ -32,6 +32,11 @@
 
 package org.opensearch.common.recycler;
 
+/**
+ * No value recycler
+ *
+ * @opensearch.internal
+ */
 public class NoneRecycler<T> extends AbstractRecycler<T> {
 
     public NoneRecycler(C<T> c) {
@@ -43,6 +48,11 @@ public class NoneRecycler<T> extends AbstractRecycler<T> {
         return new NV<>(c.newInstance());
     }
 
+    /**
+     * Generic no value recycler
+     *
+     * @opensearch.internal
+     */
     public static class NV<T> implements Recycler.V<T> {
 
         T value;

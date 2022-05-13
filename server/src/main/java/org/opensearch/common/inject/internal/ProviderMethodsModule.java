@@ -56,6 +56,8 @@ import static java.util.Collections.unmodifiableSet;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public final class ProviderMethodsModule implements Module {
     private final Object delegate;

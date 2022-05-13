@@ -48,6 +48,8 @@ import java.util.stream.StreamSupport;
 
 /**
  * OpenSearch utils to work with {@link java.nio.file.Path}
+ *
+ * @opensearch.internal
  */
 public final class FileSystemUtils {
 

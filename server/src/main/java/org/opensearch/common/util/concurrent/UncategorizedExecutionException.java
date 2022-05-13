@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Thrown when an uncategorized error occurs.
+ *
+ * @opensearch.internal
+ */
 public class UncategorizedExecutionException extends OpenSearchException {
 
     public UncategorizedExecutionException(String msg, Throwable cause) {

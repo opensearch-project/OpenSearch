@@ -47,6 +47,8 @@ import java.util.List;
 
 /**
  * Helper functions for creating various forms of {@link AutomatonQuery}
+ *
+ * @opensearch.internal
  */
 public class AutomatonQueries {
 

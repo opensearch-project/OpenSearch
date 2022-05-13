@@ -102,6 +102,8 @@ import static java.util.Collections.unmodifiableSet;
  * set injection will fail.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public abstract class Multibinder<T> {
     private Multibinder() {}

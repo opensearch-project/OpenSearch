@@ -54,7 +54,7 @@ import java.util.concurrent.TimeUnit;
  * This class is normally used to verify performance during proof-of-concepts
  * and in development, rather than as part of production applications.
  *
- *
+ * @opensearch.internal
  */
 public class StopWatch {
 
@@ -239,6 +239,8 @@ public class StopWatch {
 
     /**
      * Inner class to hold data about one task executed within the stop watch.
+     *
+     * @opensearch.internal
      */
     public static class TaskInfo {
 

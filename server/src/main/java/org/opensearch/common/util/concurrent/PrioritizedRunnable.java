@@ -36,6 +36,11 @@ import org.opensearch.common.Priority;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+/**
+ * A base prioritized runnable
+ *
+ * @opensearch.internal
+ */
 public abstract class PrioritizedRunnable implements Runnable, Comparable<PrioritizedRunnable> {
 
     private final Priority priority;
@@ -82,6 +87,11 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
         return priority;
     }
 
+    /**
+     * Wrapped runnable
+     *
+     * @opensearch.internal
+     */
     static class Wrapped extends PrioritizedRunnable implements WrappedRunnable {
 
         private final Runnable runnable;

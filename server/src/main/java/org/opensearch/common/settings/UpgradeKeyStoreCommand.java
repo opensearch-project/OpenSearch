@@ -38,6 +38,8 @@ import org.opensearch.env.Environment;
 
 /**
  * A sub-command for the keystore CLI that enables upgrading the keystore format.
+ *
+ * @opensearch.internal
  */
 public class UpgradeKeyStoreCommand extends BaseKeyStoreCommand {
 

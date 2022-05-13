@@ -38,6 +38,8 @@ package org.opensearch.common;
  * @param <S> the type of the first argument
  * @param <T> the type of the second argument
  * @param <U> the type of the third argument
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface TriConsumer<S, T, U> {

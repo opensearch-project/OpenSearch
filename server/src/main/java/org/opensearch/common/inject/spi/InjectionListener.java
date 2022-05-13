@@ -36,6 +36,8 @@ package org.opensearch.common.inject.spi;
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface InjectionListener<I> {
 

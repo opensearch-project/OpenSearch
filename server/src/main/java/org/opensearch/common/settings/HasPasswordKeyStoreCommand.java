@@ -40,6 +40,11 @@ import org.opensearch.env.Environment;
 
 import java.nio.file.Path;
 
+/**
+ * KeyStore command that has a password.
+ *
+ * @opensearch.internal
+ */
 public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
 
     static final int NO_PASSWORD_EXIT_CODE = 1;

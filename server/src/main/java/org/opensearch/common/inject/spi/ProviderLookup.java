@@ -44,9 +44,16 @@ import java.util.Objects;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class ProviderLookup<T> implements Element {
 
+    /**
+     * A provider implementation
+     *
+     * @opensearch.internal
+     */
     // NOTE: this class is not part of guice and was added so the provider lookup's key can be accessible for tests
     public static class ProviderImpl<T> implements Provider<T> {
         private ProviderLookup<T> lookup;

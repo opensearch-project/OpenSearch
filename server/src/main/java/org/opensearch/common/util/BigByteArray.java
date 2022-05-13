@@ -43,6 +43,8 @@ import static org.opensearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 /**
  * Byte array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
+ *
+ * @opensearch.internal
  */
 final class BigByteArray extends AbstractBigArray implements ByteArray {
 

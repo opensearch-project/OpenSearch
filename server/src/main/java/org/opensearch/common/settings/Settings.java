@@ -91,6 +91,8 @@ import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 
 /**
  * An immutable settings implementation.
+ *
+ * @opensearch.internal
  */
 public final class Settings implements ToXContentFragment {
 
@@ -338,6 +340,8 @@ public final class Settings implements ToXContentFragment {
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
      * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
      * {@link Setting} object constructed in, for example, {@link org.opensearch.env.Environment}.
+     *
+     * @opensearch.internal
      */
     static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Settings.class);
@@ -742,6 +746,8 @@ public final class Settings implements ToXContentFragment {
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link Settings#builder()} in order to
      * construct it.
+     *
+     * @opensearch.internal
      */
     public static class Builder {
 
@@ -1357,6 +1363,11 @@ public final class Settings implements ToXContentFragment {
         }
     }
 
+    /**
+     * Prefixed secure settings
+     *
+     * @opensearch.internal
+     */
     private static class PrefixedSecureSettings implements SecureSettings {
         private final SecureSettings delegate;
         private final UnaryOperator<String> addPrefix;

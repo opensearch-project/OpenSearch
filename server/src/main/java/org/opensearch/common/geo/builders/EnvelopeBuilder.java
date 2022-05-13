@@ -45,6 +45,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Builds an envelope geometry
+ *
+ * @opensearch.internal
+ */
 public class EnvelopeBuilder extends ShapeBuilder<Rectangle, org.opensearch.geometry.Rectangle, EnvelopeBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;

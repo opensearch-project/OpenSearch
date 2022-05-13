@@ -56,6 +56,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * process, non-reproducible sources of randomness are provided (unless
  * a setting is provided for a module that exposes a seed setting (e.g.,
  * NodeEnvironment#NODE_ID_SEED_SETTING)).
+ *
+ * @opensearch.internal
  */
 public final class Randomness {
     private static final Method currentMethod;

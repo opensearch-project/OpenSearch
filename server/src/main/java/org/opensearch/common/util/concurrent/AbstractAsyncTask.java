@@ -43,6 +43,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A base class for tasks that need to repeat.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractAsyncTask implements Runnable, Closeable {
 

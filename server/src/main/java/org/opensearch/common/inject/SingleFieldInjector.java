@@ -40,6 +40,8 @@ import java.lang.reflect.Field;
 
 /**
  * Sets an injectable field.
+ *
+ * @opensearch.internal
  */
 class SingleFieldInjector implements SingleMemberInjector {
     final Field field;

@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * Exception thrown when the circuit breaker trips
+ *
+ * @opensearch.internal
  */
 public class CircuitBreakingException extends OpenSearchException {
 

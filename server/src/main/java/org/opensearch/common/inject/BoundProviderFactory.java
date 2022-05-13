@@ -38,6 +38,8 @@ import org.opensearch.common.inject.spi.Dependency;
 
 /**
  * Delegates to a custom factory which is also bound in the injector.
+ *
+ * @opensearch.internal
  */
 class BoundProviderFactory<T> implements InternalFactory<T>, CreationListener {
 

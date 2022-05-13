@@ -38,6 +38,8 @@ import org.opensearch.common.inject.spi.InjectionPoint;
  * Constructor injectors by type.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class ConstructorInjectorStore {
     private final InjectorImpl injector;
