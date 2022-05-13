@@ -49,6 +49,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to simulate an ingest pipeline
+ *
+ * @opensearch.api
+ */
 public class RestSimulatePipelineAction extends BaseRestHandler {
 
     @Override

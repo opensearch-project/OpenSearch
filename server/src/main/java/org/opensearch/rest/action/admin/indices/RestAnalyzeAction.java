@@ -47,6 +47,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to analyze an action
+ *
+ * @opensearch.api
+ */
 public class RestAnalyzeAction extends BaseRestHandler {
 
     public static class Fields {

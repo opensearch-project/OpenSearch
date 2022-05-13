@@ -44,6 +44,8 @@ import java.util.Objects;
 
 /**
  * Internal request that is used to send changes in snapshot status to master
+ *
+ * @opensearch.internal
  */
 public class UpdateIndexShardSnapshotStatusRequest extends MasterNodeRequest<UpdateIndexShardSnapshotStatusRequest> {
     private final Snapshot snapshot;

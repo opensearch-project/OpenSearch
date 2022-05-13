@@ -80,6 +80,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to list indices
+ *
+ * @opensearch.api
+ */
 public class RestIndicesAction extends AbstractCatAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");

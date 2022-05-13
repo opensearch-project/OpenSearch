@@ -42,6 +42,11 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * OpenSearch REST status
+ *
+ * @opensearch.api
+ */
 public enum RestStatus {
     /**
      * The client SHOULD continue with its request. This interim response is used to inform the client that the

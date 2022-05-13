@@ -50,6 +50,11 @@ import java.util.Set;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to update cluster settings
+ *
+ * @opensearch.api
+ */
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterUpdateSettingsAction.class);

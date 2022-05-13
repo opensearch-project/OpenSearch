@@ -36,6 +36,8 @@ import java.util.Map;
 
 /**
  * An interface for a request that can be used to register a task manager task
+ *
+ * @opensearch.internal
  */
 public interface TaskAwareRequest {
     /**

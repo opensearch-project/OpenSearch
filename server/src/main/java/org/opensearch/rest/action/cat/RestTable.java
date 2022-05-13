@@ -60,6 +60,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * a REST table
+ *
+ * @opensearch.api
+ */
 public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {

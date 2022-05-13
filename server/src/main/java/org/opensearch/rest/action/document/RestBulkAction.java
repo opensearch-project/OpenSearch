@@ -60,6 +60,8 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  * { "create" : { "_index" : "test", "_id" : "1" }
  * { "type1" : { "field1" : "value1" } }
  * </pre>
+ *
+ * @opensearch.api
  */
 public class RestBulkAction extends BaseRestHandler {
 

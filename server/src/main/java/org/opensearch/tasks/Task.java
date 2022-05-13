@@ -43,6 +43,8 @@ import java.util.Map;
 
 /**
  * Current task information
+ *
+ * @opensearch.internal
  */
 public class Task {
 

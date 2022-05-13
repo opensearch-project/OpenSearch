@@ -51,6 +51,8 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
  * Registers repositories
+ *
+ * @opensearch.api
  */
 public class RestPutRepositoryAction extends BaseRestHandler {
 

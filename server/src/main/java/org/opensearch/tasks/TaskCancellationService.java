@@ -57,6 +57,11 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Service used to cancel a task
+ *
+ * @opensearch.internal
+ */
 public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);

@@ -57,6 +57,11 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.action.RestActions.buildBroadcastShardsHeader;
 import static org.opensearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
+/**
+ * Transport action to count documents
+ *
+ * @opensearch.api
+ */
 public class RestCountAction extends BaseRestHandler {
 
     @Override

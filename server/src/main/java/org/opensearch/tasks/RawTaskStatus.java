@@ -48,6 +48,8 @@ import static org.opensearch.common.xcontent.XContentHelper.convertToMap;
 
 /**
  * Raw, unparsed status from the task results index.
+ *
+ * @opensearch.internal
  */
 public class RawTaskStatus implements Task.Status {
     public static final String NAME = "raw";

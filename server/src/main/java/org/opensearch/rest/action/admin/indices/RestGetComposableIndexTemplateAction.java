@@ -51,6 +51,11 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * Transport action to get composable index template
+ *
+ * @opensearch.api
+ */
 public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetComposableIndexTemplateAction.class);
