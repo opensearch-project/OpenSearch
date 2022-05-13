@@ -112,6 +112,11 @@ public class SimpleModel extends MovAvgModel {
         }
     };
 
+    /**
+     * Builder for the simple model
+     *
+     * @opensearch.internal
+     */
     public static class SimpleModelBuilder implements MovAvgModelBuilder {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

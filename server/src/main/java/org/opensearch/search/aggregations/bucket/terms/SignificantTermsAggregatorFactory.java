@@ -311,6 +311,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         );
     }
 
+    /**
+     * The execution mode for the significant terms agg
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {

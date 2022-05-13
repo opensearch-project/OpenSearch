@@ -51,6 +51,11 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         super(name, context, parent, metadata);
     }
 
+    /**
+     * Single numeric metric agg value
+     *
+     * @opensearch.internal
+     */
     public abstract static class SingleValue extends NumericMetricsAggregator {
 
         protected SingleValue(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
@@ -75,6 +80,11 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         }
     }
 
+    /**
+     * Multi numeric metric agg value
+     *
+     * @opensearch.internal
+     */
     public abstract static class MultiValue extends NumericMetricsAggregator {
 
         protected MultiValue(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {

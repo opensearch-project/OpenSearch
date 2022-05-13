@@ -56,6 +56,12 @@ import java.util.Objects;
 public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<InternalAdjacencyMatrix, InternalAdjacencyMatrix.InternalBucket>
     implements
         AdjacencyMatrix {
+
+    /**
+     * An internal bucket of the adjacency matrix
+     *
+     * @opensearch.internal
+     */
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements AdjacencyMatrix.Bucket {
 
         private final String key;

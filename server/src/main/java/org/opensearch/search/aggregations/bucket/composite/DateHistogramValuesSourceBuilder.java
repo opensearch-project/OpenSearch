@@ -75,6 +75,11 @@ import java.util.function.LongConsumer;
 public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder>
     implements
         DateIntervalConsumer {
+    /**
+     * Supplier for a composite date histogram
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface DateHistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(

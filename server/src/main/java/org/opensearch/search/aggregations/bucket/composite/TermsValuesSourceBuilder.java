@@ -62,7 +62,11 @@ import java.util.function.LongUnaryOperator;
  * @opensearch.internal
  */
 public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<TermsValuesSourceBuilder> {
-
+    /**
+     * Composite supplier for terms
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface TermsCompositeSupplier {
         CompositeValuesSourceConfig apply(

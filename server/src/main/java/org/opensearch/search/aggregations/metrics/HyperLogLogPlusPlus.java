@@ -225,6 +225,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * The hyper log log
+     *
+     * @opensearch.internal
+     */
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
         private final BigArrays bigArrays;
         private final HyperLogLogIterator iterator;
@@ -269,6 +274,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * Iterator for hyper log log
+     *
+     * @opensearch.internal
+     */
     private static class HyperLogLogIterator implements AbstractHyperLogLog.RunLenIterator {
 
         private final HyperLogLog hll;
@@ -304,6 +314,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * The plus plus
+     *
+     * @opensearch.internal
+     */
     private static class LinearCounting extends AbstractLinearCounting implements Releasable {
 
         protected final int threshold;
@@ -397,6 +412,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * The plus plus iterator
+     *
+     * @opensearch.internal
+     */
     private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
 
         private final LinearCounting lc;

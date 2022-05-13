@@ -220,6 +220,8 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
 
     /**
      * Options for fuzzy queries
+     *
+     * @opensearch.internal
      */
     public static class Builder {
 

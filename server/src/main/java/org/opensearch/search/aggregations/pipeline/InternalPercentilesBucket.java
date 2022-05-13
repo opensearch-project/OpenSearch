@@ -209,6 +209,11 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         return Objects.hash(super.hashCode(), Arrays.hashCode(percents), Arrays.hashCode(percentiles));
     }
 
+    /**
+     * Iterator for the percentiles agg
+     *
+     * @opensearch.internal
+     */
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] percents;

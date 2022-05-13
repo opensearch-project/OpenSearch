@@ -45,6 +45,11 @@ import java.util.Map;
  * @opensearch.internal
  */
 public interface CompositeAggregation extends MultiBucketsAggregation {
+    /**
+     * Bucket in a composite agg
+     *
+     * @opensearch.internal
+     */
     interface Bucket extends MultiBucketsAggregation.Bucket {
         Map<String, Object> getKey();
     }

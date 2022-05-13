@@ -147,6 +147,11 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         return builder;
     }
 
+    /**
+     * Builder for a Mutual Information heuristic
+     *
+     * @opensearch.internal
+     */
     public static class MutualInformationBuilder extends NXYBuilder {
         public MutualInformationBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
             super(includeNegatives, backgroundIsSuperset);

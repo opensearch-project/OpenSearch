@@ -153,6 +153,8 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
     /**
      * Abstaction on top of building collectors to fetch values.
+     *
+     * @opensearch.internal
      */
     public interface CollectorSource extends Releasable {
         boolean needsScores();
@@ -166,6 +168,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         ) throws IOException;
     }
 
+    /**
+     * Consumer for the collector
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface CollectConsumer {
         void accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
@@ -173,6 +180,8 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
     /**
      * Fetch values from a {@link ValuesSource}.
+     *
+     * @opensearch.internal
      */
     public static class ValuesSourceCollectorSource implements CollectorSource {
         private final ValuesSource valuesSource;

@@ -98,6 +98,8 @@ import static java.util.Collections.emptyList;
 public abstract class BucketedSort implements Releasable {
     /**
      * Callbacks for storing extra data along with competitive sorts.
+     *
+     * @opensearch.internal
      */
     public interface ExtraData {
         /**
@@ -115,6 +117,11 @@ public abstract class BucketedSort implements Releasable {
          */
         Loader loader(LeafReaderContext ctx) throws IOException;
 
+        /**
+         * Loader for extra data
+         *
+         * @opensearch.internal
+         */
         @FunctionalInterface
         interface Loader {
             /**
@@ -185,6 +192,8 @@ public abstract class BucketedSort implements Releasable {
     /**
      * Used with {@link BucketedSort#getValues(long, ResultBuilder)} to
      * build results from the sorting operation.
+     *
+     * @opensearch.internal
      */
     @FunctionalInterface
     public interface ResultBuilder<T> {
@@ -532,6 +541,11 @@ public abstract class BucketedSort implements Releasable {
             values.set(rhs, tmp);
         }
 
+        /**
+         * Leaf for doubles
+         *
+         * @opensearch.internal
+         */
         protected abstract class Leaf extends BucketedSort.Leaf {
             protected Leaf(LeafReaderContext ctx) {
                 super(ctx);
@@ -625,6 +639,11 @@ public abstract class BucketedSort implements Releasable {
             values.set(rhs, tmp);
         }
 
+        /**
+         * Leaf for floats
+         *
+         * @opensearch.internal
+         */
         protected abstract class Leaf extends BucketedSort.Leaf {
             protected Leaf(LeafReaderContext ctx) {
                 super(ctx);
@@ -704,6 +723,11 @@ public abstract class BucketedSort implements Releasable {
             values.set(rhs, tmp);
         }
 
+        /**
+         * Leaf for bucketed sort
+         *
+         * @opensearch.internal
+         */
         protected abstract class Leaf extends BucketedSort.Leaf {
             protected Leaf(LeafReaderContext ctx) {
                 super(ctx);

@@ -256,6 +256,11 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         return new Entry(in);
     }
 
+    /**
+     * Entry in the completion suggester
+     *
+     * @opensearch.internal
+     */
     public static final class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
 
         public Entry(Text text, int offset, int length) {
@@ -287,6 +292,11 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             return PARSER.apply(parser, null);
         }
 
+        /**
+         * Options for the completion suggester
+         *
+         * @opensearch.internal
+         */
         public static class Option extends Suggest.Suggestion.Entry.Option {
             private final Map<String, Set<String>> contexts;
             private final ScoreDoc doc;

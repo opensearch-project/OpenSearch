@@ -1471,6 +1471,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return builder;
     }
 
+    /**
+     * Boosts on an index
+     *
+     * @opensearch.internal
+     */
     public static class IndexBoost implements Writeable, ToXContentObject {
         private final String index;
         private final float boost;
@@ -1567,6 +1572,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     }
 
+    /**
+     * Script field
+     *
+     * @opensearch.internal
+     */
     public static class ScriptField implements Writeable, ToXContentFragment {
 
         private final boolean ignoreFailure;

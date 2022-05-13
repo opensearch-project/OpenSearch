@@ -55,6 +55,11 @@ public class SuggestionSearchContext {
         return suggestions;
     }
 
+    /**
+     * The suggestion context
+     *
+     * @opensearch.internal
+     */
     public abstract static class SuggestionContext {
 
         private BytesRef text;

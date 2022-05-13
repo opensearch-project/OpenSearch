@@ -101,6 +101,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(PeerRecoveryTargetService.class);
 
+    /**
+     * The internal actions
+     *
+     * @opensearch.internal
+     */
     public static class Actions {
         public static final String FILES_INFO = "internal:index/shard/recovery/filesInfo";
         public static final String FILE_CHUNK = "internal:index/shard/recovery/file_chunk";
@@ -339,6 +344,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         return request;
     }
 
+    /**
+     * The recovery listener
+     *
+     * @opensearch.internal
+     */
     public interface RecoveryListener {
         void onRecoveryDone(RecoveryState state);
 

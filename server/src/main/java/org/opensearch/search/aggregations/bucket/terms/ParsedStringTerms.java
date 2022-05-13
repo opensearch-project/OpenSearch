@@ -67,6 +67,11 @@ public class ParsedStringTerms extends ParsedTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for string values
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
         private BytesRef key;
