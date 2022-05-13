@@ -52,6 +52,8 @@ import java.util.function.Function;
 
 /**
  * Base implementation for concrete aggregators.
+ *
+ * @opensearch.internal
  */
 public abstract class AggregatorBase extends Aggregator {
 

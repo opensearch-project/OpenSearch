@@ -35,5 +35,7 @@ import org.opensearch.search.aggregations.bucket.SingleBucketAggregation;
 
 /**
  * A {@code filter} aggregation. Defines a single bucket that holds all documents that match a specific filter.
+ *
+ * @opensearch.internal
  */
 public interface Filter extends SingleBucketAggregation {}

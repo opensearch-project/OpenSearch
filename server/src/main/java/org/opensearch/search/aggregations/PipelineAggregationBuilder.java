@@ -52,6 +52,8 @@ import java.util.Objects;
 /**
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
+ *
+ * @opensearch.internal
  */
 public abstract class PipelineAggregationBuilder
     implements

@@ -63,6 +63,8 @@ import java.util.function.BiConsumer;
 
 /**
  * An aggregator that computes approximate counts of unique values.
+ *
+ * @opensearch.internal
  */
 public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 

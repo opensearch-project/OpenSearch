@@ -55,6 +55,8 @@ import java.util.function.Consumer;
 /**
  * Alternative, faster implementation for converting String keys to longs but
  * with the potential for hash collisions.
+ *
+ * @opensearch.internal
  */
 public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
 

@@ -38,6 +38,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregator supplier interface for metric aggs
+ *
+ * @opensearch.internal
+ */
 public interface MetricAggregatorSupplier {
     Aggregator build(
         String name,

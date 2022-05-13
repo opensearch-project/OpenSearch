@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Error thrown when an invalid agg is called
+ *
+ * @opensearch.internal
+ */
 public class InvalidAggregationPathException extends OpenSearchException {
 
     public InvalidAggregationPathException(String msg) {

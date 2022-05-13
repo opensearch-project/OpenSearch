@@ -39,6 +39,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregator supplier interface for percentiles aggs
+ *
+ * @opensearch.internal
+ */
 public interface PercentilesAggregatorSupplier {
     Aggregator build(
         String name,

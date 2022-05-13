@@ -34,4 +34,9 @@ package org.opensearch.search.aggregations.bucket.terms.heuristic;
 
 import org.opensearch.common.xcontent.ToXContentFragment;
 
+/**
+ * Base builder class for significance heuristics
+ *
+ * @opensearch.internal
+ */
 public interface SignificanceHeuristicBuilder extends ToXContentFragment {}

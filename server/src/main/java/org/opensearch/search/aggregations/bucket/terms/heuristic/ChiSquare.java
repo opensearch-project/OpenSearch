@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * ChiSquare significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class ChiSquare extends NXYSignificanceHeuristic {
     public static final String NAME = "chi_square";
     public static final ConstructingObjectParser<ChiSquare, Void> PARSER = new ConstructingObjectParser<>(

@@ -46,6 +46,8 @@ import java.util.Objects;
 
 /**
  * Calculate a exponentially weighted moving average
+ *
+ * @opensearch.internal
  */
 public class EwmaModel extends MovAvgModel {
     public static final String NAME = "ewma";

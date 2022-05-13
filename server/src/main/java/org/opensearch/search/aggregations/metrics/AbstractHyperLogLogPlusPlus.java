@@ -48,6 +48,8 @@ import java.util.Set;
  * Base class for HLL++ algorithms.
  *
  * It contains methods for cloning and serializing the data structure.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlgorithm implements Releasable {
 

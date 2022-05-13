@@ -46,6 +46,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for cardinality agg
+ *
+ * @opensearch.internal
+ */
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Long precisionThreshold;

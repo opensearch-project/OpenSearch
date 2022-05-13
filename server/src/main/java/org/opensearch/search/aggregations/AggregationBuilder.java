@@ -48,6 +48,8 @@ import java.util.Map;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
+ *
+ * @opensearch.internal
  */
 public abstract class AggregationBuilder
     implements

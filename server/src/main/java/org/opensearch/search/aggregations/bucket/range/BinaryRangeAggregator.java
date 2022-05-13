@@ -55,7 +55,11 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
-/** A range aggregator for values that are stored in SORTED_SET doc values. */
+/**
+ * A range aggregator for values that are stored in SORTED_SET doc values.
+ *
+ * @opensearch.internal
+ */
 public final class BinaryRangeAggregator extends BucketsAggregator {
 
     public static class Range {

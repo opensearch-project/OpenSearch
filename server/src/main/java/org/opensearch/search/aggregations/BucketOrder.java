@@ -49,6 +49,8 @@ import java.util.function.ToLongFunction;
  * "complete" buckets using {@link #comparator()} or against a combination
  * of the buckets internals with its ordinal with
  * {@link #partiallyBuiltBucketComparator(ToLongFunction, Aggregator)}.
+ *
+ * @opensearch.internal
  */
 public abstract class BucketOrder implements ToXContentObject, Writeable {
     /**

@@ -47,6 +47,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Random;
 
+/**
+ * Base class to Aggregate all docs that contain rare terms
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractRareTermsAggregator extends DeferableBucketAggregator {
 
     static final BucketOrder ORDER = BucketOrder.compound(BucketOrder.count(true), BucketOrder.key(true)); // sort by count ascending

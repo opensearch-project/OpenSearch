@@ -51,6 +51,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into their extended statistics
+ *
+ * @opensearch.internal
+ */
 class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     static final ParseField SIGMA_FIELD = new ParseField("sigma");

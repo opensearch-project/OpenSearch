@@ -36,6 +36,8 @@ import java.util.Arrays;
 
 /**
  * Provides a collection of static utility methods that can be referenced from MovingFunction script contexts
+ *
+ * @opensearch.internal
  */
 public class MovingFunctions {
 

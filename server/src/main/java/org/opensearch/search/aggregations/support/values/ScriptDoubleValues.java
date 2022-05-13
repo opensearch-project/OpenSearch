@@ -46,6 +46,8 @@ import java.util.Collection;
 
 /**
  * {@link SortingNumericDoubleValues} implementation which is based on a script
+ *
+ * @opensearch.internal
  */
 public class ScriptDoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 

@@ -50,6 +50,8 @@ import java.util.Objects;
  * A small config object that carries algo-specific settings.  This allows the factory to have
  * a single unified constructor for both algos, but internally switch execution
  * depending on which algo is selected
+ *
+ * @opensearch.internal
  */
 public abstract class PercentilesConfig implements ToXContent, Writeable {
     private final PercentilesMethod method;

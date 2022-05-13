@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Iterator;
 
+/**
+ * A TDigest percentiles rank agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedTDigestPercentileRanks extends ParsedPercentileRanks {
 
     @Override

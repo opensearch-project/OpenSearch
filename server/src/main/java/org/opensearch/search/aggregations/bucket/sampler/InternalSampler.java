@@ -38,6 +38,11 @@ import org.opensearch.search.aggregations.bucket.InternalSingleBucketAggregation
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Implementation of sampler bucket
+ *
+ * @opensearch.internal
+ */
 public class InternalSampler extends InternalSingleBucketAggregation implements Sampler {
     public static final String NAME = "mapped_sampler";
     // InternalSampler and UnmappedSampler share the same parser name, so we use this when identifying the aggregation type

@@ -37,6 +37,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A single TDigest percentiles result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedTDigestPercentiles extends ParsedPercentiles implements Percentiles {
 
     @Override

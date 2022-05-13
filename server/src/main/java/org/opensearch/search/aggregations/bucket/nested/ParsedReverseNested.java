@@ -36,6 +36,11 @@ import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.io.IOException;
 
+/**
+ * A reverse nested agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedReverseNested extends ParsedSingleBucketAggregation implements ReverseNested {
 
     @Override

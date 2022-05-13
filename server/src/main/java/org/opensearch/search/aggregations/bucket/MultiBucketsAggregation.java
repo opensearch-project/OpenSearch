@@ -41,6 +41,8 @@ import java.util.List;
 
 /**
  * An aggregation that returns multiple buckets
+ *
+ * @opensearch.internal
  */
 public interface MultiBucketsAggregation extends Aggregation {
     /**

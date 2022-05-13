@@ -49,6 +49,8 @@ import java.util.function.LongSupplier;
 /**
  * A configuration that tells aggregations how to retrieve data from the index
  * in order to run a specific aggregation.
+ *
+ * @opensearch.internal
  */
 public class ValuesSourceConfig {
 

@@ -60,6 +60,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs that match a nested path
+ *
+ * @opensearch.internal
+ */
 public class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField PATH_FIELD = new ParseField("path");

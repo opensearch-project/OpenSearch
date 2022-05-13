@@ -50,6 +50,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base aggregator for HDR percentiles agg
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
 
     private static int indexOfKey(double[] keys, double key) {

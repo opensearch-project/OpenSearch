@@ -60,6 +60,8 @@ import java.nio.ByteOrder;
  * to the HyperLogLog algorithm and then this is used.
  *
  * It supports storing several HyperLogLogPlusPlus structures which are identified by a bucket number.
+ *
+ * @opensearch.internal
  */
 public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 

@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A max agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedMax extends ParsedSingleValueNumericMetricsAggregation implements Max {
 
     @Override

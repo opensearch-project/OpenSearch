@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Implementation of extended stats pipeline
+ *
+ * @opensearch.internal
+ */
 public class InternalExtendedStatsBucket extends InternalExtendedStats implements ExtendedStatsBucket {
     InternalExtendedStatsBucket(
         String name,

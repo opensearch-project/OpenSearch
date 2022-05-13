@@ -60,6 +60,8 @@ import java.util.Objects;
 /**
  * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
  * fields are unsupported, and will throw at the factory layer.
+ *
+ * @opensearch.internal
  */
 public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<HistogramAggregationBuilder> {
     public static final String NAME = "histogram";

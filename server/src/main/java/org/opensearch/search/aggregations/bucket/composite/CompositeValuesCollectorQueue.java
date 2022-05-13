@@ -47,6 +47,8 @@ import java.util.Map;
 
 /**
  * A specialized {@link PriorityQueue} implementation for composite buckets.
+ *
+ * @opensearch.internal
  */
 final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> implements Releasable {
     private class Slot {

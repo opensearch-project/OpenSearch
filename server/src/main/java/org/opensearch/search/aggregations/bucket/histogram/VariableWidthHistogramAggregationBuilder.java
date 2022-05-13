@@ -55,6 +55,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for variable_width_histogram agg
+ *
+ * @opensearch.internal
+ */
 public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<VariableWidthHistogramAggregationBuilder> {
 
     public static final String NAME = "variable_width_histogram";

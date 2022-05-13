@@ -47,6 +47,8 @@ import java.io.IOException;
  * A producer that visits composite buckets in the order of the value indexed in the leading source of the composite
  * definition. It can be used to control which documents should be collected to produce the top composite buckets
  * without visiting all documents in an index.
+ *
+ * @opensearch.internal
  */
 abstract class SortedDocsProducer {
     protected final String field;
