@@ -147,7 +147,17 @@ public final class HppcMaps {
         };
     }
 
+    /**
+     * Object for the map
+     *
+     * @opensearch.internal
+     */
     public static final class Object {
+        /**
+         * Integer type for the map
+         *
+         * @opensearch.internal
+         */
         public static final class Integer {
             public static <V> ObjectIntHashMap<V> ensureNoNullKeys(int capacity, float loadFactor) {
                 return new ObjectIntHashMap<V>(capacity, loadFactor) {

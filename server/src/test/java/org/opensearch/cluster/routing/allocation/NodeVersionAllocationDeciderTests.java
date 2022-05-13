@@ -338,21 +338,21 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             "newNode",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         final DiscoveryNode oldNode1 = new DiscoveryNode(
             "oldNode1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             VersionUtils.getPreviousVersion()
         );
         final DiscoveryNode oldNode2 = new DiscoveryNode(
             "oldNode2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             VersionUtils.getPreviousVersion()
         );
         AllocationId allocationId1P = AllocationId.newInitializing();
@@ -457,21 +457,21 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             "newNode",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         final DiscoveryNode oldNode1 = new DiscoveryNode(
             "oldNode1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             VersionUtils.getPreviousVersion()
         );
         final DiscoveryNode oldNode2 = new DiscoveryNode(
             "oldNode2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             VersionUtils.getPreviousVersion()
         );
 

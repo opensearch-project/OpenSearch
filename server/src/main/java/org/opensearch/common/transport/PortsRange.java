@@ -94,6 +94,11 @@ public class PortsRange {
         return success;
     }
 
+    /**
+     * Callback for the port
+     *
+     * @opensearch.internal
+     */
     public interface PortCallback {
         boolean onPortNumber(int portNumber);
     }

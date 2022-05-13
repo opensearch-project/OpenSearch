@@ -68,6 +68,11 @@ public final class ClusterNameExpressionResolver {
         }
     }
 
+    /**
+     * A wildcard expression resolver.
+     *
+     * @opensearch.internal
+     */
     private static class WildcardExpressionResolver {
 
         private List<String> resolve(Set<String> remoteClusters, String clusterExpression) {

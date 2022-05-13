@@ -98,6 +98,11 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         return new Builder().parse(parser).build();
     }
 
+    /**
+     * Builder for an empty primary allocation.
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateEmptyPrimaryAllocationCommand> {
 
         @Override

@@ -78,6 +78,8 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     /**
      * An enum representation for the configured re-balance type.
+     *
+     * @opensearch.internal
      */
     public enum ClusterRebalanceType {
         /**

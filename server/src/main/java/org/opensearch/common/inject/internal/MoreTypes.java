@@ -677,6 +677,8 @@ public class MoreTypes {
 
     /**
      * A type formed from other types, such as arrays, parameterized types or wildcard types
+     *
+     * @opensearch.internal
      */
     private interface CompositeType {
         /**

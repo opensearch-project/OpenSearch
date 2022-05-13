@@ -91,7 +91,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
      * Check that when dangling indices are discovered, then they can be listed via the REST API.
      */
     public void testDanglingIndicesCanBeListed() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(1);
+        internalCluster().setBootstrapClusterManagerNodeIndex(1);
         internalCluster().startNodes(3, buildSettings(0));
 
         final DanglingIndexDetails danglingIndexDetails = createDanglingIndices(INDEX_NAME);
@@ -121,7 +121,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
      * Check that dangling indices can be imported.
      */
     public void testDanglingIndicesCanBeImported() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(1);
+        internalCluster().setBootstrapClusterManagerNodeIndex(1);
         internalCluster().startNodes(3, buildSettings(0));
 
         createDanglingIndices(INDEX_NAME);
@@ -157,7 +157,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
      * deleted through the API
      */
     public void testDanglingIndicesCanBeDeleted() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(1);
+        internalCluster().setBootstrapClusterManagerNodeIndex(1);
         internalCluster().startNodes(3, buildSettings(1));
 
         createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);

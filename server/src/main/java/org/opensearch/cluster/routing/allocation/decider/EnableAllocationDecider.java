@@ -282,6 +282,8 @@ public class EnableAllocationDecider extends AllocationDecider {
      * {@link EnableAllocationDecider#CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING} /
      * {@link EnableAllocationDecider#INDEX_ROUTING_ALLOCATION_ENABLE_SETTING}
      * via cluster / index settings.
+     *
+     * @opensearch.internal
      */
     public enum Allocation {
 
@@ -314,6 +316,8 @@ public class EnableAllocationDecider extends AllocationDecider {
      * {@link EnableAllocationDecider#CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} /
      * {@link EnableAllocationDecider#INDEX_ROUTING_REBALANCE_ENABLE_SETTING}
      * via cluster / index settings.
+     *
+     * @opensearch.internal
      */
     public enum Rebalance {
 

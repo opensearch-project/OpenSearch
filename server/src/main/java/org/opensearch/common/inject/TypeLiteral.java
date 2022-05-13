@@ -270,6 +270,8 @@ public class TypeLiteral<T> {
      *
      * @param supertype a superclass of, or interface implemented by, this.
      * @since 2.0
+     *
+     * @opensearch.internal
      */
     public TypeLiteral<?> getSupertype(Class<?> supertype) {
         if (!supertype.isAssignableFrom(rawType)) {

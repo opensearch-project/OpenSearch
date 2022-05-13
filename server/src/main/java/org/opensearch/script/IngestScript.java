@@ -68,6 +68,11 @@ public abstract class IngestScript {
 
     public abstract void execute(Map<String, Object> ctx);
 
+    /**
+     * Factory for ingest script
+     *
+     * @opensearch.internal
+     */
     public interface Factory {
         IngestScript newInstance(Map<String, Object> params);
     }

@@ -56,6 +56,11 @@ public abstract class SimilarityScript {
         ScriptedSimilarity.Doc doc
     );
 
+    /**
+     * Factory for a similarity script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         SimilarityScript newInstance();
     }

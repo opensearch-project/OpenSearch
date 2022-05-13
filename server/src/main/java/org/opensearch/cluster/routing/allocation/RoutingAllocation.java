@@ -315,6 +315,11 @@ public class RoutingAllocation {
         this.hasPendingAsyncFetch = true;
     }
 
+    /**
+     * Debug mode.
+     *
+     * @opensearch.internal
+     */
     public enum DebugMode {
         /**
          * debug mode is off

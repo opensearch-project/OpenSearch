@@ -325,6 +325,11 @@ public class Key<T> {
         return new Key<>(typeLiteral, annotationStrategy.withoutAttributes());
     }
 
+    /**
+     * Strategy for annotations
+     *
+     * @opensearch.internal
+     */
     interface AnnotationStrategy {
         Annotation getAnnotation();
 

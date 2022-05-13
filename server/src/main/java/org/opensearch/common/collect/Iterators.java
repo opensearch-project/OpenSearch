@@ -35,6 +35,11 @@ package org.opensearch.common.collect;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+/**
+ * Iterators utility class.
+ *
+ * @opensearch.internal
+ */
 public class Iterators {
     public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
         if (iterators == null) {

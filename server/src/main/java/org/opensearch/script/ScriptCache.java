@@ -264,6 +264,11 @@ public class ScriptCache {
         }
     }
 
+    /**
+     * Tracking compilation rate
+     *
+     * @opensearch.internal
+     */
     public static class CompilationRate {
         public final int count;
         public final TimeValue time;
