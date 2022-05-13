@@ -18,6 +18,8 @@ import java.io.IOException;
 /**
  * A {@link ReferenceManager.RefreshListener} that publishes a checkpoint to be consumed by replicas.
  * This class is only used with Segment Replication enabled.
+ *
+ * @opensearch.internal
  */
 public class CheckpointRefreshListener implements ReferenceManager.RefreshListener {
 

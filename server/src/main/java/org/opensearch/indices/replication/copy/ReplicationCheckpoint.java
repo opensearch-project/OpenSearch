@@ -17,6 +17,11 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Represents a Replication Checkpoint which is sent to a replica shard.
+ *
+ * @opensearch.internal
+ */
 public class ReplicationCheckpoint implements Writeable {
 
     private final ShardId shardId;
@@ -41,22 +46,41 @@ public class ReplicationCheckpoint implements Writeable {
         segmentInfosVersion = in.readLong();
     }
 
+    /**
+     * The primary term of this Replication Checkpoint.
+     *
+     * @return the primary term
+     */
     public long getPrimaryTerm() {
         return primaryTerm;
     }
 
+    /**
+     * @return the Segments Gen number
+     */
     public long getSegmentsGen() {
         return segmentsGen;
     }
 
+    /**
+     * @return the Segment Info version
+     */
     public long getSegmentInfosVersion() {
         return segmentInfosVersion;
     }
 
+    /**
+     * @return the Seq number
+     */
     public long getSeqNo() {
         return seqNo;
     }
 
+    /**
+     * Shard Id of primary shard.
+     *
+     * @return the Shard Id
+     */
     public ShardId getShardId() {
         return shardId;
     }
@@ -87,6 +111,9 @@ public class ReplicationCheckpoint implements Writeable {
         return Objects.hash(shardId, primaryTerm, segmentsGen, seqNo);
     }
 
+    /**
+     * Checks if other is aheadof current replication point by comparing segmentInfosVersion. Returns true for null
+     */
     public boolean isAheadOf(@Nullable ReplicationCheckpoint other) {
         return other == null || segmentInfosVersion > other.getSegmentInfosVersion();
     }

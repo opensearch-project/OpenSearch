@@ -13,6 +13,11 @@ import org.opensearch.index.shard.IndexShard;
 
 import java.util.Objects;
 
+/**
+ * Publish Segment Replication Checkpoint.
+ *
+ * @opensearch.internal
+ */
 public class SegmentReplicationCheckpointPublisher {
 
     private final PublishAction publishAction;
@@ -30,9 +35,15 @@ public class SegmentReplicationCheckpointPublisher {
         publishAction.publish(indexShard);
     }
 
+    /**
+     * Represents an action that is invoked to publish segment replication checkpoint to replica shard
+     */
     public interface PublishAction {
         void publish(IndexShard indexShard);
     }
 
+    /**
+     * NoOp Checkpoint publisher
+     */
     public static final SegmentReplicationCheckpointPublisher EMPTY = new SegmentReplicationCheckpointPublisher(indexShard -> {});
 }

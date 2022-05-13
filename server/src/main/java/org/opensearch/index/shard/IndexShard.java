@@ -301,8 +301,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
-
-    private final CheckpointRefreshListener checkpointRefreshListener;
+    private final ReferenceManager.RefreshListener checkpointRefreshListener;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -408,7 +407,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
-        this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
+        if (indexSettings.isSegRepEnabled() == true) {
+            this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
+        } else {
+            this.checkpointRefreshListener = null;
+        }
     }
 
     public ThreadPool getThreadPool() {
@@ -1374,6 +1377,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public synchronized void onNewCheckpoint(final PublishCheckpointRequest request) {
+        assert shardRouting.primary() == false;
         // TODO
     }
 
@@ -3116,7 +3120,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
 
         final List<ReferenceManager.RefreshListener> internalRefreshListener;
-        if (indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+        if (this.checkpointRefreshListener != null) {
             internalRefreshListener = Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener);
         } else {
             internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));

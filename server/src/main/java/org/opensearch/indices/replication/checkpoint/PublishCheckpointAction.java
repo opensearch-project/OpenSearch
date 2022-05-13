@@ -38,6 +38,12 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Replication action responsible for publishing checkpoint to a replica shard.
+ *
+ * @opensearch.internal
+ */
+
 public class PublishCheckpointAction extends TransportReplicationAction<
     PublishCheckpointRequest,
     PublishCheckpointRequest,
@@ -81,6 +87,9 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         assert false : "use PublishCheckpointAction#publish";
     }
 
+    /**
+     * Publish checkpoint request to shard
+     */
     final void publish(IndexShard indexShard) {
         String primaryAllocationId = indexShard.routingEntry().allocationId().getId();
         long primaryTerm = indexShard.getPendingPrimaryTerm();

@@ -15,6 +15,11 @@ import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 
 import java.io.IOException;
 
+/**
+ * Replication request responsible for publishing checkpoint request to a replica shard.
+ *
+ * @opensearch.internal
+ */
 public class PublishCheckpointRequest extends ReplicationRequest<PublishCheckpointRequest> {
 
     private final ReplicationCheckpoint checkpoint;
@@ -29,6 +34,9 @@ public class PublishCheckpointRequest extends ReplicationRequest<PublishCheckpoi
         this.checkpoint = new ReplicationCheckpoint(in);
     }
 
+    /**
+     * Returns Replication Checkpoint
+     */
     public ReplicationCheckpoint getCheckpoint() {
         return checkpoint;
     }
