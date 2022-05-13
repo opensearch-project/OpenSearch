@@ -45,6 +45,8 @@ import java.util.function.Predicate;
 /**
  * An executor of tasks that can survive restart of requesting or executing node.
  * These tasks are using cluster state rather than only transport service to send requests and responses.
+ *
+ * @opensearch.internal
  */
 public abstract class PersistentTasksExecutor<Params extends PersistentTaskParams> {
 

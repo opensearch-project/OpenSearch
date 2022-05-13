@@ -44,6 +44,11 @@ import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 
+/**
+ * Service for the Operating System
+ *
+ * @opensearch.internal
+ */
 public class OsService implements ReportingService<OsInfo> {
 
     private static final Logger logger = LogManager.getLogger(OsService.class);

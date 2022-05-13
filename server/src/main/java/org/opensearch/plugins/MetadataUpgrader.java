@@ -42,6 +42,8 @@ import java.util.function.UnaryOperator;
 
 /**
  * Upgrades {@link Metadata} on startup on behalf of installed {@link Plugin}s
+ *
+ * @opensearch.api
  */
 public class MetadataUpgrader {
     public final UnaryOperator<Map<String, IndexTemplateMetadata>> indexTemplateMetadataUpgraders;

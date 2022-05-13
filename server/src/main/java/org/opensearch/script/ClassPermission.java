@@ -85,6 +85,8 @@ import java.util.Set;
  *   <li>{@link org.joda.time.ReadableDateTime}</li>
  *   <li>{@link org.joda.time.ReadableInstant}</li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public final class ClassPermission extends BasicPermission {
     public static final String STANDARD = "<<STANDARD>>";

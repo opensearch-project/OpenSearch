@@ -53,6 +53,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * method. This service will call {@link org.opensearch.watcher.ResourceWatcher#checkAndNotify()} method of all
  * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
  * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
+ *
+ * @opensearch.internal
  */
 public class ResourceWatcherService implements Closeable {
     private static final Logger logger = LogManager.getLogger(ResourceWatcherService.class);

@@ -59,6 +59,8 @@ import java.util.Objects;
  *   <li>{@code script}: Identifier for which script failed.
  *   <li>{@code lang}: Scripting engine language, such as "painless"
  * </ul>
+ *
+ * @opensearch.internal
  */
 @SuppressWarnings("serial")
 public class ScriptException extends OpenSearchException {

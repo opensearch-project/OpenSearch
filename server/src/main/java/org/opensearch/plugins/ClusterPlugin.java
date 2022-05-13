@@ -45,6 +45,8 @@ import java.util.function.Supplier;
 
 /**
  * An extension point for {@link Plugin} implementations to customer behavior of cluster management.
+ *
+ * @opensearch.api
  */
 public interface ClusterPlugin {
 

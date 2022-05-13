@@ -58,6 +58,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Holds JVM statistics
+ *
+ * @opensearch.internal
+ */
 public class JvmStats implements Writeable, ToXContentFragment {
 
     private static final RuntimeMXBean runtimeMXBean;

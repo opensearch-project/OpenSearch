@@ -40,6 +40,8 @@ import org.opensearch.common.settings.Settings;
  * is reloaded it might rebuild any internal members. Plugins usually implement
  * this interface in order to reread the values of {@code SecureSetting}s and
  * then rebuild any dependent internal members.
+ *
+ * @opensearch.api
  */
 public interface ReloadablePlugin {
     /**

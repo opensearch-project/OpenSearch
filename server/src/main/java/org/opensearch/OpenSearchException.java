@@ -73,6 +73,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName
 
 /**
  * A base class for all opensearch exceptions.
+ *
+ * @opensearch.internal
  */
 public class OpenSearchException extends RuntimeException implements ToXContentFragment, Writeable {
 

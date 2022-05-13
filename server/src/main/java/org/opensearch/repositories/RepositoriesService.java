@@ -79,6 +79,8 @@ import java.util.stream.Stream;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
+ *
+ * @opensearch.internal
  */
 public class RepositoriesService extends AbstractLifecycleComponent implements ClusterStateApplier {
 

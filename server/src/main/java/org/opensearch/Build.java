@@ -46,6 +46,8 @@ import java.util.jar.Manifest;
 
 /**
  * Information about a build of OpenSearch.
+ *
+ * @opensearch.internal
  */
 public class Build {
     /**
