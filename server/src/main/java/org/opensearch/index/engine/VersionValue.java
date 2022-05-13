@@ -40,6 +40,11 @@ import org.opensearch.index.translog.Translog;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * Represents the version of a document in the index
+ *
+ * @opensearch.internal
+ */
 abstract class VersionValue implements Accountable {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(VersionValue.class);

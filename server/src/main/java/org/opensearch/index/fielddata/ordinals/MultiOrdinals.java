@@ -51,6 +51,8 @@ import java.util.List;
 
 /**
  * {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields.
+ *
+ * @opensearch.internal
  */
 public class MultiOrdinals extends Ordinals {
 

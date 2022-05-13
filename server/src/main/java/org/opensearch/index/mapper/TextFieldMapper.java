@@ -102,7 +102,11 @@ import java.util.Objects;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
-/** A {@link FieldMapper} for full-text fields. */
+/**
+ * A {@link FieldMapper} for full-text fields.
+ *
+ * @opensearch.internal
+ */
 public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "text";

@@ -48,6 +48,8 @@ import java.util.Objects;
 /**
  * A query that wraps a filter and simply returns a constant score equal to the
  * query boost for every document in the filter.
+ *
+ * @opensearch.internal
  */
 public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder> {
     public static final String NAME = "constant_score";

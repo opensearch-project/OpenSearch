@@ -64,6 +64,9 @@ import java.util.Set;
 
 import static org.opensearch.common.xcontent.XContentParser.Token.END_OBJECT;
 
+/**
+ * Query builder for inner hits
+ */
 public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField NAME_FIELD = new ParseField("name");

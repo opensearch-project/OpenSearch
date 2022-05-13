@@ -45,6 +45,8 @@ import static java.util.Collections.emptyList;
 
 /**
  * Value fetcher that loads from doc values.
+ *
+ * @opensearch.internal
  */
 public final class DocValueFetcher implements ValueFetcher {
     private final DocValueFormat format;

@@ -44,6 +44,11 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Settings for the recovery mechanism
+ *
+ * @opensearch.internal
+ */
 public class RecoverySettings {
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);

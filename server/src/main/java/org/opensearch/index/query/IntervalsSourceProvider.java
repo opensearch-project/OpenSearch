@@ -77,6 +77,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  * to a proximity source (phrase, ordered, unordered, unordered without overlaps depending on how
  * strict the matching should be); {@link Combine}, which allows proximity queries
  * between different sub-sources; and {@link Disjunction}.
+ *
+ * @opensearch.internal
  */
 public abstract class IntervalsSourceProvider implements NamedWriteable, ToXContentFragment {
 

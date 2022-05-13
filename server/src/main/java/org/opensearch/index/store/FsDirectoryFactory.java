@@ -57,6 +57,11 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Factory for a filesystem directory
+ *
+ * @opensearch.internal
+ */
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {

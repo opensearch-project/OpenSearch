@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown when an invalid sequence number is retained
+ *
+ * @opensearch.internal
+ */
 public class RetentionLeaseInvalidRetainingSeqNoException extends OpenSearchException {
 
     RetentionLeaseInvalidRetainingSeqNoException(

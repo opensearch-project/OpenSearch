@@ -41,6 +41,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Factory for shingle analyzer token filters
+ *
+ * @opensearch.internal
+ */
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ShingleTokenFilterFactory.class);

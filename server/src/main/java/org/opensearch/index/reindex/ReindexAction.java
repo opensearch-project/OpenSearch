@@ -34,6 +34,11 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Action type for reindex requests
+ *
+ * @opensearch.internal
+ */
 public class ReindexAction extends ActionType<BulkByScrollResponse> {
     public static final ReindexAction INSTANCE = new ReindexAction();
     public static final String NAME = "indices:data/write/reindex";

@@ -84,6 +84,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
+/**
+ * Command for removing a corruped shard
+ *
+ * @opensearch.internal
+ */
 public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
     private static final Logger logger = LogManager.getLogger(RemoveCorruptedShardDataCommand.class);

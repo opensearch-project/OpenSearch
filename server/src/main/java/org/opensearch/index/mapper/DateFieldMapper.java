@@ -81,7 +81,11 @@ import java.util.function.Supplier;
 
 import static org.opensearch.common.time.DateUtils.toLong;
 
-/** A {@link FieldMapper} for dates. */
+/**
+ * A {@link FieldMapper} for dates.
+ *
+ * @opensearch.internal
+ */
 public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);

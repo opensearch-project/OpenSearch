@@ -37,6 +37,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if there is an error on flush
+ *
+ * @opensearch.internal
+ */
 public class FlushFailedEngineException extends EngineException {
 
     public FlushFailedEngineException(ShardId shardId, Throwable t) {

@@ -68,6 +68,11 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
+/**
+ * Writer that writes operations to the translog
+ *
+ * @opensearch.internal
+ */
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final ShardId shardId;

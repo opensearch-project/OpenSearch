@@ -36,6 +36,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Base tokenizer factory used in analysis chain
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements TokenizerFactory {
     private final String name;
 

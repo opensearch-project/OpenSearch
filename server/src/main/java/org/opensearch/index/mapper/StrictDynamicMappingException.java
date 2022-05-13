@@ -36,6 +36,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown when mapping is set to `STRICT`
+ *
+ * @opensearch.internal
+ */
 public class StrictDynamicMappingException extends MapperParsingException {
 
     public StrictDynamicMappingException(String path, String fieldName) {

@@ -62,6 +62,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *     stored in the transaction logs that might not be supported in the future.</li>
  *     <li>it's results won't be visible until the index is refreshed.</li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
     implements

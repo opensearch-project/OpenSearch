@@ -43,6 +43,8 @@ import java.nio.file.Path;
 
 /**
  * A base class for all classes that allows reading ops from translog files
+ *
+ * @opensearch.internal
  */
 public abstract class BaseTranslogReader implements Comparable<BaseTranslogReader> {
 

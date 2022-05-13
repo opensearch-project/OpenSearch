@@ -79,6 +79,8 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
  * disk or from a snapshot in a repository.
+ *
+ * @opensearch.internal
  */
 final class StoreRecovery {
 

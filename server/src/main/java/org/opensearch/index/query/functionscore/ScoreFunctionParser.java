@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Parses XContent into a {@link ScoreFunctionBuilder}.
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface ScoreFunctionParser<FB extends ScoreFunctionBuilder<FB>> {

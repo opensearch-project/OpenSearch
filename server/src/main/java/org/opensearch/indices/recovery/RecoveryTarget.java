@@ -71,6 +71,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
  * this class are created through {@link RecoveriesCollection}.
+ *
+ * @opensearch.internal
  */
 public class RecoveryTarget extends AbstractRefCounted implements RecoveryTargetHandler {
 

@@ -86,6 +86,7 @@ import java.util.Objects;
  * {@code fields} - fields to search, defaults to _all if not set, allows
  * boosting a field with ^n
  *
+ * @opensearch.internal
  */
 public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
 

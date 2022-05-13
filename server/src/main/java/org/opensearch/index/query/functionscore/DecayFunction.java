@@ -41,6 +41,7 @@ import org.opensearch.common.Nullable;
  * function or something of the kind. This is used, for example, by
  * {@link GaussDecayFunctionBuilder}.
  *
+ * @opensearch.internal
  */
 public interface DecayFunction {
 

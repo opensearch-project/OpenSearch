@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown when trying to operate on an Index Shard that hasn't been started
+ *
+ * @opensearch.internal
+ */
 public class IndexShardNotStartedException extends IllegalIndexShardStateException {
 
     public IndexShardNotStartedException(ShardId shardId, IndexShardState currentState) {

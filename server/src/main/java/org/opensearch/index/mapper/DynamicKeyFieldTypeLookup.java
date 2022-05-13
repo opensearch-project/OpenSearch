@@ -44,6 +44,8 @@ import java.util.Map;
  *
  * Note: we anticipate that 'flattened' fields will be the only implementation {@link DynamicKeyFieldMapper}.
  * Flattened object fields live in the 'mapper-flattened' module.
+ *
+ * @opensearch.internal
  */
 class DynamicKeyFieldTypeLookup {
     private final Map<String, DynamicKeyFieldMapper> mappers;

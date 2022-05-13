@@ -40,6 +40,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Request for recovery file information
+ *
+ * @opensearch.internal
+ */
 public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
 
     private long recoveryId;

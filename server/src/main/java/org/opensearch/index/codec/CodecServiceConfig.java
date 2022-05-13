@@ -17,6 +17,8 @@ import java.util.Objects;
 
 /**
  * The configuration parameters necessary for the {@link CodecService} instance construction.
+ *
+ * @opensearch.internal
  */
 public final class CodecServiceConfig {
     private final IndexSettings indexSettings;

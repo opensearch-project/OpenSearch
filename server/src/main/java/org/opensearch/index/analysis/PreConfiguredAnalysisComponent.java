@@ -43,6 +43,8 @@ import java.io.IOException;
 
 /**
  * Shared implementation for pre-configured analysis components.
+ *
+ * @opensearch.internal
  */
 public abstract class PreConfiguredAnalysisComponent<T> implements AnalysisModule.AnalysisProvider<T> {
     protected final String name;

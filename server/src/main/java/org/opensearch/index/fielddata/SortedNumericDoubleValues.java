@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Clone of {@link SortedNumericDocValues} for double values.
+ *
+ * @opensearch.internal
  */
 public abstract class SortedNumericDoubleValues {
 

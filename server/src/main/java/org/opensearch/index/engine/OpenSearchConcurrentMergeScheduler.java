@@ -59,6 +59,8 @@ import java.util.Set;
 /**
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
  * and current merges.
+ *
+ * @opensearch.internal
  */
 class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 

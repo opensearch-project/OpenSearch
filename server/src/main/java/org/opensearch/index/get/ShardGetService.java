@@ -84,6 +84,11 @@ import java.util.stream.Stream;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
+/**
+ * Gets an index shard
+ *
+ * @opensearch.internal
+ */
 public final class ShardGetService extends AbstractIndexShardComponent {
     private final MapperService mapperService;
     private final MeanMetric existsMetric = new MeanMetric();

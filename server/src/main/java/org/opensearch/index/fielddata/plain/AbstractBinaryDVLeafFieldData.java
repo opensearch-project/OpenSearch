@@ -43,6 +43,11 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * Base class for binary docvalue "field data"
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
     private final BinaryDocValues values;
 

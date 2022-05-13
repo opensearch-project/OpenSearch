@@ -37,6 +37,11 @@ import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.script.Script;
 
+/**
+ * Base builder class for bulk index by scrolls
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractBulkIndexByScrollRequestBuilder<
     Request extends AbstractBulkIndexByScrollRequest<Request>,
     Self extends AbstractBulkIndexByScrollRequestBuilder<Request, Self>> extends AbstractBulkByScrollRequestBuilder<Request, Self> {

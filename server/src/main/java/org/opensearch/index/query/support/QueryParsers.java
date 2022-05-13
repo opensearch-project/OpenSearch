@@ -37,6 +37,11 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.DeprecationHandler;
 
+/**
+ * Utility class for Query Parsers
+ *
+ * @opensearch.internal
+ */
 public final class QueryParsers {
 
     public static final ParseField CONSTANT_SCORE = new ParseField("constant_score");

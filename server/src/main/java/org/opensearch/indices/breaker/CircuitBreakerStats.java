@@ -44,6 +44,8 @@ import java.util.Locale;
 
 /**
  * Class encapsulating stats about the circuit breaker
+ *
+ * @opensearch.internal
  */
 public class CircuitBreakerStats implements Writeable, ToXContentObject {
 

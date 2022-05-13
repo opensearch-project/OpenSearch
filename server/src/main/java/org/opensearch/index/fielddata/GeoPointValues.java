@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Per-document geo-point values.
+ *
+ * @opensearch.internal
  */
 public abstract class GeoPointValues {
 

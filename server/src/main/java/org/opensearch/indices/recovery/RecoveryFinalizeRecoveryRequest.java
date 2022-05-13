@@ -40,6 +40,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Request to finalize recovery
+ *
+ * @opensearch.internal
+ */
 final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;

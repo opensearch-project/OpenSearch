@@ -59,6 +59,8 @@ import static org.opensearch.common.lucene.search.Queries.fixNegativeQueryIfNeed
 
 /**
  * A Query that matches documents matching boolean combinations of other queries.
+ *
+ * @opensearch.internal
  */
 public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     public static final String NAME = "bool";

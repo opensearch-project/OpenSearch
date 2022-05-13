@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * Stats class encapsulating all of the different circuit breaker stats
+ *
+ * @opensearch.internal
  */
 public class AllCircuitBreakerStats implements Writeable, ToXContentFragment {
 

@@ -87,6 +87,8 @@ import java.util.function.Function;
  * </code></pre>
  *
  * @see org.opensearch.index.analysis.HunspellTokenFilterFactory
+ *
+ * @opensearch.internal
  */
 public class HunspellService {
 

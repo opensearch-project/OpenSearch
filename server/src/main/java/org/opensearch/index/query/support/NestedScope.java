@@ -39,6 +39,8 @@ import java.util.LinkedList;
 
 /**
  * During query parsing this keeps track of the current nested level.
+ *
+ * @opensearch.internal
  */
 public final class NestedScope {
 

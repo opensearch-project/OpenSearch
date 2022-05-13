@@ -49,6 +49,8 @@ import static org.opensearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.c
 
 /**
  * Builder for {@link org.apache.lucene.queries.spans.SpanContainingQuery}.
+ *
+ * @opensearch.internal
  */
 public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContainingQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_containing";
