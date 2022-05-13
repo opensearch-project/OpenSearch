@@ -60,6 +60,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Services exposed to nodes
+ *
+ * @opensearch.internal
+ */
 public class NodeService implements Closeable {
     private final Settings settings;
     private final ThreadPool threadPool;

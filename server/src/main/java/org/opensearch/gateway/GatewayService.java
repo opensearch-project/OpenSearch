@@ -60,6 +60,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
+/**
+ * The Gateway Service provider
+ *
+ * @opensearch.internal
+ */
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
 

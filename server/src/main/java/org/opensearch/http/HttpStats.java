@@ -40,6 +40,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stats for HTTP connections
+ *
+ * @opensearch.internal
+ */
 public class HttpStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;

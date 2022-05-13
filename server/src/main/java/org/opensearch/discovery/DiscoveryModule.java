@@ -75,6 +75,8 @@ import static org.opensearch.node.Node.NODE_NAME_SETTING;
 
 /**
  * A module for loading classes for node discovery.
+ *
+ * @opensearch.internal
  */
 public class DiscoveryModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);

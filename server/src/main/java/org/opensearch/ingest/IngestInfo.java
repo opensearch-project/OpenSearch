@@ -43,6 +43,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
+/**
+ * Information about an ingest event
+ *
+ * @opensearch.internal
+ */
 public class IngestInfo implements ReportingService.Info {
 
     private final Set<ProcessorInfo> processors;

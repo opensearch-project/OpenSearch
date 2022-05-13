@@ -107,6 +107,8 @@ import static java.util.Collections.unmodifiableSet;
 
 /**
  * A component that holds all data paths for a single node.
+ *
+ * @opensearch.internal
  */
 public final class NodeEnvironment implements Closeable {
     public static class NodePath {
