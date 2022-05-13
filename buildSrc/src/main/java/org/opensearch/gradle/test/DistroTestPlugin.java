@@ -75,8 +75,8 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "8u242+b08";
-    private static final String SYSTEM_JDK_VENDOR = "adoptopenjdk";
+    private static final String SYSTEM_JDK_VERSION = "11.0.15+10";
+    private static final String SYSTEM_JDK_VENDOR = "adoptium";
     private static final String GRADLE_JDK_VERSION = "17.0.3+7";
     private static final String GRADLE_JDK_VENDOR = "adoptium";
 
