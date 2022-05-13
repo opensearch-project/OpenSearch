@@ -54,6 +54,11 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
+/**
+ * Aggregate all docs into a serial diff bucket
+ *
+ * @opensearch.internal
+ */
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
     private DocValueFormat formatter;
     private GapPolicy gapPolicy;

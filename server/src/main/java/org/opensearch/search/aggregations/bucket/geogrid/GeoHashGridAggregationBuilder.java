@@ -48,6 +48,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for geohash_grid
+ *
+ * @opensearch.internal
+ */
 public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geohash_grid";
     public static final int DEFAULT_PRECISION = 5;

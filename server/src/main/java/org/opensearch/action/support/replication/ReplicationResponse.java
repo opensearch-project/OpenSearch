@@ -85,6 +85,11 @@ public class ReplicationResponse extends ActionResponse {
         this.shardInfo = shardInfo;
     }
 
+    /**
+     * Holds shard information
+     *
+     * @opensearch.internal
+     */
     public static class ShardInfo implements Writeable, ToXContentObject {
 
         private static final String TOTAL = "total";
@@ -227,6 +232,11 @@ public class ReplicationResponse extends ActionResponse {
             return "ShardInfo{" + "total=" + total + ", successful=" + successful + ", failures=" + Arrays.toString(failures) + '}';
         }
 
+        /**
+         * Holds failure information
+         *
+         * @opensearch.internal
+         */
         public static class Failure extends ShardOperationFailedException implements ToXContentObject {
 
             private static final String _INDEX = "_index";

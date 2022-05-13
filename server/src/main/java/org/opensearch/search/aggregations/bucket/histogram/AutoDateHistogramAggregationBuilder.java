@@ -60,6 +60,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for auto_gate_histogram agg
+ *
+ * @opensearch.internal
+ */
 public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
 
     public static final String NAME = "auto_date_histogram";
@@ -281,6 +286,11 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         return Objects.equals(numBuckets, other.numBuckets) && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
     }
 
+    /**
+     * Round off information
+     *
+     * @opensearch.internal
+     */
     public static class RoundingInfo implements Writeable {
         final Rounding rounding;
         final int[] innerIntervals;

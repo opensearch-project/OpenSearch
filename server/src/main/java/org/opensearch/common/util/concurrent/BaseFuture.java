@@ -46,6 +46,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
+/**
+ * Base future class.
+ *
+ * @opensearch.internal
+ */
 public abstract class BaseFuture<V> implements Future<V> {
 
     private static final String BLOCKING_OP_REASON = "Blocking operation";

@@ -48,6 +48,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for filter agg
+ *
+ * @opensearch.internal
+ */
 public class FilterAggregatorFactory extends AggregatorFactory {
 
     private Weight weight;

@@ -34,6 +34,11 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.search.aggregations.metrics.NumericMetricsAggregation;
 
+/**
+ * Base class of a metric value for a bucket
+ *
+ * @opensearch.internal
+ */
 public interface BucketMetricValue extends NumericMetricsAggregation.SingleValue {
 
     String[] keys();

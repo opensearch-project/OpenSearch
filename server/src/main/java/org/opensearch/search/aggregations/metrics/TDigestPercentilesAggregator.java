@@ -40,6 +40,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a single TDigest Percentile
+ *
+ * @opensearch.internal
+ */
 class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggregator {
 
     TDigestPercentilesAggregator(

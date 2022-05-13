@@ -36,6 +36,11 @@ import java.util.Objects;
 import org.apache.lucene.search.SortField;
 import org.opensearch.search.DocValueFormat;
 
+/**
+ * A holder for SortField and doc value format objects
+ *
+ * @opensearch.internal
+ */
 public final class SortFieldAndFormat {
 
     public final SortField field;

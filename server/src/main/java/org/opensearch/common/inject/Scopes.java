@@ -40,6 +40,8 @@ import java.util.Locale;
  * Built-in scope implementations.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class Scopes {
 

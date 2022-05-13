@@ -107,6 +107,11 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
         return load(context);
     }
 
+    /**
+     * Builder for bytes binary index field data
+     *
+     * @opensearch.internal
+     */
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;

@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Wraps array of bytes into IndexInput
+ *
+ * @opensearch.internal
  */
 public class ByteArrayIndexInput extends IndexInput {
     private final byte[] bytes;

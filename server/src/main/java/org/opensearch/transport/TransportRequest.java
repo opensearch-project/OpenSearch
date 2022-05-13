@@ -45,6 +45,11 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
+    /**
+     * Empty transport request
+     *
+     * @opensearch.internal
+     */
     public static class Empty extends TransportRequest {
         public static final Empty INSTANCE = new Empty();
 

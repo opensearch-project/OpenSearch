@@ -276,6 +276,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return ClusterState.builder(clusterState).metadata(metadataBuilder).build();
     }
 
+    /**
+     * The assignment.
+     *
+     * @opensearch.internal
+     */
+
     public static class Assignment {
         @Nullable
         private final String executorNode;
@@ -598,6 +604,11 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return new Builder(tasks);
     }
 
+    /**
+     * The task builder.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private final Map<String, PersistentTask<?>> tasks = new HashMap<>();
         private long lastAllocationId;

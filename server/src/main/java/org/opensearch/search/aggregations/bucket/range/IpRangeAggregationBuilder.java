@@ -65,6 +65,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for ip_range agg
+ *
+ * @opensearch.internal
+ */
 public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuilder<IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
     public static final ValuesSourceRegistry.RegistryKey<IpRangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
@@ -123,6 +128,11 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         }
     }
 
+    /**
+     * Range for an IP range
+     *
+     * @opensearch.internal
+     */
     public static class Range implements ToXContentObject {
 
         private final String key;

@@ -38,6 +38,11 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Main input stream for input data
+ *
+ * @opensearch.internal
+ */
 public class InputStreamStreamInput extends StreamInput {
 
     private final InputStream is;

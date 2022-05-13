@@ -34,6 +34,8 @@ package org.opensearch.search.aggregations.metrics;
 /**
  * An get that holds the number of <strong>values</strong> that the current document set has for a specific
  * field.
+ *
+ * @opensearch.internal
  */
 public interface ValueCount extends NumericMetricsAggregation.SingleValue {
 

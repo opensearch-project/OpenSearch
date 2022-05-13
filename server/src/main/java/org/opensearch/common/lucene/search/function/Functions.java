@@ -15,6 +15,8 @@ import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
 /**
  * Helper utility class for functions
+ *
+ * @opensearch.internal
  */
 public final class Functions {
     private Functions() {}

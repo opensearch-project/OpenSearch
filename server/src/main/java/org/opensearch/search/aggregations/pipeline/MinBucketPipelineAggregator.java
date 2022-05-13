@@ -42,6 +42,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a min bucket
+ *
+ * @opensearch.internal
+ */
 public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
     private List<String> minBucketKeys;
     private double minValue;

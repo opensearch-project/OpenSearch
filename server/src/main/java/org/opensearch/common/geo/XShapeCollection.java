@@ -40,6 +40,8 @@ import java.util.List;
 
 /**
  * Extends spatial4j ShapeCollection for points_only shape indexing support
+ *
+ * @opensearch.internal
  */
 public class XShapeCollection<S extends Shape> extends ShapeCollection<S> {
 

@@ -211,6 +211,11 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         return null;
     }
 
+    /**
+     * Request for retention lease sync action
+     *
+     * @opensearch.internal
+     */
     public static final class Request extends ReplicatedWriteRequest<Request> {
 
         private RetentionLeases retentionLeases;
@@ -260,6 +265,11 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
 
     }
 
+    /**
+     * Response for retention lease sync action
+     *
+     * @opensearch.internal
+     */
     public static final class Response extends ReplicationResponse implements WriteResponse {
 
         public Response() {}

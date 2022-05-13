@@ -497,7 +497,7 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
 
         final String node1 = internalCluster().startDataOnlyNode();
         final String node2 = internalCluster().startDataOnlyNode();

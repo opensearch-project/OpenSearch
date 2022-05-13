@@ -34,6 +34,8 @@ package org.opensearch.common.util;
 
 /**
  * Abstraction of an array of object values.
+ *
+ * @opensearch.internal
  */
 public interface ObjectArray<T> extends BigArray {
 

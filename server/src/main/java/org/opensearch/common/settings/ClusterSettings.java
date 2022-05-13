@@ -148,6 +148,8 @@ import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid cluster level settings.
+ *
+ * @opensearch.internal
  */
 public final class ClusterSettings extends AbstractScopedSettings {
 

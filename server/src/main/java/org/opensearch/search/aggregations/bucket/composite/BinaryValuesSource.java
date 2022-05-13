@@ -55,6 +55,8 @@ import java.util.function.LongConsumer;
 
 /**
  * A {@link SingleDimensionValuesSource} for binary source ({@link BytesRef}).
+ *
+ * @opensearch.internal
  */
 class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private final LongConsumer breakerConsumer;

@@ -22,6 +22,8 @@ import java.io.IOException;
  * Decorator class that wraps an object reference with a {@link CheckedRunnable} that is
  * invoked when {@link #close()} is called. The internal {@link OneWayGate} instance ensures
  * that this is invoked only once. See also {@link AutoCloseableRefCounted}
+ *
+ * @opensearch.internal
  */
 public class GatedCloseable<T> implements Closeable {
 

@@ -846,6 +846,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
+    /**
+     * A shard
+     *
+     * @opensearch.internal
+     */
     public interface Shard {
 
         /**
@@ -894,6 +899,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ) throws IOException;
     }
 
+    /**
+     * An allocated index
+     *
+     * @opensearch.internal
+     */
     public interface AllocatedIndex<T extends Shard> extends Iterable<T>, IndexComponent {
 
         /**
@@ -926,6 +936,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         void removeShard(int shardId, String message);
     }
 
+    /**
+     * Allocated indices
+     *
+     * @opensearch.internal
+     */
     public interface AllocatedIndices<T extends Shard, U extends AllocatedIndex<T>> extends Iterable<U> {
 
         /**
@@ -1012,6 +1027,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException, InterruptedException,
             ShardLockObtainFailedException;
 
+        /**
+         * Why the index was removed
+         *
+         * @opensearch.internal
+         */
         enum IndexRemovalReason {
             /**
              * Shard of this index were previously assigned to this node but all shards have been relocated.

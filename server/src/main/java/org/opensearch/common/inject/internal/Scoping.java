@@ -43,6 +43,8 @@ import java.lang.annotation.Annotation;
  * The scope's eager or laziness is also exposed.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public abstract class Scoping {
 

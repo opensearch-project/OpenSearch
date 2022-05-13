@@ -32,6 +32,11 @@
 
 package org.opensearch.common.geo;
 
+/**
+ * Checks if certain geometry packages are available
+ *
+ * @opensearch.internal
+ */
 public class ShapesAvailability {
 
     public static final boolean SPATIAL4J_AVAILABLE;

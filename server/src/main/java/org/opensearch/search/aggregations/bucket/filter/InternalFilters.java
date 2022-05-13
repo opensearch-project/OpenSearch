@@ -47,7 +47,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of filters agg
+ *
+ * @opensearch.internal
+ */
 public class InternalFilters extends InternalMultiBucketAggregation<InternalFilters, InternalFilters.InternalBucket> implements Filters {
+    /**
+     * Internal bucket for an internal filters agg
+     *
+     * @opensearch.internal
+     */
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements Filters.Bucket {
 
         private final boolean keyed;

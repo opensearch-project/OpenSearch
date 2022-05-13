@@ -233,6 +233,11 @@ public class Manifest implements ToXContentFragment {
         return globalGeneration == MISSING_GLOBAL_GENERATION;
     }
 
+    /**
+     * An index entry.
+     *
+     * @opensearch.internal
+     */
     private static final class IndexEntry implements ToXContentFragment {
         private static final ParseField INDEX_GENERATION_PARSE_FIELD = new ParseField("generation");
         private static final ParseField INDEX_PARSE_FIELD = new ParseField("index");

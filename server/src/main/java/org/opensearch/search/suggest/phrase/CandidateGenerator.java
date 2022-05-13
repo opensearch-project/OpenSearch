@@ -39,6 +39,12 @@ import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSe
 import java.io.IOException;
 
 //TODO public for tests
+
+/**
+ * Base class for phrase candidates
+ *
+ * @opensearch.internal
+ */
 public abstract class CandidateGenerator {
 
     public abstract boolean isKnownWord(BytesRef term) throws IOException;

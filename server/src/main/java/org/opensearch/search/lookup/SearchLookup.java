@@ -44,6 +44,11 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+/**
+ * Orchestrator class for search phase lookups
+ *
+ * @opensearch.internal
+ */
 public class SearchLookup {
     /**
      * The maximum depth of field dependencies.

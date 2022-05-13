@@ -117,7 +117,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Integration tests for task management API
  * <p>
- * We need at least 2 nodes so we have a master node a non-master node
+ * We need at least 2 nodes so we have a cluster-manager node a non-cluster-manager node
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends OpenSearchIntegTestCase {

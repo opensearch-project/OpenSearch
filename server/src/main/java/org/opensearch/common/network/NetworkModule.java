@@ -74,6 +74,8 @@ import java.util.function.Supplier;
 
 /**
  * A module to handle registering and binding all network related classes.
+ *
+ * @opensearch.internal
  */
 public final class NetworkModule {
 

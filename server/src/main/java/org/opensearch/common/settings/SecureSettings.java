@@ -40,6 +40,8 @@ import java.util.Set;
 
 /**
  * An accessor for settings which are securely stored. See {@link SecureSetting}.
+ *
+ * @opensearch.internal
  */
 public interface SecureSettings extends Closeable {
 

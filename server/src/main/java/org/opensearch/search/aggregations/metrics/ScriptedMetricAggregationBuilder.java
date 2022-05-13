@@ -52,6 +52,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Aggregation Builder for scripted_metric agg
+ *
+ * @opensearch.internal
+ */
 public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder<ScriptedMetricAggregationBuilder> {
     public static final String NAME = "scripted_metric";
 

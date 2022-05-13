@@ -43,6 +43,8 @@ import java.util.Objects;
 
 /**
  * A class that encapsulates a minimum and a maximum, that are of the same type and {@link Comparable}.
+ *
+ * @opensearch.internal
  */
 public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
     private final T minValue;

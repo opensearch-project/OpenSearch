@@ -69,6 +69,11 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         super(NAME, PersistentTaskResponse::new);
     }
 
+    /**
+     * The action request.
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeRequest<Request> {
 
         private String taskId;
@@ -138,6 +143,11 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
     }
 
+    /**
+     * The request builder.
+     *
+     * @opensearch.internal
+     */
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
         UpdatePersistentTaskStatusAction.Request,
         PersistentTaskResponse,
@@ -157,6 +167,12 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
             return this;
         }
     }
+
+    /**
+     * The transport action.
+     *
+     * @opensearch.internal
+     */
 
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 

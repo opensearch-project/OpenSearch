@@ -38,6 +38,8 @@ import java.lang.reflect.InvocationTargetException;
  * Produces construction proxies that invoke the class constructor.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 class DefaultConstructionProxyFactory<T> implements ConstructionProxyFactory<T> {
 

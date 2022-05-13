@@ -13,5 +13,7 @@ import org.apache.lucene.search.CollectorManager;
 
 /**
  * Collector manager which supports profiling
+ *
+ * @opensearch.internal
  */
 public interface ProfileCollectorManager<C extends Collector, T> extends CollectorManager<C, T>, InternalProfileComponent {}

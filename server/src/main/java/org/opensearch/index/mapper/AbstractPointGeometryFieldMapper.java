@@ -63,6 +63,11 @@ import static org.opensearch.index.mapper.TypeParsers.parseField;
  */
 public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
 
+    /**
+     * Common parameter names for the base point geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Names extends AbstractGeometryFieldMapper.Names {
         public static final ParseField NULL_VALUE = new ParseField("null_value");
     }
@@ -74,6 +79,11 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         DEFAULT_FIELD_TYPE.freeze();
     }
 
+    /**
+     * Base builder for the base point geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractPointGeometryFieldType> extends
         AbstractGeometryFieldMapper.Builder<T, FT> {
 
@@ -113,6 +123,11 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         }
     }
 
+    /**
+     * Base type parser for the base point geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class TypeParser<T extends Builder> extends AbstractGeometryFieldMapper.TypeParser<Builder> {
         protected abstract ParsedPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed);
 
@@ -144,6 +159,11 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
     ParsedPoint nullValue;
 
+    /**
+     * Base field type for the base point geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class AbstractPointGeometryFieldType<Parsed, Processed> extends AbstractGeometryFieldType<Parsed, Processed> {
         protected AbstractPointGeometryFieldType(
             String name,
@@ -197,7 +217,11 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         return nullValue;
     }
 
-    /** represents a Point that has been parsed by {@link PointParser} */
+    /**
+     * represents a Point that has been parsed by {@link PointParser}
+     *
+     * @opensearch.internal
+     */
     public interface ParsedPoint {
         void validate(String fieldName);
 
@@ -212,7 +236,11 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         }
     }
 
-    /** A parser implementation that can parse the various point formats */
+    /**
+     * A parser implementation that can parse the various point formats
+     *
+     * @opensearch.internal
+     */
     public static class PointParser<P extends ParsedPoint> extends Parser<List<P>> {
         /**
          * Note that this parser is only used for formatting values.

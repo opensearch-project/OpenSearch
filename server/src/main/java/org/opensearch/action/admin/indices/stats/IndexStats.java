@@ -132,6 +132,11 @@ public class IndexStats implements Iterable<IndexShardStats> {
         return stats;
     }
 
+    /**
+     * Builder for Index Stats
+     *
+     * @opensearch.internal
+     */
     public static class IndexStatsBuilder {
         private final String indexName;
         private final String uuid;

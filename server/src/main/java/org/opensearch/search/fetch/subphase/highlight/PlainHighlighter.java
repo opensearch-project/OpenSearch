@@ -61,6 +61,11 @@ import java.util.Map;
 
 import static org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
 
+/**
+ * Standard Lucene Highlighter implementation
+ *
+ * @opensearch.internal
+ */
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
 

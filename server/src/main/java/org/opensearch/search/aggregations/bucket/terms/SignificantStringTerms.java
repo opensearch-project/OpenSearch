@@ -46,10 +46,17 @@ import java.util.Objects;
 
 /**
  * Result of the running the significant terms aggregation on a String field.
+ *
+ * @opensearch.internal
  */
 public class SignificantStringTerms extends InternalMappedSignificantTerms<SignificantStringTerms, SignificantStringTerms.Bucket> {
     public static final String NAME = "sigsterms";
 
+    /**
+     * Bucket for significant string values
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
 
         BytesRef termBytes;

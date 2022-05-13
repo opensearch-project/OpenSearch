@@ -51,6 +51,8 @@ import java.util.Objects;
  * A function_score function that multiplies the score with the value of a
  * field from the document, optionally multiplying the field by a factor first,
  * and applying a modification (log, ln, sqrt, square, etc) afterwards.
+ *
+ * @opensearch.internal
  */
 public class FieldValueFactorFunction extends ScoreFunction {
     private final String field;
@@ -174,6 +176,8 @@ public class FieldValueFactorFunction extends ScoreFunction {
     /**
      * The Type class encapsulates the modification types that can be applied
      * to the score/value product.
+     *
+     * @opensearch.internal
      */
     public enum Modifier implements Writeable {
         NONE {

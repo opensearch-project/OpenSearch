@@ -561,6 +561,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return Objects.equals(oldProxy, newProxy) == false;
     }
 
+    /**
+     * Information about the sniff mode
+     *
+     * @opensearch.internal
+     */
     public static class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         final List<String> seedNodes;

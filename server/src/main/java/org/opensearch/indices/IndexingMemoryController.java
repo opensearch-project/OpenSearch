@@ -260,6 +260,11 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         }
     }
 
+    /**
+     * The bytes used by a shard and a reference to the shard
+     *
+     * @opensearch.internal
+     */
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
         final long bytesUsed;
         final IndexShard shard;

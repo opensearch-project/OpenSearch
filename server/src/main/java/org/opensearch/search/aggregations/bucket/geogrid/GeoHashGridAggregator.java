@@ -44,6 +44,8 @@ import java.util.Map;
 
 /**
  * Aggregates data expressed as GeoHash longs (for efficiency's sake) but formats results as Geohash strings.
+ *
+ * @opensearch.internal
  */
 public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid> {
 

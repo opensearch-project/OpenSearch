@@ -38,7 +38,11 @@ import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
 
-/** Implemented by histogram aggregations and used by pipeline aggregations to insert buckets. */
+/**
+ * Implemented by histogram aggregations and used by pipeline aggregations to insert buckets.
+ *
+ * @opensearch.internal
+ */
 // public so that pipeline aggs can use this API: can we fix it?
 public interface HistogramFactory {
 

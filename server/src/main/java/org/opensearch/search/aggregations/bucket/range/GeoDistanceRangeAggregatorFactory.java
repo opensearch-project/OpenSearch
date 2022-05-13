@@ -57,6 +57,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for geo_distance agg
+ *
+ * @opensearch.internal
+ */
 public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -167,6 +172,11 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
             );
     }
 
+    /**
+     * The source location for the distance calculation
+     *
+     * @opensearch.internal
+     */
     private static class DistanceSource extends ValuesSource.Numeric {
 
         private final ValuesSource.GeoPoint source;

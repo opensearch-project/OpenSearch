@@ -45,6 +45,8 @@ import java.io.IOException;
  * {@link FilterLeafReader} that are used at search time in order to
  * leverage sequential access when retrieving stored fields in queries,
  * aggregations or during the fetch phase.
+ *
+ * @opensearch.internal
  */
 public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader {
     /**

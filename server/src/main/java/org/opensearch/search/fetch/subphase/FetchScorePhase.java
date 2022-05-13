@@ -44,6 +44,11 @@ import org.opensearch.search.fetch.FetchSubPhaseProcessor;
 
 import java.io.IOException;
 
+/**
+ * Fetches the score of a query match during search phase
+ *
+ * @opensearch.internal
+ */
 public class FetchScorePhase implements FetchSubPhase {
 
     @Override

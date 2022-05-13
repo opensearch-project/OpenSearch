@@ -33,7 +33,11 @@ import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.ErrorsException;
 
 /**
+ * Initializables.
+ *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class Initializables {
 

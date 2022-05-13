@@ -36,7 +36,11 @@ import org.opensearch.common.inject.spi.TypeConverter;
 import java.util.Objects;
 
 /**
+ * Matches and converts
+ *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public final class MatcherAndConverter {
 

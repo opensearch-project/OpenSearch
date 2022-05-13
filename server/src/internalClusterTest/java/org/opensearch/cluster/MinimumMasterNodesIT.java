@@ -84,7 +84,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testTwoNodesNoMasterBlock() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(1);
+        internalCluster().setBootstrapClusterManagerNodeIndex(1);
 
         Settings settings = Settings.builder().put("discovery.initial_state_timeout", "500ms").build();
 
@@ -250,7 +250,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testThreeNodesNoMasterBlock() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
 
         Settings settings = Settings.builder().put("discovery.initial_state_timeout", "500ms").build();
 
@@ -340,7 +340,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testCannotCommitStateThreeNodes() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
 
         Settings settings = Settings.builder().put("discovery.initial_state_timeout", "500ms").build();
 

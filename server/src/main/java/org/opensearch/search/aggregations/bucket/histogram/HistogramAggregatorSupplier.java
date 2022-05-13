@@ -41,6 +41,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregator supplier interface for histogram aggs
+ *
+ * @opensearch.internal
+ */
 public interface HistogramAggregatorSupplier {
     Aggregator build(
         String name,

@@ -248,10 +248,10 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
             assert serviceHolderWithNoType == null;
             // we initialize the serviceHolder and serviceHolderWithNoType just once, but need some
             // calls to the randomness source during its setup. In order to not mix these calls with
-            // the randomness source that is later used in the test method, we use the master seed during
+            // the randomness source that is later used in the test method, we use the cluster-manager seed during
             // this setup
-            long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
-            RandomizedTest.getContext().runWithPrivateRandomness(masterSeed, (Callable<Void>) () -> {
+            long clusterManagerSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
+            RandomizedTest.getContext().runWithPrivateRandomness(clusterManagerSeed, (Callable<Void>) () -> {
                 serviceHolder = new ServiceHolder(
                     nodeSettings,
                     createTestIndexSettings(),

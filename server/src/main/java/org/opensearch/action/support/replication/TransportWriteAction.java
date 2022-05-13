@@ -267,6 +267,8 @@ public abstract class TransportWriteAction<
      * Result of taking the action on the primary.
      *
      * NOTE: public for testing
+     *
+     * @opensearch.internal
      */
     public static class WritePrimaryResult<
         ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
@@ -322,6 +324,8 @@ public abstract class TransportWriteAction<
 
     /**
      * Result of taking the action on the replica.
+     *
+     * @opensearch.internal
      */
     public static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>> extends ReplicaResult {
         public final Location location;
@@ -394,6 +398,8 @@ public abstract class TransportWriteAction<
      * This class encapsulates post write actions like async waits for
      * translog syncs or waiting for a refresh to happen making the write operation
      * visible.
+     *
+     * @opensearch.internal
      */
     static final class AsyncAfterWriteAction {
         private final Location location;
@@ -492,6 +498,8 @@ public abstract class TransportWriteAction<
      *
      * This extends {@code TransportReplicationAction.ReplicasProxy} to do the
      * failing and stale-ing.
+     *
+     * @opensearch.internal
      */
     class WriteActionReplicasProxy extends ReplicasProxy {
 

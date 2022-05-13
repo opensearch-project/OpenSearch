@@ -48,6 +48,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Builds a line string geometry
+ *
+ * @opensearch.internal
+ */
 public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.geometry.Geometry, LineStringBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 

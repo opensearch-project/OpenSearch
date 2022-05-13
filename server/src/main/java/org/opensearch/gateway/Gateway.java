@@ -144,6 +144,11 @@ public class Gateway {
         listener.onSuccess(recoveredState);
     }
 
+    /**
+     * The lister for state recovered.
+     *
+     * @opensearch.internal
+     */
     public interface GatewayStateRecoveredListener {
         void onSuccess(ClusterState build);
 

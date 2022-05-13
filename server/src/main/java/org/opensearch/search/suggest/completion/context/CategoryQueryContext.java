@@ -48,6 +48,8 @@ import static org.opensearch.search.suggest.completion.context.CategoryContextMa
 
 /**
  * Defines the query context for {@link CategoryContextMapping}
+ *
+ * @opensearch.internal
  */
 public final class CategoryQueryContext implements ToXContentObject {
     public static final String NAME = "category";
@@ -149,6 +151,11 @@ public final class CategoryQueryContext implements ToXContentObject {
         return builder;
     }
 
+    /**
+     * Builder for the category query context
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private String category;
         private boolean isPrefix = false;

@@ -67,6 +67,8 @@ import java.util.Objects;
  * for users as they type search terms. The implementation of the completion service uses FSTs that
  * are created at index-time and so must be defined in the mapping with the type "completion" before
  * indexing.
+ *
+ * @opensearch.internal
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
 

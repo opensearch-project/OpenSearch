@@ -87,6 +87,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_id";
 
+    /**
+     * Default parameters
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final String NAME = IdFieldMapper.NAME;
 
@@ -112,6 +117,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(() -> c.mapperService().isIdFieldDataEnabled()));
 
+    /**
+     * Field type for ID field
+     *
+     * @opensearch.internal
+     */
     static final class IdFieldType extends TermBasedFieldType {
 
         private final Supplier<Boolean> fieldDataEnabled;

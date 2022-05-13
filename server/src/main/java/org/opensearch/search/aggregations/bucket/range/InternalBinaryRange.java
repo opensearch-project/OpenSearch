@@ -52,11 +52,20 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
-/** A range aggregation for data that is encoded in doc values using a binary representation. */
+/**
+ * A range aggregation for data that is encoded in doc values using a binary representation.
+ *
+ * @opensearch.internal
+ */
 public final class InternalBinaryRange extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
     implements
         Range {
 
+    /**
+     * Bucket for a binary range agg
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
         private final transient DocValueFormat format;

@@ -36,6 +36,11 @@ import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.io.IOException;
 
+/**
+ * A filter agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedFilter extends ParsedSingleBucketAggregation implements Filter {
 
     @Override

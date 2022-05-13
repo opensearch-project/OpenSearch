@@ -37,6 +37,8 @@ import java.util.concurrent.BlockingQueue;
 /**
  * Extends the {@code SizeBlockingQueue} to add the {@code adjustCapacity} method, which will adjust
  * the capacity by a certain amount towards a maximum or minimum.
+ *
+ * @opensearch.internal
  */
 final class ResizableBlockingQueue<E> extends SizeBlockingQueue<E> {
 

@@ -51,6 +51,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Helper for xcontent utilities.
+ *
+ * @opensearch.internal
+ */
 @SuppressWarnings("unchecked")
 public class XContentHelper {
 

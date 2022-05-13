@@ -30,6 +30,8 @@ import java.util.Objects;
 /**
  * A configuration that tells aggregation how to retrieve data from index
  * in order to run a specific aggregation.
+ *
+ * @opensearch.internal
  */
 public abstract class BaseMultiValuesSourceFieldConfig implements Writeable, ToXContentObject {
     private final String fieldName;
@@ -169,6 +171,11 @@ public abstract class BaseMultiValuesSourceFieldConfig implements Writeable, ToX
 
     abstract void doWriteTo(StreamOutput out) throws IOException;
 
+    /**
+     * Base builder for the multi values source field configuration
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder<C extends BaseMultiValuesSourceFieldConfig, B extends Builder<C, B>> {
         String fieldName;
         Object missing = null;

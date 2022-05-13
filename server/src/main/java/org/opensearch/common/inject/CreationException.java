@@ -39,6 +39,8 @@ import java.util.Collection;
  * errors. Clients should catch this exception, log it, and stop execution.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class CreationException extends RuntimeException {
     private final Collection<Message> messages;

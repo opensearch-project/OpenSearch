@@ -53,6 +53,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Aggregation Factory for top_hits agg
+ *
+ * @opensearch.internal
+ */
 class TopHitsAggregatorFactory extends AggregatorFactory {
 
     private final int from;

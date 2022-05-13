@@ -45,6 +45,8 @@ import java.io.OutputStream;
 /**
  * An extension to {@link BytesReference} that requires releasing its content. This
  * class exists to make it explicit when a bytes reference needs to be released, and when not.
+ *
+ * @opensearch.internal
  */
 public final class ReleasableBytesReference implements Releasable, BytesReference {
 

@@ -63,7 +63,7 @@ import static org.mockito.Mockito.when;
 
 public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
 
-    public void testFakeMasterService() {
+    public void testFakeClusterManagerService() {
         List<Runnable> runnableTasks = new ArrayList<>();
         AtomicReference<ClusterState> lastClusterStateRef = new AtomicReference<>();
         DiscoveryNode discoveryNode = new DiscoveryNode(
@@ -84,21 +84,21 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
         doAnswer(invocationOnMock -> runnableTasks.add((Runnable) invocationOnMock.getArguments()[0])).when(executorService).execute(any());
         when(mockThreadPool.generic()).thenReturn(executorService);
 
-        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService(
+        FakeThreadPoolMasterService clusterManagerService = new FakeThreadPoolMasterService(
             "test_node",
             "test",
             mockThreadPool,
             runnableTasks::add
         );
-        masterService.setClusterStateSupplier(lastClusterStateRef::get);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+        clusterManagerService.setClusterStateSupplier(lastClusterStateRef::get);
+        clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             lastClusterStateRef.set(event.state());
             publishingCallback.set(publishListener);
         });
-        masterService.start();
+        clusterManagerService.start();
 
         AtomicBoolean firstTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
+        clusterManagerService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -124,7 +124,7 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
         assertFalse(firstTaskCompleted.get());
 
         final Runnable scheduleTask = runnableTasks.remove(0);
-        assertThat(scheduleTask, hasToString("master service scheduling next task"));
+        assertThat(scheduleTask, hasToString("cluster-manager service scheduling next task"));
         scheduleTask.run();
 
         final Runnable publishTask = runnableTasks.remove(0);
@@ -138,7 +138,7 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
         assertThat(runnableTasks.size(), equalTo(0));
 
         AtomicBoolean secondTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
+        clusterManagerService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)

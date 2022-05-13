@@ -45,6 +45,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for reverse_nested agg
+ *
+ * @opensearch.internal
+ */
 public class ReverseNestedAggregatorFactory extends AggregatorFactory {
 
     private final boolean unmapped;
@@ -78,6 +83,11 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
         }
     }
 
+    /**
+     * Unmapped class for reverse nested agg
+     *
+     * @opensearch.internal
+     */
     private static final class Unmapped extends NonCollectingAggregator {
 
         Unmapped(String name, SearchContext context, Aggregator parent, AggregatorFactories factories, Map<String, Object> metadata)

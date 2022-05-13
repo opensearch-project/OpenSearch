@@ -196,7 +196,7 @@ public class FullRollingRestartIT extends OpenSearchIntegTestCase {
 
     public void testNoRebalanceOnRollingRestart() throws Exception {
         // see https://github.com/elastic/elasticsearch/issues/14387
-        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(3);
         /**
          * We start 3 nodes and a dedicated master. Restart on of the data-nodes and ensure that we got no relocations.

@@ -46,6 +46,11 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Implementation of mapped significant terms
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalMappedSignificantTerms<
     A extends InternalMappedSignificantTerms<A, B>,
     B extends InternalSignificantTerms.Bucket<B>> extends InternalSignificantTerms<A, B> {

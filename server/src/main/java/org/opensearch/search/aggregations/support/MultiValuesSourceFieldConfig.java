@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
 
+/**
+ * Base field configuration class for multi values
+ *
+ * @opensearch.internal
+ */
 public class MultiValuesSourceFieldConfig extends BaseMultiValuesSourceFieldConfig {
     private final QueryBuilder filter;
 
@@ -125,6 +130,11 @@ public class MultiValuesSourceFieldConfig extends BaseMultiValuesSourceFieldConf
         return Objects.hash(super.hashCode(), filter);
     }
 
+    /**
+     * Builder for the field config
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends BaseMultiValuesSourceFieldConfig.Builder<BaseMultiValuesSourceFieldConfig, Builder> {
         private QueryBuilder filter = null;
 

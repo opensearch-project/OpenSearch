@@ -38,6 +38,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Base array
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractArray implements BigArray {
 
     private final BigArrays bigArrays;

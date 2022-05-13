@@ -737,7 +737,7 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
             "test1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         DiscoveryNode node2 = new DiscoveryNode(
@@ -808,7 +808,7 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
             "test1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         DiscoveryNode node2 = new DiscoveryNode(

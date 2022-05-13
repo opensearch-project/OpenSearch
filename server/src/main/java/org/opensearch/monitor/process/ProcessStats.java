@@ -138,6 +138,11 @@ public class ProcessStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Process memory information.
+     *
+     * @opensearch.internal
+     */
     public static class Mem implements Writeable {
 
         private final long totalVirtual;
@@ -160,6 +165,11 @@ public class ProcessStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Process CPU information.
+     *
+     * @opensearch.internal
+     */
     public static class Cpu implements Writeable {
 
         private final short percent;

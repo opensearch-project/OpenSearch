@@ -36,6 +36,8 @@ import java.util.Map;
  * Helps with {@code toString()} methods.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class ToStringBuilder {
 

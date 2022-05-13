@@ -44,6 +44,8 @@ import java.util.function.Consumer;
 /**
  * A set of static methods to get {@link Token} from {@link XContentParser}
  * while checking for their types and throw {@link ParsingException} if needed.
+ *
+ * @opensearch.internal
  */
 public final class XContentParserUtils {
 

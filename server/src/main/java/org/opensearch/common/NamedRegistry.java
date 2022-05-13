@@ -41,6 +41,8 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * A registry from String to some class implementation. Used to ensure implementations are registered only once.
+ *
+ * @opensearch.internal
  */
 public class NamedRegistry<T> {
     private final Map<String, T> registry = new HashMap<>();

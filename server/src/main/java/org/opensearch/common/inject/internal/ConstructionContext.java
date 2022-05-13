@@ -40,6 +40,8 @@ import java.util.List;
  * Context of a dependency construction. Used to manage circular references.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class ConstructionContext<T> {
 
@@ -105,6 +107,11 @@ public class ConstructionContext<T> {
         }
     }
 
+    /**
+     * An invocation handler that delegates the implementation
+     *
+     * @opensearch.internal
+     */
     static class DelegatingInvocationHandler<T> implements InvocationHandler {
 
         T delegate;

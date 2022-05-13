@@ -742,6 +742,8 @@ public class AllocationService {
     /**
      * this class is used to describe results of applying a set of
      * {@link org.opensearch.cluster.routing.allocation.command.AllocationCommand}
+     *
+     * @opensearch.internal
      */
     public static class CommandsResult {
 

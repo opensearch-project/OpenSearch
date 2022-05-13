@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A min agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedMin extends ParsedSingleValueNumericMetricsAggregation implements Min {
 
     @Override

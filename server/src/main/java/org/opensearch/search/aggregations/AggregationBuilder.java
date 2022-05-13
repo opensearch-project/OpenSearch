@@ -48,6 +48,8 @@ import java.util.Map;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
+ *
+ * @opensearch.internal
  */
 public abstract class AggregationBuilder
     implements
@@ -164,6 +166,8 @@ public abstract class AggregationBuilder
      * <p>
      * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
      * instead of <strong>per parent bucket</strong>.
+     *
+     * @opensearch.internal
      */
     public enum BucketCardinality {
         NONE,
@@ -177,7 +181,11 @@ public abstract class AggregationBuilder
      */
     public abstract BucketCardinality bucketCardinality();
 
-    /** Common xcontent fields shared among aggregator builders */
+    /**
+     * Common xcontent fields shared among aggregator builders
+     *
+     * @opensearch.internal
+     */
     public static final class CommonFields extends ParseField.CommonFields {
         public static final ParseField VALUE_TYPE = new ParseField("value_type");
     }

@@ -38,6 +38,8 @@ import java.util.List;
 
 /**
  * A {@code histogram} aggregation. Defines multiple buckets, each representing an interval in a histogram.
+ *
+ * @opensearch.internal
  */
 public interface Histogram extends MultiBucketsAggregation {
 

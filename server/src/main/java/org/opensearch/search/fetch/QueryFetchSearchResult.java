@@ -41,6 +41,11 @@ import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 
+/**
+ * Query fetch result
+ *
+ * @opensearch.internal
+ */
 public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     private final QuerySearchResult queryResult;

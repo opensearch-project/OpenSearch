@@ -36,7 +36,11 @@ import org.opensearch.common.inject.internal.InternalFactory;
 import org.opensearch.common.inject.spi.Dependency;
 
 /**
+ * Adapts a provider to an internal factory.
+ *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 class ProviderToInternalFactoryAdapter<T> implements Provider<T> {
 

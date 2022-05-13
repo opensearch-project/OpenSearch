@@ -42,6 +42,8 @@ package org.opensearch.common.time;
  * - org.joda.time.chrono.BasicChronology.getYear(int year)
  * - org.joda.time.chrono.BasicGJChronology.getMonthOfYear(long utcMillis, int year)
  * - org.joda.time.chrono.BasicGJChronology.getTotalMillisByYearMonth(int year, int month)
+ *
+ * @opensearch.internal
  */
 class DateUtilsRounding {
 

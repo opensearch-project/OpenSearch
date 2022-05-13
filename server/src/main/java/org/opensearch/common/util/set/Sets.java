@@ -49,6 +49,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+/**
+ * OpenSearch sets.
+ *
+ * @opensearch.internal
+ */
 public final class Sets {
     private Sets() {}
 
@@ -114,6 +119,11 @@ public final class Sets {
         return left.stream().filter(k -> !right.contains(k)).collect(new SortedSetCollector<>());
     }
 
+    /**
+     * A sorted set collector
+     *
+     * @opensearch.internal
+     */
     private static class SortedSetCollector<T> implements Collector<T, SortedSet<T>, SortedSet<T>> {
 
         @Override

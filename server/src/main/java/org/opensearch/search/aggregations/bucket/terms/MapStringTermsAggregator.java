@@ -68,6 +68,8 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 /**
  * An aggregator of string values that hashes the strings on the fly rather
  * than up front like the {@link GlobalOrdinalsStringTermsAggregator}.
+ *
+ * @opensearch.internal
  */
 public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     private final CollectorSource collectorSource;
@@ -151,6 +153,8 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
     /**
      * Abstaction on top of building collectors to fetch values.
+     *
+     * @opensearch.internal
      */
     public interface CollectorSource extends Releasable {
         boolean needsScores();
@@ -164,6 +168,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         ) throws IOException;
     }
 
+    /**
+     * Consumer for the collector
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface CollectConsumer {
         void accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
@@ -171,6 +180,8 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
     /**
      * Fetch values from a {@link ValuesSource}.
+     *
+     * @opensearch.internal
      */
     public static class ValuesSourceCollectorSource implements CollectorSource {
         private final ValuesSource valuesSource;

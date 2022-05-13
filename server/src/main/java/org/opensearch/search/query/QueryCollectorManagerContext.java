@@ -19,6 +19,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Context used for the query collector manager
+ *
+ * @opensearch.internal
+ */
 public abstract class QueryCollectorManagerContext {
     private static class QueryCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
         private final MultiCollectorManager manager;

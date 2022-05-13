@@ -410,7 +410,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testCannotJoinIfMasterLostDataFolder() throws Exception {
-        String clusterManagerNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
 
         internalCluster().restartNode(clusterManagerNode, new InternalTestCluster.RestartCallback() {

@@ -84,6 +84,11 @@ public class BigArrays {
         return index == (int) index;
     }
 
+    /**
+     * Base array wrapper class
+     *
+     * @opensearch.internal
+     */
     private abstract static class AbstractArrayWrapper extends AbstractArray implements BigArray {
 
         static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ByteArrayWrapper.class);
@@ -109,6 +114,11 @@ public class BigArrays {
 
     }
 
+    /**
+     * Wraps a byte array
+     *
+     * @opensearch.internal
+     */
     private static class ByteArrayWrapper extends AbstractArrayWrapper implements ByteArray {
 
         private final byte[] array;
@@ -170,6 +180,11 @@ public class BigArrays {
         }
     }
 
+    /**
+     * Wraps an int array
+     *
+     * @opensearch.internal
+     */
     private static class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {
 
         private final int[] array;
@@ -213,6 +228,11 @@ public class BigArrays {
 
     }
 
+    /**
+     * Wraps a long array
+     *
+     * @opensearch.internal
+     */
     private static class LongArrayWrapper extends AbstractArrayWrapper implements LongArray {
 
         private final long[] array;
@@ -255,6 +275,11 @@ public class BigArrays {
         }
     }
 
+    /**
+     * Wraps a double array
+     *
+     * @opensearch.internal
+     */
     private static class DoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
 
         private final long[] array;
@@ -298,6 +323,11 @@ public class BigArrays {
 
     }
 
+    /**
+     * Wraps a float array
+     *
+     * @opensearch.internal
+     */
     private static class FloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
 
         private final int[] array;
@@ -341,6 +371,11 @@ public class BigArrays {
 
     }
 
+    /**
+     * Wraps an object array
+     *
+     * @opensearch.internal
+     */
     private static class ObjectArrayWrapper<T> extends AbstractArrayWrapper implements ObjectArray<T> {
 
         private final Object[] array;
@@ -716,6 +751,11 @@ public class BigArrays {
         return resize(array, newSize);
     }
 
+    /**
+     * A double value binary searcher
+     *
+     * @opensearch.internal
+     */
     public static class DoubleBinarySearcher extends BinarySearcher {
 
         DoubleArray array;

@@ -50,6 +50,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 
 /**
  * Suggestion entry returned from the {@link PhraseSuggester}.
+ *
+ * @opensearch.internal
  */
 public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry> {
 
@@ -85,6 +87,11 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         return suggestion;
     }
 
+    /**
+     * Entry in the phrase suggester
+     *
+     * @opensearch.internal
+     */
     public static class Entry extends Suggestion.Entry<PhraseSuggestion.Entry.Option> {
 
         protected double cutoffScore = Double.MIN_VALUE;
@@ -168,6 +175,11 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             return Objects.hash(super.hashCode(), cutoffScore);
         }
 
+        /**
+         * Options for phrase suggestion
+         *
+         * @opensearch.internal
+         */
         public static class Option extends Suggestion.Entry.Option {
 
             public Option(Text text, Text highlighted, float score, Boolean collateMatch) {

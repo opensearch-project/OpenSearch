@@ -18,6 +18,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Collector Manager for internal agg profiling
+ *
+ * @opensearch.internal
+ */
 public class InternalProfileCollectorManager
     implements
         ProfileCollectorManager<InternalProfileCollector, ReduceableSearchResult>,

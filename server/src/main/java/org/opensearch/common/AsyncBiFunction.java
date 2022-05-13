@@ -35,6 +35,8 @@ import org.opensearch.action.ActionListener;
 
 /**
  * A {@link java.util.function.BiFunction}-like interface designed to be used with asynchronous executions.
+ *
+ * @opensearch.internal
  */
 public interface AsyncBiFunction<T, U, C> {
 

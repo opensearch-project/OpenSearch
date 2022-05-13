@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.is;
 public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
     public void testIncrementalBehaviorOnPrimaryFailover() throws InterruptedException, ExecutionException, IOException {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String primaryNode = internalCluster().startDataOnlyNode();
         final String indexName = "test-index";
         createIndex(
@@ -148,7 +148,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testForceMergeCausesFullSnapshot() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String indexName = "test-index";
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());

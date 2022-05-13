@@ -289,6 +289,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         return Strings.toString(this);
     }
 
+    /**
+     * Template for data stream.
+     *
+     * @opensearch.internal
+     */
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
         private static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");

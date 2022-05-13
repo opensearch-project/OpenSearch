@@ -54,6 +54,11 @@ import org.opensearch.search.sort.SortOrder;
  */
 public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldData> {
 
+    /**
+     * Builder for binary index field data
+     *
+     * @opensearch.internal
+     */
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;

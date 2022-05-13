@@ -307,6 +307,11 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
         return filesDetails.get(dest);
     }
 
+    /**
+     * Details about the files
+     *
+     * @opensearch.internal
+     */
     private static final class FilesDetails implements ToXContentFragment, Writeable {
         protected final Map<String, FileMetadata> fileMetadataMap = new HashMap<>();
         protected boolean complete;
@@ -397,6 +402,11 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
         }
     }
 
+    /**
+     * Metadata about a file
+     *
+     * @opensearch.internal
+     */
     public static final class FileMetadata implements ToXContentObject, Writeable {
         private String name;
         private long length;
@@ -500,6 +510,8 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
 
     /**
      * Duplicates many of Field names in {@link RecoveryState}
+     *
+     * @opensearch.internal
      */
     static final class Fields {
         static final String TOTAL_TIME = "total_time";

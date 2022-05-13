@@ -41,6 +41,8 @@ import java.util.List;
 
 /**
  * The list of paths where a blob can reside.  The contents of the paths are dependent upon the implementation of {@link BlobContainer}.
+ *
+ * @opensearch.internal
  */
 public class BlobPath implements Iterable<String> {
 

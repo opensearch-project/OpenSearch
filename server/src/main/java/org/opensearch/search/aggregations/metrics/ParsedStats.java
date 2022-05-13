@@ -44,6 +44,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * A stats agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedStats extends ParsedAggregation implements Stats {
 
     protected long count;

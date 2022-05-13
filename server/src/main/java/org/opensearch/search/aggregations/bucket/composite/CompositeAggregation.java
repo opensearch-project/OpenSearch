@@ -39,7 +39,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregation creates a composite of multiple aggs
+ *
+ * @opensearch.internal
+ */
 public interface CompositeAggregation extends MultiBucketsAggregation {
+    /**
+     * Bucket in a composite agg
+     *
+     * @opensearch.internal
+     */
     interface Bucket extends MultiBucketsAggregation.Bucket {
         Map<String, Object> getKey();
     }

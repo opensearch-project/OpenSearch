@@ -41,6 +41,8 @@ import java.util.function.IntFunction;
 /**
  * Upper bound of how many {@code owningBucketOrds} that an {@link Aggregator}
  * will have to collect into.
+ *
+ * @opensearch.internal
  */
 public abstract class CardinalityUpperBound {
     /**
@@ -111,6 +113,8 @@ public abstract class CardinalityUpperBound {
 
     /**
      * Cardinality estimate with a known upper bound.
+     *
+     * @opensearch.internal
      */
     private static class KnownCardinalityUpperBound extends CardinalityUpperBound {
         private final int estimate;

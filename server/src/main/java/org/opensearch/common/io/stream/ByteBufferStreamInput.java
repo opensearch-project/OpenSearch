@@ -36,6 +36,11 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
+/**
+ * Byte Buffer Stream Input
+ *
+ * @opensearch.internal
+ */
 public class ByteBufferStreamInput extends StreamInput {
 
     private final ByteBuffer buffer;

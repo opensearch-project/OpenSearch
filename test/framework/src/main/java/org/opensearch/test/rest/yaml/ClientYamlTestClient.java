@@ -78,7 +78,7 @@ public class ClientYamlTestClient implements Closeable {
     private final ClientYamlSuiteRestSpec restSpec;
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
-    private final Version masterVersion;
+    private final Version clusterManagerVersion;
     private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes;
 
     ClientYamlTestClient(
@@ -86,14 +86,14 @@ public class ClientYamlTestClient implements Closeable {
         final RestClient restClient,
         final List<HttpHost> hosts,
         final Version esVersion,
-        final Version masterVersion,
+        final Version clusterManagerVersion,
         final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
     ) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
         this.esVersion = esVersion;
-        this.masterVersion = masterVersion;
+        this.clusterManagerVersion = clusterManagerVersion;
         this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
     }
 
@@ -101,8 +101,8 @@ public class ClientYamlTestClient implements Closeable {
         return esVersion;
     }
 
-    public Version getMasterVersion() {
-        return masterVersion;
+    public Version getClusterManagerVersion() {
+        return clusterManagerVersion;
     }
 
     /**

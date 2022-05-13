@@ -40,6 +40,11 @@ import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.nio.CharBuffer;
 
+/**
+ * A string result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedStringTerms extends ParsedTerms {
 
     @Override
@@ -62,6 +67,11 @@ public class ParsedStringTerms extends ParsedTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for string values
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
         private BytesRef key;

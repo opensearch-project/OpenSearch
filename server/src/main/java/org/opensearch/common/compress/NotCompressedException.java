@@ -32,9 +32,13 @@
 
 package org.opensearch.common.compress;
 
-/** Exception indicating that we were expecting something compressed, which
- *  was not compressed or corrupted so that the compression format could not
- *  be detected. */
+/**
+ * Exception indicating that we were expecting something compressed, which
+ * was not compressed or corrupted so that the compression format could not
+ * be detected.
+ *
+ *  @opensearch.internal
+ */
 public class NotCompressedException extends RuntimeException {
 
     public NotCompressedException() {

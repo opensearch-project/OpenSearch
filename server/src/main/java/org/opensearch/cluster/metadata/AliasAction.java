@@ -76,6 +76,8 @@ public abstract class AliasAction {
 
     /**
      * Validate a new alias.
+     *
+     * @opensearch.internal
      */
     @FunctionalInterface
     public interface NewAliasValidator {
@@ -84,6 +86,8 @@ public abstract class AliasAction {
 
     /**
      * Operation to add an alias to an index.
+     *
+     * @opensearch.internal
      */
     public static class Add extends AliasAction {
         private final String alias;
@@ -174,6 +178,8 @@ public abstract class AliasAction {
 
     /**
      * Operation to remove an alias from an index.
+     *
+     * @opensearch.internal
      */
     public static class Remove extends AliasAction {
         private final String alias;
@@ -220,6 +226,8 @@ public abstract class AliasAction {
     /**
      * Operation to remove an index. This is an "alias action" because it allows us to remove an index at the same time as we remove add an
      * alias to replace it.
+     *
+     * @opensearch.internal
      */
     public static class RemoveIndex extends AliasAction {
         public RemoveIndex(String index) {

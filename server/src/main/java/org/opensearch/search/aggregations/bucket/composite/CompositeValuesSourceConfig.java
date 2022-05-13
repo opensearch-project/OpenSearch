@@ -43,8 +43,18 @@ import org.opensearch.search.sort.SortOrder;
 
 import java.util.function.LongConsumer;
 
+/**
+ * Field configuration class for composite values
+ *
+ * @opensearch.internal
+ */
 public class CompositeValuesSourceConfig {
 
+    /**
+     * A single dimension provider
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface SingleDimensionValuesSourceProvider {
         SingleDimensionValuesSource<?> createValuesSource(

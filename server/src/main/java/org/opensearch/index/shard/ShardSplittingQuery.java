@@ -296,6 +296,8 @@ final class ShardSplittingQuery extends Query {
     /**
      * This two phase iterator visits every live doc and selects all docs that don't belong into this
      * shard based on their id and routing value. This is only used in a routing partitioned index.
+     *
+     * @opensearch.internal
      */
     private static final class RoutingPartitionedDocIdSetIterator extends TwoPhaseIterator {
         private final Visitor visitor;
@@ -318,6 +320,8 @@ final class ShardSplittingQuery extends Query {
 
     /**
      * This TwoPhaseIterator marks all nested docs of matching parents as matches as well.
+     *
+     * @opensearch.internal
      */
     private static final class NestedRoutingPartitionedDocIdSetIterator extends TwoPhaseIterator {
         private final Visitor visitor;

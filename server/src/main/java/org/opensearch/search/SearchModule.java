@@ -317,6 +317,8 @@ import static org.opensearch.index.query.CommonTermsQueryBuilder.COMMON_TERMS_QU
 
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
+ *
+ * @opensearch.internal
  */
 public class SearchModule {
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(

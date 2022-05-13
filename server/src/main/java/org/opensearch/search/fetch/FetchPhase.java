@@ -90,6 +90,8 @@ import static java.util.Collections.emptyMap;
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
  * after reducing all of the matches returned by the query phase
+ *
+ * @opensearch.internal
  */
 public class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);

@@ -39,6 +39,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 
+/**
+ * JLHScore heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class JLHScore extends SignificanceHeuristic {
     public static final String NAME = "jlh";
     public static final ObjectParser<JLHScore, Void> PARSER = new ObjectParser<>(NAME, JLHScore::new);
@@ -124,6 +129,11 @@ public class JLHScore extends SignificanceHeuristic {
         return getClass().hashCode();
     }
 
+    /**
+     * Builder for a JLH Score heuristic
+     *
+     * @opensearch.internal
+     */
     public static class JLHScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override

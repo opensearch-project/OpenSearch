@@ -51,6 +51,8 @@ import java.util.Objects;
 
 /**
  * Result of the significant terms aggregation.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalSignificantTerms<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>>
     extends InternalMultiBucketAggregation<A, B>
@@ -60,12 +62,19 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public static final String SCORE = "score";
     public static final String BG_COUNT = "bg_count";
 
+    /**
+     * Bucket for a significant terms agg
+     *
+     * @opensearch.internal
+     */
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
     public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
         implements
             SignificantTerms.Bucket {
         /**
          * Reads a bucket. Should be a constructor reference.
+         *
+         * @opensearch.internal
          */
         @FunctionalInterface
         public interface Reader<B extends Bucket<B>> {

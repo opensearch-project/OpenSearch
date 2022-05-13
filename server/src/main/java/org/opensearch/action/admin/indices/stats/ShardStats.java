@@ -177,6 +177,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String ROUTING = "routing";
         static final String STATE = "state";

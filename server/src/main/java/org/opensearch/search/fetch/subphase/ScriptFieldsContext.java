@@ -37,8 +37,18 @@ import org.opensearch.script.FieldScript;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Context used for script fields
+ *
+ * @opensearch.internal
+ */
 public class ScriptFieldsContext {
 
+    /**
+     * Script field use in the script fields context
+     *
+     * @opensearch.internal
+     */
     public static class ScriptField {
         private final String name;
         private final FieldScript.LeafFactory script;

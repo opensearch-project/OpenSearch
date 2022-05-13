@@ -47,7 +47,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     }
 
     public void testNodesInfoTimeout() {
-        String clusterManagerNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
 
@@ -69,7 +69,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     }
 
     public void testNodesStatsTimeout() {
-        String clusterManagerNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
         TimeValue timeout = TimeValue.timeValueMillis(1000);
@@ -91,7 +91,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     }
 
     public void testListTasksTimeout() {
-        String clusterManagerNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
         TimeValue timeout = TimeValue.timeValueMillis(1000);
@@ -108,7 +108,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     }
 
     public void testRecoveriesWithTimeout() {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
 
@@ -148,7 +148,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     }
 
     public void testStatsWithTimeout() {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
 

@@ -158,6 +158,11 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         return this.field.equals(other.field) && Objects.equals(this.origin, other.origin) && this.pivot.equals(other.pivot);
     }
 
+    /**
+     * Origin of a distance feature query
+     *
+     * @opensearch.internal
+     */
     public static class Origin {
         private final Object origin;
 

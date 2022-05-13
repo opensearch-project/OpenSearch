@@ -62,7 +62,7 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
         if (clusterService == null) {
             return;
         }
-        logger.info("blocking master service on node [{}]", disruptionNodeCopy);
+        logger.info("blocking cluster-manager service on node [{}]", disruptionNodeCopy);
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);

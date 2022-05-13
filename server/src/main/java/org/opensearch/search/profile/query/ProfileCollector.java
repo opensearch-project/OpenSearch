@@ -42,7 +42,11 @@ import org.apache.lucene.search.ScoreMode;
 
 import java.io.IOException;
 
-/** A collector that profiles how much time is spent calling it. */
+/**
+ * A collector that profiles how much time is spent calling it.
+ *
+ * @opensearch.internal
+ */
 final class ProfileCollector extends FilterCollector {
 
     private long time;

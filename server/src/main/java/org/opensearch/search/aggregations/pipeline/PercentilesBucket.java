@@ -34,4 +34,9 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.search.aggregations.metrics.Percentiles;
 
+/**
+ * Base noop bucket implementation for percentiles
+ *
+ * @opensearch.internal
+ */
 public interface PercentilesBucket extends Percentiles {}

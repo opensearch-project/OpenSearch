@@ -50,6 +50,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for scripted_metrics agg
+ *
+ * @opensearch.internal
+ */
 class ScriptedMetricAggregatorFactory extends AggregatorFactory {
 
     private final ScriptedMetricAggContexts.MapScript.Factory mapScript;

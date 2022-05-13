@@ -61,6 +61,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  *  This class uses live docs, so it should be cached based on the
  *  {@link org.apache.lucene.index.IndexReader#getReaderCacheHelper() reader cache helper}
  *  rather than the {@link LeafReader#getCoreCacheHelper() core cache helper}.
+ *
+ *  @opensearch.internal
  */
 final class PerThreadIDVersionAndSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.

@@ -127,6 +127,11 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         return builder;
     }
 
+    /**
+     * Fields for recovery statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String RECOVERY = "recovery";
         static final String CURRENT_AS_SOURCE = "current_as_source";

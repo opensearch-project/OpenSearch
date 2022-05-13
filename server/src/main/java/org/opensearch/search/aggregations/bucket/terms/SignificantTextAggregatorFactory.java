@@ -68,6 +68,11 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.function.LongConsumer;
 
+/**
+ * Aggregation Factory for significant_text agg
+ *
+ * @opensearch.internal
+ */
 public class SignificantTextAggregatorFactory extends AggregatorFactory {
     private static final int MEMORY_GROWTH_REPORTING_INTERVAL_BYTES = 5000;
 
@@ -168,6 +173,11 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         );
     }
 
+    /**
+     * Collects significant text
+     *
+     * @opensearch.internal
+     */
     private static class SignificantTextCollectorSource implements MapStringTermsAggregator.CollectorSource {
         private final SourceLookup sourceLookup;
         private final BigArrays bigArrays;

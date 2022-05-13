@@ -40,6 +40,11 @@ import org.opensearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Used to support Point in Time Searching
+ *
+ * @opensearch.internal
+ */
 public final class ShardSearchContextId implements Writeable {
     private final String sessionId;
     private final long id;

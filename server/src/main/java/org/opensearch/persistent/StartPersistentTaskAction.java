@@ -70,6 +70,11 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
         super(NAME, PersistentTaskResponse::new);
     }
 
+    /**
+     * Request for the action.
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeRequest<Request> {
 
         private String taskId;
@@ -163,6 +168,11 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
 
     }
 
+    /**
+     * The request builder.
+     *
+     * @opensearch.internal
+     */
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
         StartPersistentTaskAction.Request,
         PersistentTaskResponse,
@@ -189,6 +199,11 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
 
     }
 
+    /**
+     * The transport action.
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;

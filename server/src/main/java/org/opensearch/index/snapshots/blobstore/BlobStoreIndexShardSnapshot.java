@@ -61,6 +61,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
     /**
      * Information about snapshotted file
+     *
+     * @opensearch.internal
      */
     public static class FileInfo {
 

@@ -50,6 +50,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into an average
+ *
+ * @opensearch.internal
+ */
 class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource.Numeric valuesSource;

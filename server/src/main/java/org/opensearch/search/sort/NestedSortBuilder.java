@@ -47,6 +47,11 @@ import java.util.Objects;
 
 import static org.opensearch.search.sort.SortBuilder.parseNestedFilter;
 
+/**
+ * Builds a sort on nested objects
+ *
+ * @opensearch.internal
+ */
 public class NestedSortBuilder implements Writeable, ToXContentObject {
     public static final ParseField NESTED_FIELD = new ParseField("nested");
     public static final ParseField PATH_FIELD = new ParseField("path");

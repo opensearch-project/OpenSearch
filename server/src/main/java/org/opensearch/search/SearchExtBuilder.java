@@ -55,6 +55,8 @@ import org.opensearch.plugins.SearchPlugin.SearchExtSpec;
  * of the {@link SearchExtSpec}.
  *
  * @see SearchExtSpec
+ *
+ * @opensearch.internal
  */
 public abstract class SearchExtBuilder implements NamedWriteable, ToXContentFragment {
 

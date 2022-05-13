@@ -596,6 +596,11 @@ public class ReplicationOperation<
 
     }
 
+    /**
+     * Thrown if there are any errors retrying on primary
+     *
+     * @opensearch.internal
+     */
     public static class RetryOnPrimaryException extends OpenSearchException {
         RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
@@ -611,6 +616,11 @@ public class ReplicationOperation<
         }
     }
 
+    /**
+     * The result of the primary.
+     *
+     * @opensearch.internal
+     */
     public interface PrimaryResult<RequestT extends ReplicationRequest<RequestT>> {
 
         /**

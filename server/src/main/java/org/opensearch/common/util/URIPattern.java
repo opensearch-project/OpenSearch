@@ -44,6 +44,8 @@ import java.net.URISyntaxException;
  *
  * For example: foobar://*.local/some_path/*?*#* will match all uris with schema foobar in local domain
  * with any port, with path that starts some_path and with any query and fragment.
+ *
+ * @opensearch.internal
  */
 public class URIPattern {
     private final URI uriPattern;
