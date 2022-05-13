@@ -104,6 +104,8 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
      *
      *  This can be removed when all analyzers have been moved away from PreBuiltAnalyzers to
      *  PreBuiltAnalyzerProviderFactory either in server or analysis-common.
+     *
+     * @opensearch.internal
      */
     static class PreBuiltAnalyzersDelegateCache implements PreBuiltCacheFactory.PreBuiltCache<AnalyzerProvider<?>> {
 

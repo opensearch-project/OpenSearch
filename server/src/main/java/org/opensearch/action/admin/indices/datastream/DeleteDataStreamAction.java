@@ -89,6 +89,11 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
+    /**
+     * Request for deleting data streams
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
@@ -154,6 +159,11 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
+    /**
+     * Transport action for deleting data streams
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataDeleteIndexService deleteIndexService;

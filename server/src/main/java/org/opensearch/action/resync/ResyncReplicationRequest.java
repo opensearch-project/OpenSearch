@@ -43,7 +43,8 @@ import java.util.Objects;
 
 /**
  * Represents a batch of operations sent from the primary to its replicas during the primary-replica resync.
- * @opensearch.internal
+ *
+ *  @opensearch.internal
  */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest> {
 

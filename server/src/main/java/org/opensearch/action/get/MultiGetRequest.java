@@ -90,6 +90,8 @@ public class MultiGetRequest extends ActionRequest
 
     /**
      * A single get item.
+     *
+     * @opensearch.internal
      */
     public static class Item implements Writeable, IndicesRequest, ToXContentObject {
 

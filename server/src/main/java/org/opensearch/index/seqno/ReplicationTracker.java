@@ -662,6 +662,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    /**
+     * The state of the lucene checkpoint
+     *
+     * @opensearch.internal
+     */
     public static class CheckpointState implements Writeable {
 
         /**
@@ -1594,6 +1599,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Represents the sequence number component of the primary context. This is the knowledge on the primary of the in-sync and initializing
      * shards and their local checkpoints.
+     *
+     * @opensearch.internal
      */
     public static class PrimaryContext implements Writeable {
 

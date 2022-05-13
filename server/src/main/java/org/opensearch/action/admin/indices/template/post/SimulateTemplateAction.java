@@ -59,6 +59,11 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         super(NAME, SimulateIndexTemplateResponse::new);
     }
 
+    /**
+     * Request for simulating a template action
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeReadRequest<Request> {
 
         @Nullable

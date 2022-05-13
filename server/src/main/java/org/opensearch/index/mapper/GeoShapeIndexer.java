@@ -202,6 +202,11 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
         return visitor.fields();
     }
 
+    /**
+     * The shape indexer
+     *
+     * @opensearch.internal
+     */
     private static class LuceneGeometryIndexer implements GeometryVisitor<Void, RuntimeException> {
         private List<IndexableField> fields = new ArrayList<>();
         private final String name;

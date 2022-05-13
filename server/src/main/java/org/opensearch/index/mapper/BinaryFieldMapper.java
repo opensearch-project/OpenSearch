@@ -72,6 +72,11 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         return (BinaryFieldMapper) in;
     }
 
+    /**
+     * Builder for the binary field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
@@ -106,6 +111,11 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
+    /**
+     * Binary field type
+     *
+     * @opensearch.internal
+     */
     public static final class BinaryFieldType extends MappedFieldType {
 
         private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
@@ -223,6 +233,11 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
+    /**
+     * Custom binary doc values field for the binary field mapper
+     *
+     * @opensearch.internal
+     */
     public static class CustomBinaryDocValuesField extends CustomDocValuesField {
 
         private final ObjectArrayList<byte[]> bytesList;

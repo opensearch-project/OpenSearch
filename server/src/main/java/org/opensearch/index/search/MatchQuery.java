@@ -89,6 +89,11 @@ import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
  */
 public class MatchQuery {
 
+    /**
+     * Type of the match
+     *
+     * @opensearch.internal
+     */
     public enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
@@ -129,6 +134,11 @@ public class MatchQuery {
         }
     }
 
+    /**
+     * Query with zero terms
+     *
+     * @opensearch.internal
+     */
     public enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1),

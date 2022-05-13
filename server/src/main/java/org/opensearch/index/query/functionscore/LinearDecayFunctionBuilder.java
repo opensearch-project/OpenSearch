@@ -94,6 +94,11 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
         return LINEAR_DECAY_FUNCTION;
     }
 
+    /**
+     * Linear decay
+     *
+     * @opensearch.internal
+     */
     private static final class LinearDecayScoreFunction implements DecayFunction {
 
         @Override

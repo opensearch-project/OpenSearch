@@ -57,6 +57,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> new IndexFieldMapper());
 
+    /**
+     * Field type for Index field mapper
+     *
+     * @opensearch.internal
+     */
     static final class IndexFieldType extends ConstantFieldType {
 
         static final IndexFieldType INSTANCE = new IndexFieldType();

@@ -528,6 +528,11 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         return nodePath;
     }
 
+    /**
+     * Status of the shard cleaning operation
+     *
+     * @opensearch.internal
+     */
     public enum CleanStatus {
         CLEAN("clean"),
         CLEAN_WITH_CORRUPTED_MARKER("marked corrupted, but no corruption detected"),

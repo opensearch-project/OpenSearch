@@ -204,6 +204,11 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         return comparator.thenComparing(index -> shardsIts.get(index).shardId());
     }
 
+    /**
+     * Inner class for determining if canMatch search phase results
+     *
+     * @opensearch.internal
+     */
     private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {
         private final FixedBitSet possibleMatches;
         private final MinAndMax<?>[] minAndMaxes;

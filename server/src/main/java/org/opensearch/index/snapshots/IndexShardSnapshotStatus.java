@@ -44,6 +44,8 @@ public class IndexShardSnapshotStatus {
 
     /**
      * Snapshot stage
+     *
+     * @opensearch.internal
      */
     public enum Stage {
         /**
@@ -245,6 +247,8 @@ public class IndexShardSnapshotStatus {
 
     /**
      * Returns an immutable state of {@link IndexShardSnapshotStatus} at a given point in time.
+     *
+     * @opensearch.internal
      */
     public static class Copy {
 

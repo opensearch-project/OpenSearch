@@ -446,6 +446,11 @@ public enum FieldData {
 
     }
 
+    /**
+     * Values casted as a double type
+     *
+     * @opensearch.internal
+     */
     private static class DoubleCastedValues extends NumericDoubleValues {
 
         private final NumericDocValues values;
@@ -466,6 +471,11 @@ public enum FieldData {
 
     }
 
+    /**
+     * Sorted values casted as a double type
+     *
+     * @opensearch.internal
+     */
     private static class SortedDoubleCastedValues extends SortedNumericDoubleValues {
 
         private final SortedNumericDocValues values;
@@ -491,6 +501,11 @@ public enum FieldData {
 
     }
 
+    /**
+     * Values casted as a long type
+     *
+     * @opensearch.internal
+     */
     private static class LongCastedValues extends AbstractNumericDocValues {
 
         private final NumericDoubleValues values;
@@ -517,6 +532,11 @@ public enum FieldData {
         }
     }
 
+    /**
+     * Sorted values casted as a long type
+     *
+     * @opensearch.internal
+     */
     private static class SortedLongCastedValues extends AbstractSortedNumericDocValues {
 
         private final SortedNumericDoubleValues values;

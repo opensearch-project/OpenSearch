@@ -125,6 +125,11 @@ public class FlushStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for flush statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String FLUSH = "flush";
         static final String TOTAL = "total";

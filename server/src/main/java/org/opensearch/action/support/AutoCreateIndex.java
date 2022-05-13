@@ -144,6 +144,11 @@ public final class AutoCreateIndex {
         this.autoCreate = autoCreate;
     }
 
+    /**
+     * An auto create object
+     *
+     * @opensearch.internal
+     */
     static class AutoCreate {
         private final boolean autoCreateIndex;
         private final List<Tuple<String, Boolean>> expressions;

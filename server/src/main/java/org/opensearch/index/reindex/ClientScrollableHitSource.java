@@ -179,6 +179,11 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
     }
 
+    /**
+     * A Client hit
+     *
+     * @opensearch.internal
+     */
     private static class ClientHit implements Hit {
         private final SearchHit delegate;
         private final BytesReference source;

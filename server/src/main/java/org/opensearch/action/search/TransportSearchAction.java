@@ -232,6 +232,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * clock for measuring how long an operation took (they often lack precision, they are subject
      * to moving backwards due to NTP and other such complexities, etc.). There are also issues with
      * using a relative clock for reporting real time. Thus, we simply separate these two uses.
+     *
+     * @opensearch.internal
      */
     static final class SearchTimeProvider {
 
@@ -1222,6 +1224,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    /**
+     * xcluster search listener
+     *
+     * @opensearch.internal
+     */
     abstract static class CCSActionListener<Response, FinalResponse> implements ActionListener<Response> {
         private final String clusterAlias;
         private final boolean skipUnavailable;

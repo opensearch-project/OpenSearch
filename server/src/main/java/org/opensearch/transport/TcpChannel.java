@@ -96,6 +96,11 @@ public interface TcpChannel extends CloseableChannel {
      */
     ChannelStats getChannelStats();
 
+    /**
+     * Channel statistics
+     *
+     * @opensearch.internal
+     */
     class ChannelStats {
 
         private volatile long lastAccessedTime;

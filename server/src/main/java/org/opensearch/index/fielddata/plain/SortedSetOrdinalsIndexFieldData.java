@@ -62,6 +62,11 @@ import java.util.function.Function;
  */
 public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
+    /**
+     * Builder for sorted set ordinals
+     *
+     * @opensearch.internal
+     */
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
