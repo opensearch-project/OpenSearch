@@ -140,6 +140,11 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
     }
 
+    /**
+     * Base leaf only
+     *
+     * @opensearch.internal
+     */
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
         ValuesSourceAggregationBuilder<AB> {
 

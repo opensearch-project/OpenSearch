@@ -64,6 +64,8 @@ import static java.util.Objects.requireNonNull;
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
     /**
      * Builds {@link ReduceContext}.
+     *
+     * @opensearch.internal
      */
     public interface ReduceContextBuilder {
         /**
@@ -77,6 +79,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         ReduceContext forFinalReduction();
     }
 
+    /**
+     * The reduce context
+     *
+     * @opensearch.internal
+     */
     public static class ReduceContext {
         private final BigArrays bigArrays;
         private final ScriptService scriptService;

@@ -223,6 +223,11 @@ public abstract class InternalMultiBucketAggregation<
         return reducedBuckets;
     }
 
+    /**
+     * An internal buck for the internal multibucket agg
+     *
+     * @opensearch.internal
+     */
     public abstract static class InternalBucket implements Bucket, Writeable {
 
         public Object getProperty(String containingAggName, List<String> path) {

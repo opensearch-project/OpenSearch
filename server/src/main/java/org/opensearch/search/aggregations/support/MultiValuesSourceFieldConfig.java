@@ -228,6 +228,11 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         return Strings.toString(this);
     }
 
+    /**
+     * Builder for the field config
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private String fieldName;
         private Object missing = null;

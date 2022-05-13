@@ -109,6 +109,11 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
         objectParser.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value, SUM_OF_OTHER_DOC_COUNTS);
     }
 
+    /**
+     * Base parsed bucket
+     *
+     * @opensearch.internal
+     */
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Terms.Bucket {
 
         boolean showDocCountError = false;

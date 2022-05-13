@@ -68,6 +68,11 @@ import java.util.function.LongUnaryOperator;
  * @opensearch.internal
  */
 public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder<GeoTileGridValuesSourceBuilder> {
+    /**
+     * Supplier for a composite geotile
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface GeoTileCompositeSuppier {
         CompositeValuesSourceConfig apply(

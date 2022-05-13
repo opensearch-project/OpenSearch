@@ -469,6 +469,11 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     }
 
+    /**
+     * Field for highlight builder
+     *
+     * @opensearch.internal
+     */
     public static class Field extends AbstractHighlighterBuilder<Field> {
         static final NamedObjectParser<Field, Void> PARSER;
         static {
@@ -572,6 +577,11 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
     }
 
+    /**
+     * Order for highlight builder
+     *
+     * @opensearch.internal
+     */
     public enum Order implements Writeable {
         NONE,
         SCORE;
@@ -598,6 +608,11 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
     }
 
+    /**
+     * Boundary scanner type
+     *
+     * @opensearch.internal
+     */
     public enum BoundaryScannerType implements Writeable {
         CHARS,
         WORD,

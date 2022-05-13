@@ -176,6 +176,11 @@ public class MultiBucketCollector extends BucketCollector {
         }
     }
 
+    /**
+     * A multi leaf bucket collector
+     *
+     * @opensearch.internal
+     */
     private static class MultiLeafBucketCollector extends LeafBucketCollector {
 
         private final boolean cacheScores;

@@ -590,6 +590,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.innerHits = innerHits;
     }
 
+    /**
+     * Fields in a search hit used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     public static class Fields {
         static final String _INDEX = "_index";
         static final String _ID = "_id";
@@ -1000,6 +1005,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     /**
      * Encapsulates the nested identity of a hit.
+     *
+     * @opensearch.internal
      */
     public static final class NestedIdentity implements Writeable, ToXContentFragment {
 

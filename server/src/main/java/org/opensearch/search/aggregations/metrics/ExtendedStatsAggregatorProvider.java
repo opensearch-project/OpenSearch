@@ -39,7 +39,9 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Base supplier of an ExtendesStats aggregator
+ * Base supplier of an ExtendedStats aggregator
+ *
+ * @opensearch.internal
  */
 public interface ExtendedStatsAggregatorProvider {
 

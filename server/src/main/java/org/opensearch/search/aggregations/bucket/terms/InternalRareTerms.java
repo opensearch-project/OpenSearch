@@ -60,12 +60,19 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     implements
         RareTerms {
 
+    /**
+     * Bucket for a rare terms agg
+     *
+     * @opensearch.internal
+     */
     public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
         implements
             RareTerms.Bucket,
             KeyComparable<B> {
         /**
          * Reads a bucket. Should be a constructor reference.
+         *
+         * @opensearch.internal
          */
         @FunctionalInterface
         public interface Reader<B extends Bucket<B>> {

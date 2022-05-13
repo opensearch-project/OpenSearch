@@ -498,6 +498,11 @@ public class RecoverySourceHandler {
         FutureUtils.get(future);
     }
 
+    /**
+     * A send file result
+     *
+     * @opensearch.internal
+     */
     static final class SendFileResult {
         final List<String> phase1FileNames;
         final List<Long> phase1FileSizes;
@@ -853,6 +858,11 @@ public class RecoverySourceHandler {
         sender.start();
     }
 
+    /**
+     * An operation chunk request
+     *
+     * @opensearch.internal
+     */
     private static class OperationChunkRequest implements MultiChunkTransfer.ChunkRequest {
         final List<Translog.Operation> operations;
         final boolean lastChunk;
@@ -1009,6 +1019,11 @@ public class RecoverySourceHandler {
         }, listener::onFailure);
     }
 
+    /**
+     * A result for a send snapshot
+     *
+     * @opensearch.internal
+     */
     static final class SendSnapshotResult {
         final long targetLocalCheckpoint;
         final int sentOperations;
@@ -1041,6 +1056,11 @@ public class RecoverySourceHandler {
             + '}';
     }
 
+    /**
+     * A file chunk from the recovery source
+     *
+     * @opensearch.internal
+     */
     private static class FileChunk implements MultiChunkTransfer.ChunkRequest, Releasable {
         final StoreFileMetadata md;
         final BytesReference content;

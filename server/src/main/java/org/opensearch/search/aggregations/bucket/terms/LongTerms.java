@@ -53,6 +53,11 @@ import java.util.Objects;
 public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> {
     public static final String NAME = "lterms";
 
+    /**
+     * Bucket for long terms
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalTerms.Bucket<Bucket> {
         long term;
 

@@ -63,6 +63,11 @@ import java.util.Set;
  */
 public abstract class TermsAggregator extends DeferableBucketAggregator {
 
+    /**
+     * Bucket count thresholds
+     *
+     * @opensearch.internal
+     */
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
         private long shardMinDocCount;

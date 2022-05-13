@@ -341,6 +341,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         );
     }
 
+    /**
+     * Tracks memory usage
+     *
+     * @opensearch.internal
+     */
     static class MemoryUsage {
         final long baseUsage;
         final long totalUsage;
@@ -505,6 +510,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         MemoryUsage overLimit(MemoryUsage memoryUsed);
     }
 
+    /**
+     * Kicks in G1GC if heap gets too high
+     *
+     * @opensearch.internal
+     */
     static class G1OverLimitStrategy implements OverLimitStrategy {
         private final long g1RegionSize;
         private final LongSupplier currentMemoryUsageSupplier;

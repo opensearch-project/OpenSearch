@@ -198,6 +198,11 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         store.renameTempFilesSafe(tempFileNames);
     }
 
+    /**
+     * A file chunk
+     *
+     * @opensearch.internal
+     */
     static final class FileChunk {
         final StoreFileMetadata md;
         final BytesReference content;

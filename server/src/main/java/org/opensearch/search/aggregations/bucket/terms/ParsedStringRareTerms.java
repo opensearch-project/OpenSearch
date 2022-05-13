@@ -67,6 +67,11 @@ public class ParsedStringRareTerms extends ParsedRareTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for rare string terms
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedRareTerms.ParsedBucket {
 
         private BytesRef key;

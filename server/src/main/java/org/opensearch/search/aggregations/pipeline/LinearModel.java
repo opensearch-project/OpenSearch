@@ -113,6 +113,11 @@ public class LinearModel extends MovAvgModel {
         }
     };
 
+    /**
+     * Builder for the linear model
+     *
+     * @opensearch.internal
+     */
     public static class LinearModelBuilder implements MovAvgModelBuilder {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -92,6 +92,11 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a range
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Range.Bucket {
 
         protected String key;

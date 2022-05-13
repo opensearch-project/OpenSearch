@@ -52,6 +52,11 @@ import java.util.Objects;
 public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bucket> {
     public static final String NAME = "sterms";
 
+    /**
+     * Bucket for string terms
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalTerms.Bucket<Bucket> {
         BytesRef termBytes;
 

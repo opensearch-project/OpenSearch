@@ -79,8 +79,12 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         }
     }
 
-    // Same behaviour as comparators in suggest module, but for SuggestedWord
-    // Highest score first, then highest freq first, then lowest term first
+    /**
+     * Same behaviour as comparators in suggest module, but for SuggestedWord
+     * Highest score first, then highest freq first, then lowest term first
+     *
+     * @opensearch.internal
+     */
     public static class Score implements Comparator<Suggestion.Entry.Option> {
 
         @Override
@@ -94,8 +98,12 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         }
     }
 
-    // Same behaviour as comparators in suggest module, but for SuggestedWord
-    // Highest freq first, then highest score first, then lowest term first
+    /**
+     * Same behaviour as comparators in suggest module, but for SuggestedWord
+     * Highest freq first, then highest score first, then lowest term first
+     *
+     * @opensearch.internal
+     */
     public static class Frequency implements Comparator<Suggestion.Entry.Option> {
 
         @Override
@@ -181,6 +189,8 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     /**
      * Represents a part from the suggest text with suggested options.
+     *
+     * @opensearch.internal
      */
     public static class Entry extends Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
 
@@ -215,6 +225,8 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
         /**
          * Contains the suggested text with its document frequency and score.
+         *
+         * @opensearch.internal
          */
         public static class Option extends Suggest.Suggestion.Entry.Option {
 

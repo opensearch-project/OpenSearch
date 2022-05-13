@@ -51,6 +51,11 @@ import java.util.Objects;
 public class SignificantLongTerms extends InternalMappedSignificantTerms<SignificantLongTerms, SignificantLongTerms.Bucket> {
     public static final String NAME = "siglterms";
 
+    /**
+     * Bucket for significant long values
+     *
+     * @opensearch.internal
+     */
     static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
 
         long term;

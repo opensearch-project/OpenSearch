@@ -79,6 +79,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
+    /**
+     * The internal actions
+     *
+     * @opensearch.internal
+     */
     public static class Actions {
         public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
         public static final String REESTABLISH_RECOVERY = "internal:index/shard/recovery/reestablish_recovery";
