@@ -82,6 +82,9 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         controller.executeCreatePit(createPitListener, updatePitIdListener);
     }
 
+    /**
+     * Request to create pit reader context with keep alive
+     */
     public static class CreateReaderContextRequest extends TransportRequest {
         private final ShardId shardId;
         private final TimeValue keepAlive;
@@ -113,6 +116,9 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         }
     }
 
+    /**
+     * Create pit reader context response which holds the contextId
+     */
     public static class CreateReaderContextResponse extends SearchPhaseResult {
         public CreateReaderContextResponse(ShardSearchContextId shardSearchContextId) {
             this.contextId = shardSearchContextId;

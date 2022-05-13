@@ -439,7 +439,7 @@ final class RequestConverters {
             params.withIndicesOptions(searchRequest.indicesOptions());
         }
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
-        if (searchRequest.pointInTimeBuilder() == null) {
+        if (searchRequest.pointInTimeBuilder() != null) {
             params.putParam("ccs_minimize_roundtrips", "false");
         } else {
             params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));

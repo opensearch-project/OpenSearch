@@ -126,7 +126,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         clusterServiceMock = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
 
-        final Settings keepAliveSettings = Settings.builder().put(CreatePitController.PIT_CREATE_PHASE_KEEP_ALIVE.getKey(), 30000).build();
+        final Settings keepAliveSettings = Settings.builder().put(CreatePitController.PIT_INIT_KEEP_ALIVE.getKey(), 30000).build();
         when(clusterServiceMock.getSettings()).thenReturn(keepAliveSettings);
 
         when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
@@ -177,7 +177,6 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
         CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-
         CreatePitController controller = new CreatePitController(
             request,
             searchTransportService,
