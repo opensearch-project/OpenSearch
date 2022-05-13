@@ -18,6 +18,11 @@ public abstract class ReplicationState {
     protected ReplicationTimer timer;
     protected ReplicationLuceneIndex index;
 
+    /**
+     * The stage of the recovery state
+     *
+     * @opensearch.internal
+     */
     public enum Stage {
         INIT((byte) 0),
 
