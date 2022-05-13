@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Transport request for requesting cluster health
+ *
+ * @opensearch.internal
+ */
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;

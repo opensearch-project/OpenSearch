@@ -53,6 +53,11 @@ import java.io.IOException;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Status for snapshotting an Index Shard
+ *
+ * @opensearch.internal
+ */
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContentFragment {
 
     private SnapshotIndexShardStage stage = SnapshotIndexShardStage.INIT;

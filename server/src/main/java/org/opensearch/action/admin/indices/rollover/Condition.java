@@ -41,6 +41,8 @@ import java.util.Objects;
 
 /**
  * Base class for rollover request conditions
+ *
+ * @opensearch.internal
  */
 public abstract class Condition<T> implements NamedWriteable, ToXContentFragment {
 

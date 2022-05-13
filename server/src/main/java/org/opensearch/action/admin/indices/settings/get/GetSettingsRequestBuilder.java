@@ -37,6 +37,11 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
+/**
+ * Transport request builder for getting index segments
+ *
+ * @opensearch.internal
+ */
 public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     GetSettingsRequest,
     GetSettingsResponse,

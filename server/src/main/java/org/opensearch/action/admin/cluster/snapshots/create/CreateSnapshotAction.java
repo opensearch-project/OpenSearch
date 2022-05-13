@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Create snapshot action
+ *
+ * @opensearch.internal
  */
 public class CreateSnapshotAction extends ActionType<CreateSnapshotResponse> {
 

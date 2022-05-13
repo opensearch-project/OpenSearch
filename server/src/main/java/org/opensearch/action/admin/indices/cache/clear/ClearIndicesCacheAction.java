@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.cache.clear;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for clearing cache
+ *
+ * @opensearch.internal
+ */
 public class ClearIndicesCacheAction extends ActionType<ClearIndicesCacheResponse> {
 
     public static final ClearIndicesCacheAction INSTANCE = new ClearIndicesCacheAction();

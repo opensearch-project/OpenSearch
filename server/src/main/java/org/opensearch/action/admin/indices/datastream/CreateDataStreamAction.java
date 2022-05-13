@@ -58,6 +58,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport action for creating a datastream
+ *
+ * @opensearch.internal
+ */
 public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     public static final CreateDataStreamAction INSTANCE = new CreateDataStreamAction();

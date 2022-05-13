@@ -39,6 +39,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for for open index request
+ *
+ * @opensearch.internal
  */
 public class OpenIndexRequestBuilder extends AcknowledgedRequestBuilder<OpenIndexRequest, OpenIndexResponse, OpenIndexRequestBuilder> {
 

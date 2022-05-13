@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Represents a request to find a particular dangling index by UUID.
+ *
+ * @opensearch.internal
  */
 public class FindDanglingIndexAction extends ActionType<FindDanglingIndexResponse> {
 

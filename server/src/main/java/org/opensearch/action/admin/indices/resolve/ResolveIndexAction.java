@@ -79,6 +79,11 @@ import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.stream.StreamSupport;
 
+/**
+ * Transport action to resolve an index.
+ *
+ * @opensearch.internal
+ */
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
     public static final ResolveIndexAction INSTANCE = new ResolveIndexAction();

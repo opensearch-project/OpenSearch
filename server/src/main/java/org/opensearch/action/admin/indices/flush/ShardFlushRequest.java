@@ -40,6 +40,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Transport request for flushing one or more indices
+ *
+ * @opensearch.internal
+ */
 public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
 
     private final FlushRequest request;

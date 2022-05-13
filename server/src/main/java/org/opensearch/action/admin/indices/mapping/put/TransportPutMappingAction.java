@@ -63,6 +63,8 @@ import java.util.Optional;
 
 /**
  * Put mapping action.
+ *
+ * @opensearch.internal
  */
 public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
 

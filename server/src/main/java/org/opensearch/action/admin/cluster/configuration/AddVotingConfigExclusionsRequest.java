@@ -56,6 +56,8 @@ import java.util.stream.StreamSupport;
 /**
  * A request to add voting config exclusions for certain cluster-manager-eligible nodes, and wait for these nodes to be removed from the voting
  * configuration.
+ *
+ * @opensearch.internal
  */
 public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotingConfigExclusionsRequest> {
     public static final String DEPRECATION_MESSAGE = "nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead";

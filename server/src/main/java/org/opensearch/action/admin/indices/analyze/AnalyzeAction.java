@@ -59,6 +59,11 @@ import java.util.TreeMap;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for analyzing text
+ *
+ * @opensearch.internal
+ */
 public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();

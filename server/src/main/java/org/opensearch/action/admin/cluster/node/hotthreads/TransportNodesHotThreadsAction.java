@@ -48,6 +48,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport action for OpenSearch Hot Threads
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesHotThreadsAction extends TransportNodesAction<
     NodesHotThreadsRequest,
     NodesHotThreadsResponse,

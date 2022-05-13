@@ -46,6 +46,11 @@ import org.opensearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 
+/**
+ * Stats for snapshots
+ *
+ * @opensearch.internal
+ */
 public class SnapshotStats implements Writeable, ToXContentObject {
 
     private long startTime;

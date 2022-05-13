@@ -62,6 +62,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
+ *
+ * @opensearch.internal
  */
 public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 

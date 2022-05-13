@@ -65,6 +65,8 @@ import java.util.List;
 /**
  * The {@code TransportClusterAllocationExplainAction} is responsible for actually executing the explanation of a shard's allocation on the
  * cluster-manager node in the cluster.
+ *
+ * @opensearch.internal
  */
 public class TransportClusterAllocationExplainAction extends TransportMasterNodeAction<
     ClusterAllocationExplainRequest,

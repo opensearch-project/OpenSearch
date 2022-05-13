@@ -44,6 +44,11 @@ import java.util.List;
  */
 public interface ExtensiblePlugin {
 
+    /**
+     * Extension point for external plugins to be extendable
+     *
+     * @opensearch.api
+     */
     interface ExtensionLoader {
         /**
          * Load extensions of the type from all extending plugins. The concrete extensions must have either a no-arg constructor

@@ -43,6 +43,8 @@ import java.io.IOException;
 /**
  * Transport level private response for the transport handler registered under
  * {@value TransportLivenessAction#NAME}
+ *
+ * @opensearch.internal
  */
 public final class LivenessResponse extends ActionResponse {
 

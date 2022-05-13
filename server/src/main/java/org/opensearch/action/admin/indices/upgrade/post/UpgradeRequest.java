@@ -44,6 +44,8 @@ import java.io.IOException;
  * @see org.opensearch.client.Requests#upgradeRequest(String...)
  * @see org.opensearch.client.IndicesAdminClient#upgrade(UpgradeRequest)
  * @see UpgradeResponse
+ *
+ * @opensearch.internal
  */
 public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {
 

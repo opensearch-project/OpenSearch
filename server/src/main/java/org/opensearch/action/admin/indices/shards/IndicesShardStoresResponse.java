@@ -56,6 +56,8 @@ import java.util.List;
  *
  * Consists of {@link StoreStatus}s for requested indices grouped by
  * indices and shard ids and a list of encountered node {@link Failure}s
+ *
+ * @opensearch.internal
  */
 public class IndicesShardStoresResponse extends ActionResponse implements ToXContentFragment {
 

@@ -38,6 +38,11 @@ import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 
+/**
+ * Transport request builder for resizing an index
+ *
+ * @opensearch.internal
+ */
 public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse, ResizeRequestBuilder> {
     public ResizeRequestBuilder(OpenSearchClient client, ActionType<ResizeResponse> action) {
         super(client, action, new ResizeRequest());

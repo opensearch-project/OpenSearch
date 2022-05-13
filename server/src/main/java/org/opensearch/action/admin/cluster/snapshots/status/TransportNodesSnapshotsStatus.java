@@ -63,6 +63,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * Transport action that collects snapshot shard statuses from data nodes
+ *
+ * @opensearch.internal
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesAction<
     TransportNodesSnapshotsStatus.Request,

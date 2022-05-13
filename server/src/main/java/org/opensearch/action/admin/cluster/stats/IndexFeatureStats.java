@@ -43,6 +43,8 @@ import java.util.Objects;
 
 /**
  * Statistics about an index feature.
+ *
+ * @opensearch.internal
  */
 public final class IndexFeatureStats implements ToXContent, Writeable {
 

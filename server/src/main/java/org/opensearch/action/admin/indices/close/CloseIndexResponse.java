@@ -52,6 +52,11 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 
+/**
+ * Transport response for closing an index
+ *
+ * @opensearch.internal
+ */
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     private final List<IndexResult> indices;

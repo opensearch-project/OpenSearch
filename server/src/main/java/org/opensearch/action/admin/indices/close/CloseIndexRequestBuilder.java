@@ -39,6 +39,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for close index request
+ *
+ * @opensearch.internal
  */
 public class CloseIndexRequestBuilder extends AcknowledgedRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
 

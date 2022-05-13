@@ -69,6 +69,8 @@ import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV
 
 /**
  * Service responsible for handling rollover requests for write aliases and data streams
+ *
+ * @opensearch.internal
  */
 public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");

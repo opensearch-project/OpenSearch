@@ -73,6 +73,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Transport action for getting a datastream
+ *
+ * @opensearch.internal
+ */
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
     public static final GetDataStreamAction INSTANCE = new GetDataStreamAction();

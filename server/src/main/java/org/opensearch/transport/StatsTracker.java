@@ -36,7 +36,12 @@ import org.opensearch.common.metrics.MeanMetric;
 
 import java.util.concurrent.atomic.LongAdder;
 
-public class StatsTracker {
+/**
+ * Tracks transport statistics
+ *
+ * @opensearch.internal
+ */
+public final class StatsTracker {
 
     private final LongAdder bytesRead = new LongAdder();
     private final LongAdder messagesReceived = new LongAdder();

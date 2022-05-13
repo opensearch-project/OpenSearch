@@ -64,6 +64,8 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
  *
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
+ *
+ * @opensearch.internal
  */
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentObject {
 

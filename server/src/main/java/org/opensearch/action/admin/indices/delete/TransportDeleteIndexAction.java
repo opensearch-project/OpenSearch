@@ -60,6 +60,8 @@ import java.util.Set;
 
 /**
  * Delete index action.
+ *
+ * @opensearch.internal
  */
 public class TransportDeleteIndexAction extends TransportMasterNodeAction<DeleteIndexRequest, AcknowledgedResponse> {
 

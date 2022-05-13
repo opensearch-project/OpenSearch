@@ -47,6 +47,11 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Cluster Stats per index
+ *
+ * @opensearch.internal
+ */
 public class ClusterStatsIndices implements ToXContentFragment {
 
     private int indexCount;

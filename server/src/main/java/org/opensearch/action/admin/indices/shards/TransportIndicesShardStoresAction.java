@@ -78,6 +78,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 /**
  * Transport action that reads the cluster state for shards with the requested criteria (see {@link ClusterHealthStatus}) of specific
  * indices and fetches store information from all the nodes using {@link TransportNodesListGatewayStartedShards}
+ *
+ * @opensearch.internal
  */
 public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAction<
     IndicesShardStoresRequest,

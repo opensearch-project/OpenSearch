@@ -60,6 +60,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+/**
+ * Transport endpoint action for clearing exclusions to voting config
+ *
+ * @opensearch.internal
+ */
 public class TransportClearVotingConfigExclusionsAction extends TransportMasterNodeAction<
     ClearVotingConfigExclusionsRequest,
     ClearVotingConfigExclusionsResponse> {

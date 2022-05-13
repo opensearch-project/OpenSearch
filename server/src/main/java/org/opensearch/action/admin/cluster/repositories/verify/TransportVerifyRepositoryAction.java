@@ -51,6 +51,8 @@ import java.io.IOException;
 
 /**
  * Transport action for verifying repository operation
+ *
+ * @opensearch.internal
  */
 public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
 

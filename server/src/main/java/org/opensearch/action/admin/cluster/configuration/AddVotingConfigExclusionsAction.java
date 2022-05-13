@@ -33,7 +33,12 @@ package org.opensearch.action.admin.cluster.configuration;
 
 import org.opensearch.action.ActionType;
 
-public class AddVotingConfigExclusionsAction extends ActionType<AddVotingConfigExclusionsResponse> {
+/**
+ * Transport endpoint for adding exclusions to voting config
+ *
+ * @opensearch.internal
+ */
+public final class AddVotingConfigExclusionsAction extends ActionType<AddVotingConfigExclusionsResponse> {
     public static final AddVotingConfigExclusionsAction INSTANCE = new AddVotingConfigExclusionsAction();
     public static final String NAME = "cluster:admin/voting_config/add_exclusions";
 
