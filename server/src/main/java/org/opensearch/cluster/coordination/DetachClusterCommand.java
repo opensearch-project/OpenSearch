@@ -41,6 +41,11 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import java.io.IOException;
 import java.nio.file.Path;
 
+/**
+ * Command to detach a node from the cluster
+ *
+ * @opensearch.internal
+ */
 public class DetachClusterCommand extends OpenSearchNodeCommand {
 
     static final String NODE_DETACHED_MSG = "Node was successfully detached from the cluster";

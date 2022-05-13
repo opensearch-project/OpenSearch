@@ -41,6 +41,8 @@ import java.util.Optional;
 /**
  * Response to a {@link PublishRequest}. Encapsulates both a {@link PublishResponse}
  * and an optional {@link Join}.
+ *
+ * @opensearch.internal
  */
 public class PublishWithJoinResponse extends TransportResponse {
     private final PublishResponse publishResponse;

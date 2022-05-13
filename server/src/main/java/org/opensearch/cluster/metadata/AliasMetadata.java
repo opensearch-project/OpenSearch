@@ -58,6 +58,11 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
+/**
+ * Metadata for index aliases
+ *
+ * @opensearch.internal
+ */
 public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
 
     private final String alias;

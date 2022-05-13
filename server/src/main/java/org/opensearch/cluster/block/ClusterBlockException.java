@@ -46,6 +46,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 
+/**
+ * Internal exception on obtaining a cluster block
+ *
+ * @opensearch.internal
+ */
 public class ClusterBlockException extends OpenSearchException {
     private final Set<ClusterBlock> blocks;
 

@@ -41,6 +41,8 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 /**
  * This {@link AllocationDecider} prevents shards that have failed to be
  * restored from a snapshot to be allocated.
+ *
+ * @opensearch.internal
  */
 public class RestoreInProgressAllocationDecider extends AllocationDecider {
 

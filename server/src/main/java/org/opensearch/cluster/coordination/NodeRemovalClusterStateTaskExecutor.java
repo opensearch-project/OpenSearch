@@ -43,6 +43,11 @@ import org.opensearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.List;
 
+/**
+ * Update cluster state when node is removed from the cluster
+ *
+ * @opensearch.internal
+ */
 public class NodeRemovalClusterStateTaskExecutor
     implements
         ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>,

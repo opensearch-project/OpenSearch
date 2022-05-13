@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
+/**
+ * Removes custom metadata
+ *
+ * @opensearch.internal
+ */
 public class RemoveCustomsCommand extends OpenSearchNodeCommand {
 
     static final String CUSTOMS_REMOVED_MSG = "Customs were successfully removed from the cluster state";

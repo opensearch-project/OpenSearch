@@ -123,6 +123,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SH
 
 /**
  * Service responsible for submitting create index requests
+ *
+ * @opensearch.internal
  */
 public class MetadataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);

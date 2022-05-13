@@ -53,6 +53,8 @@ import java.util.Objects;
 
 /**
  * Custom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
+ *
+ * @opensearch.internal
  */
 public class DataStreamMetadata implements Metadata.Custom {
 

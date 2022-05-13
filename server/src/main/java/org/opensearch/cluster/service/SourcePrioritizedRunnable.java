@@ -37,6 +37,8 @@ import org.opensearch.common.util.concurrent.PrioritizedRunnable;
 
 /**
  * PrioritizedRunnable that also has a source string
+ *
+ * @opensearch.internal
  */
 public abstract class SourcePrioritizedRunnable extends PrioritizedRunnable {
     protected final String source;

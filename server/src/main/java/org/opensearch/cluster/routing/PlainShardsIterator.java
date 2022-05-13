@@ -38,6 +38,8 @@ import java.util.List;
 /**
  * A simple {@link ShardsIterator} that iterates a list or sub-list of
  * {@link ShardRouting shard indexRoutings}.
+ *
+ * @opensearch.internal
  */
 public class PlainShardsIterator extends PlainIterator<ShardRouting> implements ShardsIterator {
     public PlainShardsIterator(List<ShardRouting> shards) {

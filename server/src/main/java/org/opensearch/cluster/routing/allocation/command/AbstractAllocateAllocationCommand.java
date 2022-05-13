@@ -55,6 +55,8 @@ import java.util.Objects;
 
 /**
  * Abstract base class for allocating an unassigned shard to a node
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractAllocateAllocationCommand implements AllocationCommand {
 

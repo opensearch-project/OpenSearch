@@ -33,6 +33,8 @@ package org.opensearch.cluster.routing;
 
 /**
  * Routing Preference Type
+ *
+ * @opensearch.internal
  */
 public enum Preference {
 

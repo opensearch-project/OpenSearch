@@ -53,6 +53,8 @@ import java.util.Objects;
  * allocation process.
  *
  * @see AllocationDecider
+ *
+ * @opensearch.internal
  */
 public abstract class Decision implements ToXContent, Writeable {
 

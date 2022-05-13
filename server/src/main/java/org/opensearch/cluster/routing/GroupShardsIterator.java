@@ -43,6 +43,8 @@ import java.util.List;
  * iterated by this {@link Iterable} represents a group of shards.
  * ShardsIterators are always returned in ascending order independently of their order at construction
  * time. The incoming iterators are sorted to ensure consistent iteration behavior across Nodes / JVMs.
+ *
+ * @opensearch.internal
 */
 public final class GroupShardsIterator<ShardIt extends Comparable<ShardIt> & Countable> implements Iterable<ShardIt> {
 

@@ -55,6 +55,8 @@ import java.util.Objects;
  * and a map of shard ids to shard sizes, see
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
+ *
+ * @opensearch.internal
  */
 public class ClusterInfo implements ToXContentFragment, Writeable {
     private final ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage;

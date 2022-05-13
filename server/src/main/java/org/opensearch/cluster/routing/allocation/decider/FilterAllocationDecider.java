@@ -76,6 +76,8 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
  * If any {@code exclude} filters are set the allocation is denied if the index is in the set of {@code exclude} filters for the
  * filtered node</li>
  * </ol>
+ *
+ * @opensearch.internal
  */
 public class FilterAllocationDecider extends AllocationDecider {
 

@@ -34,6 +34,8 @@ package org.opensearch.cluster;
 /**
  * Enables listening to cluster-manager changes events of the local node (when the local node becomes the cluster-manager, and when the local
  * node cease being a cluster-manager).
+ *
+ * @opensearch.internal
  */
 public interface LocalNodeMasterListener extends ClusterStateListener {
 

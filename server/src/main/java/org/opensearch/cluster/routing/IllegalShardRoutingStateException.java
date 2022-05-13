@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * This exception defines illegal states of shard routing
+ *
+ * @opensearch.internal
  */
 public class IllegalShardRoutingStateException extends RoutingException {
 

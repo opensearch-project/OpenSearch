@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * A base {@link Exception}s for all exceptions thrown by routing related operations.
+ *
+ * @opensearch.internal
  */
 public class RoutingException extends OpenSearchException {
 

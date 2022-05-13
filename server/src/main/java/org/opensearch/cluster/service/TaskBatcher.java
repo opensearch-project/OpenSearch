@@ -53,6 +53,8 @@ import java.util.stream.Collectors;
 /**
  * Batching support for {@link PrioritizedOpenSearchThreadPoolExecutor}
  * Tasks that share the same batching key are batched (see {@link BatchedTask#batchingKey})
+ *
+ * @opensearch.internal
  */
 public abstract class TaskBatcher {
 
