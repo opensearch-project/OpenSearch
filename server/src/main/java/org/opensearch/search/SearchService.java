@@ -151,6 +151,11 @@ import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
 
+/**
+ * The main search service
+ *
+ * @opensearch.internal
+ */
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
 
@@ -1413,6 +1418,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return request.source().aggregations().buildPipelineTree();
     }
 
+    /**
+     * Search phase result that can match a response
+     *
+     * @opensearch.internal
+     */
     public static final class CanMatchResponse extends SearchPhaseResult {
         private final boolean canMatch;
         private final MinAndMax<?> estimatedMinAndMax;

@@ -112,6 +112,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
     public static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9]+$");
 
+    /**
+     * Context of the XContent.
+     *
+     * @opensearch.internal
+     */
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
         API,
@@ -146,6 +151,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
+    /**
+     * Custom metadata.
+     *
+     * @opensearch.internal
+     */
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment, ClusterState.FeatureAware {
 
         EnumSet<XContentContext> context();
@@ -920,6 +930,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return builder;
     }
 
+    /**
+     * A diff of metadata.
+     *
+     * @opensearch.internal
+     */
     private static class MetadataDiff implements Diff<Metadata> {
 
         private final long version;
@@ -1088,6 +1103,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return new Builder(metadata);
     }
 
+    /**
+     * Builder of metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private String clusterUUID;

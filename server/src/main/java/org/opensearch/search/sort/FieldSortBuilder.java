@@ -81,6 +81,8 @@ import static org.opensearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * A sort builder to sort based on a document field.
+ *
+ * @opensearch.internal
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldSortBuilder.class);

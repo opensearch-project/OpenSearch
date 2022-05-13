@@ -228,6 +228,11 @@ public class RestRequest implements ToXContent.Params {
         );
     }
 
+    /**
+     * The method used.
+     *
+     * @opensearch.internal
+     */
     public enum Method {
         GET,
         POST,
@@ -583,6 +588,11 @@ public class RestRequest implements ToXContent.Params {
         throw new IllegalArgumentException("empty Content-Type header");
     }
 
+    /**
+     * Thrown if there is an error in the content type header.
+     *
+     * @opensearch.internal
+     */
     public static class ContentTypeHeaderException extends RuntimeException {
 
         ContentTypeHeaderException(final IllegalArgumentException cause) {
@@ -591,6 +601,11 @@ public class RestRequest implements ToXContent.Params {
 
     }
 
+    /**
+     * Thrown if there is a bad parameter.
+     *
+     * @opensearch.internal
+     */
     public static class BadParameterException extends RuntimeException {
 
         BadParameterException(final IllegalArgumentException cause) {

@@ -423,7 +423,11 @@ public class TermVectorsService {
         return parallelFields;
     }
 
-    // Poached from Lucene ParallelLeafReader
+    /**
+     * Poached from Lucene ParallelLeafReader
+     *
+     * @opensearch.internal
+     */
     private static final class ParallelFields extends Fields {
         final Map<String, Terms> fields = new TreeMap<>();
 

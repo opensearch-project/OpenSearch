@@ -62,6 +62,11 @@ import static java.util.Collections.emptyList;
  */
 public final class BinaryRangeAggregator extends BucketsAggregator {
 
+    /**
+     * Range for the binary range agg
+     *
+     * @opensearch.internal
+     */
     public static class Range {
 
         final String key;
@@ -144,6 +149,11 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         }
     }
 
+    /**
+     * Leaf collector for the sorted set range
+     *
+     * @opensearch.internal
+     */
     abstract static class SortedSetRangeLeafCollector extends LeafBucketCollectorBase {
 
         final long[] froms, tos, maxTos;
@@ -250,6 +260,11 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         protected abstract void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException;
     }
 
+    /**
+     * Base class for a sorted binary range leaf collector
+     *
+     * @opensearch.internal
+     */
     abstract static class SortedBinaryRangeLeafCollector extends LeafBucketCollectorBase {
 
         final Range[] ranges;

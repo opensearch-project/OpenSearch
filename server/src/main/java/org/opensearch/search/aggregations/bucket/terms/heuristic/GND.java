@@ -127,6 +127,11 @@ public class GND extends NXYSignificanceHeuristic {
         return builder;
     }
 
+    /**
+     * Builder for a GND heuristic
+     *
+     * @opensearch.internal
+     */
     public static class GNDBuilder extends NXYBuilder {
         public GNDBuilder(boolean backgroundIsSuperset) {
             super(true, backgroundIsSuperset);

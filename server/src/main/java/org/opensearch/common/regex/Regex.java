@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+/**
+ * Main regex class.
+ *
+ * @opensearch.internal
+ */
 public class Regex {
 
     /**

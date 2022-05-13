@@ -244,6 +244,11 @@ public class MergeStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields used for merge statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String MERGES = "merges";
         static final String CURRENT = "current";

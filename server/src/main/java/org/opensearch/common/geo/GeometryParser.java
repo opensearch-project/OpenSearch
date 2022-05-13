@@ -53,6 +53,8 @@ import java.util.Map;
 
 /**
  * An utility class with a geometry parser methods supporting different shape representation formats
+ *
+ * @opensearch.internal
  */
 public final class GeometryParser {
 

@@ -36,6 +36,8 @@ import java.util.Set;
  * Minimal set that doesn't hold strong references to the contained keys.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 final class WeakKeySet {
 

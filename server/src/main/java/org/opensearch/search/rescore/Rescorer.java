@@ -45,6 +45,8 @@ import java.io.IOException;
  * Subclasses should borrow heavily from {@link QueryRescorer} because it is
  * fairly well behaved and documents that tradeoffs that it is making. There
  * is also an {@code ExampleRescorer} that is worth looking at.
+ *
+ * @opensearch.internal
  */
 public interface Rescorer {
     /**

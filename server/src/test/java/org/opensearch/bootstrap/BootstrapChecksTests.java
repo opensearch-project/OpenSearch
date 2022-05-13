@@ -47,6 +47,7 @@ import org.opensearch.node.NodeValidationException;
 import org.opensearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;
 
+import java.lang.Runtime.Version;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -744,5 +745,33 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         ensureChecksPass.accept(Settings.builder().putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey()));
         // Validate the deprecated setting is still valid during the node bootstrap.
         ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
+    }
+
+    public void testJvmVersionCheck() throws NodeValidationException {
+        final AtomicReference<Version> version = new AtomicReference<>(Version.parse("11.0.13+8"));
+        final BootstrapCheck check = new BootstrapChecks.JavaVersionCheck() {
+            @Override
+            Version getVersion() {
+                return version.get();
+            }
+        };
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The current JVM version 11.0.13+8 is not recommended for use: "
+                    + "for more details, please check https://github.com/opensearch-project/OpenSearch/issues/2791 and https://bugs.openjdk.java.net/browse/JDK-8259541"
+            )
+        );
+
+        version.set(Version.parse("11.0.14"));
+        BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
+
+        version.set(Runtime.version());
+        BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
     }
 }

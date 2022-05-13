@@ -38,6 +38,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Score function for search.
+ *
+ * @opensearch.internal
+ */
 public abstract class ScoreFunction {
 
     private final CombineFunction scoreCombiner;

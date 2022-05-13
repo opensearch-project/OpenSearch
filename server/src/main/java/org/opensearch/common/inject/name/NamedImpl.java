@@ -32,6 +32,11 @@ package org.opensearch.common.inject.name;
 import java.lang.annotation.Annotation;
 import java.util.Objects;
 
+/**
+ * A named implementation
+ *
+ * @opensearch.internal
+ */
 class NamedImpl implements Named {
 
     private final String value;

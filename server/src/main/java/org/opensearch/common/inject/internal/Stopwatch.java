@@ -37,6 +37,8 @@ import java.util.logging.Logger;
  * Enables simple performance monitoring.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class Stopwatch {
     private static final Logger logger = Logger.getLogger(Stopwatch.class.getName());

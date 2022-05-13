@@ -47,6 +47,8 @@ import java.util.Collections;
 
 /**
  * first point of entry for a shape parser
+ *
+ * @opensearch.internal
  */
 public interface ShapeParser {
     ParseField FIELD_TYPE = new ParseField("type");

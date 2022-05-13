@@ -98,6 +98,11 @@ final class MultiSnapshot implements Translog.Snapshot {
         onClose.close();
     }
 
+    /**
+     * Sequence number set
+     *
+     * @opensearch.internal
+     */
     static final class SeqNoSet {
         static final short BIT_SET_SIZE = 1024;
         private final LongObjectHashMap<CountedBitSet> bitSets = new LongObjectHashMap<>();

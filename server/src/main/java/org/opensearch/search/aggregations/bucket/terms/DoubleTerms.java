@@ -53,6 +53,11 @@ import java.util.Objects;
 public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bucket> {
     public static final String NAME = "dterms";
 
+    /**
+     * Bucket for a double terms agg
+     *
+     * @opensearch.internal
+     */
     static class Bucket extends InternalTerms.Bucket<Bucket> {
         double term;
 

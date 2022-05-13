@@ -49,6 +49,8 @@ import java.util.Objects;
 
 /**
  * The abstract base builder for instances of {@link RescorerBuilder}.
+ *
+ * @opensearch.internal
  */
 public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     implements

@@ -52,6 +52,11 @@ import java.util.stream.Collectors;
  */
 public class DiscoveryNodeFilters {
 
+    /**
+     * Operation type.
+     *
+     * @opensearch.internal
+     */
     public enum OpType {
         AND,
         OR

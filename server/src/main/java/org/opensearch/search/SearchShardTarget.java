@@ -46,6 +46,8 @@ import java.util.Objects;
 
 /**
  * The target that the search request was executed on.
+ *
+ * @opensearch.internal
  */
 public final class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
 

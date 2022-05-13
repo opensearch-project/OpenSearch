@@ -57,7 +57,11 @@ import java.util.Objects;
 import java.util.RandomAccess;
 import java.util.Set;
 
-/** Collections-related utility methods. */
+/**
+ * Collections-related utility methods.
+ *
+ * @opensearch.internal
+ */
 public class CollectionUtils {
 
     /**
@@ -212,6 +216,11 @@ public class CollectionUtils {
         }
     }
 
+    /**
+     * A rotated list
+     *
+     * @opensearch.internal
+     */
     private static class RotatedList<T> extends AbstractList<T> implements RandomAccess {
 
         private final List<T> in;

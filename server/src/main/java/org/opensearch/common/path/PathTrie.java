@@ -43,6 +43,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Path based on a trie structure.
+ *
+ * @opensearch.internal
+ */
 public class PathTrie<T> {
 
     enum TrieMatchingMode {
@@ -72,6 +77,11 @@ public class PathTrie<T> {
         TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED
     );
 
+    /**
+     * Decoder for the path
+     *
+     * @opensearch.internal
+     */
     public interface Decoder {
         String decode(String value);
     }
@@ -88,6 +98,11 @@ public class PathTrie<T> {
         root = new TrieNode(SEPARATOR, null, WILDCARD);
     }
 
+    /**
+     * Node for the trie
+     *
+     * @opensearch.internal
+     */
     public class TrieNode {
         private transient String key;
         private transient T value;

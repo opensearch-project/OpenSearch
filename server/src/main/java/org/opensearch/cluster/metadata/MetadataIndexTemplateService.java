@@ -1498,6 +1498,11 @@ public class MetadataIndexTemplateService {
         }
     }
 
+    /**
+     * Listener for putting metadata in the template
+     *
+     * @opensearch.internal
+     */
     public interface PutListener {
 
         void onResponse(PutResponse response);
@@ -1505,6 +1510,11 @@ public class MetadataIndexTemplateService {
         void onFailure(Exception e);
     }
 
+    /**
+     * A PUT request.
+     *
+     * @opensearch.internal
+     */
     public static class PutRequest {
         final String name;
         final String cause;
@@ -1564,6 +1574,11 @@ public class MetadataIndexTemplateService {
         }
     }
 
+    /**
+     * The PUT response.
+     *
+     * @opensearch.internal
+     */
     public static class PutResponse {
         private final boolean acknowledged;
 
@@ -1576,6 +1591,11 @@ public class MetadataIndexTemplateService {
         }
     }
 
+    /**
+     * A remove Request.
+     *
+     * @opensearch.internal
+     */
     public static class RemoveRequest {
         final String name;
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
@@ -1590,6 +1610,11 @@ public class MetadataIndexTemplateService {
         }
     }
 
+    /**
+     * A remove Response.
+     *
+     * @opensearch.internal
+     */
     public static class RemoveResponse {
         private final boolean acknowledged;
 
@@ -1602,6 +1627,11 @@ public class MetadataIndexTemplateService {
         }
     }
 
+    /**
+     * A remove listener.
+     *
+     * @opensearch.internal
+     */
     public interface RemoveListener {
 
         void onResponse(RemoveResponse response);

@@ -79,12 +79,20 @@ public abstract class FilterScript {
         leafLookup.setDocument(docid);
     }
 
-    /** A factory to construct {@link FilterScript} instances. */
+    /**
+     * A factory to construct {@link FilterScript} instances.
+     *
+     * @opensearch.internal
+     */
     public interface LeafFactory {
         FilterScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    /** A factory to construct stateful {@link FilterScript} factories for a specific index. */
+    /**
+     * A factory to construct stateful {@link FilterScript} factories for a specific index.
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
     }

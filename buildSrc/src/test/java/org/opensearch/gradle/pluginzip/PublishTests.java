@@ -13,6 +13,7 @@ import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.gradle.api.Project;
 import org.opensearch.gradle.test.GradleUnitTestCase;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -31,7 +32,6 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import java.io.FileReader;
 import org.gradle.api.tasks.bundling.Zip;
-import org.gradle.internal.impldep.org.junit.After;
 
 import java.util.List;
 import java.util.ArrayList;

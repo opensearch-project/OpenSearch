@@ -59,6 +59,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.unmodifiableSet;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 
+/**
+ * String utility class.
+ *
+ * @opensearch.internal
+ */
 public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];

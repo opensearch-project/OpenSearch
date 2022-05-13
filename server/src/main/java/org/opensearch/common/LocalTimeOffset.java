@@ -61,6 +61,8 @@ import java.util.Locale;
  * <p>
  * So there are two methods to convert from local time back to utc,
  * {@link #localToUtc(long, Strategy)} and {@link #localToUtcInThisOffset(long)}.
+ *
+ * @opensearch.internal
  */
 public abstract class LocalTimeOffset {
     /**
@@ -146,6 +148,11 @@ public abstract class LocalTimeOffset {
      */
     public abstract long localToUtc(long localMillis, Strategy strat);
 
+    /**
+     * Strategy for a local time
+     *
+     * @opensearch.internal
+     */
     public interface Strategy {
         /**
          * Handle a local time that never actually happened because a "gap"
@@ -206,6 +213,8 @@ public abstract class LocalTimeOffset {
 
     /**
      * How to get instances of {@link LocalTimeOffset}.
+     *
+     * @opensearch.internal
      */
     public abstract static class Lookup {
         /**
@@ -234,6 +243,11 @@ public abstract class LocalTimeOffset {
         abstract int size();
     }
 
+    /**
+     * No previous local time offset
+     *
+     * @opensearch.internal
+     */
     private static class NoPrevious extends LocalTimeOffset {
         NoPrevious(long millis) {
             super(millis);
@@ -269,6 +283,11 @@ public abstract class LocalTimeOffset {
         }
     }
 
+    /**
+     * Transition for a local time offset
+     *
+     * @opensearch.internal
+     */
     public abstract static class Transition extends LocalTimeOffset {
         private final LocalTimeOffset previous;
         private final long startUtcMillis;
@@ -307,6 +326,11 @@ public abstract class LocalTimeOffset {
         }
     }
 
+    /**
+     * Gap for a local time offset
+     *
+     * @opensearch.internal
+     */
     public static class Gap extends Transition {
         private final long firstMissingLocalTime;
         private final long firstLocalTimeAfterGap;
@@ -347,6 +371,11 @@ public abstract class LocalTimeOffset {
         }
     }
 
+    /**
+     * Overlap for a local time offset
+     *
+     * @opensearch.internal
+     */
     public static class Overlap extends Transition {
         private final long firstOverlappingLocalTime;
         private final long firstNonOverlappingLocalTime;
@@ -403,6 +432,11 @@ public abstract class LocalTimeOffset {
         }
     }
 
+    /**
+     * Fixed lookup the local time offset
+     *
+     * @opensearch.internal
+     */
     private static class FixedLookup extends Lookup {
         private final ZoneId zone;
         private final LocalTimeOffset fixed;
@@ -441,6 +475,8 @@ public abstract class LocalTimeOffset {
     /**
      * Looks up transitions by checking whether the date is after the start
      * of each transition. Simple so fast for small numbers of transitions.
+     *
+     * @opensearch.internal
      */
     private static class LinkedListLookup extends AbstractManyTransitionsLookup {
         private final LocalTimeOffset lastOffset;
@@ -477,6 +513,8 @@ public abstract class LocalTimeOffset {
     /**
      * Builds an array that can be {@link Arrays#binarySearch(long[], long)}ed
      * for the daylight savings time transitions.
+     *
+     * @openearch.internal
      */
     private static class TransitionArrayLookup extends AbstractManyTransitionsLookup {
         private final LocalTimeOffset[] offsets;
@@ -536,6 +574,11 @@ public abstract class LocalTimeOffset {
         }
     }
 
+    /**
+     * Base class for many transitions lookup
+     *
+     * @opensearch.internal
+     */
     private abstract static class AbstractManyTransitionsLookup extends Lookup {
         protected final ZoneId zone;
         protected final long minUtcMillis;

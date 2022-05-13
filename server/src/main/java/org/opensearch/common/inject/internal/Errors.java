@@ -77,6 +77,8 @@ import static java.util.Collections.unmodifiableList;
  * method with an errors object that includes its context.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public final class Errors {
 
@@ -590,6 +592,11 @@ public final class Errors {
         return root.errors == null ? 0 : root.errors.size();
     }
 
+    /**
+     * A converter
+     *
+     * @opensearch.internal
+     */
     private abstract static class Converter<T> {
 
         final Class<T> type;

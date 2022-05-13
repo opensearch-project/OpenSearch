@@ -38,6 +38,11 @@ import org.opensearch.search.aggregations.bucket.InternalSingleBucketAggregation
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Missing single bucket agg
+ *
+ * @opensearch.internal
+ */
 public class InternalMissing extends InternalSingleBucketAggregation implements Missing {
     InternalMissing(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, docCount, aggregations, metadata);

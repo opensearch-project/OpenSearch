@@ -1,0 +1,10 @@
+// Some version and version range examples are:
+// 11.0.2: <... reason ...>             version 11.0.2.
+// [11.0.2, 11.0.14): <... reason ...>  versions 11.0.2.2 (included) to 11.0.14 (not included)
+// [11.0.2, 11.0.14]: <... reason ...>  versions 11.0.2 to 11.0.14 (both included)
+// [11.0.2,): <... reason ...>          versions 11.0.2 and higher
+// [11.0.2,*): <... reason ...>          versions 11.0.2 and higher
+// (, 11.0.14]: <... reason ...>  versions up to 11.0.14 (included)
+// (*, 11.0.14]: <... reason ...>  versions up to 11.0.14 (included)
+
+[11.0.2, 11.0.14): for more details, please check https://github.com/opensearch-project/OpenSearch/issues/2791 and https://bugs.openjdk.java.net/browse/JDK-8259541

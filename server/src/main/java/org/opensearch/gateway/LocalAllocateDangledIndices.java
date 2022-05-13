@@ -266,6 +266,12 @@ public class LocalAllocateDangledIndices {
         }
     }
 
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
+
     public static class AllocateDangledRequest extends TransportRequest {
 
         DiscoveryNode fromNode;
@@ -290,6 +296,11 @@ public class LocalAllocateDangledIndices {
         }
     }
 
+    /**
+     * The response.
+     *
+     * @opensearch.internal
+     */
     public static class AllocateDangledResponse extends TransportResponse {
 
         private boolean ack;

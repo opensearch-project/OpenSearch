@@ -51,6 +51,11 @@ import java.util.Map;
 public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, InternalDateRange> {
     public static final Factory FACTORY = new Factory();
 
+    /**
+     * Bucket for a date range
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalRange.Bucket {
 
         public Bucket(
@@ -113,6 +118,11 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         }
     }
 
+    /**
+     * Factory to create a date range
+     *
+     * @opensearch.internal
+     */
     public static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
         @Override
         public ValueType getValueType() {

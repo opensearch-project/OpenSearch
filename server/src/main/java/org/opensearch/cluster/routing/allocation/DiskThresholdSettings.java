@@ -142,6 +142,11 @@ public class DiskThresholdSettings {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
     }
 
+    /**
+     * Validates a low disk watermark.
+     *
+     * @opensearch.internal
+     */
     static final class LowDiskWatermarkValidator implements Setting.Validator<String> {
 
         @Override
@@ -167,6 +172,11 @@ public class DiskThresholdSettings {
 
     }
 
+    /**
+     * Validates a high disk watermark.
+     *
+     * @opensearch.internal
+     */
     static final class HighDiskWatermarkValidator implements Setting.Validator<String> {
 
         @Override
@@ -192,6 +202,11 @@ public class DiskThresholdSettings {
 
     }
 
+    /**
+     * Validates the flood stage.
+     *
+     * @opensearch.internal
+     */
     static final class FloodStageValidator implements Setting.Validator<String> {
 
         @Override

@@ -36,6 +36,11 @@ import org.opensearch.common.inject.spi.BindingTargetVisitor;
 import org.opensearch.common.inject.spi.Dependency;
 import org.opensearch.common.inject.spi.UntargettedBinding;
 
+/**
+ * An untargeted binding implementation
+ *
+ * @opensearch.internal
+ */
 public class UntargettedBindingImpl<T> extends BindingImpl<T> implements UntargettedBinding<T> {
 
     public UntargettedBindingImpl(Injector injector, Key<T> key, Object source) {

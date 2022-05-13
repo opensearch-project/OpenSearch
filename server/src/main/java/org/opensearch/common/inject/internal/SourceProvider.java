@@ -39,6 +39,8 @@ import static java.util.Collections.unmodifiableSet;
  * Provides access to the calling line of code.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class SourceProvider {
 

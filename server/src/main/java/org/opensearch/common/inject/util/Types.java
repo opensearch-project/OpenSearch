@@ -48,6 +48,8 @@ import java.util.Set;
  *
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class Types {
     private Types() {}

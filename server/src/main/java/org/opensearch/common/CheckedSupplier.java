@@ -36,6 +36,8 @@ import java.util.function.Supplier;
 
 /**
  * A {@link Supplier}-like interface which allows throwing checked exceptions.
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface CheckedSupplier<R, E extends Exception> {

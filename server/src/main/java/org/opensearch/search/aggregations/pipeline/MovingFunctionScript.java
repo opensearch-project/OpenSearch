@@ -51,6 +51,11 @@ public abstract class MovingFunctionScript {
      */
     public abstract double execute(Map<String, Object> params, double[] values);
 
+    /**
+     * Factory interface
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         MovingFunctionScript newInstance();
     }

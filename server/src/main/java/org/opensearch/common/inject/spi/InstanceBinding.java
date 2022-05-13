@@ -38,6 +38,8 @@ import java.util.Set;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface InstanceBinding<T> extends Binding<T>, HasDependencies {
 

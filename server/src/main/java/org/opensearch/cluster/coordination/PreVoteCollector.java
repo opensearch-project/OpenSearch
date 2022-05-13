@@ -167,6 +167,11 @@ public class PreVoteCollector {
         return "PreVoteCollector{" + "state=" + state + '}';
     }
 
+    /**
+     * The pre vote round.
+     *
+     * @opensearch.internal
+     */
     private class PreVotingRound implements Releasable {
         private final Map<DiscoveryNode, PreVoteResponse> preVotesReceived = newConcurrentMap();
         private final AtomicBoolean electionStarted = new AtomicBoolean();

@@ -42,6 +42,8 @@ import java.util.List;
  * creation it's necessary to {@link #initialize initialize} these lookups.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class DeferredLookups implements Lookups {
     private final InjectorImpl injector;

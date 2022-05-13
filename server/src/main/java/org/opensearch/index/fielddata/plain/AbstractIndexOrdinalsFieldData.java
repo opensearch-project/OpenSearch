@@ -182,6 +182,8 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
      * <p>
      * Note that the .beforeLoad(...) and .afterLoad(...) methods must be
      * manually called.
+     *
+     * @opensearch.internal
      */
     public interface PerValueEstimator {
 

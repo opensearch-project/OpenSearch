@@ -61,6 +61,8 @@ import java.util.stream.Collectors;
  * category (string) value.
  * {@link CategoryQueryContext} defines options for constructing
  * a unit of query context for this context type
+ *
+ * @opensearch.internal
  */
 public class CategoryContextMapping extends ContextMapping<CategoryQueryContext> {
 
@@ -217,6 +219,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
 
     /**
      * Builder for {@link CategoryContextMapping}
+     *
+     * @opensearch.internal
      */
     public static class Builder extends ContextBuilder<CategoryContextMapping> {
 

@@ -75,10 +75,17 @@ import java.util.concurrent.TimeUnit;
  * See <a href="https://davecturner.github.io/2019/04/14/timezone-rounding.html">this</a>
  * blog for some background reading. Its super interesting and the links are
  * a comedy gold mine. If you like time zones. Or hate them.
+ *
+ * @opensearch.internal
  */
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
+    /**
+     * A Date Time Unit
+     *
+     * @opensearch.internal
+     */
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR((byte) 1, "week", IsoFields.WEEK_OF_WEEK_BASED_YEAR, true, TimeUnit.DAYS.toMillis(7)) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
@@ -260,6 +267,8 @@ public abstract class Rounding implements Writeable {
 
     /**
      * A strategy for rounding milliseconds since epoch.
+     *
+     * @opensearch.internal
      */
     public interface Prepared {
         /**
@@ -347,6 +356,11 @@ public abstract class Rounding implements Writeable {
         return new Builder(interval);
     }
 
+    /**
+     * Builder for rounding
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final DateTimeUnit unit;
@@ -426,6 +440,11 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    /**
+     * Rounding time units
+     *
+     * @opensearch.internal
+     */
     static class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
@@ -887,6 +906,11 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    /**
+     * Rounding time intervals
+     *
+     * @opensearch.internal
+     */
     static class TimeIntervalRounding extends Rounding {
         static final byte ID = 2;
 
@@ -1204,6 +1228,11 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    /**
+     * Rounding offsets
+     *
+     * @opensearch.internal
+     */
     static class OffsetRounding extends Rounding {
         static final byte ID = 3;
 
@@ -1315,6 +1344,8 @@ public abstract class Rounding implements Writeable {
 
     /**
      * Implementation of {@link Prepared} using pre-calculated "round down" points.
+     *
+     * @opensearch.internal
      */
     private static class ArrayRounding implements Prepared {
         private final long[] values;

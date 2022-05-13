@@ -231,6 +231,11 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
         return builder;
     }
 
+    /**
+     * Geoshape query parameters that have been parsed from xcontent
+     *
+     * @opensearch.internal
+     */
     private static class ParsedGeoShapeQueryParams extends ParsedGeometryQueryParams {
         SpatialStrategy strategy;
 

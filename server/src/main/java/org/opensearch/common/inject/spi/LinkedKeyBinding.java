@@ -37,6 +37,8 @@ import org.opensearch.common.inject.Key;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface LinkedKeyBinding<T> extends Binding<T> {
 

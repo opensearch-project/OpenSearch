@@ -90,6 +90,11 @@ public class ParsedAdjacencyMatrix extends ParsedMultiBucketAggregation<ParsedAd
         return aggregation;
     }
 
+    /**
+     * A parsed bucket
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements AdjacencyMatrix.Bucket {
 
         private String key;

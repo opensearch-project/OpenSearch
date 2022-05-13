@@ -130,6 +130,11 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     public static final class Fields {
         static final String PIPELINE = "pipeline";
         static final String DOCS = "docs";

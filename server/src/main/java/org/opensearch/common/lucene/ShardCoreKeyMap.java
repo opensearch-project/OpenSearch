@@ -57,6 +57,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * segments so that at any time it only tracks live segments.
  *
  * NOTE: This is heavy. Avoid using this class unless absolutely required.
+ *
+ * @opensearch.internal
  */
 public final class ShardCoreKeyMap {
 

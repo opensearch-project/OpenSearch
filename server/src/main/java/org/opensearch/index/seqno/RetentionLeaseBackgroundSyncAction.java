@@ -198,6 +198,11 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         });
     }
 
+    /**
+     * Request for retention lease bground sync action
+     *
+     * @opensearch.internal
+     */
     public static final class Request extends ReplicationRequest<Request> {
 
         private RetentionLeases retentionLeases;

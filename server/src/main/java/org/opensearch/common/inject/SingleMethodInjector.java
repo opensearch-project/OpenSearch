@@ -41,6 +41,8 @@ import java.lang.reflect.Modifier;
 
 /**
  * Invokes an injectable method.
+ *
+ * @opensearch.internal
  */
 class SingleMethodInjector implements SingleMemberInjector {
     final MethodInvoker methodInvoker;

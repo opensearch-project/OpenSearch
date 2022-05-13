@@ -59,6 +59,8 @@ import java.util.Set;
  * that match the {@link MultiTermQuery} in the terms dictionary.
  * The rewrite throws an error if more than <code>maxExpansions</code> terms are found and <code>hardLimit</code>
  * is set.
+ *
+ * @opensearch.internal
  */
 public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrapper.SpanRewriteMethod {
     private final int maxExpansions;

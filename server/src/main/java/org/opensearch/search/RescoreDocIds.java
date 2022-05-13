@@ -45,6 +45,8 @@ import java.util.Set;
  * Since {@link org.opensearch.search.internal.SearchContext} no longer hold the states of search, the top K results
  * (i.e., documents that will be rescored by query rescorers) need to be serialized/ deserialized between search phases.
  * A {@link RescoreDocIds} encapsulates the top K results for each rescorer by its ordinal index.
+ *
+ * @opensearch.internal
  */
 public final class RescoreDocIds implements Writeable {
     public static final RescoreDocIds EMPTY = new RescoreDocIds(Collections.emptyMap());

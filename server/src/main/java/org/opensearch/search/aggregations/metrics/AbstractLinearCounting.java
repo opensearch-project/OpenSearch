@@ -102,7 +102,11 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
         return (int) encoded;
     }
 
-    /** Iterator over the hash values */
+    /**
+     * Iterator over the hash values
+     *
+     * @opensearch.internal
+     */
     public interface HashesIterator {
 
         /**

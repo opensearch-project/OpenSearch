@@ -38,6 +38,8 @@ import java.io.Closeable;
 
 /**
  * Specialization of {@link AutoCloseable} that may only throw an {@link OpenSearchException}.
+ *
+ * @opensearch.internal
  */
 public interface Releasable extends Closeable {
 

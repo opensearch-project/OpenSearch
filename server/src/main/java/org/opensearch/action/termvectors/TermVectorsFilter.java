@@ -176,6 +176,11 @@ public class TermVectorsFilter {
         this.maxWordLength = maxWordLength;
     }
 
+    /**
+     * Internal score term
+     *
+     * @opensearch.internal
+     */
     public static final class ScoreTerm {
         public String field;
         public String word;
@@ -295,6 +300,11 @@ public class TermVectorsFilter {
         return freq * similarity.idf(docFreq, numDocs);
     }
 
+    /**
+     * Internal queue of score terms
+     *
+     * @opensearch.internal
+     */
     private static class ScoreTermsQueue extends org.apache.lucene.util.PriorityQueue<ScoreTerm> {
         private final int limit;
 

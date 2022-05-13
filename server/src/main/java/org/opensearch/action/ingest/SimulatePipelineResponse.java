@@ -178,6 +178,11 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
         return PARSER.apply(parser, null);
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String DOCUMENTS = "docs";
     }

@@ -84,6 +84,8 @@ import static org.opensearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * A geo distance based sorting on a geo point like field.
+ *
+ * @opensearch.internal
  */
 public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoDistanceSortBuilder.class);

@@ -1522,6 +1522,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Wrapper for a non-closing reader
+     *
+     * @opensearch.internal
+     */
     private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
 
         private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
@@ -3634,6 +3639,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Simple struct encapsulating a shard failure
      *
      * @see IndexShard#addShardFailureCallback(Consumer)
+     *
+     * @opensearch.internal
      */
     public static final class ShardFailure {
         public final ShardRouting routing;
@@ -3799,6 +3806,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Metrics updater for a refresh
+     *
+     * @opensearch.internal
+     */
     private static class RefreshMetricUpdater implements ReferenceManager.RefreshListener {
 
         private final MeanMetric refreshMetric;

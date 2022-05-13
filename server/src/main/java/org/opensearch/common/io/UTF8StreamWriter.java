@@ -37,6 +37,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;
 
+/**
+ * UTF8 Stream Writer.
+ *
+ * @opensearch.internal
+ */
 public final class UTF8StreamWriter extends Writer {
 
     /**

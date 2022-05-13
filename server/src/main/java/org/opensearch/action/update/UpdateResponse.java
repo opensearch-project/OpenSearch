@@ -172,6 +172,8 @@ public class UpdateResponse extends DocWriteResponse {
      * Builder class for {@link UpdateResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
      * instantiate the {@link UpdateResponse}.
+     *
+     * @opensearch.internal
      */
     public static class Builder extends DocWriteResponse.Builder {
 

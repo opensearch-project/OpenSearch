@@ -37,6 +37,11 @@ import org.apache.lucene.store.IndexInput;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Index input over an input stream.
+ *
+ * @opensearch.internal
+ */
 public class InputStreamIndexInput extends InputStream {
 
     private final IndexInput indexInput;

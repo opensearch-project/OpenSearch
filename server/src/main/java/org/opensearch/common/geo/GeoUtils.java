@@ -54,6 +54,11 @@ import org.opensearch.index.fielddata.SortingNumericDoubleValues;
 import java.io.IOException;
 import java.util.Collections;
 
+/**
+ * Useful geo utilities
+ *
+ * @opensearch.internal
+ */
 public class GeoUtils {
 
     /** Maximum valid latitude in degrees. */
@@ -416,6 +421,8 @@ public class GeoUtils {
 
     /**
      * Represents the point of the geohash cell that should be used as the value of geohash
+     *
+     * @opensearch.internal
      */
     public enum EffectivePoint {
         TOP_LEFT,

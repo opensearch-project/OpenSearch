@@ -97,9 +97,16 @@ import java.util.stream.Stream;
  *     new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, Setting.Property.NodeScope);
  * }
  * </pre>
+ *
+ * @opensearch.internal
  */
 public class Setting<T> implements ToXContentObject {
 
+    /**
+     * Property of the setting
+     *
+     * @opensearch.internal
+     */
     public enum Property {
         /**
          * should be filtered in some api (mask password/credentials)
@@ -618,6 +625,8 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Allows a setting to declare a dependency on another setting being set. Optionally, a setting can validate the value of the dependent
      * setting.
+     *
+     * @opensearch.internal
      */
     public interface SettingDependency {
 
@@ -765,6 +774,8 @@ public class Setting<T> implements ToXContentObject {
 
     /**
      * Allows an affix setting to declare a dependency on another affix setting.
+     *
+     * @opensearch.internal
      */
     public interface AffixSettingDependency extends SettingDependency {
 
@@ -773,6 +784,11 @@ public class Setting<T> implements ToXContentObject {
 
     }
 
+    /**
+     * An affix setting
+     *
+     * @opensearch.internal
+     */
     public static class AffixSetting<T> extends Setting<T> {
         private final AffixKey key;
         private final BiFunction<String, String, Setting<T>> delegateFactory;
@@ -1000,6 +1016,8 @@ public class Setting<T> implements ToXContentObject {
      * {@link #settings()}} to their values. All these values come from the same {@link Settings} instance.
      *
      * @param <T> the type of the {@link Setting}
+     *
+     * @opensearch.internal
      */
     @FunctionalInterface
     public interface Validator<T> {
@@ -1044,6 +1062,11 @@ public class Setting<T> implements ToXContentObject {
 
     }
 
+    /**
+     * A group setting
+     *
+     * @opensearch.internal
+     */
     private static class GroupSetting extends Setting<Settings> {
         private final String key;
         private final Consumer<Settings> validator;
@@ -1918,6 +1941,11 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
+    /**
+     * A list setting
+     *
+     * @opensearch.internal
+     */
     private static class ListSetting<T> extends Setting<List<T>> {
 
         private final Function<Settings, List<String>> defaultStringValue;
@@ -2230,10 +2258,20 @@ public class Setting<T> implements ToXContentObject {
         return new AffixSetting<>(key, delegate, delegateFactory, dependencies);
     }
 
+    /**
+     * Key for the setting
+     *
+     * @opensearch.internal
+     */
     public interface Key {
         boolean match(String key);
     }
 
+    /**
+     * A simple key for a setting
+     *
+     * @opensearch.internal
+     */
     public static class SimpleKey implements Key {
         protected final String key;
 
@@ -2265,6 +2303,11 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
+    /**
+     * Settings Group keys
+     *
+     * @opensearch.internal
+     */
     public static final class GroupKey extends SimpleKey {
         public GroupKey(String key) {
             super(key);
@@ -2279,6 +2322,11 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
+    /**
+     * List settings key
+     *
+     * @opensearch.internal
+     */
     public static final class ListKey extends SimpleKey {
         private final Pattern pattern;
 
@@ -2296,6 +2344,8 @@ public class Setting<T> implements ToXContentObject {
     /**
      * A key that allows for static pre and suffix. This is used for settings
      * that have dynamic namespaces like for different accounts etc.
+     *
+     * @opensearch.internal
      */
     public static final class AffixKey implements Key {
         private final Pattern pattern;

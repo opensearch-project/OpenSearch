@@ -36,6 +36,8 @@ import org.opensearch.OpenSearchParseException;
 
 /**
  * Utility class to represent ratio and percentage values between 0 and 100
+ *
+ * @opensearch.internal
  */
 public class RatioValue {
     private final double percent;

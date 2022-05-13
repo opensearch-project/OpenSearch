@@ -142,6 +142,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         new AsyncSingleAction(task, request, listener).doStart(state);
     }
 
+    /**
+     * Asynchronous single action
+     *
+     * @opensearch.internal
+     */
     class AsyncSingleAction {
 
         private final ActionListener<Response> listener;

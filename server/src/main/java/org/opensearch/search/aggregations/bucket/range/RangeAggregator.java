@@ -75,6 +75,11 @@ public class RangeAggregator extends BucketsAggregator {
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
 
+    /**
+     * Range for the range aggregator
+     *
+     * @opensearch.internal
+     */
     public static class Range implements Writeable, ToXContentObject {
         public static final ParseField KEY_FIELD = new ParseField("key");
         public static final ParseField FROM_FIELD = new ParseField("from");
@@ -383,6 +388,11 @@ public class RangeAggregator extends BucketsAggregator {
         return rangeFactory.create(name, buckets, format, keyed, metadata());
     }
 
+    /**
+     * Unmapped range
+     *
+     * @opensearch.internal
+     */
     public static class Unmapped<R extends RangeAggregator.Range> extends NonCollectingAggregator {
 
         private final R[] ranges;

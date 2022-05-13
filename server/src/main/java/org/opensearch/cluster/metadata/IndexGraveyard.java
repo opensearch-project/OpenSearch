@@ -190,6 +190,8 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     /**
      * A class to build an IndexGraveyard.
+     *
+     * @opensearch.internal
      */
     public static final class Builder {
         private List<Tombstone> tombstones;
@@ -275,6 +277,8 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     /**
      * A class representing a diff of two IndexGraveyard objects.
+     *
+     * @opensearch.internal
      */
     public static final class IndexGraveyardDiff implements NamedDiff<Metadata.Custom> {
 
@@ -362,6 +366,8 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     /**
      * An individual tombstone entry for representing a deleted index.
+     *
+     * @opensearch.internal
      */
     public static final class Tombstone implements ToXContentObject, Writeable {
 
@@ -460,6 +466,8 @@ public final class IndexGraveyard implements Metadata.Custom {
 
         /**
          * A builder for building tombstone entries.
+         *
+         * @opensearch.internal
          */
         private static final class Builder {
             private Index index;

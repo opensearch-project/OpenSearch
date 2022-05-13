@@ -97,7 +97,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         assert NODE == null;
         NODE = RandomizedContext.current().runWithPrivateRandomness(seed, this::newNode);
         // we must wait for the node to actually be up and running. otherwise the node might have started,
-        // elected itself master but might not yet have removed the
+        // elected itself cluster-manager but might not yet have removed the
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());

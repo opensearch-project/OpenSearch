@@ -277,7 +277,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
 
         logger.info("--> create an index");

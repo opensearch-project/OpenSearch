@@ -50,6 +50,8 @@ import java.util.concurrent.TimeUnit;
  * for execution in the provided {@link ExecutorService}. If the computation has already
  * been performed, a request to add a listener will simply result in execution of the listener
  * on the calling thread.
+ *
+ * @opensearch.internal
  */
 public final class ListenableFuture<V> extends BaseFuture<V> implements ActionListener<V> {
 

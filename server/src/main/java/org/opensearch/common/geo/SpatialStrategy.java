@@ -37,6 +37,14 @@ import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+/**
+ * Spatial strategy for legacy prefix trees
+ *
+ * @deprecated will be removed in future version
+ *
+ * @opensearch.internal
+ */
+@Deprecated
 public enum SpatialStrategy implements Writeable {
 
     TERM("term"),

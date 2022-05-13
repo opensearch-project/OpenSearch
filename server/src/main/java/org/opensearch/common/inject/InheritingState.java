@@ -49,7 +49,11 @@ import java.util.Objects;
 import static java.util.Collections.emptySet;
 
 /**
+ * Inheriting state.
+ *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class InheritingState implements State {
 

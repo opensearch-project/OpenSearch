@@ -68,6 +68,8 @@ import java.util.Set;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( {@code phrase}).
+ *
+ * @opensearch.internal
  */
 public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionBuilder> {
 
@@ -770,6 +772,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
     /**
      * {@link CandidateGenerator} interface.
+     *
+     * @opensearch.internal
      */
     public interface CandidateGenerator extends Writeable, ToXContentObject {
         String getType();

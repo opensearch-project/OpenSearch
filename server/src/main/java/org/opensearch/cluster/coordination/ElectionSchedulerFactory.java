@@ -183,6 +183,11 @@ public class ElectionSchedulerFactory {
             + '}';
     }
 
+    /**
+     * The Election scheduler.
+     *
+     * @opensearch.internal
+     */
     private class ElectionScheduler implements Releasable {
         private final AtomicBoolean isClosed = new AtomicBoolean();
         private final AtomicLong attempt = new AtomicLong();

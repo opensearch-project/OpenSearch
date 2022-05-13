@@ -599,6 +599,11 @@ public class JvmInfo implements ReportingService.Info {
         static final String INPUT_ARGUMENTS = "input_arguments";
     }
 
+    /**
+     * Memory information.
+     *
+     * @opensearch.internal
+     */
     public static class Mem implements Writeable {
 
         private final long heapInit;

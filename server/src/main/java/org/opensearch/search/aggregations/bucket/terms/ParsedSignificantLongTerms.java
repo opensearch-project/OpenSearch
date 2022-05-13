@@ -63,6 +63,11 @@ public class ParsedSignificantLongTerms extends ParsedSignificantTerms {
         return parseSignificantTermsXContent(() -> PARSER.parse(parser, null), name);
     }
 
+    /**
+     * Parsed bucket for significant long values
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedSignificantTerms.ParsedBucket {
 
         private Long key;

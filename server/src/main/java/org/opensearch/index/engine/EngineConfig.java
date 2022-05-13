@@ -463,6 +463,8 @@ public final class EngineConfig {
     /**
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     *
+     * @opensearch.internal
      */
     public interface TombstoneDocSupplier {
         /**

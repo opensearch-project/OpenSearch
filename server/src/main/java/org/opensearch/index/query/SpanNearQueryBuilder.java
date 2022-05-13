@@ -306,6 +306,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
      * can be invoked for it.
      * This QueryBuilder is only applicable as a clause in SpanGapQueryBuilder but
      * yet to enforce this restriction.
+     *
+     * @opensearch.internal
      */
     public static class SpanGapQueryBuilder implements SpanQueryBuilder {
         public static final String NAME = "span_gap";

@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.is;
 public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
 
     public void testAbortedRestoreAlsoAbortFileRestores() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
 
         final String indexName = "test-abort-restore";

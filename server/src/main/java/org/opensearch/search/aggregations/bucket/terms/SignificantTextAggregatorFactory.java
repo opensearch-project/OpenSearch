@@ -173,6 +173,11 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         );
     }
 
+    /**
+     * Collects significant text
+     *
+     * @opensearch.internal
+     */
     private static class SignificantTextCollectorSource implements MapStringTermsAggregator.CollectorSource {
         private final SourceLookup sourceLookup;
         private final BigArrays bigArrays;

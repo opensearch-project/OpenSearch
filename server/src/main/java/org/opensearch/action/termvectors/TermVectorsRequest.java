@@ -115,6 +115,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     private FilterSettings filterSettings;
 
+    /**
+     * Internal filter settings
+     *
+     * @opensearch.internal
+     */
     public static final class FilterSettings {
         public Integer maxNumTerms;
         public Integer minTermFreq;
@@ -563,6 +568,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeLong(version);
     }
 
+    /**
+     * The flags.
+     *
+     * @opensearch.internal
+     */
     public enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!

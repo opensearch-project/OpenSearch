@@ -39,6 +39,8 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * A very simple single object cache that allows non-blocking refresh calls
  * triggered by expiry time.
+ *
+ * @opensearch.internal
  */
 public abstract class SingleObjectCache<T> {
 

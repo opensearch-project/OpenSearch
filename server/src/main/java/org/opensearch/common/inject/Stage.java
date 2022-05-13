@@ -33,6 +33,8 @@ package org.opensearch.common.inject;
  * The stage we're running in.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public enum Stage {
 

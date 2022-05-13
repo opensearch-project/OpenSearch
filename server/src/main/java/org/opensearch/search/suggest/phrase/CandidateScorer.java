@@ -37,6 +37,11 @@ import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSe
 
 import java.io.IOException;
 
+/**
+ * Scores phrase candidates
+ *
+ * @opensearch.internal
+ */
 final class CandidateScorer {
     private final WordScorer scorer;
     private final int maxNumCorrections;

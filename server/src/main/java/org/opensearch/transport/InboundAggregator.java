@@ -239,6 +239,11 @@ public class InboundAggregator implements Releasable {
         }
     }
 
+    /**
+     * Internal circuit breaker control
+     *
+     * @opensearch.internal
+     */
     private static class BreakerControl implements Releasable {
 
         private static final int CLOSED = -1;

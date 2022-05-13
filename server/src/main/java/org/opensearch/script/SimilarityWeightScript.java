@@ -48,6 +48,11 @@ public abstract class SimilarityWeightScript {
      */
     public abstract double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field, ScriptedSimilarity.Term term);
 
+    /**
+     * Factory for a similarity weight script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         SimilarityWeightScript newInstance();
     }

@@ -44,6 +44,8 @@ import static java.util.Collections.emptySet;
  * Bind a constant.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public final class ConstantBindingBuilderImpl<T> extends AbstractBindingBuilder<T>
     implements

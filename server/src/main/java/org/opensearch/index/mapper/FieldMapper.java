@@ -73,6 +73,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     );
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
 
+    /**
+     * Base builder for all field mappers
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder<T extends Builder<T>> extends Mapper.Builder<T> {
 
         protected final FieldType fieldType;
@@ -560,12 +565,22 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
+    /**
+     * Multi field implementation used across field mappers
+     *
+     * @opensearch.internal
+     */
     public static class MultiFields implements Iterable<Mapper> {
 
         public static MultiFields empty() {
             return new MultiFields(ImmutableOpenMap.<String, FieldMapper>of());
         }
 
+        /**
+         * Concrete builder for field mappers
+         *
+         * @opensearch.internal
+         */
         public static class Builder {
 
             private final ImmutableOpenMap.Builder<String, Mapper.Builder> mapperBuilders = ImmutableOpenMap.builder();
@@ -689,6 +704,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     /**
      * Represents a list of fields with optional boost factor where the current field should be copied to
+     *
+     * @opensearch.internal
      */
     public static class CopyTo {
 
@@ -715,6 +732,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
+        /**
+         * Builder for the copyTo field
+         *
+         * @opensearch.internal
+         */
         public static class Builder {
             private final List<String> copyToBuilders = new ArrayList<>();
 

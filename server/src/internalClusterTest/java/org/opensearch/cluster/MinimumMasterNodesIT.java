@@ -84,7 +84,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testTwoNodesNoMasterBlock() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(1);
+        internalCluster().setBootstrapClusterManagerNodeIndex(1);
 
         Settings settings = Settings.builder().put("discovery.initial_state_timeout", "500ms").build();
 
@@ -250,7 +250,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testThreeNodesNoMasterBlock() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
 
         Settings settings = Settings.builder().put("discovery.initial_state_timeout", "500ms").build();
 
@@ -309,11 +309,11 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
 
-        List<String> nonMasterNodes = new ArrayList<>(
+        List<String> nonClusterManagerNodes = new ArrayList<>(
             Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()), Collections.singleton(internalCluster().getMasterName()))
         );
-        Settings nonMasterDataPathSettings1 = internalCluster().dataPathSettings(nonMasterNodes.get(0));
-        Settings nonMasterDataPathSettings2 = internalCluster().dataPathSettings(nonMasterNodes.get(1));
+        Settings nonMasterDataPathSettings1 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(0));
+        Settings nonMasterDataPathSettings2 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(1));
         internalCluster().stopRandomNonMasterNode();
         internalCluster().stopRandomNonMasterNode();
 
@@ -340,7 +340,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testCannotCommitStateThreeNodes() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
+        internalCluster().setBootstrapClusterManagerNodeIndex(2);
 
         Settings settings = Settings.builder().put("discovery.initial_state_timeout", "500ms").build();
 
@@ -393,7 +393,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         // otherwise persistent setting (which is a part of accepted state on old master) will be propagated to other nodes
         logger.debug("--> wait for master to be elected in major partition");
         assertBusy(() -> {
-            DiscoveryNode masterNode = internalCluster().client(randomFrom(otherNodes))
+            DiscoveryNode clusterManagerNode = internalCluster().client(randomFrom(otherNodes))
                 .admin()
                 .cluster()
                 .prepareState()
@@ -402,8 +402,8 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
                 .getState()
                 .nodes()
                 .getMasterNode();
-            assertThat(masterNode, notNullValue());
-            assertThat(masterNode.getName(), not(equalTo(master)));
+            assertThat(clusterManagerNode, notNullValue());
+            assertThat(clusterManagerNode.getName(), not(equalTo(master)));
         });
 
         partition.stopDisrupting();

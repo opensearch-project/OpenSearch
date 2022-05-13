@@ -95,6 +95,11 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
         return Strings.toString(this);
     }
 
+    /**
+     * Result for adding a block
+     *
+     * @opensearch.internal
+     */
     public static class AddBlockResult implements Writeable, ToXContentFragment {
 
         private final Index index;
@@ -190,6 +195,11 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
         }
     }
 
+    /**
+     * Per shard result for adding a block
+     *
+     * @opensearch.internal
+     */
     public static class AddBlockShardResult implements Writeable, ToXContentFragment {
 
         private final int id;
@@ -244,6 +254,11 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
             return Strings.toString(this);
         }
 
+        /**
+         * Contains failure information
+         *
+         * @opensearch.internal
+         */
         public static class Failure extends DefaultShardOperationFailedException {
 
             private @Nullable String nodeId;

@@ -39,6 +39,8 @@ import org.opensearch.common.inject.Provider;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface ProviderKeyBinding<T> extends Binding<T> {
 
