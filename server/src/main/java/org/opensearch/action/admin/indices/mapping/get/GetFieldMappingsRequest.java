@@ -49,6 +49,8 @@ import java.util.Arrays;
  *
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
+ *
+ * @opensearch.internal
  */
 public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 

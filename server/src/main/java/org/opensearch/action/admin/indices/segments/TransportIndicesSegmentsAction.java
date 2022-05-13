@@ -53,6 +53,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport response for retrieving indices segment information
+ *
+ * @opensearch.internal
+ */
 public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeAction<
     IndicesSegmentsRequest,
     IndicesSegmentResponse,

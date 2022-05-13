@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.node.hotthreads;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for requesting OpenSearch Hot Threads
+ *
+ * @opensearch.internal
+ */
 public class NodesHotThreadsAction extends ActionType<NodesHotThreadsResponse> {
 
     public static final NodesHotThreadsAction INSTANCE = new NodesHotThreadsAction();

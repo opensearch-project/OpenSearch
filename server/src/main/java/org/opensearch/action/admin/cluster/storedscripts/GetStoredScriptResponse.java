@@ -50,6 +50,11 @@ import java.util.Objects;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Transport response for getting stored script
+ *
+ * @opensearch.internal
+ */
 public class GetStoredScriptResponse extends ActionResponse implements StatusToXContentObject {
 
     public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");

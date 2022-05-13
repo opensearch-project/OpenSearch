@@ -53,6 +53,8 @@ import java.io.IOException;
 
 /**
  * Delete index action.
+ *
+ * @opensearch.internal
  */
 public class TransportDeleteIndexTemplateAction extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
 

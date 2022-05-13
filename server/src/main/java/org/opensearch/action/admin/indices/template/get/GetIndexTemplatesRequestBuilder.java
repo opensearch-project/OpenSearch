@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.template.get;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Request builder to retrieve one or more Index templates
+ *
+ * @opensearch.internal
+ */
 public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     GetIndexTemplatesRequest,
     GetIndexTemplatesResponse,

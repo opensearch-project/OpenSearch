@@ -40,6 +40,8 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 
 /**
  * Request builder for {@link IndicesShardStoresRequest}
+ *
+ * @opensearch.internal
  */
 public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     IndicesShardStoresRequest,

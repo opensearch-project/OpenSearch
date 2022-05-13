@@ -41,6 +41,8 @@ import java.util.Map;
 
 /**
  * Builder for a cluster update settings request
+ *
+ * @opensearch.internal
  */
 public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
     ClusterUpdateSettingsRequest,

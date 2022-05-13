@@ -59,6 +59,8 @@ import java.util.Set;
 
 /**
  * Statistics about analysis usage.
+ *
+ * @opensearch.internal
  */
 public final class AnalysisStats implements ToXContentFragment, Writeable {
 

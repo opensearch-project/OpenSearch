@@ -44,6 +44,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * Transport response for searching shards
+ *
+ * @opensearch.internal
+ */
 public class ClusterSearchShardsResponse extends ActionResponse implements ToXContentObject {
 
     private final ClusterSearchShardsGroup[] groups;

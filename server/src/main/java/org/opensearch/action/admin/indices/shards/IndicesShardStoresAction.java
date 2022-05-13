@@ -40,6 +40,8 @@ import org.opensearch.action.ActionType;
  * Exposes shard store information for requested indices.
  * Shard store information reports which nodes hold shard copies, how recent they are
  * and any exceptions on opening the shard index or from previous engine failures
+ *
+ * @opensearch.internal
  */
 public class IndicesShardStoresAction extends ActionType<IndicesShardStoresResponse> {
 

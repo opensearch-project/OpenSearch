@@ -70,6 +70,8 @@ import java.util.stream.Collectors;
  * Implements the deletion of a dangling index. When handling a {@link DeleteDanglingIndexAction},
  * this class first checks that such a dangling index exists. It then submits a cluster state update
  * to add the index to the index graveyard.
+ *
+ * @opensearch.internal
  */
 public class TransportDeleteDanglingIndexAction extends TransportMasterNodeAction<DeleteDanglingIndexRequest, AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);

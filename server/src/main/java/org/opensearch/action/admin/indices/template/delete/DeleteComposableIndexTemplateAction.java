@@ -44,6 +44,11 @@ import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for deleting a composable index template
+ *
+ * @opensearch.internal
+ */
 public class DeleteComposableIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteComposableIndexTemplateAction INSTANCE = new DeleteComposableIndexTemplateAction();

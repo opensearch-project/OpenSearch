@@ -46,6 +46,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Request for an update index settings action
+ *
+ * @opensearch.internal
  */
 public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsRequest> {
 

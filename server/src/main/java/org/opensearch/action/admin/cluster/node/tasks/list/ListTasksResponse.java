@@ -62,6 +62,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 
 /**
  * Returns the list of tasks currently running on the nodes
+ *
+ * @opensearch.internal
  */
 public class ListTasksResponse extends BaseTasksResponse implements ToXContentObject {
     private static final String TASKS = "tasks";

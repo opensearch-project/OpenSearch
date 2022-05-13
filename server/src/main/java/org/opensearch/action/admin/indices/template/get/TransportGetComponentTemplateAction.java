@@ -52,6 +52,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Action to retrieve one or more Component templates
+ *
+ * @opensearch.internal
+ */
 public class TransportGetComponentTemplateAction extends TransportMasterNodeReadAction<
     GetComponentTemplateAction.Request,
     GetComponentTemplateAction.Response> {

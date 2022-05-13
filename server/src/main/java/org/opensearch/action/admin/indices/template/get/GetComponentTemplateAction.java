@@ -50,6 +50,8 @@ import java.util.Objects;
 
 /**
  * Action to retrieve one or more component templates
+ *
+ * @opensearch.internal
  */
 public class GetComponentTemplateAction extends ActionType<GetComponentTemplateAction.Response> {
 

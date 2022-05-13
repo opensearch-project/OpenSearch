@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.exists.indices;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for checking if an index exists
+ *
+ * @opensearch.internal
+ */
 public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     IndicesExistsRequest,
     IndicesExistsResponse,

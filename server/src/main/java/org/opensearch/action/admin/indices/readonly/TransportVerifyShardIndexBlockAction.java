@@ -64,6 +64,8 @@ import java.util.Objects;
  * and are no longer executing any operations in violation of that block. This action
  * requests all operation permits of the shard in order to wait for all write operations
  * to complete.
+ *
+ * @opensearch.internal
  */
 public class TransportVerifyShardIndexBlockAction extends TransportReplicationAction<
     TransportVerifyShardIndexBlockAction.ShardRequest,

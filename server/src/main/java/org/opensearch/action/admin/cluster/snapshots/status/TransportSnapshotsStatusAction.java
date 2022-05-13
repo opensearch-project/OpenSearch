@@ -84,6 +84,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Transport action for accessing snapshot status
+ *
+ * @opensearch.internal
+ */
 public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportSnapshotsStatusAction.class);
