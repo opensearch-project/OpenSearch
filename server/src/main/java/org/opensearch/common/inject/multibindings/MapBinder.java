@@ -106,6 +106,8 @@ import static org.opensearch.common.inject.util.Types.newParameterizedTypeWithOw
  * will not).
  *
  * @author dpb@google.com (David P. Baker)
+ *
+ * @opensearch.internal
  */
 public abstract class MapBinder<K, V> {
     private MapBinder() {}
@@ -299,6 +301,11 @@ public abstract class MapBinder<K, V> {
             return binder.bind(valueKey);
         }
 
+        /**
+         * A binder provider with dependencies
+         *
+         * @opensearch.internal
+         */
         public static class MapBinderProviderWithDependencies<K, V> implements ProviderWithDependencies<Map<K, Provider<V>>> {
             private Map<K, Provider<V>> providerMap;
 

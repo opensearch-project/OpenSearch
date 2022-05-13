@@ -43,6 +43,7 @@ import java.util.Objects;
  * field mapping settings it is preferable to preserve an explicit
  * choice rather than a choice made only made implicitly by defaults.
  *
+ * @opensearch.internal
  */
 public class Explicit<T> {
 

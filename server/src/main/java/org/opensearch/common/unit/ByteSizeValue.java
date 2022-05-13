@@ -47,12 +47,19 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * A byte size value
+ *
+ * @opensearch.internal
+ */
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
 
     /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
      * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
      * {@link ByteSizeValue} object constructed in, for example, settings in {@link NetworkService}.
+     *
+     * @opensearch.internal
      */
     static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);

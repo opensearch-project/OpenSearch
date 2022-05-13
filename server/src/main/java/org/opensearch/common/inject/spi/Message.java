@@ -49,6 +49,8 @@ import java.util.Objects;
  *     }</pre>
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public final class Message implements Element {
     private final String message;

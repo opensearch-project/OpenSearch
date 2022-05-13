@@ -57,6 +57,8 @@ import java.util.Objects;
  * </pre>
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractModule implements Module {
 

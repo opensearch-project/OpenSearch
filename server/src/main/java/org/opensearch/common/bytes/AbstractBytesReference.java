@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.function.ToIntBiFunction;
 
+/**
+ * Base bytesref class
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractBytesReference implements BytesReference {
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it

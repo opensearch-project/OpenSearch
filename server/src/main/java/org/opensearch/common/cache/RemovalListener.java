@@ -32,6 +32,11 @@
 
 package org.opensearch.common.cache;
 
+/**
+ * Listener for removing an element from the cache
+ *
+ * @opensearch.internal
+ */
 @FunctionalInterface
 public interface RemovalListener<K, V> {
     void onRemoval(RemovalNotification<K, V> notification);

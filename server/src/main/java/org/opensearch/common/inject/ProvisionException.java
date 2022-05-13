@@ -46,6 +46,8 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
  * @author kevinb@google.com (Kevin Bourrillion)
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class ProvisionException extends RuntimeException {
     private final Set<Message> messages;

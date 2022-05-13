@@ -34,6 +34,8 @@ package org.opensearch.common.util.concurrent;
 
 /**
  * An extension to runnable.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractRunnable implements Runnable {
 

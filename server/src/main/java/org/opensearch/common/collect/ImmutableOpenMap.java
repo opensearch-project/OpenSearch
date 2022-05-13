@@ -52,6 +52,8 @@ import java.util.Map;
  * <p>
  * Can be constructed using a {@link #builder()}, or using {@link #builder(ImmutableOpenMap)} (which is an optimized
  * option to copy over existing content and modify it).
+ *
+ * @opensearch.internal
  */
 public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObjectCursor<KType, VType>> {
 
@@ -238,6 +240,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return new Builder<>(map);
     }
 
+    /**
+     * Builder for an immuatable map
+     *
+     * @opensearch.internal
+     */
     public static class Builder<KType, VType> implements ObjectObjectMap<KType, VType> {
         private ObjectObjectHashMap<KType, VType> map;
 

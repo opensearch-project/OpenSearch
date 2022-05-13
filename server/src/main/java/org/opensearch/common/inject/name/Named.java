@@ -41,6 +41,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * Annotates named things.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 @Retention(RUNTIME)
 @Target({ ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD })

@@ -46,6 +46,8 @@ import org.opensearch.common.util.PageCacheRecycler;
  * {@link ReleasableBytesReference} returned from {@link #bytes()}, so this
  * stream should only be closed after the bytes have been output or copied
  * elsewhere.
+ *
+ * @opensearch.internal
  */
 public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Releasable {
 

@@ -46,6 +46,8 @@ import java.net.UnknownHostException;
 
 /**
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
+ *
+ * @opensearch.internal
  */
 public final class TransportAddress implements Writeable, ToXContentFragment {
 

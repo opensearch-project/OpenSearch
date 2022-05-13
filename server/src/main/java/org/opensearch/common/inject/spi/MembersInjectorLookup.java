@@ -44,6 +44,8 @@ import java.util.Objects;
  *
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class MembersInjectorLookup<T> implements Element {
 

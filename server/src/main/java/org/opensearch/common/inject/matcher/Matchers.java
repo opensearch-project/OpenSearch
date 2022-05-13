@@ -42,6 +42,8 @@ import java.util.Objects;
  * Matcher implementations. Supports matching classes and methods.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class Matchers {
     private Matchers() {}
@@ -55,6 +57,11 @@ public class Matchers {
 
     private static final Matcher<Object> ANY = new Any();
 
+    /**
+     * Matches ANY
+     *
+     * @opensearch.internal
+     */
     private static class Any extends AbstractMatcher<Object> {
         @Override
         public boolean matches(Object o) {
@@ -78,6 +85,11 @@ public class Matchers {
         return new Not<>(p);
     }
 
+    /**
+     * A NOT Matcher
+     *
+     * @opensearch.internal
+     */
     private static class Not<T> extends AbstractMatcher<T> {
         final Matcher<? super T> delegate;
 
@@ -121,6 +133,11 @@ public class Matchers {
         return new AnnotatedWithType(annotationType);
     }
 
+    /**
+     * An annotated with type
+     *
+     * @opensearch.internal
+     */
     private static class AnnotatedWithType extends AbstractMatcher<AnnotatedElement> {
         private final Class<? extends Annotation> annotationType;
 
@@ -158,6 +175,11 @@ public class Matchers {
         return new AnnotatedWith(annotation);
     }
 
+    /**
+     * An annotated With matcher
+     *
+     * @opensearch.internal
+     */
     private static class AnnotatedWith extends AbstractMatcher<AnnotatedElement> {
         private final Annotation annotation;
 
@@ -196,6 +218,11 @@ public class Matchers {
         return new SubclassesOf(superclass);
     }
 
+    /**
+     * A subclass matcher
+     *
+     * @opensearch.internal
+     */
     private static class SubclassesOf extends AbstractMatcher<Class> {
         private final Class<?> superclass;
 
@@ -231,6 +258,11 @@ public class Matchers {
         return new Only(value);
     }
 
+    /**
+     * ONLY matcher
+     *
+     * @opensearch.internal
+     */
     private static class Only extends AbstractMatcher<Object> {
         private final Object value;
 
@@ -266,6 +298,11 @@ public class Matchers {
         return new IdenticalTo(value);
     }
 
+    /**
+     * Identical matcher
+     *
+     * @opensearch.internal
+     */
     private static class IdenticalTo extends AbstractMatcher<Object> {
         private final Object value;
 
@@ -302,6 +339,11 @@ public class Matchers {
         return new InPackage(targetPackage);
     }
 
+    /**
+     * In Package matcher
+     *
+     * @opensearch.internal
+     */
     private static class InPackage extends AbstractMatcher<Class> {
         private final transient Package targetPackage;
         private final String packageName;
@@ -348,6 +390,11 @@ public class Matchers {
         return new InSubpackage(targetPackageName);
     }
 
+    /**
+     * In Subpackage matcher
+     *
+     * @opensearch.internal
+     */
     private static class InSubpackage extends AbstractMatcher<Class> {
         private final String targetPackageName;
 
@@ -384,6 +431,11 @@ public class Matchers {
         return new Returns(returnType);
     }
 
+    /**
+     * Returns matcher
+     *
+     * @opensearch.internal
+     */
     private static class Returns extends AbstractMatcher<Method> {
         private final Matcher<? super Class<?>> returnType;
 

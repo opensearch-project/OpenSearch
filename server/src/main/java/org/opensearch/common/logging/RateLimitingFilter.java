@@ -51,6 +51,11 @@ import java.util.Set;
 
 import static org.opensearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 
+/**
+ * Filter that is rate limiting
+ *
+ * @opensearch.internal
+ */
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
 public class RateLimitingFilter extends AbstractFilter {
 

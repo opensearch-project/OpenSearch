@@ -43,6 +43,8 @@ import java.io.IOException;
 /**
  * A {@link org.apache.lucene.index.FilterDirectoryReader} that exposes
  * OpenSearch internal per shard / index information like the shard ID.
+ *
+ * @opensearch.internal
  */
 public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
 

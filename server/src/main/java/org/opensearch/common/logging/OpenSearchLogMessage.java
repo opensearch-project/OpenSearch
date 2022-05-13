@@ -41,6 +41,8 @@ import java.util.stream.Stream;
 
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
+ *
+ * @opensearch.internal
  */
 @SuppressLoggerChecks(reason = "Safe as this is abstract class")
 public abstract class OpenSearchLogMessage extends ParameterizedMessage {

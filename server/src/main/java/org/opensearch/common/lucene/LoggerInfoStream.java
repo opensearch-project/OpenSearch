@@ -39,8 +39,12 @@ import org.opensearch.common.logging.Loggers;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** An InfoStream (for Lucene's IndexWriter) that redirects
- *  messages to "lucene.iw.ifd" and "lucene.iw" Logger.trace. */
+/**
+ * An InfoStream (for Lucene's IndexWriter) that redirects
+ *  messages to "lucene.iw.ifd" and "lucene.iw" Logger.trace.
+ *
+ * @opensearch.internal
+ */
 public final class LoggerInfoStream extends InfoStream {
 
     private final Logger parentLogger;

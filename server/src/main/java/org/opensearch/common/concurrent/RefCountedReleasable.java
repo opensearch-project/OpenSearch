@@ -20,6 +20,8 @@ import org.opensearch.common.util.concurrent.AbstractRefCounted;
  * Decorator class that wraps an object reference as a {@link AbstractRefCounted} instance.
  * In addition to a {@link String} name, it accepts a {@link Runnable} shutdown hook that is
  * invoked when the reference count reaches zero i.e. on {@link #closeInternal()}.
+ *
+ * @opensearch.internal
  */
 public class RefCountedReleasable<T> extends AbstractRefCounted implements Releasable {
 

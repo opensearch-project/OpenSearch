@@ -65,6 +65,13 @@ import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+/**
+ * Joda class.
+ *
+ * @deprecated
+ *
+ * @opensearch.internal
+ */
 @Deprecated
 public class Joda {
     // Joda.forPattern could be used even before the logging is initialized.
@@ -392,6 +399,11 @@ public class Joda {
         return version.before(LegacyESVersion.V_7_0_0) && pattern.startsWith("8") == false;
     }
 
+    /**
+     * parses epcoch timers
+     *
+     * @opensearch.internal
+     */
     public static class EpochTimeParser implements DateTimeParser {
 
         private static final Pattern scientificNotation = Pattern.compile("[Ee]");
@@ -458,6 +470,11 @@ public class Joda {
         return deprecationLogger.getOrCompute();
     }
 
+    /**
+     * Epoch timer printer
+     *
+     * @opensearch.internal
+     */
     public static class EpochTimePrinter implements DateTimePrinter {
 
         private boolean hasMilliSecondPrecision;

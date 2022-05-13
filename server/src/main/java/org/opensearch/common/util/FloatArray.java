@@ -34,6 +34,8 @@ package org.opensearch.common.util;
 
 /**
  * Abstraction of an array of double values.
+ *
+ * @opensearch.internal
  */
 public interface FloatArray extends BigArray {
 

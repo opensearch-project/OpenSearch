@@ -39,7 +39,11 @@ import org.opensearch.common.inject.spi.Dependency;
 import java.util.Objects;
 
 /**
+ * Adapats internal factory to a provider
+ *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 class InternalFactoryToProviderAdapter<T> implements InternalFactory<T> {
 

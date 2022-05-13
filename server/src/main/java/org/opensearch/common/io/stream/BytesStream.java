@@ -34,6 +34,11 @@ package org.opensearch.common.io.stream;
 
 import org.opensearch.common.bytes.BytesReference;
 
+/**
+ * Base Bytes Stream.
+ *
+ * @opensearch.internal
+ */
 public abstract class BytesStream extends StreamOutput {
 
     public abstract BytesReference bytes();

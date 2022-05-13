@@ -41,6 +41,11 @@ import org.opensearch.geometry.utils.WellKnownText;
 import java.io.IOException;
 import java.text.ParseException;
 
+/**
+ * Well Known Text Format
+ *
+ * @opensearch.internal
+ */
 public class WKTGeometryFormat implements GeometryFormat<Geometry> {
     public static final String NAME = "wkt";
 

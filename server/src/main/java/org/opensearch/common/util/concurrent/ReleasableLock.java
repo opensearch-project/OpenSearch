@@ -41,6 +41,8 @@ import java.util.concurrent.locks.Lock;
 
 /**
  * Releasable lock used inside of Engine implementations
+ *
+ * @opensearch.internal
  */
 public class ReleasableLock implements Releasable {
     private final Lock lock;

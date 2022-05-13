@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * FileSystem blob store
+ *
+ * @opensearch.internal
+ */
 public class FsBlobStore implements BlobStore {
 
     private final Path path;

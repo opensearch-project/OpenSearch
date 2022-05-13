@@ -35,6 +35,11 @@ package org.opensearch.common.transport;
 import java.net.ConnectException;
 import java.nio.channels.ClosedChannelException;
 
+/**
+ * Helper class for network exceptions.
+ *
+ * @opensearch.internal
+ */
 public class NetworkExceptionHelper {
 
     public static boolean isConnectException(Throwable e) {

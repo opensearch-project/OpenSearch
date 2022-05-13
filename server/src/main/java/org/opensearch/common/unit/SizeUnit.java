@@ -32,6 +32,11 @@
 
 package org.opensearch.common.unit;
 
+/**
+ * Utility classe for size units.
+ *
+ * @opensearch.internal
+ */
 public enum SizeUnit {
     SINGLE {
         @Override

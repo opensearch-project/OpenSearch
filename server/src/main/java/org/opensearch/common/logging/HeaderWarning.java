@@ -52,6 +52,8 @@ import java.util.regex.Pattern;
  * This is a simplistic logger that adds warning messages to HTTP headers.
  * Use <code>HeaderWarning.addWarning(message,params)</code>. Message will be formatted according to RFC7234.
  * The result will be returned as HTTP response headers.
+ *
+ * @opensearch.internal
  */
 public class HeaderWarning {
     /**

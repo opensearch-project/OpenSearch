@@ -36,6 +36,8 @@ import org.opensearch.Version;
 
 /**
  * A {@link NamedWriteable} that has a minimum version associated with it.
+ *
+ * @opensearch.internal
  */
 public interface VersionedNamedWriteable extends NamedWriteable {
 

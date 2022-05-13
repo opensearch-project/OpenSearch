@@ -42,6 +42,11 @@ import org.opensearch.env.Environment;
 
 import java.nio.file.Path;
 
+/**
+ * Base settings class for key store commands.
+ *
+ * @opensearch.internal
+ */
 public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
 
     private KeyStoreWrapper keyStore;

@@ -34,6 +34,8 @@ package org.opensearch.common;
 
 /**
  * Generates opaque unique strings.
+ *
+ * @opensearch.internal
  */
 interface UUIDGenerator {
     String getBase64UUID();

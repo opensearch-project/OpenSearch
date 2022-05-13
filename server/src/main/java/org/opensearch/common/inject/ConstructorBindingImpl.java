@@ -44,6 +44,11 @@ import org.opensearch.common.inject.spi.InjectionPoint;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Constructor binding implementation
+ *
+ * @opensearch.internal
+ */
 class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBinding<T> {
 
     private final Factory<T> factory;
@@ -115,6 +120,11 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
             .toString();
     }
 
+    /**
+     * Factory to build a binding object
+     *
+     * @opensearch.internal
+     */
     private static class Factory<T> implements InternalFactory<T> {
         private ConstructorInjector<T> constructorInjector;
 

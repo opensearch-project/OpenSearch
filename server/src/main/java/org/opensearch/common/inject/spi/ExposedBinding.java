@@ -37,6 +37,8 @@ import org.opensearch.common.inject.Binding;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public interface ExposedBinding<T> extends Binding<T>, HasDependencies {
 
