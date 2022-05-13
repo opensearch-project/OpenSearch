@@ -56,7 +56,7 @@ public class Jdk implements Buildable, Iterable<File> {
     private static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
-    private static final Pattern LEGACY_VERSION_PATTERN = Pattern.compile("(\\d)(u\\d+)\\+(b\\d+?)(@([a-f0-9]{32}))?");
+    private static final Pattern LEGACY_VERSION_PATTERN = Pattern.compile("(\\d)(u\\d+)(?:\\+|\\-)(b\\d+?)(@([a-f0-9]{32}))?");
 
     private final String name;
     private final Configuration configuration;
