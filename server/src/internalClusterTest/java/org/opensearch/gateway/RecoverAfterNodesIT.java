@@ -129,7 +129,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
 
     public void testRecoverAfterMasterNodes() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        logger.info("--> start master_node (1)");
+        logger.info("--> start cluster_manager_node (1)");
         Client master1 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(
             master1.admin()
@@ -210,7 +210,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
             hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
         );
 
-        logger.info("--> start master_node (2)");
+        logger.info("--> start cluster_manager_node (2)");
         Client master2 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master1).isEmpty(), equalTo(true));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master2).isEmpty(), equalTo(true));
@@ -220,7 +220,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
 
     public void testRecoverAfterDataNodes() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        logger.info("--> start master_node (1)");
+        logger.info("--> start cluster_manager_node (1)");
         Client master1 = startNode(Settings.builder().put("gateway.recover_after_data_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(
             master1.admin()
@@ -262,7 +262,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
             hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
         );
 
-        logger.info("--> start master_node (2)");
+        logger.info("--> start cluster_manager_node (2)");
         Client master2 = startNode(Settings.builder().put("gateway.recover_after_data_nodes", 2).put(clusterManagerOnlyNode()));
         assertThat(
             master2.admin()

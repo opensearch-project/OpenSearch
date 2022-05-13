@@ -119,7 +119,7 @@ public class ShardStateActionIT extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(), "urgent"))
         );
 
-        // ensure that the master always has a HIGH priority pending task
+        // ensure that the cluster-manager always has a HIGH priority pending task
         final AtomicBoolean stopSpammingMaster = new AtomicBoolean();
         final ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         masterClusterService.submitStateUpdateTask("spam", new ClusterStateUpdateTask(Priority.HIGH) {
@@ -141,7 +141,8 @@ public class ShardStateActionIT extends OpenSearchIntegTestCase {
             }
         });
 
-        // even with the master under such pressure, all shards of the index can be assigned; in particular, after the primaries have
+        // even with the cluster-manager under such pressure, all shards of the index can be assigned; in particular, after the primaries
+        // have
         // started there's a follow-up reroute at a higher priority than the spam
         createIndex("test");
         assertFalse(client().admin().cluster().prepareHealth().setWaitForGreenStatus().get().isTimedOut());

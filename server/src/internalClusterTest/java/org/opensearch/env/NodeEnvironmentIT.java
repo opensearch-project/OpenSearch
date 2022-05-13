@@ -79,10 +79,10 @@ public class NodeEnvironmentIT extends OpenSearchIntegTestCase {
             );
         }
 
-        logger.info("--> restarting the node without the data and master roles");
+        logger.info("--> restarting the node without the data and cluster-manager roles");
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            "node not having the data and master roles while having existing index metadata must fail",
+            "node not having the data and cluster-manager roles while having existing index metadata must fail",
             () -> internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                 @Override
                 public Settings onNodeStopped(String nodeName) {

@@ -72,11 +72,11 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
                     .getMasterNodeId(),
                 nullValue()
             );
-            fail("should not be able to find master");
+            fail("should not be able to find cluster-manager");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no cluster-manager elected
         }
-        logger.info("--> start master node");
+        logger.info("--> start cluster-manager node");
         final String masterNodeName = internalCluster().startClusterManagerOnlyNode();
         assertThat(
             internalCluster().nonMasterClient()
@@ -122,12 +122,12 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
                     .getMasterNodeId(),
                 nullValue()
             );
-            fail("should not be able to find master");
+            fail("should not be able to find cluster-manager");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no cluster-manager elected
         }
 
-        logger.info("--> start previous master node again");
+        logger.info("--> start previous cluster-manager node again");
         final String nextMasterEligibleNodeName = internalCluster().startNode(
             Settings.builder().put(nonDataNode(masterNode())).put(masterDataPathSettings)
         );
@@ -161,7 +161,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
 
     public void testElectOnlyBetweenMasterNodes() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        logger.info("--> start data node / non master node");
+        logger.info("--> start data node / non cluster-manager node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(
@@ -176,11 +176,11 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
                     .getMasterNodeId(),
                 nullValue()
             );
-            fail("should not be able to find master");
+            fail("should not be able to find cluster-manager");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no cluster-manager elected
         }
-        logger.info("--> start master node (1)");
+        logger.info("--> start cluster-manager node (1)");
         final String masterNodeName = internalCluster().startClusterManagerOnlyNode();
         assertThat(
             internalCluster().nonMasterClient()
@@ -209,7 +209,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
             equalTo(masterNodeName)
         );
 
-        logger.info("--> start master node (2)");
+        logger.info("--> start cluster-manager node (2)");
         final String nextMasterEligableNodeName = internalCluster().startClusterManagerOnlyNode();
         assertThat(
             internalCluster().nonMasterClient()
@@ -253,7 +253,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
 
         logger.info("--> closing master node (1)");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNodeName)).get();
-        // removing the master from the voting configuration immediately triggers the master to step down
+        // removing the cluster-manager from the voting configuration immediately triggers the cluster-manager to step down
         assertBusy(() -> {
             assertThat(
                 internalCluster().nonMasterClient()
@@ -313,10 +313,10 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
 
     public void testAliasFilterValidation() {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        logger.info("--> start master node / non data");
+        logger.info("--> start cluster-manager node / non data");
         internalCluster().startClusterManagerOnlyNode();
 
-        logger.info("--> start data node / non master node");
+        logger.info("--> start data node / non cluster-manager node");
         internalCluster().startDataOnlyNode();
 
         assertAcked(

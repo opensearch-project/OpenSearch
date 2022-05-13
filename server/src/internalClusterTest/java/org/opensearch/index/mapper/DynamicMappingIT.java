@@ -76,7 +76,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
             assertThat(e.getMessage(), Matchers.containsString("failed to parse field [foo] of type [long]"));
         } catch (IllegalArgumentException e) {
             // rare case: the node that processes the index request doesn't have the mappings
-            // yet and sends a mapping update to the master node to map "bar" as "text". This
+            // yet and sends a mapping update to the cluster-manager node to map "bar" as "text". This
             // fails as it had been already mapped as a long by the previous index request.
             assertThat(e.getMessage(), Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]"));
         }

@@ -216,7 +216,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
     }
 
     void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?> builder) {
-        // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
+        // we clean the metadata when loosing a cluster-manager, therefore all operations on indices will auto create it, if allowed
         try {
             builder.get();
             fail("expected ClusterBlockException or MasterNotDiscoveredException");

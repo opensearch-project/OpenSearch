@@ -74,7 +74,7 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
         logger.info("--> wait for all nodes to join the cluster");
         ensureStableCluster(4);
 
-        // We index data with mapping changes into cluster and have master failover at same time
+        // We index data with mapping changes into cluster and have cluster-manager failover at same time
         client().admin()
             .indices()
             .prepareCreate("myindex")
@@ -108,14 +108,14 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
 
         barrier.await();
 
-        // interrupt communication between master and other nodes in cluster
+        // interrupt communication between cluster-manager and other nodes in cluster
         NetworkDisruption partition = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
 
         logger.info("--> disrupting network");
         partition.startDisrupting();
 
-        logger.info("--> waiting for new master to be elected");
+        logger.info("--> waiting for new cluster-manager to be elected");
         ensureStableCluster(3, dataNode);
 
         partition.stopDisrupting();

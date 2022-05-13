@@ -149,7 +149,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     // returns data paths settings of in-sync shard copy
-    private Settings createStaleReplicaScenario(String master) throws Exception {
+    private Settings createStaleReplicaScenario(String clusterManager) throws Exception {
         client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         refresh();
         ClusterState state = client().admin().cluster().prepareState().all().get().getState();
@@ -167,14 +167,14 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         }
 
         NetworkDisruption partition = new NetworkDisruption(
-            new TwoPartitions(Sets.newHashSet(master, replicaNode), Collections.singleton(primaryNode)),
+            new TwoPartitions(Sets.newHashSet(clusterManager, replicaNode), Collections.singleton(primaryNode)),
             NetworkDisruption.DISCONNECT
         );
         internalCluster().setDisruptionScheme(partition);
         logger.info("--> partitioning node with primary shard from rest of cluster");
         partition.startDisrupting();
 
-        ensureStableCluster(2, master);
+        ensureStableCluster(2, clusterManager);
 
         logger.info("--> index a document into previous replica shard (that is now primary)");
         client(replicaNode).prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
@@ -183,26 +183,29 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
 
-        ensureStableCluster(1, master);
+        ensureStableCluster(1, clusterManager);
 
         partition.stopDisrupting();
 
         logger.info("--> waiting for node with old primary shard to rejoin the cluster");
-        ensureStableCluster(2, master);
+        ensureStableCluster(2, clusterManager);
 
         logger.info("--> check that old primary shard does not get promoted to primary again");
         // kick reroute and wait for all shard states to be fetched
-        client(master).admin().cluster().prepareReroute().get();
+        client(clusterManager).admin().cluster().prepareReroute().get();
         assertBusy(
-            () -> assertThat(internalCluster().getInstance(GatewayAllocator.class, master).getNumberOfInFlightFetches(), equalTo(0))
+            () -> assertThat(internalCluster().getInstance(GatewayAllocator.class, clusterManager).getNumberOfInFlightFetches(), equalTo(0))
         );
         // kick reroute a second time and check that all shards are unassigned
-        assertThat(client(master).admin().cluster().prepareReroute().get().getState().getRoutingNodes().unassigned().size(), equalTo(2));
+        assertThat(
+            client(clusterManager).admin().cluster().prepareReroute().get().getState().getRoutingNodes().unassigned().size(),
+            equalTo(2)
+        );
         return inSyncDataPathSettings;
     }
 
     public void testDoNotAllowStaleReplicasToBePromotedToPrimary() throws Exception {
-        logger.info("--> starting 3 nodes, 1 master, 2 data");
+        logger.info("--> starting 3 nodes, 1 cluster-manager, 2 data");
         String master = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
         assertAcked(

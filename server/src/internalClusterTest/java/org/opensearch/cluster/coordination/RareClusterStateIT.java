@@ -105,9 +105,9 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         // close to have some unassigned started shards shards..
         client().admin().indices().prepareClose(index).get();
 
-        final String masterName = internalCluster().getMasterName();
-        final ClusterService clusterService = internalCluster().clusterService(masterName);
-        final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, masterName);
+        final String clusterManagerName = internalCluster().getMasterName();
+        final ClusterService clusterService = internalCluster().clusterService(clusterManagerName);
+        final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, clusterManagerName);
         clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -220,36 +220,36 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(2);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
-        final String master = internalCluster().getMasterName();
-        assertThat(nodeNames, hasItem(master));
+        final String clusterManager = internalCluster().getMasterName();
+        assertThat(nodeNames, hasItem(clusterManager));
         String otherNode = null;
         for (String node : nodeNames) {
-            if (node.equals(master) == false) {
+            if (node.equals(clusterManager) == false) {
                 otherNode = node;
                 break;
             }
         }
         assertNotNull(otherNode);
 
-        // Don't allocate the shard on the master node
+        // Don't allocate the shard on the cluster-manager node
         assertAcked(
             prepareCreate("index").setSettings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.routing.allocation.exclude._name", master)
+                    .put("index.routing.allocation.exclude._name", clusterManager)
             ).get()
         );
         ensureGreen();
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(master, state.nodes().getMasterNode().getName());
+        assertEquals(clusterManager, state.nodes().getMasterNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(1));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
-                // primary must not be on the master node
+                // primary must not be on the cluster-manager node
                 assertFalse(state.nodes().getMasterNodeId().equals(shard.currentNodeId()));
             } else {
                 fail(); // only primaries
@@ -266,7 +266,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
             client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
         );
 
-        // ...and wait for mappings to be available on master
+        // ...and wait for mappings to be available on cluster-manager
         assertBusy(() -> {
             MappingMetadata typeMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(typeMappings);
@@ -308,24 +308,24 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(2);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
-        final String master = internalCluster().getMasterName();
-        assertThat(nodeNames, hasItem(master));
+        final String clusterManager = internalCluster().getMasterName();
+        assertThat(nodeNames, hasItem(clusterManager));
         String otherNode = null;
         for (String node : nodeNames) {
-            if (node.equals(master) == false) {
+            if (node.equals(clusterManager) == false) {
                 otherNode = node;
                 break;
             }
         }
         assertNotNull(otherNode);
 
-        // Force allocation of the primary on the master node by first only allocating on the master
+        // Force allocation of the primary on the cluster-manager node by first only allocating on the cluster-manager
         // and then allowing all nodes so that the replica gets allocated on the other node
         prepareCreate("index").setSettings(
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name", master)
+                .put("index.routing.allocation.include._name", clusterManager)
         ).get();
         client().admin()
             .indices()
@@ -336,7 +336,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(master, state.nodes().getMasterNode().getName());
+        assertEquals(clusterManager, state.nodes().getMasterNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(2));
         for (ShardRouting shard : shards) {
@@ -359,7 +359,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         final Index index = resolveIndex("index");
         // Wait for mappings to be available on master
         assertBusy(() -> {
-            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, master);
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, clusterManager);
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();
@@ -383,7 +383,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // ...and wait for second mapping to be available on master
         assertBusy(() -> {
-            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, master);
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, clusterManager);
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();

@@ -390,7 +390,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Waits for the given mapping type to exists on the master node.
+     * Waits for the given mapping type to exists on the cluster-manager node.
      */
     private void assertMappingOnMaster(final String index, final String... fieldNames) {
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).get();
