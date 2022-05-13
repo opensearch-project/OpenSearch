@@ -69,7 +69,11 @@ public final class ScoreScriptUtils {
         return Math.pow(value, a) / (Math.pow(k, a) + Math.pow(value, a));
     }
 
-    // random score based on the documents' values of the given field
+    /**
+     * random score based on the documents' values of the given field
+     *
+     * @opensearch.internal
+     */
     public static final class RandomScoreField {
         private final ScoreScript scoreScript;
         private final ScriptDocValues docValues;
@@ -95,7 +99,11 @@ public final class ScoreScriptUtils {
         }
     }
 
-    // random score based on the internal Lucene document Ids
+    /**
+     * random score based on the internal Lucene document Ids
+     *
+     * @opensearch.internal
+     */
     public static final class RandomScoreDoc {
         private final ScoreScript scoreScript;
         private final int saltedSeed;
@@ -113,7 +121,11 @@ public final class ScoreScriptUtils {
         }
     }
 
-    // **** Decay functions on geo field
+    /**
+     * **** Decay functions on geo field
+     *
+     * @opensearch.internal
+     */
     public static final class DecayGeoLinear {
         // cached variables calculated once per script execution
         double originLat;
@@ -137,6 +149,11 @@ public final class ScoreScriptUtils {
         }
     }
 
+    /**
+     * Exponential geo decay
+     *
+     * @opensearch.internal
+     */
     public static final class DecayGeoExp {
         double originLat;
         double originLon;
@@ -159,6 +176,11 @@ public final class ScoreScriptUtils {
         }
     }
 
+    /**
+     * Gaussian geo decay
+     *
+     * @opensearch.internal
+     */
     public static final class DecayGeoGauss {
         double originLat;
         double originLon;
@@ -183,6 +205,11 @@ public final class ScoreScriptUtils {
 
     // **** Decay functions on numeric field
 
+    /**
+     * Linear numeric decay
+     *
+     * @opensearch.internal
+     */
     public static final class DecayNumericLinear {
         double origin;
         double offset;
@@ -200,6 +227,11 @@ public final class ScoreScriptUtils {
         }
     }
 
+    /**
+     * Exponential numeric decay
+     *
+     * @opensearch.internal
+     */
     public static final class DecayNumericExp {
         double origin;
         double offset;
@@ -217,6 +249,11 @@ public final class ScoreScriptUtils {
         }
     }
 
+    /**
+     * Gaussian numeric decay
+     *
+     * @opensearch.internal
+     */
     public static final class DecayNumericGauss {
         double origin;
         double offset;
@@ -245,6 +282,11 @@ public final class ScoreScriptUtils {
     private static final ZoneId defaultZoneId = ZoneId.of("UTC");
     private static final DateMathParser dateParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
+    /**
+     * Linear date decay
+     *
+     * @opensearch.internal
+     */
     public static final class DecayDateLinear {
         long origin;
         long offset;
@@ -268,6 +310,11 @@ public final class ScoreScriptUtils {
         }
     }
 
+    /**
+     * Exponential date decay
+     *
+     * @opensearch.internal
+     */
     public static final class DecayDateExp {
         long origin;
         long offset;
@@ -290,6 +337,11 @@ public final class ScoreScriptUtils {
         }
     }
 
+    /**
+     * Gaussian date decay
+     *
+     * @opensearch.internal
+     */
     public static final class DecayDateGauss {
         long origin;
         long offset;

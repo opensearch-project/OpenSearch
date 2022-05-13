@@ -202,6 +202,11 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
         assert removed == null;
     }
 
+    /**
+     * Cursor for the map
+     *
+     * @opensearch.internal
+     */
     public static final class Cursor<T> {
         public long index;
         public long key;

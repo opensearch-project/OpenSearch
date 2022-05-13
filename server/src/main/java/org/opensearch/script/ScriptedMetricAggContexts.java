@@ -54,6 +54,11 @@ import java.util.function.Function;
  */
 public class ScriptedMetricAggContexts {
 
+    /**
+     * Base initialization script
+     *
+     * @opensearch.internal
+     */
     public abstract static class InitScript {
         private final Map<String, Object> params;
         private final Map<String, Object> state;
@@ -73,6 +78,11 @@ public class ScriptedMetricAggContexts {
 
         public abstract void execute();
 
+        /**
+         * Factory for a scripted metric agg context
+         *
+         * @opensearch.internal
+         */
         public interface Factory extends ScriptFactory {
             InitScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
@@ -81,6 +91,11 @@ public class ScriptedMetricAggContexts {
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_init", Factory.class);
     }
 
+    /**
+     * Base map script
+     *
+     * @opensearch.internal
+     */
     public abstract static class MapScript {
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
@@ -162,10 +177,20 @@ public class ScriptedMetricAggContexts {
 
         public abstract void execute();
 
+        /**
+         * Factory for a scripted metric agg context
+         *
+         * @opensearch.internal
+         */
         public interface LeafFactory {
             MapScript newInstance(LeafReaderContext ctx);
         }
 
+        /**
+         * Factory for a scripted metric agg factory
+         *
+         * @opensearch.internal
+         */
         public interface Factory extends ScriptFactory {
             LeafFactory newFactory(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup);
         }
@@ -174,6 +199,11 @@ public class ScriptedMetricAggContexts {
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_map", Factory.class);
     }
 
+    /**
+     * Base combination script
+     *
+     * @opensearch.internal
+     */
     public abstract static class CombineScript {
         private final Map<String, Object> params;
         private final Map<String, Object> state;
@@ -193,6 +223,11 @@ public class ScriptedMetricAggContexts {
 
         public abstract Object execute();
 
+        /**
+         * Factory for a scripted metric agg context
+         *
+         * @opensearch.internal
+         */
         public interface Factory extends ScriptFactory {
             CombineScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
@@ -201,6 +236,11 @@ public class ScriptedMetricAggContexts {
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_combine", Factory.class);
     }
 
+    /**
+     * Base reduce script
+     *
+     * @opensearch.internal
+     */
     public abstract static class ReduceScript {
         private final Map<String, Object> params;
         private final List<Object> states;
@@ -220,6 +260,11 @@ public class ScriptedMetricAggContexts {
 
         public abstract Object execute();
 
+        /**
+         * Factory for a scripted metric agg context
+         *
+         * @opensearch.internal
+         */
         public interface Factory extends ScriptFactory {
             ReduceScript newInstance(Map<String, Object> params, List<Object> states);
         }

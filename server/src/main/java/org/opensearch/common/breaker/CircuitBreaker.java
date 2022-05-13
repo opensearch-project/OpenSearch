@@ -69,6 +69,11 @@ public interface CircuitBreaker {
      */
     String IN_FLIGHT_REQUESTS = "in_flight_requests";
 
+    /**
+     * The type of breaker
+     *
+     * @opensearch.internal
+     */
     enum Type {
         // A regular or ChildMemoryCircuitBreaker
         MEMORY,
@@ -91,6 +96,11 @@ public interface CircuitBreaker {
         }
     }
 
+    /**
+     * The breaker durability
+     *
+     * @opensearch.internal
+     */
     enum Durability {
         // The condition that tripped the circuit breaker fixes itself eventually.
         TRANSIENT,

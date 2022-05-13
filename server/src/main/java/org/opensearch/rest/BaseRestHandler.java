@@ -224,6 +224,11 @@ public abstract class BaseRestHandler implements RestHandler {
         }
     }
 
+    /**
+     * A wrapper for the base handler.
+     *
+     * @opensearch.internal
+     */
     public static class Wrapper extends BaseRestHandler {
 
         protected final BaseRestHandler delegate;

@@ -67,6 +67,11 @@ public final class AssignmentDecision {
         return "assignment decision [type=" + type + ", reason=" + reason + "]";
     }
 
+    /**
+     * The decision.
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         NO(0),
         YES(1);

@@ -107,6 +107,11 @@ public class ClusterFormationFailureHelper {
         warningScheduler = null;
     }
 
+    /**
+     * A warning scheduler.
+     *
+     * @opensearch.internal
+     */
     private class WarningScheduler {
 
         private boolean isActive() {
@@ -143,6 +148,11 @@ public class ClusterFormationFailureHelper {
         }
     }
 
+    /**
+     * State of the cluster formation.
+     *
+     * @opensearch.internal
+     */
     static class ClusterFormationState {
         private final Settings settings;
         private final ClusterState clusterState;

@@ -631,6 +631,8 @@ public abstract class AbstractScopedSettings {
      * Transactional interface to update settings.
      * @see Setting
      * @param <T> the type of the value of the setting
+     *
+     * @opensearch.internal
      */
     public interface SettingUpdater<T> {
 

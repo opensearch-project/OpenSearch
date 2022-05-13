@@ -676,6 +676,8 @@ class InjectorImpl implements Injector, Lookups {
 
     /**
      * Invokes a method.
+     *
+     * @opensearch.internal
      */
     interface MethodInvoker {
         Object invoke(Object target, Object... parameters) throws IllegalAccessException, InvocationTargetException;

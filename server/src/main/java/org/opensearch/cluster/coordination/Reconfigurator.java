@@ -170,6 +170,11 @@ public class Reconfigurator {
         }
     }
 
+    /**
+     * A node to handle voting configs.
+     *
+     * @opensearch.internal
+     */
     static class VotingConfigNode implements Comparable<VotingConfigNode> {
         final String id;
         final boolean live;

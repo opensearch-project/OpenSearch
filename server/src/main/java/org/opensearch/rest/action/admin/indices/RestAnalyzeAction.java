@@ -54,6 +54,11 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  */
 public class RestAnalyzeAction extends BaseRestHandler {
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     public static class Fields {
         public static final ParseField ANALYZER = new ParseField("analyzer");
         public static final ParseField TEXT = new ParseField("text");

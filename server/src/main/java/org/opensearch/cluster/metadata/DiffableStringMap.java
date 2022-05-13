@@ -90,6 +90,8 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
     /**
      * Represents differences between two DiffableStringMaps.
+     *
+     * @opensearch.internal
      */
     public static class DiffableStringMapDiff implements Diff<DiffableStringMap> {
 

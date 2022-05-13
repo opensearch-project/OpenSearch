@@ -62,6 +62,11 @@ public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implemen
         return new CompleteNamedDiff<>(tClass, name, in);
     }
 
+    /**
+     * A complete named diff.
+     *
+     * @opensearch.internal
+     */
     private static class CompleteNamedDiff<T extends NamedDiffable<T>> implements NamedDiff<T> {
 
         @Nullable

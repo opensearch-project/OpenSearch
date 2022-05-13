@@ -321,6 +321,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return AbstractDiffable.readDiffFrom(ClusterBlocks::readFrom, in);
     }
 
+    /**
+     * An immutable level holder.
+     *
+     * @opensearch.internal
+     */
     static class ImmutableLevelHolder {
 
         private final Set<ClusterBlock> global;
@@ -344,6 +349,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return new Builder();
     }
 
+    /**
+     * Builder for cluster blocks.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final Set<ClusterBlock> global = new HashSet<>();

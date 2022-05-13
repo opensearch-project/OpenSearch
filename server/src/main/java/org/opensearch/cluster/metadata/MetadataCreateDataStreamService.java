@@ -125,6 +125,11 @@ public class MetadataCreateDataStreamService {
         return createDataStream(metadataCreateIndexService, current, request);
     }
 
+    /**
+     * A request to create a data stream cluster state update
+     *
+     * @opensearch.internal
+     */
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String name;

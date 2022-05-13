@@ -63,6 +63,11 @@ public abstract class BucketAggregationSelectorScript {
 
     public abstract boolean execute();
 
+    /**
+     * Factory for bucket agg selector script
+     *
+     * @opensearch.internal
+     */
     public interface Factory {
         BucketAggregationSelectorScript newInstance(Map<String, Object> params);
     }
