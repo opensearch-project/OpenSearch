@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-set -e
+set -e -o pipefail
 
 ### Script to check for signoff presents on commits
 

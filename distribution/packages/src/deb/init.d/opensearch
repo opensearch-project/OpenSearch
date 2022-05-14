@@ -12,7 +12,7 @@
 # Description:       Starts opensearch using start-stop-daemon
 ### END INIT INFO
 
-set -e
+set -e -o pipefail
 
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
 NAME=opensearch

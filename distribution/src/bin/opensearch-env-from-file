@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -e -o pipefail
 
 # Allow environment variables to be set by creating a file with the
 # contents, and setting an environment variable with the suffix _FILE to
