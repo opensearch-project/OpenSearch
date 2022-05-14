@@ -420,6 +420,11 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
         }
     }
 
+    /**
+     * The orientation of the vertices
+     *
+     * @opensearch.internal
+     */
     public enum Orientation {
         LEFT,
         RIGHT;

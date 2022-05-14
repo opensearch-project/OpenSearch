@@ -515,6 +515,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return sb.toString();
     }
 
+    /**
+     * Delta between nodes.
+     *
+     * @opensearch.internal
+     */
     public static class Delta {
 
         private final String localNodeId;
@@ -658,6 +663,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return new Builder(nodes);
     }
 
+    /**
+     * Builder of a map of discovery nodes.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final ImmutableOpenMap.Builder<String, DiscoveryNode> nodes;

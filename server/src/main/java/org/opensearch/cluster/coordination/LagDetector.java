@@ -151,6 +151,11 @@ public class LagDetector {
         return Collections.unmodifiableSet(appliedStateTrackersByNode.keySet());
     }
 
+    /**
+     * A tracker that the node applied state.
+     *
+     * @opensearch.internal
+     */
     private class NodeAppliedStateTracker {
         private final DiscoveryNode discoveryNode;
         private final AtomicLong appliedVersion = new AtomicLong();

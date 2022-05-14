@@ -137,6 +137,11 @@ public interface RoutingChangesObserver {
         }
     }
 
+    /**
+     * Observer of routing changes.
+     *
+     * @opensearch.internal
+     */
     class DelegatingRoutingChangesObserver implements RoutingChangesObserver {
 
         private final RoutingChangesObserver[] routingChangesObservers;

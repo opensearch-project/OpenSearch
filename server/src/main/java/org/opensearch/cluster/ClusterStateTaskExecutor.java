@@ -81,6 +81,8 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
+     *
+     * @opensearch.internal
      */
     class ClusterTasksResult<T> {
         @Nullable
@@ -101,6 +103,11 @@ public interface ClusterStateTaskExecutor<T> {
             return new Builder<>();
         }
 
+        /**
+         * Builder for cluster state task.
+         *
+         * @opensearch.internal
+         */
         public static class Builder<T> {
             private final Map<T, TaskResult> executionResults = new IdentityHashMap<>();
 
@@ -142,6 +149,11 @@ public interface ClusterStateTaskExecutor<T> {
         }
     }
 
+    /**
+     * The task result.
+     *
+     * @opensearch.internal
+     */
     final class TaskResult {
         private final Exception failure;
 

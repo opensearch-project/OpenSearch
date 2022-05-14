@@ -94,6 +94,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
     }
 
+    /**
+     * Task to update system index metadata.
+     *
+     * @opensearch.internal
+     */
     public class SystemIndexMetadataUpdateTask extends ClusterStateUpdateTask {
 
         @Override

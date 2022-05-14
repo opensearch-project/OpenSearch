@@ -148,6 +148,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
     );
 
+    /**
+     * The state of the index.
+     *
+     * @opensearch.internal
+     */
     public enum State {
         OPEN((byte) 0),
         CLOSE((byte) 1);
@@ -268,6 +273,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
 
+    /**
+     * Blocks the API.
+     *
+     * @opensearch.internal
+     */
     public enum APIBlock implements Writeable {
         READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK),
         READ("read", INDEX_READ_BLOCK),
@@ -819,6 +829,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return builder;
     }
 
+    /**
+     * A diff of index metadata.
+     *
+     * @opensearch.internal
+     */
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
         private final String index;
@@ -1045,6 +1060,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new Builder(indexMetadata);
     }
 
+    /**
+     * Builder of index metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private String index;

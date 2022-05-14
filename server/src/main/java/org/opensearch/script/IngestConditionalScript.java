@@ -68,6 +68,11 @@ public abstract class IngestConditionalScript {
 
     public abstract boolean execute(Map<String, Object> ctx);
 
+    /**
+     * Factory for ingest condition script
+     *
+     * @opensearch.internal
+     */
     public interface Factory {
         IngestConditionalScript newInstance(Map<String, Object> params);
     }

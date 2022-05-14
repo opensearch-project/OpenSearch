@@ -111,6 +111,11 @@ import static java.util.Collections.unmodifiableSet;
  * @opensearch.internal
  */
 public final class NodeEnvironment implements Closeable {
+    /**
+     * A node path.
+     *
+     * @opensearch.internal
+     */
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -214,6 +219,11 @@ public final class NodeEnvironment implements Closeable {
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
+    /**
+     * The node lock.
+     *
+     * @opensearch.internal
+     */
     public static class NodeLock implements Releasable {
 
         private final int nodeId;

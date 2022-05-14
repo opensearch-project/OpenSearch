@@ -252,6 +252,11 @@ public class JoinHelper {
         sendJoinRequest(destination, term, optionalJoin, () -> {});
     }
 
+    /**
+     * A failed join attempt.
+     *
+     * @opensearch.internal
+     */
     // package-private for testing
     static class FailedJoinAttempt {
         private final DiscoveryNode destination;
@@ -391,12 +396,22 @@ public class JoinHelper {
         );
     }
 
+    /**
+     * The callback interface.
+     *
+     * @opensearch.internal
+     */
     public interface JoinCallback {
         void onSuccess();
 
         void onFailure(Exception e);
     }
 
+    /**
+     * Listener for the join task
+     *
+     * @opensearch.internal
+     */
     static class JoinTaskListener implements ClusterStateTaskListener {
         private final JoinTaskExecutor.Task task;
         private final JoinCallback joinCallback;
@@ -428,6 +443,11 @@ public class JoinHelper {
         default void close(Mode newMode) {}
     }
 
+    /**
+     * A leader join accumulator.
+     *
+     * @opensearch.internal
+     */
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
@@ -448,6 +468,11 @@ public class JoinHelper {
         }
     }
 
+    /**
+     * An initial join accumulator.
+     *
+     * @opensearch.internal
+     */
     static class InitialJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
@@ -461,6 +486,11 @@ public class JoinHelper {
         }
     }
 
+    /**
+     * A follower join accumulator.
+     *
+     * @opensearch.internal
+     */
     static class FollowerJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
@@ -473,6 +503,11 @@ public class JoinHelper {
         }
     }
 
+    /**
+     * A candidate join accumulator.
+     *
+     * @opensearch.internal
+     */
     class CandidateJoinAccumulator implements JoinAccumulator {
 
         private final Map<DiscoveryNode, JoinCallback> joinRequestAccumulator = new HashMap<>();

@@ -387,6 +387,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String TARGET_THROTTLE_TIME_IN_MILLIS = "target_throttle_time_in_millis";
     }
 
+    /**
+     * Timing stats
+     *
+     * @opensearch.internal
+     */
     public static class Timer implements Writeable {
         protected long startTime = 0;
         protected long startNanoTime = 0;
@@ -650,6 +655,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
+    /**
+     * Details about the file
+     *
+     * @opensearch.internal
+     */
     public static class FileDetail implements ToXContentObject, Writeable {
         private String name;
         private long length;
@@ -751,6 +761,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
+    /**
+     * Details about the Recovery Files
+     *
+     * @opensearch.internal
+     */
     public static class RecoveryFilesDetails implements ToXContentFragment, Writeable {
         protected final Map<String, FileDetail> fileDetails = new HashMap<>();
         protected boolean complete;
@@ -841,6 +856,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
+    /**
+     * File details per Index
+     *
+     * @opensearch.internal
+     */
     public static class Index extends Timer implements ToXContentFragment, Writeable {
         private final RecoveryFilesDetails fileDetails;
 

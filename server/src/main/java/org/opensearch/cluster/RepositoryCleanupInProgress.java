@@ -117,6 +117,11 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         return LegacyESVersion.V_7_4_0;
     }
 
+    /**
+     * Entry in the collection.
+     *
+     * @opensearch.internal
+     */
     public static final class Entry implements Writeable, RepositoryOperation {
 
         private final String repository;

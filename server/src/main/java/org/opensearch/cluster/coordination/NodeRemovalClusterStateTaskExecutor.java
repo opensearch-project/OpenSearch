@@ -56,6 +56,11 @@ public class NodeRemovalClusterStateTaskExecutor
     private final AllocationService allocationService;
     private final Logger logger;
 
+    /**
+     * Task for the executor.
+     *
+     * @opensearch.internal
+     */
     public static class Task {
 
         private final DiscoveryNode node;

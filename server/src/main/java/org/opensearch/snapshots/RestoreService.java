@@ -772,6 +772,11 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
+    /**
+     * Response once restore is completed.
+     *
+     * @opensearch.internal
+     */
     public static final class RestoreCompletionResponse {
         private final String uuid;
         private final Snapshot snapshot;

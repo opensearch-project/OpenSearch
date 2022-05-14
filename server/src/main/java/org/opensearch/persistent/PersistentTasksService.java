@@ -245,6 +245,11 @@ public class PersistentTasksService {
         }
     }
 
+    /**
+     * Interface for a class that waits and listens for a persistent task.
+     *
+     * @opensearch.internal
+     */
     public interface WaitForPersistentTaskListener<P extends PersistentTaskParams> extends ActionListener<PersistentTask<P>> {
         default void onTimeout(TimeValue timeout) {
             onFailure(new IllegalStateException("Timed out when waiting for persistent task after " + timeout));

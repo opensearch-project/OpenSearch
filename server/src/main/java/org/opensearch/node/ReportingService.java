@@ -43,6 +43,11 @@ import org.opensearch.common.xcontent.ToXContent;
 public interface ReportingService<I extends ReportingService.Info> {
     I info();
 
+    /**
+     * Information interface.
+     *
+     * @opensearch.internal
+     */
     interface Info extends Writeable, ToXContent {
 
     }

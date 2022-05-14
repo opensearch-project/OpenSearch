@@ -95,6 +95,11 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         return new Builder().parse(parser).build();
     }
 
+    /**
+     * Builder for a stale primary allocation
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateStalePrimaryAllocationCommand> {
 
         @Override

@@ -88,6 +88,11 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
         return new Builder().parse(parser).build();
     }
 
+    /**
+     * A builder for the command.
+     *
+     * @opensearch.internal
+     */
     protected static class Builder extends AbstractAllocateAllocationCommand.Builder<AllocateReplicaAllocationCommand> {
 
         @Override

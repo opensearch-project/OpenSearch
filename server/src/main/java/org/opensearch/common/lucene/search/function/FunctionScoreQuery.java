@@ -141,6 +141,11 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
+    /**
+     * The mode of the score
+     *
+     * @opensearch.internal
+     */
     public enum ScoreMode implements Writeable {
         FIRST,
         AVG,
