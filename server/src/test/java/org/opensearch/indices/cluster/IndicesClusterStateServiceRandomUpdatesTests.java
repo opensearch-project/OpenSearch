@@ -505,7 +505,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             }
         }
 
-        // TODO: go masterless?
+        // TODO: go cluster-managerless?
 
         return state;
     }

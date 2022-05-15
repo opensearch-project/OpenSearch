@@ -87,7 +87,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         ClusterName name = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
         ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
-        ClusterState noMaster2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
+        ClusterState noClusterManager2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState withMaster1a = ClusterState.builder(name)
             .version(randomInt(5))
             .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
@@ -96,17 +96,17 @@ public class ClusterStateTests extends OpenSearchTestCase {
             .version(randomInt(5))
             .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
             .build();
-        ClusterState withMaster2 = ClusterState.builder(name)
+        ClusterState withClusterManager2 = ClusterState.builder(name)
             .version(randomInt(5))
             .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node2.getId()))
             .build();
 
         // states with no cluster-manager should never supersede anything
-        assertFalse(noMaster1.supersedes(noMaster2));
+        assertFalse(noMaster1.supersedes(noClusterManager2));
         assertFalse(noMaster1.supersedes(withMaster1a));
 
         // states should never supersede states from another cluster-manager
-        assertFalse(withMaster1a.supersedes(withMaster2));
+        assertFalse(withMaster1a.supersedes(withClusterManager2));
         assertFalse(withMaster1a.supersedes(noMaster1));
 
         // state from the same cluster-manager compare by version

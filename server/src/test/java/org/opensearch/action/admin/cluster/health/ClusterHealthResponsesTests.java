@@ -179,7 +179,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         }
     }
 
-    public void testParseFromXContentWithoutDiscoveredMasterField() throws IOException {
+    public void testParseFromXContentWithoutDiscoveredClusterManagerField() throws IOException {
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,

@@ -205,7 +205,7 @@ public class InSyncAllocationIdTests extends OpenSearchAllocationTestCase {
     /**
      * Assume following scenario: indexing request is written to primary, but fails to be replicated to active replica.
      * The primary instructs cluster-manager to fail replica before acknowledging write to client. In the meanwhile, primary fails for an unrelated
-     * reason. Master now batches both requests to fail primary and replica. We have to make sure that only the allocation id of the primary
+     * reason. Cluster-manager now batches both requests to fail primary and replica. We have to make sure that only the allocation id of the primary
      * is kept in the in-sync allocation set before we acknowledge request to client. Otherwise we would acknowledge a write that made it
      * into the primary but not the replica but the replica is still considered non-stale.
      */
