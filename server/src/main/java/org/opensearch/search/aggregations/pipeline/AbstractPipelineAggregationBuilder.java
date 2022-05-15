@@ -44,6 +44,8 @@ import java.util.Objects;
 
 /**
  * Base implementation of a {@link PipelineAggregationBuilder}.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPipelineAggregationBuilder<PAB>> extends
     PipelineAggregationBuilder {

@@ -35,6 +35,11 @@ package org.opensearch.action.admin.cluster.remote;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport builder for remote monitoring
+ *
+ * @opensearch.internal
+ */
 public final class RemoteInfoRequestBuilder extends ActionRequestBuilder<RemoteInfoRequest, RemoteInfoResponse> {
 
     public RemoteInfoRequestBuilder(OpenSearchClient client, RemoteInfoAction action) {

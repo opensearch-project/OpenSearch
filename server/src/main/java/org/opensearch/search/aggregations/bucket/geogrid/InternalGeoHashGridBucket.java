@@ -38,6 +38,11 @@ import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 
+/**
+ * Implementation of geohash grid bucket
+ *
+ * @opensearch.internal
+ */
 public class InternalGeoHashGridBucket extends InternalGeoGridBucket<InternalGeoHashGridBucket> {
     InternalGeoHashGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         super(hashAsLong, docCount, aggregations);

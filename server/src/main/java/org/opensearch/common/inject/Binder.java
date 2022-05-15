@@ -197,6 +197,8 @@ import java.lang.annotation.Annotation;
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
  * @author kevinb@google.com (Kevin Bourrillion)
+ *
+ * @opensearch.internal
  */
 public interface Binder {
 

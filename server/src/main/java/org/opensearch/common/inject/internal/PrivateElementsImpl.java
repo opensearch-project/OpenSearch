@@ -48,7 +48,11 @@ import java.util.Set;
 import static java.util.Collections.unmodifiableMap;
 
 /**
+ * Private elements implementation
+ *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public final class PrivateElementsImpl implements PrivateElements {
 

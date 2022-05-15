@@ -67,6 +67,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
+/**
+ * Operation for a replication request
+ *
+ * @opensearch.internal
+ */
 public class ReplicationOperation<
     Request extends ReplicationRequest<Request>,
     ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
@@ -591,6 +596,11 @@ public class ReplicationOperation<
 
     }
 
+    /**
+     * Thrown if there are any errors retrying on primary
+     *
+     * @opensearch.internal
+     */
     public static class RetryOnPrimaryException extends OpenSearchException {
         RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
@@ -606,6 +616,11 @@ public class ReplicationOperation<
         }
     }
 
+    /**
+     * The result of the primary.
+     *
+     * @opensearch.internal
+     */
     public interface PrimaryResult<RequestT extends ReplicationRequest<RequestT>> {
 
         /**

@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A long numeric term result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedLongRareTerms extends ParsedRareTerms {
     @Override
     public String getType() {
@@ -60,6 +65,11 @@ public class ParsedLongRareTerms extends ParsedRareTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for rare long values
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedRareTerms.ParsedBucket {
 
         private Long key;

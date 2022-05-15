@@ -54,6 +54,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
+/**
+ * Perform action for a multi search
+ *
+ * @opensearch.internal
+ */
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
     private final int allocatedProcessors;
@@ -215,6 +220,11 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         });
     }
 
+    /**
+     * Slots a search request
+     *
+     * @opensearch.internal
+     */
     static final class SearchRequestSlot {
 
         final SearchRequest request;

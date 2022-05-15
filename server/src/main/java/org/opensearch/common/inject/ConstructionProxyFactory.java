@@ -33,6 +33,8 @@ package org.opensearch.common.inject;
  * Creates {@link ConstructionProxy} instances.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 interface ConstructionProxyFactory<T> {
 

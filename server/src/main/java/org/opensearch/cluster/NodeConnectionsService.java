@@ -80,6 +80,8 @@ import static org.opensearch.common.settings.Setting.positiveTimeSetting;
  * <p>
  * This component does not block on disconnections at all, because a disconnection might need to wait for an ongoing (background) connection
  * attempt to complete first.
+ *
+ * @opensearch.internal
  */
 public class NodeConnectionsService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(NodeConnectionsService.class);
@@ -227,6 +229,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         runnables.forEach(Runnable::run);
     }
 
+    /**
+     * A connection checker.
+     *
+     * @opensearch.internal
+     */
     class ConnectionChecker extends AbstractRunnable {
         protected void doRun() {
             if (connectionChecker == this) {
@@ -309,6 +316,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      * Similarly if we are currently disconnecting and then {@link ConnectionTarget#connect(ActionListener)} is called then all
      * disconnection listeners are immediately removed for failure notification and a connection is started once the disconnection is
      * complete.
+     *
+     * @opensearch.internal
      */
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;

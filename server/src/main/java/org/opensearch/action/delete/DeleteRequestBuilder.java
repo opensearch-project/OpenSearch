@@ -40,6 +40,8 @@ import org.opensearch.index.VersionType;
 
 /**
  * A delete document action request builder.
+ *
+ * @opensearch.internal
  */
 public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder>
     implements

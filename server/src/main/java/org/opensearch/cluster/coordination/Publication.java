@@ -52,6 +52,11 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+/**
+ * Publication task
+ *
+ * @opensearch.internal
+ */
 public abstract class Publication {
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -247,6 +252,11 @@ public abstract class Publication {
         APPLIED_COMMIT,
     }
 
+    /**
+     * A publication target.
+     *
+     * @opensearch.internal
+     */
     class PublicationTarget {
         private final DiscoveryNode discoveryNode;
         private boolean ackIsPending = true;
@@ -358,6 +368,11 @@ public abstract class Publication {
             return state == PublicationTargetState.FAILED;
         }
 
+        /**
+         * A handler for a publish response.
+         *
+         * @opensearch.internal
+         */
         private class PublishResponseHandler implements ActionListener<PublishWithJoinResponse> {
 
             @Override
@@ -399,6 +414,11 @@ public abstract class Publication {
 
         }
 
+        /**
+         * An apply commit response handler.
+         *
+         * @opensearch.internal
+         */
         private class ApplyCommitResponseHandler implements ActionListener<TransportResponse.Empty> {
 
             @Override

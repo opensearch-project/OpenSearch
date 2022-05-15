@@ -41,6 +41,11 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport request for getting stored script
+ *
+ * @opensearch.internal
+ */
 public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScriptRequest> {
 
     protected String id;

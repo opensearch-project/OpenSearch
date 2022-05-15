@@ -41,6 +41,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport response for OpenSearch Hot Threads
+ *
+ * @opensearch.internal
+ */
 public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
 
     public NodesHotThreadsResponse(StreamInput in) throws IOException {

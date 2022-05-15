@@ -56,6 +56,7 @@ import java.util.Objects;
 /**
  * A {@link Query} that only matches documents that are greater than the provided {@link FieldDoc}.
  * This works only if the index is sorted according to the given search {@link Sort}.
+ * @opensearch.internal
  */
 public class SearchAfterSortedDocQuery extends Query {
     private final Sort sort;

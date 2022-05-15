@@ -49,6 +49,11 @@ import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
+/**
+ * Binary docvalue values source
+ *
+ * @opensearch.internal
+ */
 public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLeafFieldData> {
 
     protected final String fieldName;
@@ -102,6 +107,11 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
         return load(context);
     }
 
+    /**
+     * Builder for bytes binary index field data
+     *
+     * @opensearch.internal
+     */
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;

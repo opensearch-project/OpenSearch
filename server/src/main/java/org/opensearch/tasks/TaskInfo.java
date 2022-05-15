@@ -62,6 +62,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  * references as well as mutable state. That makes it impractical to send tasks over transport channels
  * and use in APIs. Instead, immutable and writeable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
+ *
+ * @opensearch.internal
  */
 public final class TaskInfo implements Writeable, ToXContentFragment {
     private final TaskId taskId;

@@ -49,6 +49,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base Aggregation Factory for range aggs
+ *
+ * @opensearch.internal
+ */
 public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory {
 
     private final InternalRange.Factory<?, ?> rangeFactory;

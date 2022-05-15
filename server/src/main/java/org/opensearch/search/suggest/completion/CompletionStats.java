@@ -42,6 +42,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stats for completion suggester
+ *
+ * @opensearch.internal
+ */
 public class CompletionStats implements Writeable, ToXContentFragment {
 
     private static final String COMPLETION = "completion";

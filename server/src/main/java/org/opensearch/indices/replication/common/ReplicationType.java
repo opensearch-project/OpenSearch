@@ -11,6 +11,8 @@ package org.opensearch.indices.replication.common;
 /**
  * Enumerates the types of replication strategies supported by OpenSearch.
  * For more information, see https://github.com/opensearch-project/OpenSearch/issues/1694
+ *
+ * @opensearch.internal
  */
 public enum ReplicationType {
 

@@ -72,6 +72,11 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Transport handler for publication
+ *
+ * @opensearch.internal
+ */
 public class PublicationTransportHandler {
 
     private static final Logger logger = LogManager.getLogger(PublicationTransportHandler.class);
@@ -279,6 +284,8 @@ public class PublicationTransportHandler {
      * Publishing a cluster state typically involves sending the same cluster state (or diff) to every node, so the work of diffing,
      * serializing, and compressing the state can be done once and the results shared across publish requests. The
      * {@code PublicationContext} implements this sharing.
+     *
+     * @opensearch.internal
      */
     public class PublicationContext {
 

@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * structured.
  * For more information about flake ids, check out
  * https://archive.fo/2015.07.08-082503/http://www.boundary.com/blog/2012/01/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang/
+ *
+ * @opensearch.internal
  */
 
 class TimeBasedUUIDGenerator implements UUIDGenerator {

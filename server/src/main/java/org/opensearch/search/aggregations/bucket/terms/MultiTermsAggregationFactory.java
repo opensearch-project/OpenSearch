@@ -34,6 +34,8 @@ import static org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregat
 
 /**
  * Factory of {@link MultiTermsAggregator}.
+ *
+ * @opensearch.internal
  */
 public class MultiTermsAggregationFactory extends AggregatorFactory {
 
@@ -157,6 +159,11 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         );
     }
 
+    /**
+     * Supplier for internal values source
+     *
+     * @opensearch.internal
+     */
     public interface InternalValuesSourceSupplier {
         MultiTermsAggregator.InternalValuesSource build(Tuple<ValuesSourceConfig, IncludeExclude> config);
     }

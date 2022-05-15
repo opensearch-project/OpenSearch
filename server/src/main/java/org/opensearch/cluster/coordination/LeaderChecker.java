@@ -75,6 +75,8 @@ import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
  * fairly lenient, possibly allowing multiple checks to fail before considering the leader to be faulty, to allow for the leader to
  * temporarily stand down on occasion, e.g. if it needs to move to a higher term. On deciding that the leader has failed a follower will
  * become a candidate and attempt to become a leader itself.
+ *
+ * @opensearch.internal
  */
 public class LeaderChecker {
 
@@ -231,6 +233,11 @@ public class LeaderChecker {
         }
     }
 
+    /**
+     * A check scheduler.
+     *
+     * @opensearch.internal
+     */
     private class CheckScheduler implements Releasable {
 
         private final AtomicBoolean isClosed = new AtomicBoolean();
@@ -378,6 +385,11 @@ public class LeaderChecker {
         }
     }
 
+    /**
+     * A leader check request.
+     *
+     * @opensearch.internal
+     */
     static class LeaderCheckRequest extends TransportRequest {
 
         private final DiscoveryNode sender;

@@ -66,6 +66,8 @@ import java.util.Objects;
 /**
  * A query that uses a filters with a script associated with them to compute the
  * score.
+ *
+ * @opensearch.internal
  */
 public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder> {
     public static final String NAME = "function_score";
@@ -369,6 +371,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     /**
      * Function to be associated with an optional filter, meaning it will be executed only for the documents
      * that match the given filter.
+     *
+     * @opensearch.internal
      */
     public static class FilterFunctionBuilder implements ToXContentObject, Writeable {
         private final QueryBuilder filter;

@@ -53,6 +53,8 @@ import java.util.Objects;
  * A command that moves a shard from a specific node to another node.<br>
  * <b>Note:</b> The shard needs to be in the state
  * {@link ShardRoutingState#STARTED} in order to be moved.
+ *
+ * @opensearch.internal
  */
 public class MoveAllocationCommand implements AllocationCommand {
 

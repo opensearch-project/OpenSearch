@@ -40,6 +40,11 @@ import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+/**
+ * Conversion values.
+ *
+ * @opensearch.internal
+ */
 public class SizeValue implements Writeable, Comparable<SizeValue> {
 
     private final long size;

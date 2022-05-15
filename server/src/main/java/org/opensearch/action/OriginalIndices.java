@@ -41,6 +41,8 @@ import java.util.Arrays;
 
 /**
  * Used to keep track of original indices within internal (e.g. shard level) requests
+ *
+ * @opensearch.internal
  */
 public final class OriginalIndices implements IndicesRequest {
 

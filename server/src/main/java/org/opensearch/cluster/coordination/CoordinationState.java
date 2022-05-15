@@ -53,6 +53,8 @@ import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 /**
  * The core class of the cluster state coordination algorithm, directly implementing the
  * <a href="https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla">formal model</a>
+ *
+ * @opensearch.internal
  */
 public class CoordinationState {
 
@@ -567,6 +569,8 @@ public class CoordinationState {
 
     /**
      * Pluggable persistence layer for {@link CoordinationState}.
+     *
+     * @opensearch.internal
      */
     public interface PersistedState extends Closeable {
 
@@ -639,6 +643,8 @@ public class CoordinationState {
 
     /**
      * A collection of votes, used to calculate quorums. Optionally records the Joins as well.
+     *
+     * @opensearch.internal
      */
     public static class VoteCollection {
 

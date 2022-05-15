@@ -90,6 +90,8 @@ import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields
  * queries based on the mapping information.
  * This class uses {@link MultiMatchQuery} to build the text query around operators and {@link XQueryParser}
  * to assemble the result logically.
+ *
+ * @opensearch.internal
  */
 public class QueryStringQueryParser extends XQueryParser {
     private static final String EXISTS_FIELD = "_exists_";

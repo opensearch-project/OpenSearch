@@ -72,6 +72,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
+/**
+ * Foundation builder for a decay function
+ *
+ * @opensearch.internal
+ */
 public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>> extends ScoreFunctionBuilder<DFB> {
 
     protected static final String ORIGIN = "origin";
@@ -419,6 +424,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         );
     }
 
+    /**
+     * Score function for geo field data
+     *
+     * @opensearch.internal
+     */
     static class GeoFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
         private final GeoPoint origin;
@@ -515,6 +525,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
     }
 
+    /**
+     * Score function for numeric data
+     *
+     * @opensearch.internal
+     */
     static class NumericFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
         private final IndexNumericFieldData fieldData;
@@ -605,7 +620,8 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     /**
      * This is the base class for scoring a single field.
      *
-     * */
+     * @opensearch.internal
+     */
     public abstract static class AbstractDistanceScoreFunction extends ScoreFunction {
 
         private final double scale;

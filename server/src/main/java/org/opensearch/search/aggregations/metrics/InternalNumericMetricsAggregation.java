@@ -42,12 +42,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Base aggregation to aggregate all docs into a single numeric metric
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalNumericMetricsAggregation extends InternalAggregation {
 
     private static final DocValueFormat DEFAULT_FORMAT = DocValueFormat.RAW;
 
     protected DocValueFormat format = DEFAULT_FORMAT;
 
+    /**
+     * A single numeric metric value
+     *
+     * @opensearch.internal
+     */
     public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
         protected SingleValue(String name, Map<String, Object> metadata) {
             super(name, metadata);
@@ -91,6 +101,11 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         }
     }
 
+    /**
+     * Multe numeric metric values
+     *
+     * @opensearch.internal
+     */
     public abstract static class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
         protected MultiValue(String name, Map<String, Object> metadata) {
             super(name, metadata);

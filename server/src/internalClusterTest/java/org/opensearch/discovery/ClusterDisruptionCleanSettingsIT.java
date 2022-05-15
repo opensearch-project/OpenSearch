@@ -63,7 +63,7 @@ public class ClusterDisruptionCleanSettingsIT extends OpenSearchIntegTestCase {
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
         // Don't use AbstractDisruptionTestCase.DEFAULT_SETTINGS as settings
         // (which can cause node disconnects on a slow CI machine)
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String node_1 = internalCluster().startDataOnlyNode();
 
         logger.info("--> creating index [test] with one shard and on replica");

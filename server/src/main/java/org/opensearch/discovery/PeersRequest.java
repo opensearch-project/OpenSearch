@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Request sent to a peer node
+ *
+ * @opensearch.internal
+ */
 public class PeersRequest extends TransportRequest {
     private final DiscoveryNode sourceNode;
     private final List<DiscoveryNode> knownPeers;

@@ -38,6 +38,8 @@ import org.opensearch.common.inject.spi.Dependency;
 
 /**
  * A placeholder which enables us to swap in the real factory once the injector is created.
+ *
+ * @opensearch.internal
  */
 class FactoryProxy<T> implements InternalFactory<T>, BindingProcessor.CreationListener {
 

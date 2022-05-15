@@ -51,6 +51,8 @@ import java.io.IOException;
 /**
  * Wraps an {@link IndexReader} with a {@link QueryCancellation}
  * which checks for cancelled or timed-out query.
+ *
+ * @opensearch.internal
  */
 class ExitableDirectoryReader extends FilterDirectoryReader {
 

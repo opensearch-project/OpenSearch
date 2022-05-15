@@ -53,6 +53,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport action to remove a persistent task
+ *
+ * @opensearch.internal
+ */
 public class RemovePersistentTaskAction extends ActionType<PersistentTaskResponse> {
 
     public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
@@ -62,6 +67,11 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         super(NAME, PersistentTaskResponse::new);
     }
 
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeRequest<Request> {
 
         private String taskId;
@@ -106,6 +116,11 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
     }
 
+    /**
+     * The request builder.
+     *
+     * @opensearch.internal
+     */
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
         RemovePersistentTaskAction.Request,
         PersistentTaskResponse,
@@ -122,6 +137,11 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
 
     }
 
+    /**
+     * The transport action.
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;

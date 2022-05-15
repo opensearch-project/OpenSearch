@@ -70,6 +70,8 @@ import java.util.function.Supplier;
  *
  * Subclasses should implement a {@link Builder} that is returned from the
  * {@link #getMergeBuilder()} method, initialised with the existing builder.
+ *
+ * @opensearch.internal
  */
 public abstract class ParametrizedFieldMapper extends FieldMapper {
 
@@ -171,6 +173,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     /**
      * A configurable parameter for a field mapper
      * @param <T> the type of the value the parameter holds
+     *
+     * @opensearch.internal
      */
     public static final class Parameter<T> implements Supplier<T> {
 
@@ -542,6 +546,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     }
 
+    /**
+     * Conflicts in the field mapper
+     *
+     * @opensearch.internal
+     */
     private static final class Conflicts {
 
         private final String mapperName;
@@ -567,6 +576,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     /**
      * A Builder for a ParametrizedFieldMapper
+     *
+     * @opensearch.internal
      */
     public abstract static class Builder extends Mapper.Builder<Builder> {
 
@@ -723,6 +734,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     /**
      * TypeParser implementation that automatically handles parsing
+     *
+     * @opensearch.internal
      */
     public static final class TypeParser implements Mapper.TypeParser {
 

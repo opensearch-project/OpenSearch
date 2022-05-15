@@ -62,6 +62,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Creates a data stream of metadata
+ *
+ * @opensearch.internal
+ */
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
@@ -120,6 +125,11 @@ public class MetadataCreateDataStreamService {
         return createDataStream(metadataCreateIndexService, current, request);
     }
 
+    /**
+     * A request to create a data stream cluster state update
+     *
+     * @opensearch.internal
+     */
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String name;

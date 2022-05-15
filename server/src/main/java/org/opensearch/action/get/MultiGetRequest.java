@@ -66,6 +66,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Transport request for a multi get.
+ *
+ * @opensearch.internal
+ */
 public class MultiGetRequest extends ActionRequest
     implements
         Iterable<MultiGetRequest.Item>,
@@ -85,6 +90,8 @@ public class MultiGetRequest extends ActionRequest
 
     /**
      * A single get item.
+     *
+     * @opensearch.internal
      */
     public static class Item implements Writeable, IndicesRequest, ToXContentObject {
 

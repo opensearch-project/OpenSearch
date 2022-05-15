@@ -57,6 +57,11 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Factory for a filesystem directory
+ *
+ * @opensearch.internal
+ */
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
@@ -130,6 +135,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
+    /**
+     * A hybrid directory implementation
+     *
+     * @opensearch.internal
+     */
     static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
 
@@ -196,6 +206,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
+    /**
+     * Pre loaded mmap directory
+     *
+     * @opensearch.internal
+     */
     // TODO it would be nice to share code between PreLoadMMapDirectory and HybridDirectory but due to the nesting aspect of
     // directories here makes it tricky. It would be nice to allow MMAPDirectory to pre-load on a per IndexInput basis.
     static final class PreLoadMMapDirectory extends MMapDirectory {

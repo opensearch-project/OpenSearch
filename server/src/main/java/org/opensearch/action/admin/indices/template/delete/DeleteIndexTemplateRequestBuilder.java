@@ -35,6 +35,11 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for deleting an index template
+ *
+ * @opensearch.internal
+ */
 public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<
     DeleteIndexTemplateRequest,
     AcknowledgedResponse,

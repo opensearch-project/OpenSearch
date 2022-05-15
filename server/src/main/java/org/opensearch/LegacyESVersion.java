@@ -43,6 +43,8 @@ import java.lang.reflect.Field;
  *
  * This class keeps all the supported OpenSearch predecessor versions for
  * backward compatibility purpose.
+ *
+ * @opensearch.internal
  */
 public class LegacyESVersion extends Version {
 

@@ -38,6 +38,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if peer recovery is not found
+ *
+ * @opensearch.internal
+ */
 public class PeerRecoveryNotFound extends ResourceNotFoundException {
 
     public PeerRecoveryNotFound(final long recoveryId, final ShardId shardId, final String targetAllocationId) {

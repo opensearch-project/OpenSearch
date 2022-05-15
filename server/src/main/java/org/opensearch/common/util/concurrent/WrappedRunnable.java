@@ -31,6 +31,11 @@
 
 package org.opensearch.common.util.concurrent;
 
+/**
+ * A wrapped runnable.
+ *
+ * @opensearch.internal
+ */
 public interface WrappedRunnable extends Runnable {
     Runnable unwrap();
 }

@@ -55,6 +55,11 @@ import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Par
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
+/**
+ * Aggregation Builder for moving_fn
+ *
+ * @opensearch.internal
+ */
 public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovFnPipelineAggregationBuilder> {
     public static final String NAME = "moving_fn";
     private static final ParseField WINDOW = new ParseField("window");

@@ -44,7 +44,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 
-/** Utility class to resolve the Lucene doc ID, version, seqNo and primaryTerms for a given uid. */
+/**
+ * Utility class to resolve the Lucene doc ID, version, seqNo and primaryTerms for a given uid.
+ *
+ * @opensearch.internal
+ */
 public final class VersionsAndSeqNoResolver {
 
     static final ConcurrentMap<IndexReader.CacheKey, CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]>> lookupStates =
@@ -103,7 +107,11 @@ public final class VersionsAndSeqNoResolver {
 
     private VersionsAndSeqNoResolver() {}
 
-    /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a version. */
+    /**
+     * Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a version.
+     *
+     * @opensearch.internal
+     */
     public static class DocIdAndVersion {
         public final int docId;
         public final long version;
@@ -122,7 +130,11 @@ public final class VersionsAndSeqNoResolver {
         }
     }
 
-    /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a seqNo. */
+    /**
+     * Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a seqNo.
+     *
+     * @opensearch.internal
+     */
     public static class DocIdAndSeqNo {
         public final int docId;
         public final long seqNo;

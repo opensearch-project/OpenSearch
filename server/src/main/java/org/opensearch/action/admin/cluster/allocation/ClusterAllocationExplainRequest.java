@@ -47,6 +47,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to explain the allocation of a shard in the cluster
+ *
+ * @opensearch.internal
  */
 public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAllocationExplainRequest> {
 

@@ -228,7 +228,7 @@ public class ClientYamlTestExecutionContext {
     }
 
     public Version masterVersion() {
-        return clientYamlTestClient.getMasterVersion();
+        return clientYamlTestClient.getClusterManagerVersion();
     }
 
 }

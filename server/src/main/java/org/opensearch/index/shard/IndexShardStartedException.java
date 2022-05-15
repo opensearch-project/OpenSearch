@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if there is an error starting an index shard
+ *
+ * @opensearch.internal
+ */
 public class IndexShardStartedException extends IllegalIndexShardStateException {
 
     public IndexShardStartedException(ShardId shardId) {

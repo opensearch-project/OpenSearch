@@ -48,6 +48,11 @@ import java.util.stream.Collectors;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * An extended stats agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
 
     protected double sumOfSquares;

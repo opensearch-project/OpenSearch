@@ -39,6 +39,11 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Transport request builder for a replication operation
+ *
+ * @opensearch.internal
+ */
 public abstract class ReplicationRequestBuilder<
     Request extends ReplicationRequest<Request>,
     Response extends ActionResponse,

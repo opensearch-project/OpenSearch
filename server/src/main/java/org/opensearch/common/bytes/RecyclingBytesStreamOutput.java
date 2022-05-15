@@ -49,6 +49,8 @@ import java.util.Objects;
  * {@link BigArrays} if needed. The idea is that you can use this for passing data to an API that requires a single {@code byte[]} (or a
  * {@link org.apache.lucene.util.BytesRef}) which you'd prefer to re-use if possible, avoiding excessive allocations, but which may not
  * always be large enough.
+ *
+ * @opensearch.internal
  */
 public class RecyclingBytesStreamOutput extends BytesStream {
 

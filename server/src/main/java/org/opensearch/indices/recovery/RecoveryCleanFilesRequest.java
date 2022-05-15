@@ -41,6 +41,11 @@ import org.opensearch.index.store.Store;
 
 import java.io.IOException;
 
+/**
+ * Request to clean up recovery files
+ *
+ * @opensearch.internal
+ */
 public class RecoveryCleanFilesRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;

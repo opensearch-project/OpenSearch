@@ -53,6 +53,8 @@ import java.util.Objects;
 
 /**
  * Custom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
+ *
+ * @opensearch.internal
  */
 public class DataStreamMetadata implements Metadata.Custom {
 
@@ -159,6 +161,11 @@ public class DataStreamMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
+    /**
+     * Builder of data stream metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final Map<String, DataStream> dataStreams = new HashMap<>();
@@ -173,6 +180,11 @@ public class DataStreamMetadata implements Metadata.Custom {
         }
     }
 
+    /**
+     * A diff between data stream metadata.
+     *
+     * @opensearch.internal
+     */
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, DataStream>> dataStreamDiff;

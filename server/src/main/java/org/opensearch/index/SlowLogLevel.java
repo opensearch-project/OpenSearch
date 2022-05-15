@@ -33,6 +33,11 @@ package org.opensearch.index;
 
 import java.util.Locale;
 
+/**
+ * Levels for the slow logs
+ *
+ * @opensearch.internal
+ */
 public enum SlowLogLevel {
     WARN(3), // most specific - little logging
     INFO(2),

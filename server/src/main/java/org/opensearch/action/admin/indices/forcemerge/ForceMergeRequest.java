@@ -54,9 +54,16 @@ import java.util.Arrays;
  * @see org.opensearch.client.Requests#forceMergeRequest(String...)
  * @see org.opensearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
  * @see ForceMergeResponse
+ *
+ * @opensearch.internal
  */
 public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
+    /**
+     * Defaults for the Force Merge Request
+     *
+     * @opensearch.internal
+     */
     public static final class Defaults {
         public static final int MAX_NUM_SEGMENTS = -1;
         public static final boolean ONLY_EXPUNGE_DELETES = false;

@@ -59,6 +59,8 @@ import java.util.function.BiConsumer;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
+ *
+ * @opensearch.internal
  */
 public final class IngestDocument {
 
@@ -843,6 +845,11 @@ public final class IngestDocument {
         return "IngestDocument{" + " sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
     }
 
+    /**
+     * The ingest metadata.
+     *
+     * @opensearch.internal
+     */
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         ID(IdFieldMapper.NAME),

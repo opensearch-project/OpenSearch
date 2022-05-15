@@ -47,6 +47,11 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
+/**
+ * Transport response to get field mappings.
+ *
+ * @opensearch.internal
+ */
 public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");

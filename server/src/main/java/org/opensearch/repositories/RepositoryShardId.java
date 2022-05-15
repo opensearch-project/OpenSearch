@@ -41,6 +41,8 @@ import java.util.Objects;
 
 /**
  * Represents a shard snapshot in a repository.
+ *
+ * @opensearch.internal
  */
 public final class RepositoryShardId implements Writeable {
 

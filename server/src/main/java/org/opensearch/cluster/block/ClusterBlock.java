@@ -45,6 +45,11 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * Blocks the cluster for concurrency
+ *
+ * @opensearch.internal
+ */
 public class ClusterBlock implements Writeable, ToXContentFragment {
 
     private final int id;

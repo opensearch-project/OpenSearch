@@ -71,6 +71,8 @@ import java.util.stream.IntStream;
 
 /**
  * A filter for a field based on several terms matching on any of them.
+ *
+ * @opensearch.internal
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";

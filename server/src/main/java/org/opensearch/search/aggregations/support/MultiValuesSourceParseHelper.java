@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.AbstractObjectParser;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentParser;
 
+/**
+ * Helper class to parse multi values sources
+ *
+ * @opensearch.internal
+ */
 public final class MultiValuesSourceParseHelper {
 
     public static <T> void declareCommon(

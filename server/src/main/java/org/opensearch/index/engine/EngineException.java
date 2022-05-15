@@ -38,6 +38,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Exception if there are any errors in the engine
+ *
+ * @opensearch.internal
+ */
 public class EngineException extends OpenSearchException {
 
     public EngineException(ShardId shardId, String msg, Object... params) {

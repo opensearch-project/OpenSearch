@@ -63,6 +63,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * A base class for the response of a write operation that involves a single doc
+ *
+ * @opensearch.internal
  */
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContentObject {
 
@@ -389,6 +391,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      * Base class of all {@link DocWriteResponse} builders. These {@link DocWriteResponse.Builder} are used during
      * xcontent parsing to temporarily store the parsed values, then the {@link Builder#build()} method is called to
      * instantiate the appropriate {@link DocWriteResponse} with the parsed values.
+     *
+     * @opensearch.internal
      */
     public abstract static class Builder {
 

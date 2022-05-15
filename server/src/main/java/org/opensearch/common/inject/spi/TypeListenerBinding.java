@@ -41,6 +41,8 @@ import org.opensearch.common.inject.matcher.Matcher;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class TypeListenerBinding implements Element {
 

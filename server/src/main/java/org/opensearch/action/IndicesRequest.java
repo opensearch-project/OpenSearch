@@ -39,6 +39,8 @@ import org.opensearch.action.support.IndicesOptions;
  * one or more indices. Allows to retrieve which indices the action relates to.
  * In case of internal requests originated during the distributed execution of an external request,
  * they will still return the indices that the original request related to.
+ *
+ * @opensearch.internal
  */
 public interface IndicesRequest {
 
@@ -62,6 +64,11 @@ public interface IndicesRequest {
         return false;
     }
 
+    /**
+     * Replaceable interface.
+     *
+     * @opensearch.internal
+     */
     interface Replaceable extends IndicesRequest {
         /**
          * Sets the indices that the action relates to.

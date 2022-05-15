@@ -46,6 +46,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Main exception thrown when there is an error in the search phase
+ *
+ * @opensearch.internal
+ */
 public class SearchPhaseExecutionException extends OpenSearchException {
     private final String phaseName;
     private final ShardSearchFailure[] shardFailures;

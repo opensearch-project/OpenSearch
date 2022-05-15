@@ -64,6 +64,8 @@ import java.util.function.Supplier;
 
 /**
  * Base {@link QueryBuilder} that builds a Geometry Query
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 
@@ -522,7 +524,11 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         return this;
     }
 
-    /** local class that encapsulates xcontent parsed shape parameters */
+    /**
+     * local class that encapsulates xcontent parsed shape parameters
+     *
+     * @opensearch.internal
+     */
     protected abstract static class ParsedGeometryQueryParams {
         public String fieldName;
         public ShapeRelation relation;

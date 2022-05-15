@@ -46,6 +46,8 @@ import java.util.function.Consumer;
  * {@link Consumer}. On {@code #reset()} the value will be passed to the
  * <code>onReset</code> {@code Consumer} and the next {@code #getOrCompute()}
  * will regenerate the value.
+ *
+ * @opensearch.internal
  */
 public final class LazyInitializable<T, E extends Exception> {
 

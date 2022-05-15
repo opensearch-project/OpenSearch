@@ -35,6 +35,11 @@ package org.opensearch.monitor;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.Method;
 
+/**
+ * Probes the various resources
+ *
+ * @opensearch.internal
+ */
 public class Probes {
     public static short getLoadAndScaleToPercent(Method method, OperatingSystemMXBean osMxBean) {
         if (method != null) {

@@ -35,6 +35,8 @@ import org.opensearch.common.inject.spi.InjectionPoint;
 
 /**
  * Injects a field or method of a given object.
+ *
+ * @opensearch.internal
  */
 interface SingleMemberInjector {
     void inject(Errors errors, InternalContext context, Object o);

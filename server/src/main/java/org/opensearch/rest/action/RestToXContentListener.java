@@ -43,6 +43,8 @@ import org.opensearch.rest.RestStatus;
 /**
  * A REST based action listener that assumes the response is of type {@link ToXContent} and automatically
  * builds an XContent based response (wrapping the toXContent in startObject/endObject).
+ *
+ * @opensearch.api
  */
 public class RestToXContentListener<Response extends ToXContentObject> extends RestResponseListener<Response> {
 

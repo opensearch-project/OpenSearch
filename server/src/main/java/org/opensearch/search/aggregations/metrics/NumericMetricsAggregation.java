@@ -34,8 +34,18 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.search.aggregations.Aggregation;
 
+/**
+ * Base numeric metrics aggregation class
+ *
+ * @opensearch.internal
+ */
 public interface NumericMetricsAggregation extends Aggregation {
 
+    /**
+     * A single value for the metrics agg
+     *
+     * @opensearch.internal
+     */
     interface SingleValue extends NumericMetricsAggregation {
 
         double value();
@@ -44,5 +54,10 @@ public interface NumericMetricsAggregation extends Aggregation {
 
     }
 
+    /**
+     * Multi values in a numeric metrics agg
+     *
+     * @opensearch.internal
+     */
     interface MultiValue extends NumericMetricsAggregation {}
 }

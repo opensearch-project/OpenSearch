@@ -56,6 +56,8 @@ import java.util.Objects;
 
 /**
  * A response for a get index action.
+ *
+ * @opensearch.internal
  */
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 

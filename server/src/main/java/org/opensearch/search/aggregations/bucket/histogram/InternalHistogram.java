@@ -57,11 +57,18 @@ import java.util.Objects;
 
 /**
  * Implementation of {@link Histogram}.
+ *
+ * @opensearch.internal
  */
 public final class InternalHistogram extends InternalMultiBucketAggregation<InternalHistogram, InternalHistogram.Bucket>
     implements
         Histogram,
         HistogramFactory {
+    /**
+     * Bucket for an internal histogram agg
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
         final double key;
@@ -164,6 +171,11 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
     }
 
+    /**
+     * Information about an empty bucket
+     *
+     * @opensearch.internal
+     */
     public static class EmptyBucketInfo {
 
         final double interval, offset, minBound, maxBound;

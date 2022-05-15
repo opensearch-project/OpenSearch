@@ -41,6 +41,8 @@ import java.io.IOException;
 /**
  * Thrown on the attempt to execute an action that requires
  * that no snapshot is in progress.
+ *
+ * @opensearch.internal
  */
 public class SnapshotInProgressException extends OpenSearchException {
 

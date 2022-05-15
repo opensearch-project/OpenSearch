@@ -44,6 +44,8 @@ import java.util.Objects;
  * A simple wrapper class that indicates that the wrapped query has made use of NOW
  * when parsing its datemath.  Useful for preprocessors such as the percolator that
  * need to know when not to extract dates from the query.
+ *
+ * @opensearch.internal
  */
 public class DateRangeIncludingNowQuery extends Query {
 

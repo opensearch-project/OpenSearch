@@ -46,6 +46,8 @@ import static java.util.Collections.unmodifiableSet;
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class Dependency<T> {
     private final InjectionPoint injectionPoint;

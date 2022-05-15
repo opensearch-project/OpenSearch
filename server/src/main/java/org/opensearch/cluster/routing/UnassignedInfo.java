@@ -62,6 +62,8 @@ import java.util.function.Predicate;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
+ *
+ * @opensearch.internal
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
@@ -79,6 +81,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * <p>
      * Note, ordering of the enum is important, make sure to add new values
      * at the end and handle version serialization properly.
+     *
+     * @opensearch.internal
      */
     public enum Reason {
         /**
@@ -153,6 +157,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      *
      * Note, ordering of the enum is important, make sure to add new values
      * at the end and handle version serialization properly.
+     *
+     * @opensearch.internal
      */
     public enum AllocationStatus implements Writeable {
         /**

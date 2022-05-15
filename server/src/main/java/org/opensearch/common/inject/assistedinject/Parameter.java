@@ -43,6 +43,8 @@ import java.lang.reflect.Type;
  *
  * @author jmourits@google.com (Jerome Mourits)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class Parameter {
 

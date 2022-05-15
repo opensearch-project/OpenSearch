@@ -67,6 +67,8 @@ import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexV
  * version of the current routing state.
  *
  * @see IndexRoutingTable
+ *
+ * @opensearch.internal
  */
 public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable> {
 
@@ -422,6 +424,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     /**
      * Builder for the routing table. Note that build can only be called one time.
+     *
+     * @opensearch.internal
      */
     public static class Builder {
 

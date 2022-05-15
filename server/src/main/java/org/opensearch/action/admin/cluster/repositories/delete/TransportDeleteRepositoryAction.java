@@ -51,6 +51,8 @@ import java.io.IOException;
 
 /**
  * Transport action for unregister repository operation
+ *
+ * @opensearch.internal
  */
 public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<DeleteRepositoryRequest, AcknowledgedResponse> {
 

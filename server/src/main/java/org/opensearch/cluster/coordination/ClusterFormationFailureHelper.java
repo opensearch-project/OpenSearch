@@ -59,6 +59,11 @@ import java.util.stream.StreamSupport;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Helper for cluster failure events
+ *
+ * @opensearch.internal
+ */
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
 
@@ -102,6 +107,11 @@ public class ClusterFormationFailureHelper {
         warningScheduler = null;
     }
 
+    /**
+     * A warning scheduler.
+     *
+     * @opensearch.internal
+     */
     private class WarningScheduler {
 
         private boolean isActive() {
@@ -138,6 +148,11 @@ public class ClusterFormationFailureHelper {
         }
     }
 
+    /**
+     * State of the cluster formation.
+     *
+     * @opensearch.internal
+     */
     static class ClusterFormationState {
         private final Settings settings;
         private final ClusterState clusterState;

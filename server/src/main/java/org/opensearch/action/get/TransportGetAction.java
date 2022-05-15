@@ -54,6 +54,8 @@ import java.io.IOException;
 
 /**
  * Performs the get operation.
+ *
+ * @opensearch.internal
  */
 public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
 

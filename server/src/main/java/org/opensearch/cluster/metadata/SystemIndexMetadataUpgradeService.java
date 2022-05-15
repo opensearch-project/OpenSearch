@@ -48,6 +48,8 @@ import java.util.List;
 
 /**
  * A service responsible for updating the metadata used by system indices.
+ *
+ * @opensearch.internal
  */
 public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
@@ -92,6 +94,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
     }
 
+    /**
+     * Task to update system index metadata.
+     *
+     * @opensearch.internal
+     */
     public class SystemIndexMetadataUpdateTask extends ClusterStateUpdateTask {
 
         @Override

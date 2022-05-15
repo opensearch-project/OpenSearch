@@ -49,6 +49,8 @@ import java.util.ArrayList;
 
 /**
  * A reference to bytes.
+ *
+ * @opensearch.internal
  */
 public interface BytesReference extends Comparable<BytesReference>, ToXContentFragment {
 

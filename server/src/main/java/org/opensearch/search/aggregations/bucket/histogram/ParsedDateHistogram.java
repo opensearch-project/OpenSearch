@@ -42,6 +42,11 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 
+/**
+ * A date histogram result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedDateHistogram extends ParsedMultiBucketAggregation<ParsedDateHistogram.ParsedBucket> implements Histogram {
 
     @Override
@@ -73,6 +78,11 @@ public class ParsedDateHistogram extends ParsedMultiBucketAggregation<ParsedDate
         return aggregation;
     }
 
+    /**
+     * Parsed Bucket for a parsed date histogram
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
 
         private Long key;

@@ -38,6 +38,8 @@ import org.apache.lucene.util.Sorter;
 
 /**
  * Base class for building {@link SortedNumericDoubleValues} instances based on unsorted content.
+ *
+ * @opensearch.internal
  */
 public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValues {
 

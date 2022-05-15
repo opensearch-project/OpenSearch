@@ -46,6 +46,8 @@ import org.opensearch.common.collect.EvictingQueue;
  * anyway.  This allows the algo to sample the problem space widely.  As iterations progress,
  * the temperature decreases and the algorithm rejects poor solutions more regularly,
  * theoretically honing in on a global minimum.
+ *
+ * @opensearch.internal
  */
 public class SimulatedAnealingMinimizer {
 

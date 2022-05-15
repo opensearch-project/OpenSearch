@@ -42,6 +42,8 @@ import static org.opensearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
 /**
  * Double array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
+ *
+ * @opensearch.internal
  */
 final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 

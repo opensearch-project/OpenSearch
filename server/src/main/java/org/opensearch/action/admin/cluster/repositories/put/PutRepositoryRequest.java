@@ -54,6 +54,8 @@ import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  * <p>
  * Registers a repository with given name, type and settings. If the repository with the same name already
  * exists in the cluster, the new repository will replace the existing repository.
+ *
+ * @opensearch.internal
  */
 public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryRequest> implements ToXContentObject {
 

@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
 
 /**
  * Information about a currently running task and all its subtasks.
+ *
+ * @opensearch.internal
  */
 public class TaskGroup implements ToXContentObject {
 
@@ -60,6 +62,11 @@ public class TaskGroup implements ToXContentObject {
         return new Builder(taskInfo);
     }
 
+    /**
+     * Builder for the Task Group
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private TaskInfo taskInfo;
         private List<Builder> childTasks;

@@ -51,6 +51,8 @@ import org.apache.lucene.document.FieldType;
  *
  * Note: we anticipate that 'flattened' fields will be the only implementation of this
  * interface. Flattened object fields live in the 'mapper-flattened' module.
+ *
+ * @opensearch.internal
  */
 public abstract class DynamicKeyFieldMapper extends FieldMapper {
 

@@ -40,6 +40,8 @@ import java.util.Map;
 
 /**
  * Result of the {@link ReverseNestedAggregator}.
+ *
+ * @opensearch.internal
  */
 public class InternalReverseNested extends InternalSingleBucketAggregation implements ReverseNested {
     public InternalReverseNested(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {

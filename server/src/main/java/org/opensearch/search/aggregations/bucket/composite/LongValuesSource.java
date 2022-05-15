@@ -63,6 +63,8 @@ import java.util.function.ToLongFunction;
 
 /**
  * A {@link SingleDimensionValuesSource} for longs.
+ *
+ * @opensearch.internal
  */
 class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private final BigArrays bigArrays;

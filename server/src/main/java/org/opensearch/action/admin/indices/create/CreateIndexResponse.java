@@ -48,6 +48,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * A response for a create index action.
+ *
+ * @opensearch.internal
  */
 public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 

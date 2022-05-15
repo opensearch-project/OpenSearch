@@ -42,9 +42,16 @@ import java.io.IOException;
 
 /**
  * Sub phase within the fetch phase used to fetch things *about* the documents like highlighting or matched queries.
+ *
+ * @opensearch.internal
  */
 public interface FetchSubPhase {
 
+    /**
+     * The hit context for the fetch subphase
+     *
+     * @opensearch.internal
+     */
     class HitContext {
         private final SearchHit hit;
         private final LeafReaderContext readerContext;

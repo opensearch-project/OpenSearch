@@ -65,6 +65,11 @@ import java.util.Set;
 
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
+/**
+ * Allocates replica shards
+ *
+ * @opensearch.internal
+ */
 public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Process existing recoveries of replicas and see if we need to cancel them if we find a better

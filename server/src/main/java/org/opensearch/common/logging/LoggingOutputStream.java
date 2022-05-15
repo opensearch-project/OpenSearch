@@ -42,6 +42,8 @@ import java.util.Arrays;
 
 /**
  * A stream whose output is sent to the configured logger, line by line.
+ *
+ * @opensearch.internal
  */
 class LoggingOutputStream extends OutputStream {
     /** The starting length of the buffer */

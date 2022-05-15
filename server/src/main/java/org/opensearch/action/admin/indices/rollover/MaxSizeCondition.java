@@ -44,6 +44,8 @@ import java.io.IOException;
 /**
  * A size-based condition for an index size.
  * Evaluates to <code>true</code> if the index size is at least {@link #value}.
+ *
+ * @opensearch.internal
  */
 public class MaxSizeCondition extends Condition<ByteSizeValue> {
     public static final String NAME = "max_size";

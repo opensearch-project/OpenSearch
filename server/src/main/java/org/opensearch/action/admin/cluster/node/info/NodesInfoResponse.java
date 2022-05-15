@@ -56,6 +56,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Transport response for OpenSearch Node Information
+ *
+ * @opensearch.internal
+ */
 public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContentFragment {
 
     public NodesInfoResponse(StreamInput in) throws IOException {

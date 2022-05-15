@@ -38,6 +38,8 @@ import org.opensearch.common.util.ArrayUtils;
 
 /**
  * Get snapshots request builder
+ *
+ * @opensearch.internal
  */
 public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<
     GetSnapshotsRequest,

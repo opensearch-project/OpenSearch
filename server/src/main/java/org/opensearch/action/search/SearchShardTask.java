@@ -42,6 +42,8 @@ import java.util.Map;
 /**
  * Task storing information about a currently running search shard request.
  * See {@link ShardSearchRequest}, {@link ShardFetchSearchRequest}, ...
+ *
+ * @opensearch.internal
  */
 public class SearchShardTask extends CancellableTask {
 

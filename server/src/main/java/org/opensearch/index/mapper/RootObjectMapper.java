@@ -57,9 +57,19 @@ import java.util.Map;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
+/**
+ * The root object mapper for a document
+ *
+ * @opensearch.internal
+ */
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
 
+    /**
+     * Default parameters for root object
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS = new DateFormatter[] {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -68,6 +78,11 @@ public class RootObjectMapper extends ObjectMapper {
         public static final boolean NUMERIC_DETECTION = false;
     }
 
+    /**
+     * Builder for the root object
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ObjectMapper.Builder<Builder> {
 
         protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
@@ -148,6 +163,11 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
+    /**
+     * Type parser for the root object
+     *
+     * @opensearch.internal
+     */
     public static class TypeParser extends ObjectMapper.TypeParser {
 
         @Override

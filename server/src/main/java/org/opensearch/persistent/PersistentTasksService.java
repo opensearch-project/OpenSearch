@@ -56,6 +56,8 @@ import java.util.function.Predicate;
  * This service is used by persistent tasks and allocated persistent tasks to communicate changes
  * to the cluster-manager node so that the cluster-manager can update the cluster state and can track of the states
  * of the persistent tasks.
+ *
+ * @opensearch.internal
  */
 public class PersistentTasksService {
 
@@ -243,6 +245,11 @@ public class PersistentTasksService {
         }
     }
 
+    /**
+     * Interface for a class that waits and listens for a persistent task.
+     *
+     * @opensearch.internal
+     */
     public interface WaitForPersistentTaskListener<P extends PersistentTaskParams> extends ActionListener<PersistentTask<P>> {
         default void onTimeout(TimeValue timeout) {
             onFailure(new IllegalStateException("Timed out when waiting for persistent task after " + timeout));

@@ -77,6 +77,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  * to a proximity source (phrase, ordered, unordered, unordered without overlaps depending on how
  * strict the matching should be); {@link Combine}, which allows proximity queries
  * between different sub-sources; and {@link Disjunction}.
+ *
+ * @opensearch.internal
  */
 public abstract class IntervalsSourceProvider implements NamedWriteable, ToXContentFragment {
 
@@ -125,6 +127,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         return isp;
     }
 
+    /**
+     * Match interval
+     *
+     * @opensearch.internal
+     */
     public static class Match extends IntervalsSourceProvider {
 
         public static final String NAME = "match";
@@ -310,6 +317,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    /**
+     * Disjunction interval
+     *
+     * @opensearch.internal
+     */
     public static class Disjunction extends IntervalsSourceProvider {
 
         public static final String NAME = "any_of";
@@ -415,6 +427,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    /**
+     * Combine interval
+     *
+     * @opensearch.internal
+     */
     public static class Combine extends IntervalsSourceProvider {
 
         public static final String NAME = "all_of";
@@ -565,6 +582,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    /**
+     * Prefix interval
+     *
+     * @opensearch.internal
+     */
     public static class Prefix extends IntervalsSourceProvider {
 
         public static final String NAME = "prefix";
@@ -679,6 +701,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    /**
+     * Regular expression interval
+     *
+     * @opensearch.internal
+     */
     public static class Regexp extends IntervalsSourceProvider {
 
         public static final String NAME = "regexp";
@@ -858,6 +885,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    /**
+     * Wildcard interval
+     *
+     * @opensearch.internal
+     */
     public static class Wildcard extends IntervalsSourceProvider {
 
         public static final String NAME = "wildcard";
@@ -1008,6 +1040,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    /**
+     * Fuzzy interval
+     *
+     * @opensearch.internal
+     */
     public static class Fuzzy extends IntervalsSourceProvider {
 
         public static final String NAME = "fuzzy";
@@ -1178,6 +1215,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    /**
+     * Script filter source
+     *
+     * @opensearch.internal
+     */
     static class ScriptFilterSource extends FilteredIntervalsSource {
 
         final IntervalFilterScript script;
@@ -1195,6 +1237,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    /**
+     * An interval filter
+     *
+     * @opensearch.internal
+     */
     public static class IntervalFilter implements ToXContentObject, Writeable {
 
         public static final String NAME = "filter";

@@ -48,6 +48,11 @@ import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * A filters agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.ParsedBucket> implements Filters {
 
     private Map<String, ParsedBucket> bucketMap;
@@ -101,6 +106,11 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for the parsed filters agg
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Filters.Bucket {
 
         private String key;

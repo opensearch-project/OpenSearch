@@ -61,6 +61,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  * <p>
  * Each InternalProfileResult has a List of InternalProfileResults, which will contain
  * "children" queries if applicable
+ *
+ * @opensearch.internal
  */
 public final class ProfileResult implements Writeable, ToXContentObject {
     static final ParseField TYPE = new ParseField("type");

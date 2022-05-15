@@ -140,6 +140,8 @@ import static java.util.Collections.unmodifiableMap;
  *          store.decRef();
  *      }
  * </pre>
+ *
+ * @opensearch.internal
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
     /**
@@ -734,6 +736,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         shardLock.setDetails("closing shard");
     }
 
+    /**
+     * A store directory
+     *
+     * @opensearch.internal
+     */
     static final class StoreDirectory extends FilterDirectory {
 
         private final Logger deletesLogger;
@@ -790,6 +797,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * change concurrently for safety reasons.
      *
      * @see StoreFileMetadata
+     *
+     * @opensearch.internal
      */
     public static final class MetadataSnapshot implements Iterable<StoreFileMetadata>, Writeable {
         private final Map<String, StoreFileMetadata> metadata;
@@ -863,6 +872,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return numDocs;
         }
 
+        /**
+         * Metadata that is currently loaded
+         *
+         * @opensearch.internal
+         */
         static class LoadedMetadata {
             final Map<String, StoreFileMetadata> fileMetadata;
             final Map<String, String> userData;
@@ -1160,6 +1174,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * A class representing the diff between a recovery source and recovery target
      *
      * @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot)
+     *
+     * @opensearch.internal
      */
     public static final class RecoveryDiff {
         /**
@@ -1209,6 +1225,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return Long.toString(digest, Character.MAX_RADIX);
     }
 
+    /**
+     * Class to verify the lucene index output
+     *
+     * @opensearch.internal
+     */
     static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
 
         private final StoreFileMetadata metadata;
@@ -1307,6 +1328,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * This class supports random access (it is possible to seek backward and forward) in order to accommodate retry
      * mechanism that is used in some repository plugins (S3 for example). However, the checksum is only calculated on
      * the first read. All consecutive reads of the same data are not used to calculate the checksum.
+     *
+     * @opensearch.internal
      */
     static class VerifyingIndexInput extends ChecksumIndexInput {
         private final IndexInput input;
@@ -1479,6 +1502,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * A listener that is executed once the store is closed and all references to it are released
+     *
+     * @opensearch.internal
      */
     public interface OnClose extends Consumer<ShardLock> {
         OnClose EMPTY = new OnClose() {

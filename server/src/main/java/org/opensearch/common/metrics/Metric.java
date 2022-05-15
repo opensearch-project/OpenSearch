@@ -32,4 +32,9 @@
 
 package org.opensearch.common.metrics;
 
+/**
+ * Base metric.
+ *
+ * @opensearch.internal
+ */
 public interface Metric {}

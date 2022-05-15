@@ -47,6 +47,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get segment information
+ *
+ * @opensearch.api
+ */
 public class RestIndicesSegmentsAction extends BaseRestHandler {
 
     @Override

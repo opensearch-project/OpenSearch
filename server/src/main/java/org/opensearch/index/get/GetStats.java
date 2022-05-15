@@ -41,6 +41,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stats for a search get
+ *
+ * @opensearch.api
+ */
 public class GetStats implements Writeable, ToXContentFragment {
 
     private long existsCount;
@@ -140,6 +145,11 @@ public class GetStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for get statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String GET = "get";
         static final String TOTAL = "total";

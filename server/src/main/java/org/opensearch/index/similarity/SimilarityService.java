@@ -62,6 +62,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * Service for similarity computations
+ *
+ * @opensearch.internal
+ */
 public final class SimilarityService extends AbstractIndexComponent {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";
@@ -203,6 +208,11 @@ public final class SimilarityService extends AbstractIndexComponent {
         return defaultSimilarity;
     }
 
+    /**
+     * Similarity per field
+     *
+     * @opensearch.internal
+     */
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
 
         private final Similarity defaultSimilarity;

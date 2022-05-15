@@ -285,11 +285,11 @@ public class CoordinationStateTestCluster {
                 } else if (rarely() && rarely()) {
                     randomFrom(clusterNodes).reboot();
                 } else if (rarely()) {
-                    final List<ClusterNode> masterNodes = clusterNodes.stream()
+                    final List<ClusterNode> clusterManangerNodes = clusterNodes.stream()
                         .filter(cn -> cn.state.electionWon())
                         .collect(Collectors.toList());
-                    if (masterNodes.isEmpty() == false) {
-                        final ClusterNode clusterNode = randomFrom(masterNodes);
+                    if (clusterManangerNodes.isEmpty() == false) {
+                        final ClusterNode clusterNode = randomFrom(clusterManangerNodes);
                         final long term = rarely() ? randomLongBetween(0, maxTerm + 1) : clusterNode.state.getCurrentTerm();
                         final long version = rarely() ? randomIntBetween(0, 5) : clusterNode.state.getLastPublishedVersion() + 1;
                         final CoordinationMetadata.VotingConfiguration acceptedConfig = rarely()
@@ -323,13 +323,15 @@ public class CoordinationStateTestCluster {
     }
 
     void invariant() {
-        // one master per term
+        // one cluster-manager per term
         messages.stream()
             .filter(m -> m.payload instanceof PublishRequest)
             .collect(Collectors.groupingBy(m -> ((PublishRequest) m.payload).getAcceptedState().term()))
             .forEach((term, publishMessages) -> {
-                Set<DiscoveryNode> mastersForTerm = publishMessages.stream().collect(Collectors.groupingBy(m -> m.sourceNode)).keySet();
-                assertThat("Multiple masters " + mastersForTerm + " for term " + term, mastersForTerm, hasSize(1));
+                Set<DiscoveryNode> clusterManagersForTerm = publishMessages.stream()
+                    .collect(Collectors.groupingBy(m -> m.sourceNode))
+                    .keySet();
+                assertThat("Multiple cluster-managers " + clusterManagersForTerm + " for term " + term, clusterManagersForTerm, hasSize(1));
             });
 
         // unique cluster state per (term, version) pair

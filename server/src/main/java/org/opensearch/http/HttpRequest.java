@@ -44,9 +44,16 @@ import java.util.Map;
 /**
  * A basic http request abstraction. Http modules needs to implement this interface to integrate with the
  * server package's rest handling.
+ *
+ * @opensearch.internal
  */
 public interface HttpRequest {
 
+    /**
+     * Which HTTP version being used
+     *
+     * @opensearch.internal
+     */
     enum HttpVersion {
         HTTP_1_0,
         HTTP_1_1

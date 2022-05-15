@@ -41,6 +41,11 @@ import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 
+/**
+ * Base request class for bulk indexing by scroll
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulkIndexByScrollRequest<Self>> extends
     AbstractBulkByScrollRequest<Self> {
     /**

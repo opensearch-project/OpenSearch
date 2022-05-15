@@ -46,6 +46,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * Transport action to clear a scroll
+ *
+ * @opensearch.api
+ */
 public class RestClearScrollAction extends BaseRestHandler {
 
     @Override

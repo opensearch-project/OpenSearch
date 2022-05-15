@@ -44,6 +44,8 @@ import java.util.function.BiConsumer;
  * Deduplicator for {@link TransportRequest}s that keeps track of {@link TransportRequest}s that should
  * not be sent in parallel.
  * @param <T> Transport Request Class
+ *
+ * @opensearch.internal
  */
 public final class TransportRequestDeduplicator<T extends TransportRequest> {
 

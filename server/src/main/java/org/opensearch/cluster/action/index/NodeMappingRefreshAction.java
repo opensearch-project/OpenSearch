@@ -53,6 +53,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for refreshing the Node Mapping
+ *
+ * @opensearch.internal
+ */
 public class NodeMappingRefreshAction {
 
     private static final Logger logger = LogManager.getLogger(NodeMappingRefreshAction.class);
@@ -82,6 +87,11 @@ public class NodeMappingRefreshAction {
         transportService.sendRequest(clusterManagerNode, ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
+    /**
+     * A handler for a node mapping refresh transport request.
+     *
+     * @opensearch.internal
+     */
     private class NodeMappingRefreshTransportHandler implements TransportRequestHandler<NodeMappingRefreshRequest> {
 
         @Override
@@ -91,6 +101,11 @@ public class NodeMappingRefreshAction {
         }
     }
 
+    /**
+     * Request to refresh node mapping.
+     *
+     * @opensearch.internal
+     */
     public static class NodeMappingRefreshRequest extends TransportRequest implements IndicesRequest {
 
         private String index;

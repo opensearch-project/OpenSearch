@@ -79,6 +79,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * - scroll requests are not supported
  * - field collapsing is supported, but whenever inner_hits are requested, they will be retrieved by each cluster locally after the fetch
  * phase, through the {@link ExpandSearchPhase}. Such inner_hits are not merged together as part of hits reduction.
+ *
+ * @opensearch.internal
  */
 // TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
 // from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
@@ -408,6 +410,11 @@ final class SearchResponseMerger {
         );
     }
 
+    /**
+     * Holds a field search hit and doc
+     *
+     * @opensearch.internal
+     */
     private static final class FieldDocAndSearchHit extends FieldDoc {
         private final SearchHit searchHit;
 
@@ -424,6 +431,8 @@ final class SearchResponseMerger {
      * (see TopDocs#tieBreakLessThan line 86). Generally, indices with same names on different clusters have different index uuids which
      * make their ShardIds different, which is not the case if the index is really the same one from the same cluster, in which case we
      * need to look at the cluster alias and make sure to assign a different shardIndex based on that.
+     *
+     * @opensearch.internal
      */
     private static final class ShardIdAndClusterAlias implements Comparable<ShardIdAndClusterAlias> {
         private final ShardId shardId;

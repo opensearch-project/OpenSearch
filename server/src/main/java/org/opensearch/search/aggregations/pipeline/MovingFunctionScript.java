@@ -40,6 +40,8 @@ import java.util.Map;
 /**
  * This class provides a custom script context for the Moving Function pipeline aggregation,
  * so that we can expose a number of pre-baked moving functions like min, max, movavg, etc
+ *
+ * @opensearch.internal
  */
 public abstract class MovingFunctionScript {
     /**
@@ -49,6 +51,11 @@ public abstract class MovingFunctionScript {
      */
     public abstract double execute(Map<String, Object> params, double[] values);
 
+    /**
+     * Factory interface
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         MovingFunctionScript newInstance();
     }

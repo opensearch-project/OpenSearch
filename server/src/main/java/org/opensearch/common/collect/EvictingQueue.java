@@ -60,6 +60,8 @@ import java.util.Queue;
  * full queue, elements are evicted from the head of the queue to accommodate the new elements.
  *
  * @param <T> The type of elements in the queue.
+ *
+ * @opensearch.internal
  */
 public class EvictingQueue<T> implements Queue<T> {
     private final int maximumSize;

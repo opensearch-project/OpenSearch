@@ -40,6 +40,11 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+/**
+ * Iterables.
+ *
+ * @opensearch.internal
+ */
 public class Iterables {
 
     public static <T> Iterable<T> concat(Iterable<T>... inputs) {
@@ -47,6 +52,11 @@ public class Iterables {
         return new ConcatenatedIterable<>(inputs);
     }
 
+    /**
+     * Concatenated interable
+     *
+     * @opensearch.internal
+     */
     static class ConcatenatedIterable<T> implements Iterable<T> {
         private final Iterable<T>[] inputs;
 
@@ -71,6 +81,11 @@ public class Iterables {
         return new FlattenedIterables<>(inputs);
     }
 
+    /**
+     * A flattened iterable
+     *
+     * @opensearch.internal
+     */
     static class FlattenedIterables<T> implements Iterable<T> {
         private final Iterable<? extends Iterable<T>> inputs;
 

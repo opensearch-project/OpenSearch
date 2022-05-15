@@ -46,6 +46,8 @@ import java.io.IOException;
 
 /**
  * Specialization of {@link LeafNumericFieldData} for integers.
+ *
+ * @opensearch.internal
  */
 public abstract class LeafLongFieldData implements LeafNumericFieldData {
 

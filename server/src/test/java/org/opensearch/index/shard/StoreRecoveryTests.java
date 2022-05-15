@@ -61,7 +61,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -108,7 +108,7 @@ public class StoreRecoveryTests extends OpenSearchTestCase {
             writer.close();
         }
         StoreRecovery storeRecovery = new StoreRecovery(new ShardId("foo", "bar", 1), logger);
-        RecoveryState.Index indexStats = new RecoveryState.Index();
+        ReplicationLuceneIndex indexStats = new ReplicationLuceneIndex();
         Directory target = newFSDirectory(createTempDir());
         final long maxSeqNo = randomNonNegativeLong();
         final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
@@ -174,7 +174,7 @@ public class StoreRecoveryTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
         StoreRecovery storeRecovery = new StoreRecovery(new ShardId("foo", "bar", 1), logger);
-        RecoveryState.Index indexStats = new RecoveryState.Index();
+        ReplicationLuceneIndex indexStats = new ReplicationLuceneIndex();
         Directory target = newFSDirectory(createTempDir());
         final long maxSeqNo = randomNonNegativeLong();
         final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
@@ -250,7 +250,7 @@ public class StoreRecoveryTests extends OpenSearchTestCase {
     public void testStatsDirWrapper() throws IOException {
         Directory dir = newDirectory();
         Directory target = newDirectory();
-        RecoveryState.Index indexStats = new RecoveryState.Index();
+        ReplicationLuceneIndex indexStats = new ReplicationLuceneIndex();
         StoreRecovery.StatsDirectoryWrapper wrapper = new StoreRecovery.StatsDirectoryWrapper(target, indexStats);
         try (IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, "foo", 0);

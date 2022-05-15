@@ -43,6 +43,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Shard level profile results
+ *
+ * @opensearch.internal
+ */
 public class ProfileShardResult implements Writeable {
 
     private final List<QueryProfileShardResult> queryProfileResults;

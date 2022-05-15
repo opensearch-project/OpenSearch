@@ -45,6 +45,8 @@ import java.io.IOException;
 
 /**
  * Response returned after a cluster reroute request
+ *
+ * @opensearch.internal
  */
 public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXContentObject {
 

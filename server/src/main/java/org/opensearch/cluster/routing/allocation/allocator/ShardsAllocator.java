@@ -44,6 +44,8 @@ import org.opensearch.cluster.routing.allocation.ShardAllocationDecision;
  * The allocator makes basic decision where a shard instance will be allocated, if already allocated instances
  * need to relocate to other nodes due to node failures or due to rebalancing decisions.
  * </p>
+ *
+ * @opensearch.internal
  */
 public interface ShardsAllocator {
 

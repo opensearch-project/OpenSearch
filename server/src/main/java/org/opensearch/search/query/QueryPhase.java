@@ -84,6 +84,8 @@ import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsC
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
+ *
+ * @opensearch.internal
  */
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
@@ -386,6 +388,8 @@ public class QueryPhase {
 
     /**
      * The exception being raised when search timeout is reached.
+     *
+     * @opensearch.internal
      */
     public static class TimeExceededException extends RuntimeException {
         private static final long serialVersionUID = 1L;
@@ -393,6 +397,8 @@ public class QueryPhase {
 
     /**
      * Default {@link QueryPhaseSearcher} implementation which delegates to the {@link QueryPhase}.
+     *
+     * @opensearch.internal
      */
     public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
         /**

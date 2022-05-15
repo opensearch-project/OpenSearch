@@ -43,6 +43,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Indexer for legacy prefix trees
+ *
+ * @opensearch.internal
+ *
+ * @deprecated will be removed in the next version
+ */
+@Deprecated
 public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<ShapeBuilder<?, ?, ?>, Shape> {
 
     private LegacyGeoShapeFieldMapper.GeoShapeFieldType fieldType;

@@ -36,6 +36,11 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import java.util.StringTokenizer;
 
+/**
+ * Port range utility classes
+ *
+ * @opensearch.internal
+ */
 public class PortsRange {
 
     private final String portRange;
@@ -89,6 +94,11 @@ public class PortsRange {
         return success;
     }
 
+    /**
+     * Callback for the port
+     *
+     * @opensearch.internal
+     */
     public interface PortCallback {
         boolean onPortNumber(int portNumber);
     }

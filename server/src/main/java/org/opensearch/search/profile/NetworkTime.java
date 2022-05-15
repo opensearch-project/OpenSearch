@@ -15,6 +15,11 @@ import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+/**
+ * Utility class to track time of network operations
+ *
+ * @opensearch.internal
+ */
 public class NetworkTime implements Writeable {
     private long inboundNetworkTime;
     private long outboundNetworkTime;

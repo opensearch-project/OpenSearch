@@ -47,6 +47,11 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * Generations of shards for snapshots
+ *
+ * @opensearch.internal
+ */
 public final class ShardGenerations {
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
@@ -190,6 +195,11 @@ public final class ShardGenerations {
         return new Builder();
     }
 
+    /**
+     * Builder for the shard generations.
+     *
+     * @opensearch.internal
+     */
     public static final class Builder {
 
         private final Map<IndexId, Map<Integer, String>> generations = new HashMap<>();

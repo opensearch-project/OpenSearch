@@ -87,10 +87,17 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * The core field mapping service
+ *
+ * @opensearch.internal
+ */
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
      * The reason why a mapping is being merged.
+     *
+     * @opensearch.internal
      */
     public enum MergeReason {
         /**

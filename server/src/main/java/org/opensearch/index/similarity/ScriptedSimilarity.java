@@ -43,6 +43,8 @@ import org.opensearch.script.SimilarityWeightScript;
 
 /**
  * A {@link Similarity} implementation that allows scores to be scripted.
+ *
+ * @opensearch.internal
  */
 public final class ScriptedSimilarity extends Similarity {
 
@@ -161,7 +163,11 @@ public final class ScriptedSimilarity extends Similarity {
         }
     }
 
-    /** Scoring factors that come from the query. */
+    /**
+     * Scoring factors that come from the query.
+     *
+     * @opensearch.internal
+     */
     public static class Query {
         private final float boost;
 
@@ -175,7 +181,11 @@ public final class ScriptedSimilarity extends Similarity {
         }
     }
 
-    /** Statistics that are specific to a given field. */
+    /**
+     * Statistics that are specific to a given field.
+     *
+     * @opensearch.internal
+     */
     public static class Field {
         private final long docCount;
         private final long sumDocFreq;
@@ -205,7 +215,11 @@ public final class ScriptedSimilarity extends Similarity {
         }
     }
 
-    /** Statistics that are specific to a given term. */
+    /**
+     * Statistics that are specific to a given term.
+     *
+     * @opensearch.internal
+     */
     public static class Term {
         private final long docFreq;
         private final long totalTermFreq;
@@ -226,7 +240,11 @@ public final class ScriptedSimilarity extends Similarity {
         }
     }
 
-    /** Statistics that are specific to a document. */
+    /**
+     * Statistics that are specific to a document.
+     *
+     * @opensearch.internal
+     */
     public static class Doc {
         private float freq;
         private long norm;

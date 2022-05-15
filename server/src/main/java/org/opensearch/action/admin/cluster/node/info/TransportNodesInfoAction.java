@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Transport action for OpenSearch Node Information
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesInfoAction extends TransportNodesAction<
     NodesInfoRequest,
     NodesInfoResponse,
@@ -116,6 +121,11 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         );
     }
 
+    /**
+     * Inner Node Info Request
+     *
+     * @opensearch.internal
+     */
     public static class NodeInfoRequest extends BaseNodeRequest {
 
         NodesInfoRequest request;

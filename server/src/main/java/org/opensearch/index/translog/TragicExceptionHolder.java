@@ -37,6 +37,11 @@ import org.opensearch.ExceptionsHelper;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Exception thrown if there are any massive OpenSearch failures
+ *
+ * @opensearch.internal
+ */
 public class TragicExceptionHolder {
     private final AtomicReference<Exception> tragedy = new AtomicReference<>();
 

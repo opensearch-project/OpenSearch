@@ -38,6 +38,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+/**
+ * Compressor interface
+ *
+ * @opensearch.internal
+ */
 public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);

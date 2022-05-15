@@ -52,6 +52,11 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Transport response for a multi get.
+ *
+ * @opensearch.internal
+ */
 public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContentObject {
 
     private static final ParseField INDEX = new ParseField("_index");
@@ -61,6 +66,8 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     /**
      * Represents a failure.
+     *
+     * @opensearch.internal
      */
     public static class Failure implements Writeable, ToXContentObject {
 

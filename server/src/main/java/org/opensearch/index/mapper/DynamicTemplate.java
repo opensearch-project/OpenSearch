@@ -44,8 +44,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * A template that is dynamic based on field types
+ *
+ * @opensearch.internal
+ */
 public class DynamicTemplate implements ToXContentObject {
 
+    /**
+     * Match type of the template
+     *
+     * @opensearch.internal
+     */
     public enum MatchType {
         SIMPLE {
             @Override
@@ -83,7 +93,11 @@ public class DynamicTemplate implements ToXContentObject {
         public abstract boolean matches(String regex, String value);
     }
 
-    /** The type of a field as detected while parsing a json document. */
+    /**
+     * The type of a field as detected while parsing a json document.
+     *
+     * @opensearch.internal
+     */
     public enum XContentFieldType {
         OBJECT {
             @Override

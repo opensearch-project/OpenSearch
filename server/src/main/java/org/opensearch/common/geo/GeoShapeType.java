@@ -57,6 +57,8 @@ import java.util.Map;
 
 /**
  * Enumeration that lists all {@link GeoShapeType}s that can be parsed and indexed
+ *
+ * @opensearch.internal
  */
 public enum GeoShapeType {
     POINT("point") {

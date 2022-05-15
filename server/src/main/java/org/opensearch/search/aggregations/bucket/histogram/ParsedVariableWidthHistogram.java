@@ -46,6 +46,11 @@ import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * A variable width histogram result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<ParsedVariableWidthHistogram.ParsedBucket>
     implements
         Histogram {
@@ -79,6 +84,11 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a parsed variable width histogram
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
         private Double key;
 

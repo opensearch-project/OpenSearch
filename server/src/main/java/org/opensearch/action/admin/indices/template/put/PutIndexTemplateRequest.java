@@ -77,6 +77,8 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * A request to create an index template.
+ *
+ * @opensearch.internal
  */
 public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContentObject {
 

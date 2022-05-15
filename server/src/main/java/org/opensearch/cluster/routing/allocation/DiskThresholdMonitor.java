@@ -74,6 +74,8 @@ import java.util.stream.StreamSupport;
  * Listens for a node to go over the high watermark and kicks off an empty
  * reroute if it does. Also responsible for logging about nodes that have
  * passed the disk watermarks
+ *
+ * @opensearch.internal
  */
 public class DiskThresholdMonitor {
 

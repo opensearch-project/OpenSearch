@@ -36,6 +36,8 @@ import org.opensearch.common.io.stream.Writeable;
 
 /**
  * Represents difference between states of cluster state parts
+ *
+ * @opensearch.internal
  */
 public interface Diff<T> extends Writeable {
 

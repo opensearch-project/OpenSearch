@@ -53,6 +53,8 @@ import static org.opensearch.common.unit.TimeValue.timeValueNanos;
 
 /**
  * Task behavior for {@link BulkByScrollTask} that does the actual work of querying and indexing
+ *
+ * @opensearch.internal
  */
 public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 

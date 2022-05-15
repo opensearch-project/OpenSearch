@@ -45,6 +45,8 @@ import java.util.Objects;
 /**
  * A simple base class for action response listeners, defaulting to using the SAME executor (as its
  * very common on response handlers).
+ *
+ * @opensearch.internal
  */
 public class ActionListenerResponseHandler<Response extends TransportResponse> implements TransportResponseHandler<Response> {
 

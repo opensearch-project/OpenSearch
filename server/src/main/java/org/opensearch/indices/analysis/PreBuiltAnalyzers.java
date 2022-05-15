@@ -45,6 +45,11 @@ import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
 
+/**
+ * Pre built analyzers
+ *
+ * @opensearch.internal
+ */
 public enum PreBuiltAnalyzers {
 
     STANDARD(CachingStrategy.OPENSEARCH) {

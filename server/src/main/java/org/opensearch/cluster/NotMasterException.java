@@ -40,6 +40,8 @@ import java.io.IOException;
  * Thrown when a node join request or a cluster-manager ping reaches a node which is not
  * currently acting as a cluster-manager or when a cluster state update task is to be executed
  * on a node that is no longer cluster-manager.
+ *
+ * @opensearch.internal
  */
 public class NotMasterException extends OpenSearchException {
 

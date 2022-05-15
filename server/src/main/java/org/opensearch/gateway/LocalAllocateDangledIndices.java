@@ -68,6 +68,11 @@ import java.util.Collection;
 
 import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
 
+/**
+ * Allocates dangled indices
+ *
+ * @opensearch.internal
+ */
 public class LocalAllocateDangledIndices {
 
     private static final Logger logger = LogManager.getLogger(LocalAllocateDangledIndices.class);
@@ -261,6 +266,12 @@ public class LocalAllocateDangledIndices {
         }
     }
 
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
+
     public static class AllocateDangledRequest extends TransportRequest {
 
         DiscoveryNode fromNode;
@@ -285,6 +296,11 @@ public class LocalAllocateDangledIndices {
         }
     }
 
+    /**
+     * The response.
+     *
+     * @opensearch.internal
+     */
     public static class AllocateDangledResponse extends TransportResponse {
 
         private boolean ack;

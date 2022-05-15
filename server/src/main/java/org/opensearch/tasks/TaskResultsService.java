@@ -73,6 +73,8 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * Service that can store task results.
+ *
+ * @opensearch.internal
  */
 public class TaskResultsService {
 

@@ -40,6 +40,8 @@ import java.util.NoSuchElementException;
 /**
  * A hash table from native longs to objects. This implementation resolves collisions
  * using open-addressing and does not support null values. This class is not thread-safe.
+ *
+ * @opensearch.internal
  */
 public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements Iterable<LongObjectPagedHashMap.Cursor<T>> {
 
@@ -200,6 +202,11 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
         assert removed == null;
     }
 
+    /**
+     * Cursor for the map
+     *
+     * @opensearch.internal
+     */
     public static final class Cursor<T> {
         public long index;
         public long key;

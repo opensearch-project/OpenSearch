@@ -36,6 +36,11 @@ import com.carrotsearch.hppc.BitMixer;
 
 import java.util.ArrayDeque;
 
+/**
+ * Utility class of recyclers.
+ *
+ * @opensearch.internal
+ */
 public enum Recyclers {
     ;
 

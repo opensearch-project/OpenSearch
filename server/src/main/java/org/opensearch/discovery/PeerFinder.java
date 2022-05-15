@@ -65,6 +65,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * finds peers
+ *
+ * @opensearch.internal
+ */
 public abstract class PeerFinder {
 
     private static final Logger logger = LogManager.getLogger(PeerFinder.class);
@@ -223,6 +228,11 @@ public abstract class PeerFinder {
         return lastResolvedAddresses;
     }
 
+    /**
+     * Transport address connector interface.
+     *
+     * @opensearch.internal
+     */
     public interface TransportAddressConnector {
         /**
          * Identify the node at the given address and, if it is a cluster-manager node and not the local node then establish a full connection to it.
@@ -230,6 +240,11 @@ public abstract class PeerFinder {
         void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
     }
 
+    /**
+     * Resolves the configured unicast host.
+     *
+     * @opensearch.internal
+     */
     public interface ConfiguredHostsResolver {
         /**
          * Attempt to resolve the configured unicast hosts list to a list of transport addresses.

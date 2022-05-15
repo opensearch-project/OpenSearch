@@ -50,6 +50,11 @@ import java.util.Set;
 import static org.opensearch.rest.action.cat.RestTable.buildHelpWidths;
 import static org.opensearch.rest.action.cat.RestTable.pad;
 
+/**
+ * Base Transport action class for _cat API
+ *
+ * @opensearch.api
+ */
 public abstract class AbstractCatAction extends BaseRestHandler {
 
     protected abstract RestChannelConsumer doCatRequest(RestRequest request, NodeClient client);

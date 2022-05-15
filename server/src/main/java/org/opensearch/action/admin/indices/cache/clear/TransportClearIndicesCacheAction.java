@@ -53,6 +53,8 @@ import java.util.List;
 
 /**
  * Indices clear cache action.
+ *
+ * @opensearch.internal
  */
 public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAction<
     ClearIndicesCacheRequest,

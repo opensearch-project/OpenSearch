@@ -53,12 +53,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregator supplier interface for an internal variable width histogram agg
+ *
+ * @opensearch.internal
+ */
 public class InternalVariableWidthHistogram extends InternalMultiBucketAggregation<
     InternalVariableWidthHistogram,
     InternalVariableWidthHistogram.Bucket> implements Histogram, HistogramFactory {
 
+    /**
+     * Bucket for an internal variable width histogram
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
+        /**
+         * Bounds of the bucket
+         *
+         * @opensearch.internal
+         */
         public static class BucketBounds {
             public double min;
             public double max;
@@ -214,6 +229,11 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
     }
 
+    /**
+     * Information about an empty bucket
+     *
+     * @opensearch.internal
+     */
     static class EmptyBucketInfo {
 
         final InternalAggregations subAggregations;

@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Thrown on the attempt to create a snapshot with invalid name
+ *
+ * @opensearch.internal
  */
 public class InvalidSnapshotNameException extends SnapshotException {
 

@@ -45,6 +45,8 @@ import java.util.Objects;
  * Represents a request to import a particular dangling index, specified
  * by its UUID. The {@link #acceptDataLoss} flag must also be
  * explicitly set to true, or later validation will fail.
+ *
+ * @opensearch.internal
  */
 public class ImportDanglingIndexRequest extends AcknowledgedRequest<ImportDanglingIndexRequest> {
     private final String indexUUID;

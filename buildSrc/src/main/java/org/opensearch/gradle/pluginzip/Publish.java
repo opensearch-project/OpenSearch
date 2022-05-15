@@ -7,17 +7,17 @@
  */
 package org.opensearch.gradle.pluginzip;
 
-import java.util.*;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.publish.Publication;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
+
 import java.nio.file.Path;
+import org.gradle.api.Task;
 
 public class Publish implements Plugin<Project> {
-    private Project project;
-
     public final static String EXTENSION_NAME = "zipmavensettings";
     public final static String PUBLICATION_NAME = "pluginZip";
     public final static String STAGING_REPO = "zipStaging";
@@ -37,7 +37,19 @@ public class Publish implements Plugin<Project> {
                 });
             });
             publishing.publications(publications -> {
-                publications.create(PUBLICATION_NAME, MavenPublication.class, mavenZip -> {
+                final Publication publication = publications.findByName(PUBLICATION_NAME);
+                if (publication == null) {
+                    publications.create(PUBLICATION_NAME, MavenPublication.class, mavenZip -> {
+                        String zipGroup = "org.opensearch.plugin";
+                        String zipArtifact = project.getName();
+                        String zipVersion = getProperty("version", project);
+                        mavenZip.artifact(project.getTasks().named("bundlePlugin"));
+                        mavenZip.setGroupId(zipGroup);
+                        mavenZip.setArtifactId(zipArtifact);
+                        mavenZip.setVersion(zipVersion);
+                    });
+                } else {
+                    final MavenPublication mavenZip = (MavenPublication) publication;
                     String zipGroup = "org.opensearch.plugin";
                     String zipArtifact = project.getName();
                     String zipVersion = getProperty("version", project);
@@ -45,7 +57,7 @@ public class Publish implements Plugin<Project> {
                     mavenZip.setGroupId(zipGroup);
                     mavenZip.setArtifactId(zipArtifact);
                     mavenZip.setVersion(zipVersion);
-                });
+                }
             });
         });
     }
@@ -62,13 +74,17 @@ public class Publish implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        this.project = project;
-        project.afterEvaluate(evaluatedProject -> { configMaven(project); });
-        project.getGradle().getTaskGraph().whenReady(graph -> {
-            if (graph.hasTask(LOCALMAVEN)) {
-                project.getTasks().getByName(PLUGIN_ZIP_PUBLISH_POM_TASK).setEnabled(false);
+        project.afterEvaluate(evaluatedProject -> {
+            configMaven(project);
+            Task validatePluginZipPom = project.getTasks().findByName("validatePluginZipPom");
+            if (validatePluginZipPom != null) {
+                project.getTasks().getByName("validatePluginZipPom").dependsOn("generatePomFileForNebulaPublication");
             }
-
+            Task publishPluginZipPublicationToZipStagingRepository = project.getTasks()
+                .findByName("publishPluginZipPublicationToZipStagingRepository");
+            if (publishPluginZipPublicationToZipStagingRepository != null) {
+                publishPluginZipPublicationToZipStagingRepository.dependsOn("generatePomFileForNebulaPublication");
+            }
         });
     }
 }

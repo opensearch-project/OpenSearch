@@ -53,6 +53,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for rare_terms agg
+ *
+ * @opensearch.internal
+ */
 public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final IncludeExclude includeExclude;
     private final int maxDocCount;
@@ -232,6 +237,11 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             );
     }
 
+    /**
+     * Execution mode for rare terms agg
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {

@@ -87,6 +87,11 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/**
+ * Transport action for retrieving the shard state
+ *
+ * @opensearch.internal
+ */
 public class ShardStateAction {
 
     private static final Logger logger = LogManager.getLogger(ShardStateAction.class);
@@ -328,6 +333,11 @@ public class ShardStateAction {
         this.followUpRerouteTaskPriority = followUpRerouteTaskPriority;
     }
 
+    /**
+     * A transport handler for a shard failed action.
+     *
+     * @opensearch.internal
+     */
     private static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
         private final ClusterService clusterService;
         private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
@@ -411,6 +421,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * Executor if shard fails cluster state task.
+     *
+     * @opensearch.internal
+     */
     public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<FailedShardEntry> {
         private final AllocationService allocationService;
         private final RerouteService rerouteService;
@@ -547,6 +562,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * Entry for a failed shard.
+     *
+     * @opensearch.internal
+     */
     public static class FailedShardEntry extends TransportRequest {
         final ShardId shardId;
         final String allocationId;
@@ -653,6 +673,11 @@ public class ShardStateAction {
         sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, entry, listener);
     }
 
+    /**
+     * Handler for a shard started action.
+     *
+     * @opensearch.internal
+     */
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
         private final ClusterService clusterService;
         private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
@@ -682,6 +707,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * Executor for when shard starts cluster state.
+     *
+     * @opensearch.internal
+     */
     public static class ShardStartedClusterStateTaskExecutor
         implements
             ClusterStateTaskExecutor<StartedShardEntry>,
@@ -807,6 +837,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * try for started shard.
+     *
+     * @opensearch.internal
+     */
     public static class StartedShardEntry extends TransportRequest {
         final ShardId shardId;
         final String allocationId;
@@ -850,6 +885,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * Error thrown when a shard is no longer primary.
+     *
+     * @opensearch.internal
+     */
     public static class NoLongerPrimaryShardException extends OpenSearchException {
 
         public NoLongerPrimaryShardException(ShardId shardId, String msg) {

@@ -53,6 +53,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Utility class for a diffable
+ *
+ * @opensearch.internal
+ */
 public final class DiffableUtils {
     private DiffableUtils() {}
 
@@ -224,6 +229,8 @@ public final class DiffableUtils {
      * Represents differences between two Maps of (possibly diffable) objects.
      *
      * @param <T> the diffable object
+     *
+     * @opensearch.internal
      */
     private static class JdkMapDiff<K, T> extends MapDiff<K, T, Map<K, T>> {
 
@@ -278,6 +285,8 @@ public final class DiffableUtils {
      * Represents differences between two ImmutableOpenMap of (possibly diffable) objects
      *
      * @param <T> the object type
+     *
+     * @opensearch.internal
      */
     public static class ImmutableOpenMapDiff<K, T> extends MapDiff<K, T, ImmutableOpenMap<K, T>> {
 
@@ -364,6 +373,8 @@ public final class DiffableUtils {
      * Represents differences between two ImmutableOpenIntMap of (possibly diffable) objects
      *
      * @param <T> the object type
+     *
+     * @opensearch.internal
      */
     private static class ImmutableOpenIntMapDiff<T> extends MapDiff<Integer, T, ImmutableOpenIntMap<T>> {
 
@@ -429,6 +440,8 @@ public final class DiffableUtils {
      * @param <K> the type of map keys
      * @param <T> the type of map values
      * @param <M> the map implementation type
+     *
+     * @opensearch.internal
      */
     public abstract static class MapDiff<K, T, M> implements Diff<M> {
 
@@ -548,6 +561,8 @@ public final class DiffableUtils {
     /**
      * Provides read and write operations to serialize keys of map
      * @param <K> type of key
+     *
+     * @opensearch.internal
      */
     public interface KeySerializer<K> {
         void writeKey(K key, StreamOutput out) throws IOException;
@@ -557,6 +572,8 @@ public final class DiffableUtils {
 
     /**
      * Serializes String keys of a map
+     *
+     * @opensearch.internal
      */
     private static final class StringKeySerializer implements KeySerializer<String> {
         private static final StringKeySerializer INSTANCE = new StringKeySerializer();
@@ -574,6 +591,8 @@ public final class DiffableUtils {
 
     /**
      * Serializes Integer keys of a map as an Int
+     *
+     * @opensearch.internal
      */
     private static final class IntKeySerializer implements KeySerializer<Integer> {
         public static final IntKeySerializer INSTANCE = new IntKeySerializer();
@@ -591,6 +610,8 @@ public final class DiffableUtils {
 
     /**
      * Serializes Integer keys of a map as a VInt. Requires keys to be positive.
+     *
+     * @opensearch.internal
      */
     private static final class VIntKeySerializer implements KeySerializer<Integer> {
         public static final IntKeySerializer INSTANCE = new IntKeySerializer();
@@ -620,6 +641,8 @@ public final class DiffableUtils {
      *
      * @param <K> key type of map
      * @param <V> value type of map
+     *
+     * @opensearch.internal
      */
     public interface ValueSerializer<K, V> {
 
@@ -674,6 +697,8 @@ public final class DiffableUtils {
      *
      * @param <K> type of map keys
      * @param <V> type of map values
+     *
+     * @opensearch.internal
      */
     public abstract static class DiffableValueSerializer<K, V extends Diffable<V>> implements ValueSerializer<K, V> {
         private static final DiffableValueSerializer WRITE_ONLY_INSTANCE = new DiffableValueSerializer() {
@@ -717,6 +742,8 @@ public final class DiffableUtils {
      *
      * @param <K> type of map keys
      * @param <V> type of map values
+     *
+     * @opensearch.internal
      */
     public abstract static class NonDiffableValueSerializer<K, V> implements ValueSerializer<K, V> {
         @Override
@@ -744,6 +771,8 @@ public final class DiffableUtils {
      * Implementation of the ValueSerializer that wraps value and diff readers.
      *
      * Note: this implementation is ignoring the key.
+     *
+     * @opensearch.internal
      */
     public static class DiffableValueReader<K, V extends Diffable<V>> extends DiffableValueSerializer<K, V> {
         private final Reader<V> reader;
@@ -769,6 +798,8 @@ public final class DiffableUtils {
      * Implementation of ValueSerializer that serializes immutable sets
      *
      * @param <K> type of map key
+     *
+     * @opensearch.internal
      */
     public static class StringSetValueSerializer<K> extends NonDiffableValueSerializer<K, Set<String>> {
         private static final StringSetValueSerializer INSTANCE = new StringSetValueSerializer();

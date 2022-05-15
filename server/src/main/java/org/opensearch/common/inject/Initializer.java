@@ -46,6 +46,8 @@ import java.util.concurrent.CountDownLatch;
  * {@link Initializable}, which attempts to perform injection before use.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class Initializer {
     /**

@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Thrown when a user tries to multiple conflicting snapshot/restore operations at the same time.
+ *
+ * @opensearch.internal
  */
 public class ConcurrentSnapshotExecutionException extends SnapshotException {
 

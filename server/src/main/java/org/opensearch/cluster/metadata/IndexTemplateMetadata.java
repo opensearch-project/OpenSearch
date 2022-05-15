@@ -62,6 +62,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Metadata for Index Templates
+ *
+ * @opensearch.internal
+ */
 public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexTemplateMetadata.class);
@@ -265,6 +270,11 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         }
     }
 
+    /**
+     * Builder of index template metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet(

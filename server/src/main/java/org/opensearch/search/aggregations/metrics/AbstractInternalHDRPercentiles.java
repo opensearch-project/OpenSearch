@@ -47,6 +47,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.zip.DataFormatException;
 
+/**
+ * Base implementation of HDR percentiles
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
     protected final double[] keys;

@@ -51,6 +51,8 @@ import java.util.function.Supplier;
 
 /**
  * Aggregate all docs that match a filter.
+ *
+ * @opensearch.internal
  */
 public class FilterAggregator extends BucketsAggregator implements SingleBucketAggregator {
 

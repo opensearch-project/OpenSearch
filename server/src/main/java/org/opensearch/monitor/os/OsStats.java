@@ -45,6 +45,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Holds stats for the Operating System
+ *
+ * @opensearch.internal
+ */
 public class OsStats implements Writeable, ToXContentFragment {
 
     private final long timestamp;
@@ -135,6 +140,11 @@ public class OsStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * CPU Information.
+     *
+     * @opensearch.internal
+     */
     public static class Cpu implements Writeable, ToXContentFragment {
 
         private final short percent;
@@ -195,6 +205,11 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Swap information.
+     *
+     * @opensearch.internal
+     */
     public static class Swap implements Writeable, ToXContentFragment {
 
         private static final Logger logger = LogManager.getLogger(Swap.class);
@@ -258,6 +273,11 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * OS Memory information.
+     *
+     * @opensearch.internal
+     */
     public static class Mem implements Writeable, ToXContentFragment {
 
         private static final Logger logger = LogManager.getLogger(Mem.class);
@@ -332,6 +352,8 @@ public class OsStats implements Writeable, ToXContentFragment {
 
     /**
      * Encapsulates basic cgroup statistics.
+     *
+     * @opensearch.internal
      */
     public static class Cgroup implements Writeable, ToXContentFragment {
 
@@ -523,6 +545,8 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         /**
          * Encapsulates CPU time statistics.
+         *
+         * @opensearch.internal
          */
         public static class CpuStat implements Writeable, ToXContentFragment {
 

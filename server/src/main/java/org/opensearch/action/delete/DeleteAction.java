@@ -34,6 +34,11 @@ package org.opensearch.action.delete;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to delete a document from an index
+ *
+ * @opensearch.internal
+ */
 public class DeleteAction extends ActionType<DeleteResponse> {
 
     public static final DeleteAction INSTANCE = new DeleteAction();

@@ -37,6 +37,8 @@ import org.opensearch.common.blobstore.BlobPath;
 
 /**
  * A base abstract blob container that implements higher level container methods.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractBlobContainer implements BlobContainer {
 

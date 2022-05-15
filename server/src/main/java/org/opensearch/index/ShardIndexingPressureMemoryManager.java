@@ -52,6 +52,7 @@ import java.util.function.ToLongFunction;
  * goes above operating_factor.upper of current shard limits. MemoryManager attempts to update the new shard limit such that the new value
  * remains withing the operating_factor.optimal range of current shard utilization.
  *
+ * @opensearch.internal
  */
 public class ShardIndexingPressureMemoryManager {
     private static final Logger logger = LogManager.getLogger(ShardIndexingPressureMemoryManager.class);

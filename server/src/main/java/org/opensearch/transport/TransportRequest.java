@@ -39,7 +39,17 @@ import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 
+/**
+ * A transport request
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
+    /**
+     * Empty transport request
+     *
+     * @opensearch.internal
+     */
     public static class Empty extends TransportRequest {
         public static final Empty INSTANCE = new Empty();
 

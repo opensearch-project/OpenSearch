@@ -52,6 +52,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Metadata for cluster coordination
+ *
+ * @opensearch.internal
+ */
 public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
     public static final CoordinationMetadata EMPTY_METADATA = builder().build();
@@ -206,6 +211,11 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
             + '}';
     }
 
+    /**
+     * Builder for coordination metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private long term = 0;
         private VotingConfiguration lastCommittedConfiguration = VotingConfiguration.EMPTY_CONFIG;
@@ -253,6 +263,11 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Excluded nodes from voting config.
+     *
+     * @opensearch.internal
+     */
     public static class VotingConfigExclusion implements Writeable, ToXContentFragment {
         public static final String MISSING_VALUE_MARKER = "_absent_";
         private final String nodeId;
@@ -346,6 +361,8 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
     /**
      * A collection of persistent node ids, denoting the voting configuration for cluster state changes.
+     *
+     * @opensearch.internal
      */
     public static class VotingConfiguration implements Writeable, ToXContentFragment {
 

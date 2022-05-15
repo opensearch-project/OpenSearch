@@ -49,6 +49,8 @@ import static org.opensearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
 /**
  * Holds a value. If the value is requested a copy is made and optionally template snippets are resolved too.
+ *
+ * @opensearch.internal
  */
 public interface ValueSource {
 
@@ -99,6 +101,11 @@ public interface ValueSource {
         }
     }
 
+    /**
+     * A map value source.
+     *
+     * @opensearch.internal
+     */
     final class MapValue implements ValueSource {
 
         private final Map<ValueSource, ValueSource> map;
@@ -132,6 +139,11 @@ public interface ValueSource {
         }
     }
 
+    /**
+     * A list value source.
+     *
+     * @opensearch.internal
+     */
     final class ListValue implements ValueSource {
 
         private final List<ValueSource> values;
@@ -165,6 +177,11 @@ public interface ValueSource {
         }
     }
 
+    /**
+     * An object value source.
+     *
+     * @opensearch.internal
+     */
     final class ObjectValue implements ValueSource {
 
         private final Object value;
@@ -193,6 +210,11 @@ public interface ValueSource {
         }
     }
 
+    /**
+     * A byte value source.
+     *
+     * @opensearch.internal
+     */
     final class ByteValue implements ValueSource {
 
         private final byte[] value;
@@ -222,6 +244,11 @@ public interface ValueSource {
 
     }
 
+    /**
+     * A templated value.
+     *
+     * @opensearch.internal
+     */
     final class TemplatedValue implements ValueSource {
 
         private final TemplateScript.Factory template;

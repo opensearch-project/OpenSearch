@@ -38,7 +38,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
+ * Unique annotations.
+ *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public class UniqueAnnotations {
     private UniqueAnnotations() {}

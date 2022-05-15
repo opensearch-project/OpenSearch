@@ -39,6 +39,8 @@ import org.opensearch.index.shard.ShardId;
 
 /**
  * A simple field data cache abstraction on the *index* level.
+ *
+ * @opensearch.internal
  */
 public interface IndexFieldDataCache {
 
@@ -57,6 +59,11 @@ public interface IndexFieldDataCache {
      */
     void clear(String fieldName);
 
+    /**
+     * The listener interface
+     *
+     * @opensearch.internal
+     */
     interface Listener {
 
         /**
@@ -70,6 +77,11 @@ public interface IndexFieldDataCache {
         default void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {}
     }
 
+    /**
+     * No index field data cache
+     *
+     * @opensearch.internal
+     */
     class None implements IndexFieldDataCache {
 
         @Override

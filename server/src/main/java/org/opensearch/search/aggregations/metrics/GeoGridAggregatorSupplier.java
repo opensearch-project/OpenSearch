@@ -43,6 +43,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base Aggregator supplier interface for geo grid aggs
+ *
+ * @opensearch.internal
+ */
 @FunctionalInterface
 public interface GeoGridAggregatorSupplier {
     GeoGridAggregator build(

@@ -52,6 +52,8 @@ import java.util.List;
 
 /**
  * Allocates an unassigned replica shard to a specific node. Checks if allocation deciders allow allocation.
+ *
+ * @opensearch.internal
  */
 public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocationCommand {
     public static final String NAME = "allocate_replica";
@@ -86,6 +88,11 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
         return new Builder().parse(parser).build();
     }
 
+    /**
+     * A builder for the command.
+     *
+     * @opensearch.internal
+     */
     protected static class Builder extends AbstractAllocateAllocationCommand.Builder<AllocateReplicaAllocationCommand> {
 
         @Override

@@ -45,6 +45,8 @@ import java.util.Set;
 
 /**
  * Snapshot utilities
+ *
+ * @opensearch.internal
  */
 public class SnapshotUtils {
 

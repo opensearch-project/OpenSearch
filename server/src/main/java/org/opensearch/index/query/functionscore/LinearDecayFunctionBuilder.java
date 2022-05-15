@@ -40,6 +40,11 @@ import org.opensearch.common.lucene.search.function.Functions;
 
 import java.io.IOException;
 
+/**
+ * Foundation builder for a linear decay
+ *
+ * @opensearch.internal
+ */
 public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecayFunctionBuilder> {
     public static final String NAME = "linear";
     public static final ScoreFunctionParser<LinearDecayFunctionBuilder> PARSER = new DecayFunctionParser<>(LinearDecayFunctionBuilder::new);
@@ -89,6 +94,11 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
         return LINEAR_DECAY_FUNCTION;
     }
 
+    /**
+     * Linear decay
+     *
+     * @opensearch.internal
+     */
     private static final class LinearDecayScoreFunction implements DecayFunction {
 
         @Override

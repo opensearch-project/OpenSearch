@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for adjacency_matrix agg
+ *
+ * @opensearch.internal
+ */
 public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
 
     private final String[] keys;

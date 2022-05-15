@@ -40,6 +40,11 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
+/**
+ * A date range agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedDateRange extends ParsedRange {
 
     @Override
@@ -66,6 +71,11 @@ public class ParsedDateRange extends ParsedRange {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a date range
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedRange.ParsedBucket {
 
         @Override

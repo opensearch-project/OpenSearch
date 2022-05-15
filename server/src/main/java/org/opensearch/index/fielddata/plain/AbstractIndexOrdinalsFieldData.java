@@ -54,6 +54,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.function.Function;
 
+/**
+ * Base class for sorting ordinals field data
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(AbstractBinaryDVLeafFieldData.class);
 
@@ -177,6 +182,8 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
      * <p>
      * Note that the .beforeLoad(...) and .afterLoad(...) methods must be
      * manually called.
+     *
+     * @opensearch.internal
      */
     public interface PerValueEstimator {
 

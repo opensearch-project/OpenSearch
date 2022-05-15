@@ -39,6 +39,11 @@ import org.opensearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base class to aggregate all docs into a single numeric metric value.
+ *
+ * @opensearch.internal
+ */
 public abstract class NumericMetricsAggregator extends MetricsAggregator {
 
     private NumericMetricsAggregator(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata)
@@ -46,6 +51,11 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         super(name, context, parent, metadata);
     }
 
+    /**
+     * Single numeric metric agg value
+     *
+     * @opensearch.internal
+     */
     public abstract static class SingleValue extends NumericMetricsAggregator {
 
         protected SingleValue(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
@@ -70,6 +80,11 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         }
     }
 
+    /**
+     * Multi numeric metric agg value
+     *
+     * @opensearch.internal
+     */
     public abstract static class MultiValue extends NumericMetricsAggregator {
 
         protected MultiValue(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {

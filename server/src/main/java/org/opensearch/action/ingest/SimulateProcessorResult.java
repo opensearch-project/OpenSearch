@@ -51,6 +51,11 @@ import java.util.Locale;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Simulates an ingest processor result
+ *
+ * @opensearch.internal
+ */
 public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     private static final String IGNORED_ERROR_FIELD = "ignored_error";

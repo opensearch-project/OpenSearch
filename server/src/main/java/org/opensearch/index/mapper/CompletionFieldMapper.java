@@ -90,6 +90,8 @@ import java.util.Set;
  *  against the weighted FST index by the {@link CompletionSuggester}.
  *  This field can also be extended to add search criteria to suggestions
  *  for query-time filtering and boosting (see {@link ContextMappings}
+ *
+ *  @opensearch.internal
  */
 public class CompletionFieldMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "completion";
@@ -104,6 +106,11 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         return new Builder(simpleName(), defaultAnalyzer, indexVersionCreated).init(this);
     }
 
+    /**
+     * Default parameters
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
         static {
@@ -119,6 +126,11 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         public static final int DEFAULT_MAX_INPUT_LENGTH = 50;
     }
 
+    /**
+     * Parameter fields
+     *
+     * @opensearch.internal
+     */
     public static class Fields {
         // Content field names
         public static final String CONTENT_FIELD_NAME_INPUT = "input";
@@ -132,6 +144,8 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
     /**
      * Builder for {@link CompletionFieldMapper}
+     *
+     * @opensearch.internal
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
@@ -253,6 +267,11 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         (n, c) -> new Builder(n, c.getIndexAnalyzers().get("simple"), c.indexVersionCreated())
     );
 
+    /**
+     * Field type for Completion Field Mapper
+     *
+     * @opensearch.internal
+     */
     public static final class CompletionFieldType extends TermBasedFieldType {
 
         private static PostingsFormat postingsFormat;
@@ -606,6 +625,11 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Metadata for completion input
+     *
+     * @opensearch.internal
+     */
     static class CompletionInputMetadata {
         public final String input;
         public final Map<String, Set<String>> contexts;

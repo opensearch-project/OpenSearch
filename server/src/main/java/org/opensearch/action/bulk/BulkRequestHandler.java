@@ -44,6 +44,8 @@ import java.util.function.BiConsumer;
 
 /**
  * Implements the low-level details of bulk request handling
+ *
+ * @opensearch.internal
  */
 public final class BulkRequestHandler {
     private final Logger logger;

@@ -62,10 +62,12 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-/*
+/**
  * Holds all the configuration that is used to create an {@link Engine}.
  * Once {@link Engine} has been created with this object, changes to this
  * object will affect the {@link Engine} instance.
+ *
+ * @opensearch.internal
  */
 public final class EngineConfig {
     private final ShardId shardId;
@@ -461,6 +463,8 @@ public final class EngineConfig {
     /**
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     *
+     * @opensearch.internal
      */
     public interface TombstoneDocSupplier {
         /**

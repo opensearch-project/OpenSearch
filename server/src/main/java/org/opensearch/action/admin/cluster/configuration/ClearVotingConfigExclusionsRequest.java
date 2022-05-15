@@ -42,6 +42,8 @@ import java.io.IOException;
 /**
  * A request to clear the voting config exclusions from the cluster state, optionally waiting for these nodes to be removed from the
  * cluster first.
+ *
+ * @opensearch.internal
  */
 public class ClearVotingConfigExclusionsRequest extends MasterNodeRequest<ClearVotingConfigExclusionsRequest> {
     private boolean waitForRemoval = true;

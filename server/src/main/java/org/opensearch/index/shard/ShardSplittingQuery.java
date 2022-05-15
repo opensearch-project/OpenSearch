@@ -72,6 +72,8 @@ import java.util.function.Predicate;
  * A query that selects all docs that do NOT belong in the current shards this query is executed on.
  * It can be used to split a shard into N shards marking every document that doesn't belong into the shard
  * as deleted. See {@link org.apache.lucene.index.IndexWriter#deleteDocuments(Query...)}
+ *
+ * @opensearch.internal
  */
 final class ShardSplittingQuery extends Query {
     private final IndexMetadata indexMetadata;
@@ -294,6 +296,8 @@ final class ShardSplittingQuery extends Query {
     /**
      * This two phase iterator visits every live doc and selects all docs that don't belong into this
      * shard based on their id and routing value. This is only used in a routing partitioned index.
+     *
+     * @opensearch.internal
      */
     private static final class RoutingPartitionedDocIdSetIterator extends TwoPhaseIterator {
         private final Visitor visitor;
@@ -316,6 +320,8 @@ final class ShardSplittingQuery extends Query {
 
     /**
      * This TwoPhaseIterator marks all nested docs of matching parents as matches as well.
+     *
+     * @opensearch.internal
      */
     private static final class NestedRoutingPartitionedDocIdSetIterator extends TwoPhaseIterator {
         private final Visitor visitor;

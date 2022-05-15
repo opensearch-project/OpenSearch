@@ -76,6 +76,8 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
+ *
+ * @opensearch.internal
  */
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
     protected final ResultStrategy<?, ?, ?> resultStrategy;
@@ -88,6 +90,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
 
+    /**
+     * Lookup global ordinals
+     *
+     * @opensearch.internal
+     */
     public interface GlobalOrdLookupFunction {
         BytesRef apply(long ord) throws IOException;
     }
@@ -229,6 +236,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     /**
      * This is used internally only, just for compare using global ordinal instead of term bytes in the PQ
+     *
+     * @opensearch.internal
      */
     static class OrdBucket extends InternalTerms.Bucket<OrdBucket> {
         long globalOrd;
@@ -282,6 +291,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * This is only supported for the standard {@code terms} aggregation and
      * doesn't support {@code significant_terms} so this forces
      * {@link StandardTermsResults}.
+     *
+     * @opensearch.internal
      */
     static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
 

@@ -87,6 +87,8 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
  * A more like this query that finds documents that are "like" the provided set of document(s).
  *
  * The documents are provided as a set of strings and/or a list of {@link Item}.
+ *
+ * @opensearch.internal
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
@@ -159,6 +161,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
+     *
+     * @opensearch.internal
      */
     public static final class Item implements ToXContentObject, Writeable {
         public static final Item[] EMPTY_ARRAY = new Item[0];

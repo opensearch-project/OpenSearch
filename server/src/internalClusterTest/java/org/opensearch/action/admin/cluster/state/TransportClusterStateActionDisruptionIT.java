@@ -68,8 +68,8 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
-    public void testNonLocalRequestAlwaysFindsMaster() throws Exception {
-        runRepeatedlyWhileChangingMaster(() -> {
+    public void testNonLocalRequestAlwaysFindsClusterManager() throws Exception {
+        runRepeatedlyWhileChangingClusterManager(() -> {
             final ClusterStateRequestBuilder clusterStateRequestBuilder = client().admin()
                 .cluster()
                 .prepareState()
@@ -82,12 +82,12 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             } catch (MasterNotDiscoveredException e) {
                 return; // ok, we hit the disconnected node
             }
-            assertNotNull("should always contain a master node", clusterStateResponse.getState().nodes().getMasterNodeId());
+            assertNotNull("should always contain a cluster-manager node", clusterStateResponse.getState().nodes().getMasterNodeId());
         });
     }
 
     public void testLocalRequestAlwaysSucceeds() throws Exception {
-        runRepeatedlyWhileChangingMaster(() -> {
+        runRepeatedlyWhileChangingClusterManager(() -> {
             final String node = randomFrom(internalCluster().getNodeNames());
             final DiscoveryNodes discoveryNodes = client(node).admin()
                 .cluster()
@@ -108,8 +108,8 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
         });
     }
 
-    public void testNonLocalRequestAlwaysFindsMasterAndWaitsForMetadata() throws Exception {
-        runRepeatedlyWhileChangingMaster(() -> {
+    public void testNonLocalRequestAlwaysFindsClusterManagerAndWaitsForMetadata() throws Exception {
+        runRepeatedlyWhileChangingClusterManager(() -> {
             final String node = randomFrom(internalCluster().getNodeNames());
             final long metadataVersion = internalCluster().getInstance(ClusterService.class, node)
                 .getClusterApplierService()
@@ -134,14 +134,14 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             }
             if (clusterStateResponse.isWaitForTimedOut() == false) {
                 final ClusterState state = clusterStateResponse.getState();
-                assertNotNull("should always contain a master node", state.nodes().getMasterNodeId());
+                assertNotNull("should always contain a cluster-manager node", state.nodes().getMasterNodeId());
                 assertThat("waited for metadata version", state.metadata().version(), greaterThanOrEqualTo(waitForMetadataVersion));
             }
         });
     }
 
     public void testLocalRequestWaitsForMetadata() throws Exception {
-        runRepeatedlyWhileChangingMaster(() -> {
+        runRepeatedlyWhileChangingClusterManager(() -> {
             final String node = randomFrom(internalCluster().getNodeNames());
             final long metadataVersion = internalCluster().getInstance(ClusterService.class, node)
                 .getClusterApplierService()
@@ -170,7 +170,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
         });
     }
 
-    public void runRepeatedlyWhileChangingMaster(Runnable runnable) throws Exception {
+    public void runRepeatedlyWhileChangingClusterManager(Runnable runnable) throws Exception {
         internalCluster().startNodes(3);
 
         assertBusy(
@@ -191,7 +191,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             )
         );
 
-        final String masterName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getMasterName();
 
         final AtomicBoolean shutdown = new AtomicBoolean();
         final Thread assertingThread = new Thread(() -> {
@@ -204,9 +204,12 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             String value = "none";
             while (shutdown.get() == false) {
                 value = "none".equals(value) ? "all" : "none";
-                final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
+                final String nonClusterManagerNode = randomValueOtherThan(
+                    clusterManagerName,
+                    () -> randomFrom(internalCluster().getNodeNames())
+                );
                 assertAcked(
-                    client(nonMasterNode).admin()
+                    client(nonClusterManagerNode).admin()
                         .cluster()
                         .prepareUpdateSettings()
                         .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), value))
@@ -222,22 +225,25 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
         assertingThread.start();
         updatingThread.start();
 
-        final MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
+        final MockTransportService clusterManagerTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            masterName
+            clusterManagerName
         );
 
         for (MockTransportService mockTransportService : mockTransportServices) {
-            if (masterTransportService != mockTransportService) {
-                masterTransportService.addFailToSendNoConnectRule(mockTransportService);
-                mockTransportService.addFailToSendNoConnectRule(masterTransportService);
+            if (clusterManagerTransportService != mockTransportService) {
+                clusterManagerTransportService.addFailToSendNoConnectRule(mockTransportService);
+                mockTransportService.addFailToSendNoConnectRule(clusterManagerTransportService);
             }
         }
 
         assertBusy(() -> {
-            final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
-            final String claimedMasterName = internalCluster().getMasterName(nonMasterNode);
-            assertThat(claimedMasterName, not(equalTo(masterName)));
+            final String nonClusterManagerNode = randomValueOtherThan(
+                clusterManagerName,
+                () -> randomFrom(internalCluster().getNodeNames())
+            );
+            final String claimedClusterManagerName = internalCluster().getMasterName(nonClusterManagerNode);
+            assertThat(claimedClusterManagerName, not(equalTo(clusterManagerName)));
         });
 
         shutdown.set(true);

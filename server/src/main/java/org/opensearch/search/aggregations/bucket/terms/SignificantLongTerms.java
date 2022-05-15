@@ -45,10 +45,17 @@ import java.util.Objects;
 
 /**
  * Result of the running the significant terms aggregation on a numeric field.
+ *
+ * @opensearch.internal
  */
 public class SignificantLongTerms extends InternalMappedSignificantTerms<SignificantLongTerms, SignificantLongTerms.Bucket> {
     public static final String NAME = "siglterms";
 
+    /**
+     * Bucket for significant long values
+     *
+     * @opensearch.internal
+     */
     static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
 
         long term;

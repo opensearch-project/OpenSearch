@@ -49,6 +49,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Stats for an ingest processor pipeline
+ *
+ * @opensearch.internal
+ */
 public class IngestStats implements Writeable, ToXContentFragment {
     private final Stats totalStats;
     private final List<PipelineStat> pipelineStats;
@@ -175,6 +180,11 @@ public class IngestStats implements Writeable, ToXContentFragment {
         return Objects.hash(totalStats, pipelineStats, processorStats);
     }
 
+    /**
+     * The ingest statistics.
+     *
+     * @opensearch.internal
+     */
     public static class Stats implements Writeable, ToXContentFragment {
 
         private final long ingestCount;

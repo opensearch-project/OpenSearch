@@ -40,6 +40,8 @@ import static java.util.Collections.emptyMap;
 
 /**
  * Static method aliases for constructors of known {@link ScoreFunctionBuilder}s.
+ *
+ * @opensearch.internal
  */
 public class ScoreFunctionBuilders {
 

@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Get repositories action
+ *
+ * @opensearch.internal
  */
 public class GetRepositoriesAction extends ActionType<GetRepositoriesResponse> {
 

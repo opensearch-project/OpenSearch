@@ -62,6 +62,11 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+/**
+ * Base action class for transport nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportNodesAction<
     NodesRequest extends BaseNodesRequest<NodesRequest>,
     NodesResponse extends BaseNodesResponse,
@@ -211,6 +216,11 @@ public abstract class TransportNodesAction<
         return transportNodeAction;
     }
 
+    /**
+     * Asynchronous action
+     *
+     * @opensearch.internal
+     */
     class AsyncAction {
 
         private final NodesRequest request;
@@ -306,6 +316,11 @@ public abstract class TransportNodesAction<
         }
     }
 
+    /**
+     * A node transport handler
+     *
+     * @opensearch.internal
+     */
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
 
         @Override

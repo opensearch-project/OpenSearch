@@ -52,6 +52,11 @@ import java.util.Map;
 import static org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder.VALUE_FIELD;
 import static org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder.WEIGHT_FIELD;
 
+/**
+ * Aggregate all docs into a weighted average
+ *
+ * @opensearch.internal
+ */
 class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final MultiValuesSource.NumericMultiValuesSource valuesSources;

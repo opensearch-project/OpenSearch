@@ -47,6 +47,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to open an index.
+ *
+ * @opensearch.internal
  */
 public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> implements IndicesRequest.Replaceable {
 

@@ -36,6 +36,11 @@ import org.opensearch.common.geo.GeoPoint;
 
 import java.io.IOException;
 
+/**
+ * Multiple geopoint doc value provider
+ *
+ * @opensearch.internal
+ */
 final class SingletonMultiGeoPointValues extends MultiGeoPointValues {
 
     private final GeoPointValues in;

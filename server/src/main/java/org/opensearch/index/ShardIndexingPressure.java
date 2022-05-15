@@ -39,6 +39,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 1. Memory Accounting at shard level. This can be enabled/disabled based on dynamic setting.
  * 2. Memory Accounting at Node level. Tracking is done using the IndexingPressure artefacts to support feature seamless toggling.
  * 3. Interfaces to access the statistics for shard trackers.
+ *
+ * @opensearch.internal
  */
 public class ShardIndexingPressure extends IndexingPressure {
 

@@ -69,6 +69,11 @@ import java.io.IOException;
 
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
+/**
+ * Base class for a single operation action
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportInstanceSingleOperationAction<
     Request extends InstanceShardOperationRequest<Request>,
     Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
@@ -135,6 +140,11 @@ public abstract class TransportInstanceSingleOperationAction<
      */
     protected abstract ShardIterator shards(ClusterState clusterState, Request request);
 
+    /**
+     * Asynchronous single action
+     *
+     * @opensearch.internal
+     */
     class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
@@ -286,6 +296,11 @@ public abstract class TransportInstanceSingleOperationAction<
         }
     }
 
+    /**
+     * Transport handler per shard
+     *
+     * @opensearch.internal
+     */
     private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override

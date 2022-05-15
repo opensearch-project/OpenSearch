@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.upgrade.post;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
+/**
+ * Transport action for upgrading index settings
+ *
+ * @opensearch.internal
+ */
 public class UpgradeSettingsAction extends ActionType<AcknowledgedResponse> {
 
     public static final UpgradeSettingsAction INSTANCE = new UpgradeSettingsAction();

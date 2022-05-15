@@ -176,11 +176,11 @@ public class NodeRoles {
         return addRoles(settings, Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
     }
 
-    public static Settings masterOnlyNode() {
-        return masterOnlyNode(Settings.EMPTY);
+    public static Settings clusterManagerOnlyNode() {
+        return clusterManagerOnlyNode(Settings.EMPTY);
     }
 
-    public static Settings masterOnlyNode(final Settings settings) {
+    public static Settings clusterManagerOnlyNode(final Settings settings) {
         return onlyRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 

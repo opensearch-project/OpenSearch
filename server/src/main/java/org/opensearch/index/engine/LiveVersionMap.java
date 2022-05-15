@@ -46,11 +46,20 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Maps _uid value to its version information. */
+/**
+ * Maps _uid value to its version information.
+ *
+ * @opensearch.internal
+ */
 final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
+    /**
+     * Looks up document version
+     *
+     * @opensearch.internal
+     */
     private static final class VersionLookup {
 
         /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones,
@@ -116,6 +125,11 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     }
 
+    /**
+     * Map of version lookups
+     *
+     * @opensearch.internal
+     */
     private static final class Maps {
 
         // All writes (adds and deletes) go into here:

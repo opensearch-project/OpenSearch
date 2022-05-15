@@ -42,6 +42,11 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Exception thrown if there is an error recovering files
+ *
+ * @opensearch.internal
+ */
 public class RecoverFilesRecoveryException extends OpenSearchException implements OpenSearchWrapperException {
 
     private final int numberOfFiles;

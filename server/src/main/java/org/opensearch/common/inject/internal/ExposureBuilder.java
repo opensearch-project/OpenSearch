@@ -38,6 +38,8 @@ import java.util.Objects;
 
 /**
  * For private binder's expose() method.
+ *
+ * @opensearch.internal
  */
 public class ExposureBuilder<T> implements AnnotatedElementBuilder {
     private final Binder binder;

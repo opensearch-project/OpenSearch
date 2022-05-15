@@ -38,6 +38,8 @@ import org.apache.lucene.index.OrdinalMap;
 
 /**
  * Specialization of {@link IndexFieldData} for data that is indexed with ordinals.
+ *
+ * @opensearch.internal
  */
 public interface IndexOrdinalsFieldData extends IndexFieldData.Global<LeafOrdinalsFieldData> {
 

@@ -83,6 +83,8 @@ import java.util.function.Consumer;
  *
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
+ *
+ * @opensearch.internal
  */
 public class InternalClusterInfoService implements ClusterInfoService, ClusterStateListener {
 
@@ -467,6 +469,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
+    /**
+     * Indices statistics summary.
+     *
+     * @opensearch.internal
+     */
     private static class IndicesStatsSummary {
         static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(
             ImmutableOpenMap.of(),
@@ -491,6 +498,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     /**
      * Runs {@link InternalClusterInfoService#refresh()}, logging failures/rejections appropriately.
+     *
+     * @opensearch.internal
      */
     private class RefreshRunnable extends AbstractRunnable {
         private final String reason;
@@ -524,6 +533,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     /**
      * Runs {@link InternalClusterInfoService#refresh()}, logging failures/rejections appropriately, and reschedules itself on completion.
+     *
+     * @opensearch.internal
      */
     private class RefreshAndRescheduleRunnable extends RefreshRunnable {
         RefreshAndRescheduleRunnable() {

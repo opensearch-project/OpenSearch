@@ -48,6 +48,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * A connection profile describes how many connection are established to specific node for each of the available request types.
  * ({@link org.opensearch.transport.TransportRequestOptions.Type}). This allows to tailor a connection towards a specific usage.
+ *
+ * @opensearch.internal
  */
 public final class ConnectionProfile {
 
@@ -172,6 +174,8 @@ public final class ConnectionProfile {
 
     /**
      * A builder to build a new {@link ConnectionProfile}
+     *
+     * @opensearch.internal
      */
     public static class Builder {
         private final List<ConnectionTypeHandle> handles = new ArrayList<>();

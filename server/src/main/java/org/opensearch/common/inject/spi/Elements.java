@@ -70,6 +70,8 @@ import java.util.Set;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class Elements {
 
@@ -112,6 +114,11 @@ public final class Elements {
         };
     }
 
+    /**
+     * A recording binder
+     *
+     * @opensearch.internal
+     */
     private static class RecordingBinder implements Binder, PrivateBinder {
         private final Stage stage;
         private final Set<Module> modules;

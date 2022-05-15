@@ -47,6 +47,8 @@ import java.util.stream.Collectors;
 
 /**
  * Computes the optimal configuration of voting nodes in the cluster.
+ *
+ * @opensearch.internal
  */
 public class Reconfigurator {
 
@@ -168,6 +170,11 @@ public class Reconfigurator {
         }
     }
 
+    /**
+     * A node to handle voting configs.
+     *
+     * @opensearch.internal
+     */
     static class VotingConfigNode implements Comparable<VotingConfigNode> {
         final String id;
         final boolean live;

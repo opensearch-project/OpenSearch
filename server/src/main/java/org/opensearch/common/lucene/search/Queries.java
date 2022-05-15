@@ -33,7 +33,6 @@
 package org.opensearch.common.lucene.search;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -43,17 +42,14 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -62,6 +58,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
+/**
+ * Lucene queries class
+ *
+ * @opensearch.internal
+ */
 public class Queries {
 
     public static Query newMatchAllQuery() {
@@ -87,7 +88,7 @@ public class Queries {
     }
 
     public static Query newNestedFilter() {
-        return new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
+        return not(newNonNestedFilter());
     }
 
     /**
@@ -214,6 +215,11 @@ public class Queries {
         return new MatchNoDocsWithoutRewriteQuery(reason);
     }
 
+    /**
+     * Matches no docs w/o rewriting the query
+     *
+     * @opensearch.internal
+     */
     static class MatchNoDocsWithoutRewriteQuery extends Query {
         private final String reason;
 

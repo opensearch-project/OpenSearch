@@ -87,6 +87,8 @@ import static java.util.Collections.emptyMap;
 
 /**
  * Plugin for extending search time behavior.
+ *
+ * @opensearch.api
  */
 public interface SearchPlugin {
     /**

@@ -44,6 +44,11 @@ import org.opensearch.index.shard.ShardId;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * On heap field data for shards
+ *
+ * @opensearch.internal
+ */
 public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     private final CounterMetric evictionsMetric = new CounterMetric();

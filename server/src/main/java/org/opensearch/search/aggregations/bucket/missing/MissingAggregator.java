@@ -48,6 +48,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs that are missing a value.
+ *
+ * @opensearch.internal
+ */
 public class MissingAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     private final ValuesSource valuesSource;

@@ -22,16 +22,31 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Field mapper for a datastream field
+ *
+ * @opensearch.internal
+ */
 public class DataStreamFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_data_stream_timestamp";
     public static final String CONTENT_TYPE = "_data_stream_timestamp";
 
+    /**
+     * Default parameters
+     *
+     * @opensearch.internal
+     */
     public static final class Defaults {
         public static final boolean ENABLED = false;
         public static final TimestampField TIMESTAMP_FIELD = new TimestampField("@timestamp");
     }
 
+    /**
+     * Builder for the field mapper
+     *
+     * @opensearch.internal
+     */
     public static final class Builder extends MetadataFieldMapper.Builder {
         final Parameter<Boolean> enabledParam = Parameter.boolParam("enabled", false, mapper -> toType(mapper).enabled, Defaults.ENABLED);
 
@@ -58,6 +73,11 @@ public class DataStreamFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    /**
+     * Field type for data stream field mapper
+     *
+     * @opensearch.internal
+     */
     public static final class DataStreamFieldType extends MappedFieldType {
         public static final DataStreamFieldType INSTANCE = new DataStreamFieldType();
 

@@ -41,6 +41,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * Future utilities.
+ *
+ * @opensearch.internal
+ */
 public class FutureUtils {
 
     /**

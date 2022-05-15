@@ -63,6 +63,8 @@ import java.util.Objects;
 
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
+ *
+ * @opensearch.internal
  */
 public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geometry.Geometry, E extends ShapeBuilder<T, G, E>>
     implements
@@ -418,6 +420,11 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
         }
     }
 
+    /**
+     * The orientation of the vertices
+     *
+     * @opensearch.internal
+     */
     public enum Orientation {
         LEFT,
         RIGHT;

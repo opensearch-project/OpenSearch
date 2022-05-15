@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Transport request for requesting cluster health
+ *
+ * @opensearch.internal
+ */
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
@@ -284,6 +289,11 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return null;
     }
 
+    /**
+     * The level of the health request.
+     *
+     * @opensearch.internal
+     */
     public enum Level {
         CLUSTER,
         INDICES,

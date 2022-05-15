@@ -45,6 +45,8 @@ import java.util.Map;
 
 /**
  * Aggregates data expressed as geotile longs (for efficiency's sake) but formats results as geotile strings.
+ *
+ * @opensearch.internal
  */
 public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid> {
 

@@ -58,6 +58,11 @@ import org.opensearch.geometry.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Query processor for Lucene 6 LatLonShape queries
+ *
+ * @opensearch.internal
+ */
 public class VectorGeoShapeQueryProcessor {
 
     public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
@@ -83,6 +88,11 @@ public class VectorGeoShapeQueryProcessor {
         );
     }
 
+    /**
+     * Geometry collector for LatLonShape indexing types
+     *
+     * @opensearch.internal
+     */
     private static class LuceneGeometryCollector implements GeometryVisitor<Void, RuntimeException> {
         private final List<LatLonGeometry> geometries = new ArrayList<>();
         private final String name;

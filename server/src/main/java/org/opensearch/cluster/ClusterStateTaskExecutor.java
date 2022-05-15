@@ -37,6 +37,11 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Interface that updates the cluster state based on the task
+ *
+ * @opensearch.internal
+ */
 public interface ClusterStateTaskExecutor<T> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
@@ -76,6 +81,8 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
+     *
+     * @opensearch.internal
      */
     class ClusterTasksResult<T> {
         @Nullable
@@ -96,6 +103,11 @@ public interface ClusterStateTaskExecutor<T> {
             return new Builder<>();
         }
 
+        /**
+         * Builder for cluster state task.
+         *
+         * @opensearch.internal
+         */
         public static class Builder<T> {
             private final Map<T, TaskResult> executionResults = new IdentityHashMap<>();
 
@@ -137,6 +149,11 @@ public interface ClusterStateTaskExecutor<T> {
         }
     }
 
+    /**
+     * The task result.
+     *
+     * @opensearch.internal
+     */
     final class TaskResult {
         private final Exception failure;
 

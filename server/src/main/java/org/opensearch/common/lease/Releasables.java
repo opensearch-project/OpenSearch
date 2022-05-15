@@ -40,7 +40,11 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Utility methods to work with {@link Releasable}s. */
+/**
+ * Utility methods to work with {@link Releasable}s.
+ *
+ * @opensearch.internal
+ */
 public enum Releasables {
     ;
 

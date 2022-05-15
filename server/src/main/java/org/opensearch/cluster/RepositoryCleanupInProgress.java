@@ -45,6 +45,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Information passed during repository cleanup
+ *
+ * @opensearch.internal
+ */
 public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
     public static final RepositoryCleanupInProgress EMPTY = new RepositoryCleanupInProgress(Collections.emptyList());
@@ -112,6 +117,11 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         return LegacyESVersion.V_7_4_0;
     }
 
+    /**
+     * Entry in the collection.
+     *
+     * @opensearch.internal
+     */
     public static final class Entry implements Writeable, RepositoryOperation {
 
         private final String repository;

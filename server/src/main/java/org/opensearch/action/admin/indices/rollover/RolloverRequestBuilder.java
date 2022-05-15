@@ -39,6 +39,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Transport request to rollover an index.
+ *
+ * @opensearch.internal
+ */
 public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
     public RolloverRequestBuilder(OpenSearchClient client, RolloverAction action) {
         super(client, action, new RolloverRequest());

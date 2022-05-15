@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Base exception for a failed timestamp parse
+ *
+ * @opensearch.internal
+ */
 public class TimestampParsingException extends OpenSearchException {
 
     private final String timestamp;

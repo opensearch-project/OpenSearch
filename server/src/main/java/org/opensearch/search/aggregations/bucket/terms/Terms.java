@@ -38,11 +38,15 @@ import java.util.List;
 /**
  * A {@code terms} aggregation. Defines multiple bucket, each associated with a unique term for a specific field.
  * All documents in a bucket has the bucket's term in that field.
+ *
+ * @opensearch.internal
  */
 public interface Terms extends MultiBucketsAggregation {
 
     /**
      * A bucket that is associated with a single term
+     *
+     * @opensearch.internal
      */
     interface Bucket extends MultiBucketsAggregation.Bucket {
 

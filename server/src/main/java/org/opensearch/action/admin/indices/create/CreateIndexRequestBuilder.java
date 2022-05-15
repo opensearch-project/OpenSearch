@@ -46,6 +46,8 @@ import java.util.Map;
 
 /**
  * Builder for a create index request
+ *
+ * @opensearch.internal
  */
 public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     CreateIndexRequest,

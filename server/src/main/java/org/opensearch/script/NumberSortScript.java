@@ -36,6 +36,11 @@ import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.search.lookup.SearchLookup;
 
+/**
+ * Script for number sorts
+ *
+ * @opensearch.internal
+ */
 public abstract class NumberSortScript extends AbstractSortScript {
 
     public static final String[] PARAMETERS = {};
@@ -54,6 +59,8 @@ public abstract class NumberSortScript extends AbstractSortScript {
 
     /**
      * A factory to construct {@link NumberSortScript} instances.
+     *
+     * @opensearch.internal
      */
     public interface LeafFactory {
         NumberSortScript newInstance(LeafReaderContext ctx) throws IOException;
@@ -66,6 +73,8 @@ public abstract class NumberSortScript extends AbstractSortScript {
 
     /**
      * A factory to construct stateful {@link NumberSortScript} factories for a specific index.
+     *
+     * @opensearch.internal
      */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);

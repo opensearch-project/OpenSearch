@@ -43,6 +43,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 
+/**
+ * Common Stats Flags for OpenSearch
+ *
+ * @opensearch.internal
+ */
 public class CommonStatsFlags implements Writeable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
@@ -256,6 +261,11 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         }
     }
 
+    /**
+     * The flags.
+     *
+     * @opensearch.internal
+     */
     public enum Flag {
         Store("store", 0),
         Indexing("indexing", 1),

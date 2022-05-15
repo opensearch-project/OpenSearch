@@ -33,6 +33,8 @@ package org.opensearch.search.aggregations.metrics;
 
 /**
  * Statistics over a set of values (either aggregated over field data or scripts)
+ *
+ * @opensearch.internal
  */
 public interface ExtendedStats extends Stats {
 
@@ -116,6 +118,11 @@ public interface ExtendedStats extends Stats {
      */
     String getVarianceSamplingAsString();
 
+    /**
+     * The bounds of the extended stats
+     *
+     * @opensearch.internal
+     */
     enum Bounds {
         UPPER,
         LOWER,

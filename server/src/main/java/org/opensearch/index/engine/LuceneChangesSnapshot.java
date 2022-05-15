@@ -64,6 +64,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
+ *
+ * @opensearch.internal
  */
 final class LuceneChangesSnapshot implements Translog.Snapshot {
     static final int DEFAULT_BATCH_SIZE = 1024;
@@ -348,6 +350,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return ndv.longValue() == 1;
     }
 
+    /**
+     * Parallel array to hold translog operations
+     *
+     * @opensearch.internal
+     */
     private static final class ParallelArray {
         final LeafReaderContext[] leafReaderContexts;
         final long[] version;

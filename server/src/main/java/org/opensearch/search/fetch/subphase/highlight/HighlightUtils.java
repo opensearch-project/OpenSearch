@@ -46,6 +46,11 @@ import java.util.List;
 
 import static java.util.Collections.singleton;
 
+/**
+ * Utility class used during the highlight phase of the search request.
+ *
+ * @opensearch.internal
+ */
 public final class HighlightUtils {
 
     // U+2029 PARAGRAPH SEPARATOR (PS): each value holds a discrete passage for highlighting (unified highlighter)
@@ -75,6 +80,11 @@ public final class HighlightUtils {
         return fetcher.fetchValues(hitContext.sourceLookup());
     }
 
+    /**
+     * Encoders for the highlighters
+     *
+     * @opensearch.internal
+     */
     public static class Encoders {
         public static final Encoder DEFAULT = new DefaultEncoder();
         public static final Encoder HTML = new SimpleHTMLEncoder();

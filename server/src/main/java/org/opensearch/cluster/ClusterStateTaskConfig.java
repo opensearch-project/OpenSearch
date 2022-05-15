@@ -37,6 +37,8 @@ import org.opensearch.common.unit.TimeValue;
 
 /**
  * Cluster state update task configuration for timeout and priority
+ *
+ * @opensearch.internal
  */
 public interface ClusterStateTaskConfig {
     /**
@@ -83,6 +85,11 @@ public interface ClusterStateTaskConfig {
         return new Basic(priority, timeout);
     }
 
+    /**
+     * Basic task config.
+     *
+     * @opensearch.internal
+     */
     class Basic implements ClusterStateTaskConfig {
         final TimeValue timeout;
         final Priority priority;

@@ -224,6 +224,8 @@ import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
+ *
+ * @opensearch.internal
  */
 public class Node implements Closeable {
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING = Setting.boolSetting("node.portsfile", false, Property.NodeScope);
@@ -295,6 +297,11 @@ public class Node implements Closeable {
 
     private static final String CLIENT_TYPE = "node";
 
+    /**
+     * The discovery settings for the node.
+     *
+     * @opensearch.internal
+     */
     public static class DiscoverySettings {
         public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
             "discovery.initial_state_timeout",

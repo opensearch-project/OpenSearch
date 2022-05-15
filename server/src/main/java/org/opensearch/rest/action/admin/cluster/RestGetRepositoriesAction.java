@@ -53,6 +53,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Returns repository information
+ *
+ * @opensearch.api
  */
 public class RestGetRepositoriesAction extends BaseRestHandler {
 

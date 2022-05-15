@@ -58,6 +58,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * A multi search response.
+ *
+ * @opensearch.internal
  */
 public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContentObject {
 
@@ -75,6 +77,8 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     /**
      * A search response item, holding the actual search response, or an error message if it failed.
+     *
+     * @opensearch.internal
      */
     public static class Item implements Writeable {
         private final SearchResponse response;
@@ -245,6 +249,11 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         return item;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String RESPONSES = "responses";
         static final String STATUS = "status";

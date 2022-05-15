@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Multi get shards.
+ *
+ * @opensearch.internal
+ */
 public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardRequest> {
 
     private int shardId;

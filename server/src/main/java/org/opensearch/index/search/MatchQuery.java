@@ -82,8 +82,18 @@ import java.util.function.Supplier;
 import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
+/**
+ * Foundation match query
+ *
+ * @opensearch.internal
+ */
 public class MatchQuery {
 
+    /**
+     * Type of the match
+     *
+     * @opensearch.internal
+     */
     public enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
@@ -124,6 +134,11 @@ public class MatchQuery {
         }
     }
 
+    /**
+     * Query with zero terms
+     *
+     * @opensearch.internal
+     */
     public enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1),

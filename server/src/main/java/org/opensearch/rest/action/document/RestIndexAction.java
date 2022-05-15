@@ -54,6 +54,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to index a document
+ *
+ * @opensearch.api
+ */
 public class RestIndexAction extends BaseRestHandler {
 
     @Override
@@ -66,6 +71,11 @@ public class RestIndexAction extends BaseRestHandler {
         return "document_index_action";
     }
 
+    /**
+     * Create handler action.
+     *
+     * @opensearch.internal
+     */
     public static final class CreateHandler extends RestIndexAction {
 
         @Override
@@ -92,6 +102,11 @@ public class RestIndexAction extends BaseRestHandler {
         }
     }
 
+    /**
+     * The auto id handler.
+     *
+     * @opensearch.internal
+     */
     public static final class AutoIdHandler extends RestIndexAction {
 
         private final Supplier<DiscoveryNodes> nodesInCluster;

@@ -54,6 +54,8 @@ import java.util.Objects;
 /**
  * {@link ComponentTemplateMetadata} is a custom {@link Metadata} implementation for storing a map
  * of component templates and their names.
+ *
+ * @opensearch.internal
  */
 public class ComponentTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "component_template";
@@ -154,6 +156,11 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
+    /**
+     * A diff between component template metadata.
+     *
+     * @opensearch.internal
+     */
     static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, ComponentTemplate>> componentTemplateDiff;

@@ -34,6 +34,11 @@ package org.opensearch.script;
 
 import org.opensearch.common.metrics.CounterMetric;
 
+/**
+ * Metrics for scripts
+ *
+ * @opensearch.internal
+ */
 public class ScriptMetrics {
     final CounterMetric compilationsMetric = new CounterMetric();
     final CounterMetric cacheEvictionsMetric = new CounterMetric();

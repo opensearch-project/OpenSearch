@@ -40,6 +40,11 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport request for cleaning up snapshot repositories
+ *
+ * @opensearch.internal
+ */
 public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupRepositoryRequest> {
 
     private String repository;

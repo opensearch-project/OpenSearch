@@ -57,6 +57,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Information about a script context
+ *
+ * @opensearch.internal
+ */
 public class ScriptContextInfo implements ToXContentObject, Writeable {
     public final String name;
     public final ScriptMethodInfo execute;
@@ -194,6 +199,11 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         return builder.endArray().endObject();
     }
 
+    /**
+     * Script method information
+     *
+     * @opensearch.internal
+     */
     public static class ScriptMethodInfo implements ToXContentObject, Writeable {
         public final String name, returnType;
         public final List<ParameterInfo> parameters;
@@ -272,6 +282,11 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             return builder.endArray().endObject();
         }
 
+        /**
+         * Parameter information
+         *
+         * @opensearch.internal
+         */
         public static class ParameterInfo implements ToXContentObject, Writeable {
             public final String type, name;
 

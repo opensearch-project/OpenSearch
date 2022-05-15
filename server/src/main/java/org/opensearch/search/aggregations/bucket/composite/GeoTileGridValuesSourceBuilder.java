@@ -62,7 +62,17 @@ import java.util.Objects;
 import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
 
+/**
+ * Builds values source for geotile_grid agg
+ *
+ * @opensearch.internal
+ */
 public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder<GeoTileGridValuesSourceBuilder> {
+    /**
+     * Supplier for a composite geotile
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface GeoTileCompositeSuppier {
         CompositeValuesSourceConfig apply(

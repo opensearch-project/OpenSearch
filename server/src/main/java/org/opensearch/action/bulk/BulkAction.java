@@ -36,6 +36,11 @@ import org.opensearch.action.ActionType;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.TransportRequestOptions;
 
+/**
+ * Transport action for bulk indexing
+ *
+ * @opensearch.internal
+ */
 public class BulkAction extends ActionType<BulkResponse> {
 
     public static final BulkAction INSTANCE = new BulkAction();

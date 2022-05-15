@@ -49,6 +49,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *             annotation. When using that annotation, parameters are matched by name and type rather than
  *             by position. In addition, values that use the standard {@literal @Inject} constructor
  *             annotation are eligible for method interception.
+ *
+ * @opensearch.internal
  */
 @Target({ CONSTRUCTOR })
 @Retention(RUNTIME)

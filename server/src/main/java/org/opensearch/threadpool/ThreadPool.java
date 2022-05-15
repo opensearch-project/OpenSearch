@@ -72,10 +72,20 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * The OpenSearch threadpool class
+ *
+ * @opensearch.internal
+ */
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
+    /**
+     * The threadpool names.
+     *
+     * @opensearch.internal
+     */
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
@@ -98,6 +108,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SYSTEM_WRITE = "system_write";
     }
 
+    /**
+     * The threadpool type.
+     *
+     * @opensearch.internal
+     */
     public enum ThreadPoolType {
         DIRECT("direct"),
         FIXED("fixed"),
@@ -652,6 +667,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
+    /**
+     * The thread pool information.
+     *
+     * @opensearch.internal
+     */
     public static class Info implements Writeable, ToXContentFragment {
 
         private final String name;

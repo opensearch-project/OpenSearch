@@ -47,6 +47,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * </pre>
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 @Target(ANNOTATION_TYPE)
 @Retention(RUNTIME)

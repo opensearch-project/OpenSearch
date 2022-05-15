@@ -39,6 +39,8 @@ import java.lang.reflect.InvocationTargetException;
  * {@code T}.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 interface ConstructionProxy<T> {
 

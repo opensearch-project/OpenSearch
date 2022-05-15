@@ -42,6 +42,11 @@ import org.opensearch.common.util.CollectionUtils;
 import java.io.Reader;
 import java.util.Map;
 
+/**
+ * A custom analyzer that is reloadable
+ *
+ * @opensearch.internal
+ */
 public final class ReloadableCustomAnalyzer extends Analyzer implements AnalyzerComponentsProvider {
 
     private volatile AnalyzerComponents components;

@@ -43,6 +43,11 @@ import org.apache.logging.log4j.core.config.plugins.PluginElement;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.message.Message;
 
+/**
+ * Appends warnings to the header
+ *
+ * @opensearch.internal
+ */
 @Plugin(name = "HeaderWarningAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
 public class HeaderWarningAppender extends AbstractAppender {
     public HeaderWarningAppender(String name, Filter filter) {

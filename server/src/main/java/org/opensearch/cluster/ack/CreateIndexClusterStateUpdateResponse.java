@@ -34,6 +34,8 @@ package org.opensearch.cluster.ack;
 
 /**
  * A cluster state update response with specific fields for index creation.
+ *
+ * @opensearch.internal
  */
 public class CreateIndexClusterStateUpdateResponse extends ClusterStateUpdateResponse {
 

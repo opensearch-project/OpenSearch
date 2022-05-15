@@ -81,7 +81,11 @@ import java.util.function.Supplier;
 
 import static org.opensearch.common.time.DateUtils.toLong;
 
-/** A {@link FieldMapper} for dates. */
+/**
+ * A {@link FieldMapper} for dates.
+ *
+ * @opensearch.internal
+ */
 public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
@@ -90,6 +94,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
 
+    /**
+     * Resolution of the date time
+     *
+     * @opensearch.internal
+     */
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
             @Override
@@ -197,6 +206,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return (DateFieldMapper) in;
     }
 
+    /**
+     * Builder for the date field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -308,6 +322,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated());
     });
 
+    /**
+     * Field type for date field mapper
+     *
+     * @opensearch.internal
+     */
     public static final class DateFieldType extends MappedFieldType {
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;

@@ -58,6 +58,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * ActionType that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
  * removed from the cluster state in case of successful completion or restarted on some other node in case of failure.
+ *
+ * @opensearch.internal
  */
 public class CompletionPersistentTaskAction extends ActionType<PersistentTaskResponse> {
 
@@ -68,6 +70,11 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         super(NAME, PersistentTaskResponse::new);
     }
 
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
     public static class Request extends MasterNodeRequest<Request> {
 
         private String taskId;
@@ -127,6 +134,11 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
     }
 
+    /**
+     * The request bulder.
+     *
+     * @opensearch.internal
+     */
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
         CompletionPersistentTaskAction.Request,
         PersistentTaskResponse,
@@ -137,6 +149,11 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
     }
 
+    /**
+     * The transport action.
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;

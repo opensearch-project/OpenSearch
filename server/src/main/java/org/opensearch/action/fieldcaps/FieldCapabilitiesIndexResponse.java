@@ -44,6 +44,8 @@ import java.util.Objects;
 
 /**
  * Response for {@link TransportFieldCapabilitiesIndexAction}.
+ *
+ * @opensearch.internal
  */
 public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
     private final String indexName;

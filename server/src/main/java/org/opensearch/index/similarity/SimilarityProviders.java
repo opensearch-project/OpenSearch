@@ -76,6 +76,11 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * A provider for similarity computations
+ *
+ * @opensearch.internal
+ */
 final class SimilarityProviders {
 
     private SimilarityProviders() {} // no instantiation

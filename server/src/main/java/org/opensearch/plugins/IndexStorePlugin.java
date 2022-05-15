@@ -46,6 +46,8 @@ import java.util.Map;
 
 /**
  * A plugin that provides alternative directory implementations.
+ *
+ * @opensearch.api
  */
 public interface IndexStorePlugin {
 

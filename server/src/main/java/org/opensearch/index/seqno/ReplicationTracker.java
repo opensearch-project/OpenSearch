@@ -90,6 +90,8 @@ import java.util.stream.StreamSupport;
  * shards that are taken into account for the global checkpoint calculation are called the "in-sync shards".
  * <p>
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas (via {@link GlobalCheckpointSyncAction}).
+ *
+ * @opensearch.internal
  */
 public class ReplicationTracker extends AbstractIndexShardComponent implements LongSupplier {
 
@@ -660,6 +662,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    /**
+     * The state of the lucene checkpoint
+     *
+     * @opensearch.internal
+     */
     public static class CheckpointState implements Writeable {
 
         /**
@@ -1592,6 +1599,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Represents the sequence number component of the primary context. This is the knowledge on the primary of the in-sync and initializing
      * shards and their local checkpoints.
+     *
+     * @opensearch.internal
      */
     public static class PrimaryContext implements Writeable {
 

@@ -46,6 +46,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for binary_range
+ *
+ * @opensearch.internal
+ */
 public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {

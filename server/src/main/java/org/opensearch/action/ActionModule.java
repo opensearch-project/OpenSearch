@@ -419,6 +419,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
+ *
+ * @opensearch.internal
  */
 public class ActionModule extends AbstractModule {
 

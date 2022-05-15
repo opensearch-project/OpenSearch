@@ -110,6 +110,11 @@ import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovere
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * The main lifecycle resource coordinator
+ *
+ * @opensearch.internal
+ */
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
 
     public static final long ZEN1_BWC_TERM = 0;
@@ -1346,12 +1351,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return onJoinValidators;
     }
 
+    /**
+     * The mode of the coordinator.
+     *
+     * @opensearch.internal
+     */
     public enum Mode {
         CANDIDATE,
         LEADER,
         FOLLOWER
     }
 
+    /**
+     * The coordinator peer finder.
+     *
+     * @opensearch.internal
+     */
     private class CoordinatorPeerFinder extends PeerFinder {
 
         CoordinatorPeerFinder(
@@ -1475,6 +1490,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    /**
+     * The coordinator publication.
+     *
+     * @opensearch.internal
+     */
     class CoordinatorPublication extends Publication {
 
         private final PublishRequest publishRequest;

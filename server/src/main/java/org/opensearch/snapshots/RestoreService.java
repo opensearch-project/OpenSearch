@@ -136,6 +136,8 @@ import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
  * At the end of the successful restore process {@code RestoreService} calls {@link #cleanupRestoreState(ClusterChangedEvent)},
  * which removes {@link RestoreInProgress} when all shards are completed. In case of
  * restore failure a normal recovery fail-over process kicks in.
+ *
+ * @opensearch.internal
  */
 public class RestoreService implements ClusterStateApplier {
 
@@ -774,6 +776,11 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
+    /**
+     * Response once restore is completed.
+     *
+     * @opensearch.internal
+     */
     public static final class RestoreCompletionResponse {
         private final String uuid;
         private final Snapshot snapshot;
@@ -798,6 +805,11 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
+    /**
+     * Updates based on restore progress
+     *
+     * @opensearch.internal
+     */
     public static class RestoreInProgressUpdater extends RoutingChangesObserver.AbstractRoutingChangesObserver {
         // Map of RestoreUUID to a of changes to the shards' restore statuses
         private final Map<String, Map<ShardId, ShardRestoreStatus>> shardChanges = new HashMap<>();

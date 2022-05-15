@@ -38,6 +38,11 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
 
+/**
+ * Random UUID generator.
+ *
+ * @opensearch.internal
+ */
 class RandomBasedUUIDGenerator implements UUIDGenerator {
 
     /**

@@ -57,6 +57,8 @@ import java.util.function.LongSupplier;
  * if logically the type needs a more restricted use (e.g. even though dates are stored as numbers, it doesn't make sense to pass them to
  * a sum aggregation).  When adding a new ValuesSourceType, new aggregators should be added and registered at the same time, to add support
  * for the new type to existing aggregations, as appropriate.
+ *
+ * @opensearch.internal
  */
 public interface ValuesSourceType {
     /**

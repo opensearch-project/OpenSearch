@@ -50,6 +50,8 @@ import java.util.function.Supplier;
  * A utility class which simplifies interacting with the cluster state in cases where
  * one tries to take action based on the current state but may want to wait for a new state
  * and retry upon failure.
+ *
+ * @opensearch.internal
  */
 public class ClusterStateObserver {
 
@@ -205,6 +207,11 @@ public class ClusterStateObserver {
         }
     }
 
+    /**
+     * An observer of the cluster state for changes.
+     *
+     * @opensearch.internal
+     */
     class ObserverClusterStateListener implements TimeoutClusterStateListener {
 
         @Override
@@ -296,6 +303,8 @@ public class ClusterStateObserver {
 
     /**
      * The observer considers two cluster states to be the same if they have the same version and cluster-manager node id (i.e. null or set)
+     *
+     * @opensearch.internal
      */
     private static class StoredState {
         private final String clusterManagerNodeId;
@@ -315,6 +324,11 @@ public class ClusterStateObserver {
         }
     }
 
+    /**
+     * Listener for the observer.
+     *
+     * @opensearch.internal
+     */
     public interface Listener {
 
         /** called when a new state is observed */
@@ -326,6 +340,11 @@ public class ClusterStateObserver {
         void onTimeout(TimeValue timeout);
     }
 
+    /**
+     * Context for the observer.
+     *
+     * @opensearch.internal
+     */
     static class ObservingContext {
         public final Listener listener;
         public final Predicate<ClusterState> statePredicate;
@@ -341,6 +360,11 @@ public class ClusterStateObserver {
         }
     }
 
+    /**
+     * A context preserving listener.
+     *
+     * @opensearch.internal
+     */
     private static final class ContextPreservingListener implements Listener {
         private final Listener delegate;
         private final Supplier<ThreadContext.StoredContext> contextSupplier;

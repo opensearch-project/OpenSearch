@@ -78,6 +78,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 /**
  * Transport action that reads the cluster state for shards with the requested criteria (see {@link ClusterHealthStatus}) of specific
  * indices and fetches store information from all the nodes using {@link TransportNodesListGatewayStartedShards}
+ *
+ * @opensearch.internal
  */
 public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAction<
     IndicesShardStoresRequest,
@@ -160,6 +162,11 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
+    /**
+     * Information for async shard stores
+     *
+     * @opensearch.internal
+     */
     private class AsyncShardStoresInfoFetches {
         private final DiscoveryNodes nodes;
         private final RoutingNodes routingNodes;
@@ -193,6 +200,11 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
         }
 
+        /**
+         * Internal async fetch
+         *
+         * @opensearch.internal
+         */
         private class InternalAsyncFetch extends AsyncShardFetch<NodeGatewayStartedShards> {
 
             InternalAsyncFetch(
@@ -307,6 +319,11 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 // no-op
             }
 
+            /**
+             * Response for shard stores action
+             *
+             * @opensearch.internal
+             */
             public class Response {
                 private final ShardId shardId;
                 private final List<NodeGatewayStartedShards> responses;

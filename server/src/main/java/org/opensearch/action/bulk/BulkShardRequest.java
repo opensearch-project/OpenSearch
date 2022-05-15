@@ -47,6 +47,11 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
 
+/**
+ * A bulk shard request targeting a specific shard ID
+ *
+ * @opensearch.internal
+ */
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable {
 
     public static final Version COMPACT_SHARD_ID_VERSION = LegacyESVersion.V_7_9_0;
