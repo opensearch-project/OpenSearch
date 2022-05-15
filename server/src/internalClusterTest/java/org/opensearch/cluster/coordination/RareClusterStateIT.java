@@ -159,16 +159,16 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
     ) throws Exception {
         // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
         // request.
-        final Coordinator masterCoordinator = (Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class);
+        final Coordinator clusterManagerCoordinator = (Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class);
         assertBusy(() -> {
-            assertFalse(masterCoordinator.publicationInProgress());
-            final long applierVersion = masterCoordinator.getApplierState().version();
+            assertFalse(clusterManagerCoordinator.publicationInProgress());
+            final long applierVersion = clusterManagerCoordinator.getApplierState().version();
             for (Discovery instance : internalCluster().getInstances(Discovery.class)) {
                 assertEquals(((Coordinator) instance).getApplierState().version(), applierVersion);
             }
         });
         ActionFuture<Res> future = req.execute();
-        assertBusy(() -> assertTrue(masterCoordinator.cancelCommittedPublication()));
+        assertBusy(() -> assertTrue(clusterManagerCoordinator.cancelCommittedPublication()));
         return future;
     }
 
@@ -202,9 +202,9 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         ensureGreen(TimeValue.timeValueMinutes(30), "test");
         // due to publish_timeout of 0, wait for data node to have cluster state fully applied
         assertBusy(() -> {
-            long masterClusterStateVersion = internalCluster().clusterService(internalCluster().getMasterName()).state().version();
+            long clusterManagerClusterStateVersion = internalCluster().clusterService(internalCluster().getMasterName()).state().version();
             long dataClusterStateVersion = internalCluster().clusterService(dataNode).state().version();
-            assertThat(masterClusterStateVersion, equalTo(dataClusterStateVersion));
+            assertThat(clusterManagerClusterStateVersion, equalTo(dataClusterStateVersion));
         });
         assertHitCount(client().prepareSearch("test").get(), 0);
     }

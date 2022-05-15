@@ -1212,7 +1212,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .build();
         TimeValue disconnectAfterDelay = TimeValue.timeValueMillis(randomIntBetween(0, 100));
         // start a cluster-manager node
-        String masterNodeName = internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        String clusterManagerNodeName = internalCluster().startClusterManagerOnlyNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
             Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build()
@@ -1239,9 +1239,9 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         ensureSearchable(indexName);
         assertHitCount(client().prepareSearch(indexName).get(), numDocs);
 
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
+        MockTransportService clusterManagerTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            masterNodeName
+            clusterManagerNodeName
         );
         MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
@@ -1312,7 +1312,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         });
 
         for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
-            mockTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
+            mockTransportService.addSendBehavior(clusterManagerTransportService, (connection, requestId, action, request, options) -> {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
                 if ((primaryRelocation && finalized.get()) == false) {
                     assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);

@@ -71,10 +71,10 @@ import static org.hamcrest.Matchers.notNullValue;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
 
-    public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
+    public void testNoShardRelocationsOccurWhenElectedClusterManagerNodeFails() throws Exception {
 
-        Settings masterNodeSettings = clusterManagerOnlyNode();
-        internalCluster().startNodes(2, masterNodeSettings);
+        Settings clusterManagerNodeSettings = clusterManagerOnlyNode();
+        internalCluster().startNodes(2, clusterManagerNodeSettings);
         Settings dateNodeSettings = dataNode();
         internalCluster().startNodes(2, dateNodeSettings);
         ClusterHealthResponse clusterHealthResponse = client().admin()

@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.is;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase {
 
-    public void testMasterFailoverDuringCleanup() throws Exception {
+    public void testClusterManagerFailoverDuringCleanup() throws Exception {
         startBlockedCleanup("test-repo");
 
         final int nodeCount = internalCluster().numDataAndMasterNodes();
@@ -117,17 +117,17 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
             );
         garbageFuture.get();
 
-        final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        final String clusterManagerNode = blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
 
         logger.info("--> starting repository cleanup");
         client().admin().cluster().prepareCleanupRepository(repoName).execute();
 
-        logger.info("--> waiting for block to kick in on " + masterNode);
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(60));
+        logger.info("--> waiting for block to kick in on " + clusterManagerNode);
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(60));
         awaitClusterState(
             state -> state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()
         );
-        return masterNode;
+        return clusterManagerNode;
     }
 
     public void testCleanupOldIndexN() throws ExecutionException, InterruptedException {

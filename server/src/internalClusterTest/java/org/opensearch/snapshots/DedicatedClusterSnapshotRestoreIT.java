@@ -835,7 +835,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
     }
 
-    public void testMasterShutdownDuringSnapshot() throws Exception {
+    public void testClusterManagerShutdownDuringSnapshot() throws Exception {
         logger.info("-->  starting two cluster-manager nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(2);
         internalCluster().startDataOnlyNodes(2);

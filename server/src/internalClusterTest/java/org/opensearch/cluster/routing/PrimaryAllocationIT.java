@@ -294,7 +294,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     public void testForceStaleReplicaToBePromotedToPrimary() throws Exception {
-        logger.info("--> starting 3 nodes, 1 master, 2 data");
+        logger.info("--> starting 3 nodes, 1 cluster-manager, 2 data");
         String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
         assertAcked(

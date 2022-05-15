@@ -70,7 +70,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
     }
 
     public void testFilteredRepoMetadataIsUsed() {
-        final String masterName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getMasterName();
         final String repoName = "test-repo";
         assertAcked(
             client().admin()
@@ -80,7 +80,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                 .setSettings(
                     Settings.builder()
                         .put("location", randomRepoPath())
-                        .put(MetadataFilteringPlugin.CLUSTER_MANAGER_SETTING_VALUE, masterName)
+                        .put(MetadataFilteringPlugin.CLUSTER_MANAGER_SETTING_VALUE, clusterManagerName)
                 )
         );
         createIndex("test-idx");
@@ -90,7 +90,10 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
             .setWaitForCompletion(true)
             .get()
             .getSnapshotInfo();
-        assertThat(snapshotInfo.userMetadata(), is(Collections.singletonMap(MetadataFilteringPlugin.MOCK_FILTERED_META, masterName)));
+        assertThat(
+            snapshotInfo.userMetadata(),
+            is(Collections.singletonMap(MetadataFilteringPlugin.MOCK_FILTERED_META, clusterManagerName))
+        );
     }
 
     // Mock plugin that stores the name of the cluster-manager node that started a snapshot in each snapshot's metadata

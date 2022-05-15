@@ -83,7 +83,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         final SnapshotId snapshotId = getSnapshot("test-repo", "test-snap").snapshotId();
 
         logger.info("--> start disrupting cluster");
-        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.NetworkDelay.random(random()));
+        final NetworkDisruption networkDisruption = isolateClusterManagerDisruption(NetworkDisruption.NetworkDelay.random(random()));
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 

@@ -62,7 +62,7 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
      * If the cluster-manager node is being disrupted or if it cannot commit cluster state changes, it needs to retry within timeout limits.
      * This retry logic is implemented in TransportMasterNodeAction and tested by the following cluster-manager failover scenario.
      */
-    public void testMasterFailoverDuringIndexingWithMappingChanges() throws Throwable {
+    public void testClusterManagerFailoverDuringIndexingWithMappingChanges() throws Throwable {
         logger.info("--> start 4 nodes, 3 cluster-manager, 1 data");
 
         internalCluster().setBootstrapClusterManagerNodeIndex(2);
@@ -109,7 +109,7 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
         barrier.await();
 
         // interrupt communication between cluster-manager and other nodes in cluster
-        NetworkDisruption partition = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        NetworkDisruption partition = isolateClusterManagerDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
 
         logger.info("--> disrupting network");

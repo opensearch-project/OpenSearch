@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Tests relating to the loss of the master.
+ * Tests relating to the loss of the cluster-manager.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
@@ -68,12 +68,12 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
     /**
      * Test that cluster recovers from a long GC on cluster-manager that causes other nodes to elect a new one
      */
-    public void testMasterNodeGCs() throws Exception {
+    public void testClusterManagerNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
 
         String oldClusterManagerNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
-        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(
+        SingleNodeDisruption clusterManagerNodeDisruption = new IntermittentLongGCDisruption(
             random(),
             oldClusterManagerNode,
             100,
@@ -81,8 +81,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             30000,
             60000
         );
-        internalCluster().setDisruptionScheme(masterNodeDisruption);
-        masterNodeDisruption.startDisrupting();
+        internalCluster().setDisruptionScheme(clusterManagerNodeDisruption);
+        clusterManagerNodeDisruption.startDisrupting();
 
         Set<String> oldNonClusterManagerNodesSet = new HashSet<>(nodes);
         oldNonClusterManagerNodesSet.remove(oldClusterManagerNode);
@@ -94,15 +94,17 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             assertDifferentMaster(node, oldClusterManagerNode);
         }
 
-        logger.info("waiting for nodes to elect a new master");
+        logger.info("waiting for nodes to elect a new cluster-manager");
         ensureStableCluster(2, oldNonClusterManagerNodes.get(0));
 
         // restore GC
-        masterNodeDisruption.stopDisrupting();
-        final TimeValue waitTime = new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis());
+        clusterManagerNodeDisruption.stopDisrupting();
+        final TimeValue waitTime = new TimeValue(
+            DISRUPTION_HEALING_OVERHEAD.millis() + clusterManagerNodeDisruption.expectedTimeToHeal().millis()
+        );
         ensureStableCluster(3, waitTime, false, oldNonClusterManagerNodes.get(0));
 
-        // make sure all nodes agree on master
+        // make sure all nodes agree on cluster-manager
         String newClusterManager = internalCluster().getMasterName();
         assertThat(newClusterManager, not(equalTo(oldClusterManagerNode)));
         assertMaster(newClusterManager, nodes);
@@ -112,7 +114,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * This test isolates the cluster-manager from rest of the cluster, waits for a new cluster-manager to be elected, restores the partition
      * and verifies that all node agree on the new cluster state
      */
-    public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
+    public void testIsolateClusterManagerAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 
         assertAcked(
@@ -169,7 +171,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
                 try {
                     assertEquals("unequal versions", state.version(), nodeState.version());
                     assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
-                    assertEquals("different masters ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
+                    assertEquals("different cluster-managers ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
                     assertEquals("different meta data version", state.metadata().version(), nodeState.metadata().version());
                     assertEquals("different routing", state.routingTable().toString(), nodeState.routingTable().toString());
                 } catch (AssertionError t) {
@@ -193,7 +195,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     /**
-     * Verify that the proper block is applied when nodes lose their master
+     * Verify that the proper block is applied when nodes lose their cluster-manager
      */
     public void testVerifyApiBlocksDuringPartition() throws Exception {
         internalCluster().startNodes(3, Settings.builder().putNull(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey()).build());
@@ -223,7 +225,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         // The unlucky node must report *no* cluster-manager node, since it can't connect to cluster-manager and in fact it should
         // continuously ping until network failures have been resolved. However
-        // It may a take a bit before the node detects it has been cut off from the elected master
+        // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
         assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(30));
 
@@ -269,7 +271,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         // The unlucky node must report *no* cluster-manager node, since it can't connect to cluster-manager and in fact it should
         // continuously ping until network failures have been resolved. However
-        // It may a take a bit before the node detects it has been cut off from the elected master
+        // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
         assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
 

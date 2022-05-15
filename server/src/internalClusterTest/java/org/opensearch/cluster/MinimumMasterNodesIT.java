@@ -350,7 +350,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         final String clusterManager = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         otherNodes.remove(clusterManager);
-        NetworkDisruption partition = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        NetworkDisruption partition = isolateClusterManagerDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
 
         final CountDownLatch latch = new CountDownLatch(1);

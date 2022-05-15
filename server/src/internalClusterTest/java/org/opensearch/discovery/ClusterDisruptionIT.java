@@ -409,7 +409,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         }
     }
 
-    public void testCannotJoinIfMasterLostDataFolder() throws Exception {
+    public void testCannotJoinIfClusterManagerLostDataFolder() throws Exception {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
 
@@ -463,30 +463,30 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testIndicesDeleted() throws Exception {
         final String idxName = "test";
-        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(2);
+        final List<String> allClusterManagerEligibleNodes = internalCluster().startMasterOnlyNodes(2);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
 
-        final String masterNode1 = internalCluster().getMasterName();
+        final String clusterManagerNode1 = internalCluster().getMasterName();
         NetworkDisruption networkDisruption = new NetworkDisruption(
-            new TwoPartitions(masterNode1, dataNode),
+            new TwoPartitions(clusterManagerNode1, dataNode),
             NetworkDisruption.UNRESPONSIVE
         );
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
         // We know this will time out due to the partition, we check manually below to not proceed until
         // the delete has been applied to the cluster-manager node and the cluster-manager eligible node.
-        internalCluster().client(masterNode1).admin().indices().prepareDelete(idxName).setTimeout("0s").get();
+        internalCluster().client(clusterManagerNode1).admin().indices().prepareDelete(idxName).setTimeout("0s").get();
         // Don't restart the cluster-manager node until we know the index deletion has taken effect on cluster-manager and the
         // cluster-manager eligible node.
         assertBusy(() -> {
-            for (String clusterManagerNode : allMasterEligibleNodes) {
-                final ClusterState masterState = internalCluster().clusterService(clusterManagerNode).state();
-                assertTrue("index not deleted on " + clusterManagerNode, masterState.metadata().hasIndex(idxName) == false);
+            for (String clusterManagerNode : allClusterManagerEligibleNodes) {
+                final ClusterState clusterManagerState = internalCluster().clusterService(clusterManagerNode).state();
+                assertTrue("index not deleted on " + clusterManagerNode, clusterManagerState.metadata().hasIndex(idxName) == false);
             }
         });
-        internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
+        internalCluster().restartNode(clusterManagerNode1, InternalTestCluster.EMPTY_CALLBACK);
         ensureYellow();
         assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
     }

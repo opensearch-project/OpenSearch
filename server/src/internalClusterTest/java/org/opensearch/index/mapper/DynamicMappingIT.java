@@ -145,14 +145,14 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
         ensureGreen("index");
         client().prepareIndex("index").setId("1").setSource("field1", "value1").get();
 
-        final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
+        final CountDownLatch clusterManagerBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
 
         internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
             .submitStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    masterBlockedLatch.countDown();
+                    clusterManagerBlockedLatch.countDown();
                     indexingCompletedLatch.await();
                     return currentState;
                 }
@@ -163,7 +163,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
                 }
             });
 
-        masterBlockedLatch.await();
+        clusterManagerBlockedLatch.await();
         final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId("2").setSource("field2", "value2");
         try {
             assertThat(

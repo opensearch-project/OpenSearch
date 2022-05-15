@@ -338,7 +338,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         internalCluster().clearDisruptionScheme(true);
     }
 
-    public void testNoMasterActionsMetadataWriteMasterBlock() throws Exception {
+    public void testNoClusterManagerActionsMetadataWriteClusterManagerBlock() throws Exception {
         Settings settings = Settings.builder()
             .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "metadata_write")
             .put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), "100ms")
