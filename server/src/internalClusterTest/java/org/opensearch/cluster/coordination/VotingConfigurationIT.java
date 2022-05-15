@@ -66,10 +66,10 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(2);
         final String originalClusterManager = internalCluster().getMasterName();
 
-        logger.info("--> excluding cluster-manager node {}", originalMaster);
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
+        logger.info("--> excluding cluster-manager node {}", originalClusterManager);
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalClusterManager)).get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
-        assertNotEquals(originalMaster, internalCluster().getMasterName());
+        assertNotEquals(originalClusterManager, internalCluster().getMasterName());
     }
 
     public void testElectsNodeNotInVotingConfiguration() throws Exception {

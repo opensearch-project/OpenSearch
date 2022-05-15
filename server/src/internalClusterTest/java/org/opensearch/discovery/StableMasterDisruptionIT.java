@@ -168,7 +168,7 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
 
         final String clusterManager = internalCluster().getMasterName();
         final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames())
-            .filter(n -> master.equals(n) == false)
+            .filter(n -> clusterManager.equals(n) == false)
             .collect(Collectors.toList());
         final String isolatedNode = randomFrom(nonMasters);
         final String otherNode = nonMasters.get(nonMasters.get(0).equals(isolatedNode) ? 1 : 0);
@@ -176,14 +176,14 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         logger.info("--> isolating [{}]", isolatedNode);
 
         final NetworkDisruption networkDisruption = new NetworkDisruption(
-            new TwoPartitions(singleton(isolatedNode), Sets.newHashSet(master, otherNode)),
+            new TwoPartitions(singleton(isolatedNode), Sets.newHashSet(clusterManager, otherNode)),
             networkLinkDisruptionType
         );
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
         logger.info("--> waiting for cluster-manager to remove it");
-        ensureStableCluster(2, master);
+        ensureStableCluster(2, clusterManager);
         ensureNoMaster(isolatedNode);
 
         networkDisruption.stopDisrupting();
@@ -205,14 +205,14 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         ensureStableCluster(3);
 
         // Save the current cluster-manager node as old cluster-manager node, because that node will get frozen
-        final String oldMasterNode = internalCluster().getMasterName();
+        final String oldClusterManagerNode = internalCluster().getMasterName();
 
         // Simulating a painful gc by suspending all threads for a long time on the current elected cluster-manager node.
-        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(random(), oldMasterNode);
+        SingleNodeDisruption clusterManagerNodeDisruption = new LongGCDisruption(random(), oldClusterManagerNode);
 
         // Save the majority side
         final List<String> majoritySide = new ArrayList<>(nodes);
-        majoritySide.remove(oldMasterNode);
+        majoritySide.remove(oldClusterManagerNode);
 
         // Keeps track of the previous and current cluster-manager when a cluster-manager node transition took place on each node on the
         // majority side:
@@ -222,30 +222,30 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
             internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
                 DiscoveryNode previousClusterManager = event.previousState().nodes().getMasterNode();
                 DiscoveryNode currentClusterManager = event.state().nodes().getMasterNode();
-                if (!Objects.equals(previousMaster, currentMaster)) {
+                if (!Objects.equals(previousClusterManager, currentClusterManager)) {
                     logger.info(
                         "--> node {} received new cluster state: {} \n and had previous cluster state: {}",
                         node,
                         event.state(),
                         event.previousState()
                     );
-                    String previousClusterManagerNodeName = previousClusterManager != null ? previousMaster.getName() : null;
-                    String currentMasterNodeName = currentClusterManager != null ? currentMaster.getName() : null;
+                    String previousClusterManagerNodeName = previousClusterManager != null ? previousClusterManager.getName() : null;
+                    String currentMasterNodeName = currentClusterManager != null ? currentClusterManager.getName() : null;
                     masters.get(node).add(new Tuple<>(previousClusterManagerNodeName, currentMasterNodeName));
                 }
             });
         }
 
         final CountDownLatch oldMasterNodeSteppedDown = new CountDownLatch(1);
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).addListener(event -> {
+        internalCluster().getInstance(ClusterService.class, oldClusterManagerNode).addListener(event -> {
             if (event.state().nodes().getMasterNodeId() == null) {
                 oldMasterNodeSteppedDown.countDown();
             }
         });
 
-        internalCluster().setDisruptionScheme(masterNodeDisruption);
-        logger.info("--> freezing node [{}]", oldMasterNode);
-        masterNodeDisruption.startDisrupting();
+        internalCluster().setDisruptionScheme(clusterManagerNodeDisruption);
+        logger.info("--> freezing node [{}]", oldClusterManagerNode);
+        clusterManagerNodeDisruption.startDisrupting();
 
         // Wait for majority side to elect a new master
         assertBusy(() -> {
@@ -260,7 +260,7 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         // once the old cluster-manager node un-freezes it gets executed. The old cluster-manager node will send this update + the cluster
         // state where it is
         // flagged as cluster-manager to the other nodes that follow the new master. These nodes should ignore this update.
-        internalCluster().getInstance(ClusterService.class, oldMasterNode)
+        internalCluster().getInstance(ClusterService.class, oldClusterManagerNode)
             .submitStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -278,11 +278,11 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         logger.info("--> new detected cluster-manager node [{}]", newMasterNode);
 
         // Stop disruption
-        logger.info("--> unfreezing node [{}]", oldMasterNode);
-        masterNodeDisruption.stopDisrupting();
+        logger.info("--> unfreezing node [{}]", oldClusterManagerNode);
+        clusterManagerNodeDisruption.stopDisrupting();
 
         oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
-        logger.info("--> [{}] stepped down as master", oldMasterNode);
+        logger.info("--> [{}] stepped down as master", oldClusterManagerNode);
         ensureStableCluster(3);
 
         assertThat(masters.size(), equalTo(2));
@@ -290,8 +290,13 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
             String nodeName = entry.getKey();
             List<Tuple<String, String>> transitions = entry.getValue();
             assertTrue(
-                "[" + nodeName + "] should not apply state from old cluster-manager [" + oldMasterNode + "] but it did: " + transitions,
-                transitions.stream().noneMatch(t -> oldMasterNode.equals(t.v2()))
+                "["
+                    + nodeName
+                    + "] should not apply state from old cluster-manager ["
+                    + oldClusterManagerNode
+                    + "] but it did: "
+                    + transitions,
+                transitions.stream().noneMatch(t -> oldClusterManagerNode.equals(t.v2()))
             );
         }
     }

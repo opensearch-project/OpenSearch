@@ -96,13 +96,13 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             String current = internalCluster().getMasterName();
             assertThat(current, notNullValue());
-            assertThat(current, not(equalTo(oldMaster)));
+            assertThat(current, not(equalTo(oldClusterManager)));
         });
         ensureSearchable("test");
 
         r = client().admin().indices().prepareRecoveries("test").get();
         int numRecoveriesAfterNewClusterManager = r.shardRecoveryStates().get("test").size();
-        assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
+        assertThat(numRecoveriesAfterNewClusterManager, equalTo(numRecoveriesBeforeNewClusterManager));
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws InterruptedException, ExecutionException, TimeoutException {

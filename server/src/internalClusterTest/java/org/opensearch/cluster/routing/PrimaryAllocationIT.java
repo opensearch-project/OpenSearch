@@ -216,7 +216,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
                 .get()
         );
         ensureGreen();
-        final Settings inSyncDataPathSettings = createStaleReplicaScenario(master);
+        final Settings inSyncDataPathSettings = createStaleReplicaScenario(clusterManager);
 
         logger.info("--> starting node that reuses data folder with the up-to-date primary shard");
         internalCluster().startDataOnlyNode(inSyncDataPathSettings);
@@ -674,7 +674,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         ensureGreen();
         String timeout = randomFrom("0s", "1s", "2s");
         assertAcked(
-            client(master).admin()
+            client(clusterManager).admin()
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
@@ -703,7 +703,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(oldPrimary));
         // Checks that we fails replicas in one side but not mark them as stale.
         assertBusy(() -> {
-            ClusterState state = client(master).admin().cluster().prepareState().get().getState();
+            ClusterState state = client(clusterManager).admin().cluster().prepareState().get().getState();
             final IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
             final String newPrimaryNode = state.getRoutingNodes().node(shardRoutingTable.primary.currentNodeId()).node().getName();
             assertThat(newPrimaryNode, not(equalTo(oldPrimary)));
@@ -715,7 +715,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
             assertThat(state.metadata().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
         }, 1, TimeUnit.MINUTES);
         assertAcked(
-            client(master).admin()
+            client(clusterManager).admin()
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "all"))
@@ -725,7 +725,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         partition.ensureHealthy(internalCluster());
         logger.info("--> stop disrupting network and re-enable allocation");
         assertBusy(() -> {
-            ClusterState state = client(master).admin().cluster().prepareState().get().getState();
+            ClusterState state = client(clusterManager).admin().cluster().prepareState().get().getState();
             assertThat(state.routingTable().shardRoutingTable(shardId).activeShards(), hasSize(numberOfReplicas));
             assertThat(state.metadata().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
             for (String node : replicaNodes) {

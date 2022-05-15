@@ -104,8 +104,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         // make sure all nodes agree on master
         String newClusterManager = internalCluster().getMasterName();
-        assertThat(newMaster, not(equalTo(oldClusterManagerNode)));
-        assertMaster(newMaster, nodes);
+        assertThat(newClusterManager, not(equalTo(oldClusterManagerNode)));
+        assertMaster(newClusterManager, nodes);
     }
 
     /**

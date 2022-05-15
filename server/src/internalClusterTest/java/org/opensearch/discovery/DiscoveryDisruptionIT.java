@@ -161,15 +161,15 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         }
         internalCluster().clearDisruptionScheme();
         ensureStableCluster(3);
-        final String preferredMasterName = internalCluster().getMasterName();
-        final DiscoveryNode preferredClusterManager = internalCluster().clusterService(preferredMasterName).localNode();
+        final String preferredClusterManagerName = internalCluster().getMasterName();
+        final DiscoveryNode preferredClusterManager = internalCluster().clusterService(preferredClusterManagerName).localNode();
 
-        logger.info("--> preferred cluster-manager is {}", preferredMaster);
+        logger.info("--> preferred cluster-manager is {}", preferredClusterManager);
         final Set<String> nonPreferredNodes = new HashSet<>(nodes);
-        nonPreferredNodes.remove(preferredMasterName);
+        nonPreferredNodes.remove(preferredClusterManagerName);
         final ServiceDisruptionScheme isolatePreferredClusterManager = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
-        internalCluster().setDisruptionScheme(isolatePreferredMaster);
-        isolatePreferredMaster.startDisrupting();
+        internalCluster().setDisruptionScheme(isolatePreferredClusterManager);
+        isolatePreferredClusterManager.startDisrupting();
 
         client(randomFrom(nonPreferredNodes)).admin()
             .indices()
