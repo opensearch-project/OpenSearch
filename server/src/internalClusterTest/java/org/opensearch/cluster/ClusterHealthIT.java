@@ -364,9 +364,8 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
             );
         }
         final List<ActionFuture<ClusterHealthResponse>> responseFutures = new ArrayList<>();
-        // Run a few health requests concurrent to cluster-manager fail-overs against a data-node to make sure cluster-manager failover is
-        // handled
-        // without exceptions
+        // Run a few health requests concurrent to cluster-manager fail-overs against a data-node
+        // to make sure cluster-manager failover is handled without exceptions
         final int iterations = withIndex ? 10 : 20;
         for (int i = 0; i < iterations; ++i) {
             responseFutures.add(
