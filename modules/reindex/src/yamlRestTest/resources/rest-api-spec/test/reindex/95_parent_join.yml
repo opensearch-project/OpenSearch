@@ -88,7 +88,7 @@ setup:
 
 ---
 "Reindex from remote with parent join field":
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }

@@ -229,7 +229,7 @@
                 },
                 "objects": {
                   "properties": {
-                    "master": {
+                    "primary": {
                       "type": "long"
                     },
                     "total": {
@@ -4601,7 +4601,7 @@
                     "connected_replicas": {
                       "type": "long"
                     },
-                    "master_offset": {
+                    "primary_offset": {
                       "type": "long"
                     },
                     "role": {

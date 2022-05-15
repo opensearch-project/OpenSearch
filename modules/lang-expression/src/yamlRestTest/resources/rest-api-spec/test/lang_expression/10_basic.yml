@@ -7,7 +7,7 @@
     - do:
         cluster.state: {}
 
-    # Get master node id
+    # Get cluster-manager node id
     - set: { master_node: master }
 
     - do:

@@ -7,7 +7,7 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }
@@ -68,7 +68,7 @@
   - do:
       indices.refresh: {}
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }
@@ -118,7 +118,7 @@
         routing: foo
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }
@@ -169,7 +169,7 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }
@@ -236,7 +236,7 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }
@@ -302,7 +302,7 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }
@@ -358,7 +358,7 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }
@@ -411,7 +411,7 @@
         body:    { "text": "test", "filtered": "removed" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }
@@ -480,7 +480,7 @@
       indices.refresh: {}
 
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
   - set: { master_node: master }
