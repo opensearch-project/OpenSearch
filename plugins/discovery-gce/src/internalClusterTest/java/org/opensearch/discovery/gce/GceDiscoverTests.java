@@ -85,11 +85,11 @@ public class GceDiscoverTests extends OpenSearchIntegTestCase {
     }
 
     public void testJoin() {
-        // start master node
-        final String masterNode = internalCluster().startClusterManagerOnlyNode();
-        registerGceNode(masterNode);
+        // start cluster-manager node
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        registerGceNode(clusterManagerNode);
 
-        ClusterStateResponse clusterStateResponse = client(masterNode).admin()
+        ClusterStateResponse clusterStateResponse = client(clusterManagerNode).admin()
             .cluster()
             .prepareState()
             .setMasterNodeTimeout("1s")
