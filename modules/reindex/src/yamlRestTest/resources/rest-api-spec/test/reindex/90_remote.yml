@@ -10,7 +10,7 @@
   # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: cluster_manager }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
@@ -71,7 +71,7 @@
   # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: cluster_manager }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
@@ -121,7 +121,7 @@
   # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: cluster_manager }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
@@ -172,7 +172,7 @@
   # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: cluster_manager }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
@@ -239,7 +239,7 @@
   # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: cluster_manager }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
@@ -305,7 +305,7 @@
   # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: cluster_manager }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
@@ -361,7 +361,7 @@
   # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: cluster_manager }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
@@ -414,7 +414,7 @@
   # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: cluster_manager }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
@@ -483,7 +483,7 @@
   # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: cluster_manager }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]

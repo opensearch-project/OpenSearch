@@ -103,7 +103,7 @@ teardown:
         cluster.state: {}
 
     # Get cluster-manager node id
-    - set: { master_node: cluster_manager }
+    - set: { cluster_manager_node: cluster_manager }
 
     - do:
         nodes.info: {}
