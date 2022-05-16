@@ -477,7 +477,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Arrays.asList(listeners),
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
-                breakerService
+                breakerService,
+                null
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
