@@ -659,7 +659,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
-                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // then delayed allocation will kick in. When the node comes back, the cluster-manager will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")

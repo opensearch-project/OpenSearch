@@ -51,10 +51,9 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchThreadPoolExecutor {
-
-    // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
-    public static double EWMA_ALPHA = 0.3;
+public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchThreadPoolExecutor
+    implements
+        EWMATrackingThreadPoolExecutor {
 
     private static final Logger logger = LogManager.getLogger(QueueResizingOpenSearchThreadPoolExecutor.class);
     // The amount the queue size is adjusted by for each calcuation
@@ -155,6 +154,7 @@ public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchT
     /**
      * Returns the exponentially weighted moving average of the task execution time
      */
+    @Override
     public double getTaskExecutionEWMA() {
         return executionEWMA.getAverage();
     }
@@ -162,6 +162,7 @@ public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchT
     /**
      * Returns the current queue size (operations that are queued)
      */
+    @Override
     public int getCurrentQueueSize() {
         return workQueue.size();
     }
