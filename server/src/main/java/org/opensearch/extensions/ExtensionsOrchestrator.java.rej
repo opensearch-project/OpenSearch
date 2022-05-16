@@ -1,0 +1,74 @@
+--- server/src/main/java/org/opensearch/extensions/ExtensionsOrchestrator.java
++++ server/src/main/java/org/opensearch/extensions/ExtensionsOrchestrator.java
+@@ -8,6 +8,7 @@
+ 
+ package org.opensearch.extensions;
+ 
++import com.fasterxml.jackson.databind.MapperFeature;
+ import com.fasterxml.jackson.databind.ObjectMapper;
+ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+ import org.apache.logging.log4j.LogManager;
+@@ -38,6 +39,7 @@ import org.opensearch.transport.TransportResponseHandler;
+ import org.opensearch.transport.TransportService;
+ 
+ import java.io.IOException;
++import java.io.InputStream;
+ import java.net.InetAddress;
+ import java.net.UnknownHostException;
+ import java.nio.file.Path;
+@@ -95,6 +97,32 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
+         for (final Path plugin : PluginsService.findPluginDirs(extensionsPath)) {
+             try {
+                 PluginInfo pluginInfo = PluginInfo.readFromProperties(plugin);
++
++                // TODO: Add unit tests for commented section below
++
++                /**
++                try {
++                    List<Extension> extensions = readFromExtensionsYml(extensionsPath.toString()).getExtensions();
++                    for(Extension extension : extensions) {
++                        extensionsSet.add(
++                            new DiscoveryExtension(
++                                extension.getName(),
++                                "id",
++                                extension.getEphemeralId(),
++                                extension.getHostName(),
++                                extension.getHostAddress(),
++                                new TransportAddress(TransportAddress.META_ADDRESS, Integer.parseInt(extension.getPort())),
++                                null,
++                                Version.fromString(extension.getVersion()),
++                                pluginInfo
++                    )
++                );
++                    }
++                } catch (Exception e) {
++                    //ignore
++                }
++                */
++
+                 /*
+                  * TODO: Read from extensions.yml
+                  * https://github.com/opensearch-project/OpenSearch/issues/3084
+@@ -121,7 +149,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
+     }
+ 
+     public void extensionsInitialize() {
+-        ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
+ 
+         final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
+ 
+@@ -260,4 +287,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
+             logger.error(e.toString());
+         }
+     }
++    /**
++    public static ExtensionSettings readFromExtensionsYml(String filePath) throws Exception {
++        ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
++        //objectMapper.disable(MapperFeature.CAN_OVERRIDE_ACCESS_MODIFIERS);
++        InputStream input = ExtensionsOrchestrator.class.getResourceAsStream(filePath);
++        ExtensionSettings extensionSettings = objectMapper.readValue(input, ExtensionSettings.class);
++        return extensionSettings;
++    }
++    */
++
+ }
