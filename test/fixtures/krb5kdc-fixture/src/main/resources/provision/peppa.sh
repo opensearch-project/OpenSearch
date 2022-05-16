@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -e -o pipefail
 
 addprinc.sh opensearch
 addprinc.sh HTTP/localhost
