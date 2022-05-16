@@ -4,10 +4,10 @@
     - do:
         cluster.state: {}
 
-    # Get master node id
-    - set: { master_node: master }
+    # Get cluster-manager node id
+    - set: { cluster_manager_node: cluster_manager }
 
     - do:
         nodes.info: {}
 
-    - length:  { nodes.$master.plugins: ${expected.plugins.count}  }
+    - length:  { nodes.$cluster_manager.plugins: ${expected.plugins.count}  }
