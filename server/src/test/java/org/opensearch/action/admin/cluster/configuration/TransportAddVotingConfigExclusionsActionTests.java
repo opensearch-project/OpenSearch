@@ -356,7 +356,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         transportService.sendRequest(
             localNode,
             AddVotingConfigExclusionsAction.NAME,
-            makeRequestWithNodeDescriptions("_all", "master:false"),
+            makeRequestWithNodeDescriptions("_all", "cluster_manager:false"),
             expectError(e -> {
                 exceptionHolder.set(e);
                 countDownLatch.countDown();
@@ -368,7 +368,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
         assertThat(
             rootCause.getMessage(),
-            equalTo("add voting config exclusions request for [_all, master:false] matched no cluster-manager-eligible nodes")
+            equalTo("add voting config exclusions request for [_all, cluster_manager:false] matched no cluster-manager-eligible nodes")
         );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }

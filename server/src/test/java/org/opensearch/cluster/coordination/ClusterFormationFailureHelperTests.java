@@ -818,7 +818,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             )
         );
 
-        final DiscoveryNode otherClusterManagerNode = new DiscoveryNode("other-master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode otherClusterManagerNode = new DiscoveryNode("other-cluster-manager", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNonClusterManagerNode = new DiscoveryNode(
             "other-non-cluster-manager",
             buildNewFakeTransportAddress(),
