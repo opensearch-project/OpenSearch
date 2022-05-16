@@ -311,20 +311,20 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
         final String[] allNodes = StreamSupport.stream(discoveryNodes.spliterator(), false)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
         final String[] clusterManagerNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
-                .filter(n -> n.isMasterNode() == true)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+            .map(n -> n.value)
+            .filter(n -> n.isMasterNode() == true)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
         final String[] nonClusterManagerNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
-                .filter(n -> n.isMasterNode() == false)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+            .map(n -> n.value)
+            .filter(n -> n.isMasterNode() == false)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
         assertThat(discoveryNodes.resolveNodes("cluster_manager:true"), arrayContainingInAnyOrder(clusterManagerNodes));
         assertThat(discoveryNodes.resolveNodes("master:true"), arrayContainingInAnyOrder(clusterManagerNodes));
