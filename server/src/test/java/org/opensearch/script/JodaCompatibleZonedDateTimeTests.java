@@ -32,42 +32,25 @@
 
 package org.opensearch.script;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.Appender;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.time.DateFormatters;
 import org.opensearch.test.OpenSearchTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PermissionCollection;
-import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class JodaCompatibleZonedDateTimeTests extends OpenSearchTestCase {
-    private static final Logger DEPRECATION_LOGGER = LogManager.getLogger("org.opensearch.deprecation.script.JodaCompatibleZonedDateTime");
-
-    // each call to get or getValue will be run with limited permissions, just as they are in scripts
-    private static PermissionCollection NO_PERMISSIONS = new Permissions();
-    private static AccessControlContext NO_PERMISSIONS_ACC = new AccessControlContext(
-        new ProtectionDomain[] { new ProtectionDomain(null, NO_PERMISSIONS) }
-    );
-
     private JodaCompatibleZonedDateTime javaTime;
     private DateTime jodaTime;
 
@@ -76,35 +59,6 @@ public class JodaCompatibleZonedDateTimeTests extends OpenSearchTestCase {
         long millis = randomIntBetween(0, Integer.MAX_VALUE);
         javaTime = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), ZoneOffset.ofHours(-7));
         jodaTime = new DateTime(millis, DateTimeZone.forOffsetHours(-7));
-    }
-
-    void assertDeprecation(Runnable assertions, String message) {
-        Appender appender = new AbstractAppender("test", null, null) {
-            @Override
-            public void append(LogEvent event) {
-                /* Create a temporary directory to prove we are running with the
-                 * server's permissions. */
-                createTempDir();
-            }
-        };
-        appender.start();
-        Loggers.addAppender(DEPRECATION_LOGGER, appender);
-        try {
-            // the assertions are run with the same reduced privileges scripts run with
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                assertions.run();
-                return null;
-            }, NO_PERMISSIONS_ACC);
-        } finally {
-            appender.stop();
-            Loggers.removeAppender(DEPRECATION_LOGGER, appender);
-        }
-
-        assertWarnings(message);
-    }
-
-    void assertMethodDeprecation(Runnable assertions, String oldMethod, String newMethod) {
-        assertDeprecation(assertions, "Use of the joda time method [" + oldMethod + "] is deprecated. Use [" + newMethod + "] instead.");
     }
 
     public void testEquals() {
@@ -173,152 +127,75 @@ public class JodaCompatibleZonedDateTimeTests extends OpenSearchTestCase {
     }
 
     public void testMillis() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getMillis(), equalTo(jodaTime.getMillis())),
-            "getMillis()",
-            "toInstant().toEpochMilli()"
-        );
+        assertThat(javaTime.toInstant().toEpochMilli(), equalTo(jodaTime.getMillis()));
     }
 
     public void testCenturyOfEra() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getCenturyOfEra(), equalTo(jodaTime.getCenturyOfEra())),
-            "getCenturyOfEra()",
-            "get(ChronoField.YEAR_OF_ERA) / 100"
-        );
+        assertThat(javaTime.get(ChronoField.YEAR_OF_ERA) / 100, equalTo(jodaTime.getCenturyOfEra()));
     }
 
     public void testEra() {
-        assertMethodDeprecation(() -> assertThat(javaTime.getEra(), equalTo(jodaTime.getEra())), "getEra()", "get(ChronoField.ERA)");
+        assertThat(javaTime.get(ChronoField.ERA), equalTo(jodaTime.getEra()));
     }
 
     public void testHourOfDay() {
-        assertMethodDeprecation(() -> assertThat(javaTime.getHourOfDay(), equalTo(jodaTime.getHourOfDay())), "getHourOfDay()", "getHour()");
+        assertThat(javaTime.getHour(), equalTo(jodaTime.getHourOfDay()));
     }
 
     public void testMillisOfDay() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getMillisOfDay(), equalTo(jodaTime.getMillisOfDay())),
-            "getMillisOfDay()",
-            "get(ChronoField.MILLI_OF_DAY)"
-        );
+        assertThat(javaTime.get(ChronoField.MILLI_OF_DAY), equalTo(jodaTime.getMillisOfDay()));
     }
 
     public void testMillisOfSecond() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getMillisOfSecond(), equalTo(jodaTime.getMillisOfSecond())),
-            "getMillisOfSecond()",
-            "get(ChronoField.MILLI_OF_SECOND)"
-        );
+        assertThat(javaTime.get(ChronoField.MILLI_OF_SECOND), equalTo(jodaTime.getMillisOfSecond()));
     }
 
     public void testMinuteOfDay() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getMinuteOfDay(), equalTo(jodaTime.getMinuteOfDay())),
-            "getMinuteOfDay()",
-            "get(ChronoField.MINUTE_OF_DAY)"
-        );
+        assertThat(javaTime.get(ChronoField.MINUTE_OF_DAY), equalTo(jodaTime.getMinuteOfDay()));
     }
 
     public void testMinuteOfHour() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getMinuteOfHour(), equalTo(jodaTime.getMinuteOfHour())),
-            "getMinuteOfHour()",
-            "getMinute()"
-        );
+        assertThat(javaTime.getMinute(), equalTo(jodaTime.getMinuteOfHour()));
     }
 
     public void testMonthOfYear() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getMonthOfYear(), equalTo(jodaTime.getMonthOfYear())),
-            "getMonthOfYear()",
-            "getMonthValue()"
-        );
+        assertThat(javaTime.getMonthValue(), equalTo(jodaTime.getMonthOfYear()));
     }
 
     public void testSecondOfDay() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getSecondOfDay(), equalTo(jodaTime.getSecondOfDay())),
-            "getSecondOfDay()",
-            "get(ChronoField.SECOND_OF_DAY)"
-        );
+        assertThat(javaTime.get(ChronoField.SECOND_OF_DAY), equalTo(jodaTime.getSecondOfDay()));
     }
 
     public void testSecondOfMinute() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getSecondOfMinute(), equalTo(jodaTime.getSecondOfMinute())),
-            "getSecondOfMinute()",
-            "getSecond()"
-        );
+        assertThat(javaTime.getSecond(), equalTo(jodaTime.getSecondOfMinute()));
     }
 
     public void testWeekOfWeekyear() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getWeekOfWeekyear(), equalTo(jodaTime.getWeekOfWeekyear())),
-            "getWeekOfWeekyear()",
-            "get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())"
-        );
+        assertThat(javaTime.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear()), equalTo(jodaTime.getWeekOfWeekyear()));
     }
 
     public void testWeekyear() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getWeekyear(), equalTo(jodaTime.getWeekyear())),
-            "getWeekyear()",
-            "get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())"
-        );
+        assertThat(javaTime.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear()), equalTo(jodaTime.getWeekyear()));
     }
 
     public void testYearOfCentury() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getYearOfCentury(), equalTo(jodaTime.getYearOfCentury())),
-            "getYearOfCentury()",
-            "get(ChronoField.YEAR_OF_ERA) % 100"
-        );
+        assertThat(javaTime.get(ChronoField.YEAR_OF_ERA) % 100, equalTo(jodaTime.getYearOfCentury()));
     }
 
     public void testYearOfEra() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.getYearOfEra(), equalTo(jodaTime.getYearOfEra())),
-            "getYearOfEra()",
-            "get(ChronoField.YEAR_OF_ERA)"
-        );
-    }
-
-    public void testToString1() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.toString("YYYY/MM/dd HH:mm:ss.SSS"), equalTo(jodaTime.toString("YYYY/MM/dd HH:mm:ss.SSS"))),
-            "toString(String)",
-            "a DateTimeFormatter"
-        );
+        assertThat(javaTime.get(ChronoField.YEAR_OF_ERA), equalTo(jodaTime.getYearOfEra()));
     }
 
     public void testToString2() {
-        assertMethodDeprecation(
-            () -> assertThat(javaTime.toString("EEE", Locale.GERMANY), equalTo(jodaTime.toString("EEE", Locale.GERMANY))),
-            "toString(String,Locale)",
-            "a DateTimeFormatter"
-        );
+        assertThat(DateTimeFormatter.ofPattern("EEE", Locale.GERMANY).format(javaTime), equalTo(jodaTime.toString("EEE", Locale.GERMANY)));
     }
 
     public void testDayOfWeek() {
-        assertDeprecation(
-            () -> assertThat(javaTime.getDayOfWeek(), equalTo(jodaTime.getDayOfWeek())),
-            "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue()."
-        );
+        assertThat(javaTime.getDayOfWeekEnum().getValue(), equalTo(jodaTime.getDayOfWeek()));
     }
 
     public void testDayOfWeekEnum() {
         assertThat(javaTime.getDayOfWeekEnum(), equalTo(DayOfWeek.of(jodaTime.getDayOfWeek())));
-    }
-
-    public void testToStringWithLocaleAndZeroOffset() {
-        JodaCompatibleZonedDateTime dt = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.ofTotalSeconds(0));
-        assertMethodDeprecation(() -> dt.toString("yyyy-MM-dd hh:mm", Locale.ROOT), "toString(String,Locale)", "a DateTimeFormatter");
-    }
-
-    public void testToStringAndZeroOffset() {
-        JodaCompatibleZonedDateTime dt = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.ofTotalSeconds(0));
-        assertMethodDeprecation(() -> dt.toString("yyyy-MM-dd hh:mm"), "toString(String)", "a DateTimeFormatter");
     }
 
     public void testIsEqual() {
