@@ -65,6 +65,11 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
+    /**
+     * Entry in the bucket collector
+     *
+     * @opensearch.internal
+     */
     static class Entry {
         final LeafReaderContext context;
         final PackedLongValues docDeltas;

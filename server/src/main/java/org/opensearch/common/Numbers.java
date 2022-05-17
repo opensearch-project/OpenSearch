@@ -39,6 +39,8 @@ import java.math.BigInteger;
 
 /**
  * A set of utilities for numbers.
+ *
+ * @opensearch.internal
  */
 public final class Numbers {
 

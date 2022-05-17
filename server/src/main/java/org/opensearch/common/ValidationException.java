@@ -37,6 +37,8 @@ import java.util.List;
 
 /**
  * Encapsulates an accumulation of validation errors
+ *
+ * @opensearch.internal
  */
 public class ValidationException extends IllegalArgumentException {
     private final List<String> validationErrors = new ArrayList<>();

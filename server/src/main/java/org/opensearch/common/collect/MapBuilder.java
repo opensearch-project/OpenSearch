@@ -37,6 +37,11 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Builder for a map.
+ *
+ * @opensearch.internal
+ */
 public class MapBuilder<K, V> {
 
     public static <K, V> MapBuilder<K, V> newMapBuilder() {

@@ -41,6 +41,8 @@ import java.text.ParseException;
 
 /**
  * Geometry serializer/deserializer
+ *
+ * @opensearch.internal
  */
 public interface GeometryFormat<ParsedFormat> {
 

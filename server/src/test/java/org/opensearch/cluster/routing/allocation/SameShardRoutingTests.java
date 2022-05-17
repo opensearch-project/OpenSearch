@@ -96,7 +96,7 @@ public class SameShardRoutingTests extends OpenSearchAllocationTestCase {
                             "test1",
                             buildNewFakeTransportAddress(),
                             emptyMap(),
-                            MASTER_DATA_ROLES,
+                            CLUSTER_MANAGER_DATA_ROLES,
                             Version.CURRENT
                         )
                     )
@@ -109,7 +109,7 @@ public class SameShardRoutingTests extends OpenSearchAllocationTestCase {
                             "test1",
                             buildNewFakeTransportAddress(),
                             emptyMap(),
-                            MASTER_DATA_ROLES,
+                            CLUSTER_MANAGER_DATA_ROLES,
                             Version.CURRENT
                         )
                     )
@@ -138,7 +138,7 @@ public class SameShardRoutingTests extends OpenSearchAllocationTestCase {
                             "test2",
                             buildNewFakeTransportAddress(),
                             emptyMap(),
-                            MASTER_DATA_ROLES,
+                            CLUSTER_MANAGER_DATA_ROLES,
                             Version.CURRENT
                         )
                     )

@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Priority levels.
+ *
+ * @opensearch.internal
+ */
 public enum Priority {
 
     IMMEDIATE((byte) 0),

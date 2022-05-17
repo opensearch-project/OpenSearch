@@ -44,6 +44,8 @@ import org.opensearch.common.Strings;
 /**
  * Pattern converter to populate OpenSearchMessageField in a pattern.
  * It will only populate these if the event have message of type <code>OpenSearchLogMessage</code>.
+ *
+ * @opensearch.internal
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "OpenSearchMessageField")
 @ConverterKeys({ "OpenSearchMessageField" })

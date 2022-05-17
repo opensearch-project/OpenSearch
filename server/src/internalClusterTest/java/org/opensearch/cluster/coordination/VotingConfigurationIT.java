@@ -62,7 +62,7 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
     }
 
     public void testAbdicateAfterVotingConfigExclusionAdded() throws ExecutionException, InterruptedException {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         internalCluster().startNodes(2);
         final String originalMaster = internalCluster().getMasterName();
 
@@ -73,7 +73,7 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
     }
 
     public void testElectsNodeNotInVotingConfiguration() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         final List<String> nodeNames = internalCluster().startNodes(4);
 
         // a 4-node cluster settles on a 3-node configuration; we then prevent the nodes in the configuration from winning an election

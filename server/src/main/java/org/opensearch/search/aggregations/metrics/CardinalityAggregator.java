@@ -201,12 +201,22 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
     }
 
+    /**
+     * Collector for the cardinality agg
+     *
+     * @opensearch.internal
+     */
     private abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect() throws IOException;
 
     }
 
+    /**
+     * Empty Collector for the Cardinality agg
+     *
+     * @opensearch.internal
+     */
     private static class EmptyCollector extends Collector {
 
         @Override
@@ -225,6 +235,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
     }
 
+    /**
+     * Direct Collector for the cardinality agg
+     *
+     * @opensearch.internal
+     */
     private static class DirectCollector extends Collector {
 
         private final MurmurHash3Values hashes;
@@ -257,6 +272,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
+    /**
+     * Ordinals Collector for the cardinality agg
+     *
+     * @opensearch.internal
+     */
     private static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
@@ -345,6 +365,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     /**
      * Representation of a list of hash values. There might be dups and there is no guarantee on the order.
+     *
+     * @opensearch.internal
      */
     abstract static class MurmurHash3Values {
 
@@ -375,6 +397,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             return new Bytes(values);
         }
 
+        /**
+         * Long hash value
+         *
+         * @opensearch.internal
+         */
         private static class Long extends MurmurHash3Values {
 
             private final SortedNumericDocValues values;
@@ -399,6 +426,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
         }
 
+        /**
+         * Double hash value
+         *
+         * @opensearch.internal
+         */
         private static class Double extends MurmurHash3Values {
 
             private final SortedNumericDoubleValues values;
@@ -423,6 +455,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
         }
 
+        /**
+         * Byte hash value
+         *
+         * @opensearch.internal
+         */
         private static class Bytes extends MurmurHash3Values {
 
             private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();

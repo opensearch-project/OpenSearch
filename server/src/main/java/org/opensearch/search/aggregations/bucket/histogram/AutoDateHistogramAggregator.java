@@ -243,6 +243,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
      * rebucket roughly {@code O(log number_of_hits_collected_so_far)} because
      * the "shape" of the roundings is <strong>roughly</strong>
      * logarithmically increasing.
+     *
+     * @opensearch.internal
      */
     private static class FromSingle extends AutoDateHistogramAggregator {
         private int roundingIdx;
@@ -406,6 +408,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
      * rounding all of the keys for {@code owningBucketOrd} that we're going to
      * collect and picking the rounding based on a real, accurate count and the
      * min and max.
+     *
+     * @opensearch.internal
      */
     private static class FromMany extends AutoDateHistogramAggregator {
         /**

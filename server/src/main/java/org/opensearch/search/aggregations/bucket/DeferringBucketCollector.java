@@ -72,6 +72,11 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         return new WrappedAggregator(in);
     }
 
+    /**
+     * A wrapped aggregator
+     *
+     * @opensearch.internal
+     */
     protected class WrappedAggregator extends Aggregator {
         private Aggregator in;
 

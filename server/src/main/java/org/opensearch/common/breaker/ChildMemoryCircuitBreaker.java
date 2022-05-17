@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Breaker that will check a parent's when incrementing
+ *
+ * @opensearch.internal
  */
 public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
@@ -268,6 +270,11 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.limitAndOverhead = new LimitAndOverhead(limit, overhead);
     }
 
+    /**
+     * Breaker limit and overhead info
+     *
+     * @opensearch.internal
+     */
     private static class LimitAndOverhead {
 
         private final long limit;

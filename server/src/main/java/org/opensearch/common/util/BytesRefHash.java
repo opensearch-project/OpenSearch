@@ -43,6 +43,8 @@ import org.opensearch.common.lease.Releasables;
  *  probing, growth is smooth thanks to {@link BigArrays}, hashes are cached for faster
  *  re-hashing and capacity is always a multiple of 2 for faster identification of buckets.
  *  This class is not thread-safe.
+ *
+ *  @opensearch.internal
  */
 public final class BytesRefHash extends AbstractHash {
 

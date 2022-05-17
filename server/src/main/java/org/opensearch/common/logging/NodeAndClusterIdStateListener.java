@@ -44,6 +44,8 @@ import org.opensearch.common.util.concurrent.ThreadContext;
  * The {@link NodeAndClusterIdStateListener} listens to cluster state changes and ONLY when receives the first update
  * it sets the clusterUUID and nodeID in log4j pattern converter {@link NodeAndClusterIdConverter}.
  * Once the first update is received, it will automatically be de-registered from subsequent updates.
+ *
+ * @opensearch.internal
  */
 public class NodeAndClusterIdStateListener implements ClusterStateObserver.Listener {
     private static final Logger logger = LogManager.getLogger(NodeAndClusterIdStateListener.class);

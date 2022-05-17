@@ -37,6 +37,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Date format names.
+ *
+ * @opensearch.internal
+ */
 public enum FormatNames {
     ISO8601(null, "iso8601"),
     BASIC_DATE("basicDate", "basic_date"),

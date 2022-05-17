@@ -252,30 +252,30 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, masterName).repository(repositoryName))
+        final String clusterManagerName = internalCluster().getMasterName();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerName).repository(repositoryName))
             .setBlockAndFailOnWriteIndexFile();
-        return masterName;
+        return clusterManagerName;
     }
 
     public static String blockMasterOnWriteIndexFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getMasterName();
         ((MockRepository) internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repositoryName))
             .setBlockOnWriteIndexFile();
-        return masterName;
+        return clusterManagerName;
     }
 
     public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, masterName).repository(repositoryName))
+        final String clusterManagerName = internalCluster().getMasterName();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerName).repository(repositoryName))
             .setBlockOnDeleteIndexFile();
     }
 
     public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, masterName).repository(repositoryName))
+        final String clusterManagerName = internalCluster().getMasterName();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerName).repository(repositoryName))
             .setBlockAndFailOnWriteSnapFiles(true);
-        return masterName;
+        return clusterManagerName;
     }
 
     public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
@@ -628,10 +628,10 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected void awaitMasterFinishRepoOperations() throws Exception {
-        logger.info("--> waiting for master to finish all repo operations on its SNAPSHOT pool");
-        final ThreadPool masterThreadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
+        logger.info("--> waiting for cluster-manager to finish all repo operations on its SNAPSHOT pool");
+        final ThreadPool clusterManagerThreadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
         assertBusy(() -> {
-            for (ThreadPoolStats.Stats stat : masterThreadPool.stats()) {
+            for (ThreadPoolStats.Stats stat : clusterManagerThreadPool.stats()) {
                 if (ThreadPool.Names.SNAPSHOT.equals(stat.getName())) {
                     assertEquals(stat.getActive(), 0);
                     break;

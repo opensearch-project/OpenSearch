@@ -35,6 +35,11 @@ import org.opensearch.common.Priority;
 
 import java.util.concurrent.Callable;
 
+/**
+ * A prioritized callable.
+ *
+ * @opensearch.internal
+ */
 public abstract class PrioritizedCallable<T> implements Callable<T>, Comparable<PrioritizedCallable> {
 
     private final Priority priority;
@@ -56,6 +61,11 @@ public abstract class PrioritizedCallable<T> implements Callable<T>, Comparable<
         return priority;
     }
 
+    /**
+     * Wrapped generic
+     *
+     * @opensearch.internal
+     */
     static class Wrapped<T> extends PrioritizedCallable<T> {
 
         private final Callable<T> callable;

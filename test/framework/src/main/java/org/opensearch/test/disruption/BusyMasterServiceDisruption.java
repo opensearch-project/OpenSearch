@@ -61,7 +61,7 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
         if (clusterService == null) {
             return;
         }
-        logger.info("making master service busy on node [{}] at priority [{}]", disruptionNodeCopy, priority);
+        logger.info("making cluster-manager service busy on node [{}] at priority [{}]", disruptionNodeCopy, priority);
         active.set(true);
         submitTask(clusterService);
     }

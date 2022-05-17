@@ -51,6 +51,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Builds a multi line string geometry
+ *
+ * @opensearch.internal
+ */
 public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.geometry.Geometry, MultiLineStringBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;

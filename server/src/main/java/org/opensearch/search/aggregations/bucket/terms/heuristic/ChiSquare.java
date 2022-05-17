@@ -108,6 +108,11 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         return builder;
     }
 
+    /**
+     * Builder for a chi squared heuristic
+     *
+     * @opensearch.internal
+     */
     public static class ChiSquareBuilder extends NXYSignificanceHeuristic.NXYBuilder {
         public ChiSquareBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
             super(includeNegatives, backgroundIsSuperset);

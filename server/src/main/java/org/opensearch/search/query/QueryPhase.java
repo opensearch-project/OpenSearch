@@ -53,7 +53,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.util.concurrent.QueueResizingOpenSearchThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.EWMATrackingThreadPoolExecutor;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchService;
@@ -290,8 +290,8 @@ public class QueryPhase {
                 );
 
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                if (executor instanceof QueueResizingOpenSearchThreadPoolExecutor) {
-                    QueueResizingOpenSearchThreadPoolExecutor rExecutor = (QueueResizingOpenSearchThreadPoolExecutor) executor;
+                if (executor instanceof EWMATrackingThreadPoolExecutor) {
+                    final EWMATrackingThreadPoolExecutor rExecutor = (EWMATrackingThreadPoolExecutor) executor;
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
@@ -388,6 +388,8 @@ public class QueryPhase {
 
     /**
      * The exception being raised when search timeout is reached.
+     *
+     * @opensearch.internal
      */
     public static class TimeExceededException extends RuntimeException {
         private static final long serialVersionUID = 1L;
@@ -395,6 +397,8 @@ public class QueryPhase {
 
     /**
      * Default {@link QueryPhaseSearcher} implementation which delegates to the {@link QueryPhase}.
+     *
+     * @opensearch.internal
      */
     public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
         /**

@@ -49,6 +49,8 @@ import java.util.StringJoiner;
  *
  * Reusing @link org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter which already converts a Throwable from
  * LoggingEvent into a multiline string
+ *
+ * @opensearch.internal
  */
 @Plugin(name = "JsonThrowablePatternConverter", category = PatternConverter.CATEGORY)
 @ConverterKeys({ "exceptionAsJson" })

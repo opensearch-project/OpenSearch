@@ -512,7 +512,11 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         );
     }
 
-    /** An enum representing the valid suggest modes. */
+    /**
+     * An enum representing the valid suggest modes.
+     *
+     * @opensearch.internal
+     */
     public enum SuggestMode implements Writeable {
         /** Only suggest terms in the suggest text that aren't in the index. This is the default. */
         MISSING {
@@ -553,7 +557,11 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         public abstract org.apache.lucene.search.spell.SuggestMode toLucene();
     }
 
-    /** An enum representing the valid string edit distance algorithms for determining suggestions. */
+    /**
+     * An enum representing the valid string edit distance algorithms for determining suggestions.
+     *
+     * @opensearch.internal
+     */
     public enum StringDistanceImpl implements Writeable {
         /** This is the default and is based on <code>damerau_levenshtein</code>, but highly optimized
          * for comparing string distance for terms inside the index. */

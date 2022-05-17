@@ -67,6 +67,8 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class BindingProcessor extends AbstractProcessor {
 
@@ -312,6 +314,11 @@ class BindingProcessor extends AbstractProcessor {
     );
     // TODO(jessewilson): fix BuiltInModule, then add Stage
 
+    /**
+     * A listener for a process creation
+     *
+     * @opensearch.internal
+     */
     interface CreationListener {
         void notify(Errors errors);
     }

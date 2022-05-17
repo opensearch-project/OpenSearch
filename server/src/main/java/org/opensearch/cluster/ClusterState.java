@@ -106,6 +106,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     /**
      * An interface that implementors use when a class requires a client to maybe have a feature.
+     *
+     * @opensearch.internal
      */
     public interface FeatureAware {
 
@@ -135,6 +137,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     }
 
+    /**
+     * Custom cluster state.
+     *
+     * @opensearch.internal
+     */
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment, FeatureAware {
 
         /**
@@ -403,6 +410,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     }
 
+    /**
+     * Metrics for cluster state.
+     *
+     * @opensearch.internal
+     */
     public enum Metric {
         VERSION("version"),
 
@@ -582,6 +594,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return new Builder(state);
     }
 
+    /**
+     * Builder for cluster state.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final ClusterName clusterName;
@@ -778,6 +795,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
     }
 
+    /**
+     * The cluster state diff.
+     *
+     * @opensearch.internal
+     */
     private static class ClusterStateDiff implements Diff<ClusterState> {
 
         private final long toVersion;

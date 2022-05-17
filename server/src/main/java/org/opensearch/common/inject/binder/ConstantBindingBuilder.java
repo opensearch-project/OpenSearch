@@ -31,6 +31,8 @@ package org.opensearch.common.inject.binder;
 
 /**
  * Binds to a constant value.
+ *
+ * @opensearch.internal
  */
 public interface ConstantBindingBuilder {
 

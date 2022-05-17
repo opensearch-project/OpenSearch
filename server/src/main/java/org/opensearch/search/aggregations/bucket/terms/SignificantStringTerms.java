@@ -52,6 +52,11 @@ import java.util.Objects;
 public class SignificantStringTerms extends InternalMappedSignificantTerms<SignificantStringTerms, SignificantStringTerms.Bucket> {
     public static final String NAME = "sigsterms";
 
+    /**
+     * Bucket for significant string values
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
 
         BytesRef termBytes;

@@ -97,7 +97,7 @@ public class ClusterStateCreationUtils {
                 numberOfNodes++;
             }
         }
-        numberOfNodes = Math.max(2, numberOfNodes); // we need a non-local master to test shard failures
+        numberOfNodes = Math.max(2, numberOfNodes); // we need a non-local cluster-manager to test shard failures
         final ShardId shardId = new ShardId(index, "_na_", 0);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> unassignedNodes = new HashSet<>();
@@ -107,7 +107,7 @@ public class ClusterStateCreationUtils {
             unassignedNodes.add(node.getId());
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
+        discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local cluster-manager to test shard failures
         final int primaryTerm = 1 + randomInt(200);
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(
@@ -284,14 +284,14 @@ public class ClusterStateCreationUtils {
      */
     public static ClusterState stateWithAssignedPrimariesAndOneReplica(String index, int numberOfShards) {
 
-        int numberOfNodes = 2; // we need a non-local master to test shard failures
+        int numberOfNodes = 2; // we need a non-local cluster-manager to test shard failures
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
             discoBuilder = discoBuilder.add(node);
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
+        discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local cluster-manager to test shard failures
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(
                 Settings.builder()
@@ -426,20 +426,20 @@ public class ClusterStateCreationUtils {
     }
 
     /**
-     * Creates a cluster state where local node and master node can be specified
+     * Creates a cluster state where local node and cluster-manager node can be specified
      *
      * @param localNode  node in allNodes that is the local node
-     * @param masterNode node in allNodes that is the master node. Can be null if no cluster-manager exists
+     * @param clusterManagerNode node in allNodes that is the cluster-manager node. Can be null if no cluster-manager exists
      * @param allNodes   all nodes in the cluster
      * @return cluster state
      */
-    public static ClusterState state(DiscoveryNode localNode, DiscoveryNode masterNode, DiscoveryNode... allNodes) {
+    public static ClusterState state(DiscoveryNode localNode, DiscoveryNode clusterManagerNode, DiscoveryNode... allNodes) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : allNodes) {
             discoBuilder.add(node);
         }
-        if (masterNode != null) {
-            discoBuilder.masterNodeId(masterNode.getId());
+        if (clusterManagerNode != null) {
+            discoBuilder.masterNodeId(clusterManagerNode.getId());
         }
         discoBuilder.localNodeId(localNode.getId());
 

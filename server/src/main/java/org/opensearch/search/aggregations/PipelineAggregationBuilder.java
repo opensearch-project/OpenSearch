@@ -97,6 +97,11 @@ public abstract class PipelineAggregationBuilder
      */
     protected abstract void validate(ValidationContext context);
 
+    /**
+     * The context used for validation
+     *
+     * @opensearch.internal
+     */
     public abstract static class ValidationContext {
         /**
          * Build the context for the root of the aggregation tree.
@@ -122,6 +127,11 @@ public abstract class PipelineAggregationBuilder
             this.e = validationFailuresSoFar;
         }
 
+        /**
+         * The root of the tree
+         *
+         * @opensearch.internal
+         */
         private static class ForTreeRoot extends ValidationContext {
             private final Collection<AggregationBuilder> siblingAggregations;
             private final Collection<PipelineAggregationBuilder> siblingPipelineAggregations;
@@ -162,6 +172,11 @@ public abstract class PipelineAggregationBuilder
             }
         }
 
+        /**
+         * The internal tree node
+         *
+         * @opensearch.internal
+         */
         private static class ForInsideTree extends ValidationContext {
             private final AggregationBuilder parent;
 

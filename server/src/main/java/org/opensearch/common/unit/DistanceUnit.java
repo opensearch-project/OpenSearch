@@ -45,6 +45,8 @@ import java.io.IOException;
  * others. Some methods like {@link DistanceUnit#getEarthCircumference} refer to
  * the earth ellipsoid defined in {@link GeoUtils}. The default unit used within
  * this project is <code>METERS</code> which is defined by <code>DEFAULT</code>
+ *
+ * @opensearch.internal
  */
 public enum DistanceUnit implements Writeable {
     INCH(0.0254, "in", "inch"),
@@ -225,6 +227,8 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * This class implements a value+unit tuple.
+     *
+     * @opensearch.internal
      */
     public static class Distance implements Comparable<Distance> {
         public final double value;

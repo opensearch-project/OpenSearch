@@ -47,6 +47,11 @@ public abstract class SignificantTermsHeuristicScoreScript {
 
     public abstract double execute(Map<String, Object> params);
 
+    /**
+     * Factory for a significant terms heuristic score script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         SignificantTermsHeuristicScoreScript newInstance();
     }

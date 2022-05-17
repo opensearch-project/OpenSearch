@@ -60,7 +60,7 @@ import java.util.concurrent.TimeoutException;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.DISCOVERY;
 import static org.opensearch.test.NodeRoles.dataNode;
-import static org.opensearch.test.NodeRoles.masterOnlyNode;
+import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -73,7 +73,7 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
 
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
 
-        Settings masterNodeSettings = masterOnlyNode();
+        Settings masterNodeSettings = clusterManagerOnlyNode();
         internalCluster().startNodes(2, masterNodeSettings);
         Settings dateNodeSettings = dataNode();
         internalCluster().startNodes(2, dateNodeSettings);
@@ -106,10 +106,10 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws InterruptedException, ExecutionException, TimeoutException {
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String node1 = internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
-        Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, masterNode);
+        Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, clusterManagerNode);
         final ClusterState state = clusterService.state();
         Metadata.Builder mdBuilder = Metadata.builder(state.metadata());
         mdBuilder.putCustom(CustomMetadata.TYPE, new CustomMetadata("data"));

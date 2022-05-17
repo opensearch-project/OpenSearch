@@ -52,6 +52,8 @@ import java.util.Objects;
 /**
  * A class representing a Geo-Bounding-Box for use by Geo queries and aggregations
  * that deal with extents/rectangles representing rectangular areas of interest.
+ *
+ * @opensearch.internal
  */
 public class GeoBoundingBox implements ToXContentObject, Writeable {
     private static final WellKnownText WKT_PARSER = new WellKnownText(true, new StandardValidator(true));

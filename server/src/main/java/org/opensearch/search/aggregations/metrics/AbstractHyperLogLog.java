@@ -5952,7 +5952,11 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
         return THRESHOLDS[p - 4];
     }
 
-    /** Iterator over a HyperLogLog register */
+    /**
+     * Iterator over a HyperLogLog register
+     *
+     * @opensearch.internal
+     */
     public interface RunLenIterator {
 
         /**

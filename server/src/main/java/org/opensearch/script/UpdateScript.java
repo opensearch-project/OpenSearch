@@ -78,6 +78,11 @@ public abstract class UpdateScript {
 
     public abstract void execute();
 
+    /**
+     * Factory for an update script
+     *
+     * @opensearch.internal
+     */
     public interface Factory {
         UpdateScript newInstance(Map<String, Object> params, Map<String, Object> ctx);
     }

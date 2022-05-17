@@ -125,6 +125,8 @@ public abstract class TermsSetQueryScript {
 
     /**
      * A factory to construct {@link TermsSetQueryScript} instances.
+     *
+     * @opensearch.internal
      */
     public interface LeafFactory {
         TermsSetQueryScript newInstance(LeafReaderContext ctx) throws IOException;
@@ -132,6 +134,8 @@ public abstract class TermsSetQueryScript {
 
     /**
      * A factory to construct stateful {@link TermsSetQueryScript} factories for a specific index.
+     *
+     * @opensearch.internal
      */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);

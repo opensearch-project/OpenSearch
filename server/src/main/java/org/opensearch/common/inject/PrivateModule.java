@@ -83,6 +83,8 @@ import org.opensearch.common.inject.spi.Message;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public abstract class PrivateModule implements Module {
 

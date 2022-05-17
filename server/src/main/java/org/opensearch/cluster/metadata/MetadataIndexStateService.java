@@ -583,6 +583,8 @@ public class MetadataIndexStateService {
      * This step iterates over the indices previously blocked and sends a {@link TransportVerifyShardBeforeCloseAction} to each shard. If
      * this action succeed then the shard is considered to be ready for closing. When all shards of a given index are ready for closing,
      * the index is considered ready to be closed.
+     *
+     * @opensearch.internal
      */
     class WaitForClosedBlocksApplied extends ActionRunnable<Map<Index, IndexResult>> {
 
@@ -715,6 +717,8 @@ public class MetadataIndexStateService {
     /**
      * Helper class that coordinates with shards to ensure that blocks have been properly applied to all shards using
      * {@link TransportVerifyShardIndexBlockAction}.
+     *
+     * @opensearch.metadata
      */
     class WaitForBlocksApplied extends ActionRunnable<Map<Index, AddBlockResult>> {
 

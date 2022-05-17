@@ -261,6 +261,11 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         }
     }
 
+    /**
+     * The flags.
+     *
+     * @opensearch.internal
+     */
     public enum Flag {
         Store("store", 0),
         Indexing("indexing", 1),

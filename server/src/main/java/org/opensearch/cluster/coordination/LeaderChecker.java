@@ -233,6 +233,11 @@ public class LeaderChecker {
         }
     }
 
+    /**
+     * A check scheduler.
+     *
+     * @opensearch.internal
+     */
     private class CheckScheduler implements Releasable {
 
         private final AtomicBoolean isClosed = new AtomicBoolean();
@@ -380,6 +385,11 @@ public class LeaderChecker {
         }
     }
 
+    /**
+     * A leader check request.
+     *
+     * @opensearch.internal
+     */
     static class LeaderCheckRequest extends TransportRequest {
 
         private final DiscoveryNode sender;

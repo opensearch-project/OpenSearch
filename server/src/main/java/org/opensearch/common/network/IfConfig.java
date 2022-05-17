@@ -46,6 +46,8 @@ import java.util.Locale;
 
 /**
  * Simple class to log {@code ifconfig}-style output at DEBUG logging.
+ *
+ * @opensearch.internal
  */
 public final class IfConfig {
 

@@ -180,6 +180,11 @@ public class IngestStats implements Writeable, ToXContentFragment {
         return Objects.hash(totalStats, pipelineStats, processorStats);
     }
 
+    /**
+     * The ingest statistics.
+     *
+     * @opensearch.internal
+     */
     public static class Stats implements Writeable, ToXContentFragment {
 
         private final long ingestCount;

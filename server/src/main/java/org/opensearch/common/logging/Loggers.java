@@ -50,6 +50,8 @@ import static org.opensearch.common.util.CollectionUtils.asArrayList;
 
 /**
  * A set of utilities around Logging.
+ *
+ * @opensearch.internal
  */
 public class Loggers {
 

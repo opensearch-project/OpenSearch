@@ -44,6 +44,11 @@ import org.opensearch.common.Nullable;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Script score function for search.
+ *
+ * @opensearch.internal
+ */
 public class ScriptScoreFunction extends ScoreFunction {
 
     static final class CannedScorer extends Scorable {

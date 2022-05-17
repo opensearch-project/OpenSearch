@@ -68,6 +68,8 @@ import java.util.function.Predicate;
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
+ *
+ * @opensearch.internal
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
 

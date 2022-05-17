@@ -97,6 +97,11 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         return builder;
     }
 
+    /**
+     * A parsed bucket for a parsed auto date histogram agg
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
 
         private Long key;

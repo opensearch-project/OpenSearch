@@ -45,6 +45,11 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
 
+/**
+ * Instance binding implementation
+ *
+ * @opensearch.internal
+ */
 public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBinding<T> {
 
     final T instance;

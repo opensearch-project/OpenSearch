@@ -106,6 +106,11 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         return result;
     }
 
+    /**
+     * Frequencies for an NXY significance heuristic
+     *
+     * @opensearch.internal
+     */
     protected static class Frequencies {
         double N00, N01, N10, N11, N0_, N1_, N_0, N_1, N;
     }
@@ -194,6 +199,11 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         };
     }
 
+    /**
+     * Builder for a NXY Significance heuristic
+     *
+     * @opensearch.internal
+     */
     protected abstract static class NXYBuilder implements SignificanceHeuristicBuilder {
         protected boolean includeNegatives = true;
         protected boolean backgroundIsSuperset = true;

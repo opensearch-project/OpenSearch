@@ -53,6 +53,8 @@ import java.util.List;
  * Parses shape geometry represented in geojson
  *
  * complies with geojson specification: https://tools.ietf.org/html/rfc7946
+ *
+ * @opensearch.internal
  */
 abstract class GeoJsonParser {
     protected static ShapeBuilder parse(XContentParser parser, AbstractShapeGeometryFieldMapper shapeMapper) throws IOException {

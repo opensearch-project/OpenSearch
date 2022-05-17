@@ -43,6 +43,8 @@ import java.util.Set;
  * methods are injected.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 class ConstructorInjector<T> {
 

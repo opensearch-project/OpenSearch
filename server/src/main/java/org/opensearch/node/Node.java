@@ -297,6 +297,11 @@ public class Node implements Closeable {
 
     private static final String CLIENT_TYPE = "node";
 
+    /**
+     * The discovery settings for the node.
+     *
+     * @opensearch.internal
+     */
     public static class DiscoverySettings {
         public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
             "discovery.initial_state_timeout",

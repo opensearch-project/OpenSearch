@@ -60,7 +60,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRetryPostingSnapshotStatusMessages() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
 
         createRepository("test-repo", "mock");

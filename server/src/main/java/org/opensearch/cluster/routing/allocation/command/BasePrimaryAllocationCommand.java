@@ -85,6 +85,11 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
         return acceptDataLoss;
     }
 
+    /**
+     * Base builder class for the primary allocation command.
+     *
+     * @opensearch.internal
+     */
     protected abstract static class Builder<T extends BasePrimaryAllocationCommand> extends AbstractAllocateAllocationCommand.Builder<T> {
         protected boolean acceptDataLoss;
 

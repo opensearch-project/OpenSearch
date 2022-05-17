@@ -41,6 +41,8 @@ import java.util.Map;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
+ *
+ * @opensearch.internal
  */
 public interface BlobContainer {
 

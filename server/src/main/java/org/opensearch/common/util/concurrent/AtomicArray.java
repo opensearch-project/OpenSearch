@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * A list backed by an {@link AtomicReferenceArray} with potential null values, easily allowing
  * to get the concrete values as a list using {@link #asList()}.
+ *
+ * @opensearch.internal
  */
 public class AtomicArray<E> {
     private final AtomicReferenceArray<E> array;

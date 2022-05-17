@@ -42,6 +42,8 @@ package org.opensearch.common.inject;
  * will be created for all methods annotated with {@literal @}{@link Provides}.
  * Use scope and binding annotations on these methods to configure the
  * bindings.
+ *
+ * @opensearch.internal
  */
 public interface Module {
 

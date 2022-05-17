@@ -59,6 +59,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * The more like this query.
+ *
+ * @opensearch.internal
+ */
 public class MoreLikeThisQuery extends Query {
 
     public static final String DEFAULT_MINIMUM_SHOULD_MATCH = "30%";

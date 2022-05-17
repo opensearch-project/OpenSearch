@@ -40,6 +40,8 @@ import java.util.Map;
 
 /**
  * Base supplier of an ExtendesStats aggregator
+ *
+ * @opensearch.internal
  */
 public interface ExtendedStatsAggregatorProvider {
 

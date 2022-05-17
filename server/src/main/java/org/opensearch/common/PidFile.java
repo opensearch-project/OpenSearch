@@ -44,6 +44,8 @@ import java.nio.file.StandardOpenOption;
 /**
  * Process ID file abstraction that writes the current pid into a file and optionally
  * removes it on system exit.
+ *
+ * @opensearch.internal
  */
 public final class PidFile {
 

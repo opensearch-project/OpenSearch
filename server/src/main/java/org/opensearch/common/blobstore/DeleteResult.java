@@ -34,6 +34,8 @@ package org.opensearch.common.blobstore;
 
 /**
  * The result of deleting multiple blobs from a {@link BlobStore}.
+ *
+ * @opensearch.internal
  */
 public final class DeleteResult {
 

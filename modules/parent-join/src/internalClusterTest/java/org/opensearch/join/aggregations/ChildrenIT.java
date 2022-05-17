@@ -227,7 +227,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
 
     public void testPostCollection() throws Exception {
         String indexName = "prodcatalog";
-        String masterType = "masterprod";
+        String mainType = "mainprod";
         String childType = "variantsku";
         assertAcked(
             prepareCreate(indexName).setSettings(
@@ -235,7 +235,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             )
                 .setMapping(
                     addFieldMappings(
-                        buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, masterType, childType),
+                        buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, mainType, childType),
                         "brand",
                         "text",
                         "name",
@@ -251,7 +251,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(createIndexRequest(indexName, masterType, "1", null, "brand", "Levis", "name", "Style 501", "material", "Denim"));
+        requests.add(createIndexRequest(indexName, mainType, "1", null, "brand", "Levis", "name", "Style 501", "material", "Denim"));
         requests.add(createIndexRequest(indexName, childType, "3", "1", "color", "blue", "size", "32"));
         requests.add(createIndexRequest(indexName, childType, "4", "1", "color", "blue", "size", "34"));
         requests.add(createIndexRequest(indexName, childType, "5", "1", "color", "blue", "size", "36"));
@@ -259,9 +259,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         requests.add(createIndexRequest(indexName, childType, "7", "1", "color", "black", "size", "40"));
         requests.add(createIndexRequest(indexName, childType, "8", "1", "color", "gray", "size", "36"));
 
-        requests.add(
-            createIndexRequest(indexName, masterType, "2", null, "brand", "Wrangler", "name", "Regular Cut", "material", "Leather")
-        );
+        requests.add(createIndexRequest(indexName, mainType, "2", null, "brand", "Wrangler", "name", "Regular Cut", "material", "Leather"));
         requests.add(createIndexRequest(indexName, childType, "9", "2", "color", "blue", "size", "32"));
         requests.add(createIndexRequest(indexName, childType, "10", "2", "color", "blue", "size", "34"));
         requests.add(createIndexRequest(indexName, childType, "12", "2", "color", "black", "size", "36"));

@@ -109,6 +109,11 @@ public class PercentageScore extends SignificanceHeuristic {
         return getClass().hashCode();
     }
 
+    /**
+     * Builder for a Percentage Score heuristic
+     *
+     * @opensearch.internal
+     */
     public static class PercentageScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override
