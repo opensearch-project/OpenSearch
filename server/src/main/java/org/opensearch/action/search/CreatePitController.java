@@ -229,7 +229,7 @@ public class CreatePitController {
             .filter(ctx -> Strings.isEmpty(ctx.getClusterAlias()) == false)
             .map(SearchContextIdForNode::getClusterAlias)
             .collect(Collectors.toSet());
-        return SearchUtils.getConnectionLookupListener(searchTransportService, state, clusters);
+        return SearchUtils.getConnectionLookupListener(searchTransportService.getRemoteClusterService(), state, clusters);
     }
 
     private ActionListener<UpdatePitContextResponse> getGroupedListener(

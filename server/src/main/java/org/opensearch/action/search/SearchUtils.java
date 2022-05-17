@@ -11,6 +11,7 @@ package org.opensearch.action.search;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.transport.RemoteClusterService;
 
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -26,7 +27,7 @@ public class SearchUtils {
      * Get connection lookup listener for list of clusters passed
      */
     public static StepListener<BiFunction<String, String, DiscoveryNode>> getConnectionLookupListener(
-        SearchTransportService searchTransportService,
+        RemoteClusterService remoteClusterService,
         ClusterState state,
         Set<String> clusters
     ) {
@@ -35,7 +36,7 @@ public class SearchUtils {
         if (clusters.isEmpty()) {
             lookupListener.onResponse((cluster, nodeId) -> state.getNodes().get(nodeId));
         } else {
-            searchTransportService.getRemoteClusterService().collectNodes(clusters, lookupListener);
+            remoteClusterService.collectNodes(clusters, lookupListener);
         }
         return lookupListener;
     }
