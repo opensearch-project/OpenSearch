@@ -68,7 +68,7 @@ public class URLRepositoryTests extends OpenSearchTestCase {
         };
     }
 
-    public void testWhiteListingRepoURL() throws IOException {
+    public void testAllowListingRepoURL() throws IOException {
         String repoPath = createTempDir().resolve("repository").toUri().toURL().toString();
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -84,7 +84,7 @@ public class URLRepositoryTests extends OpenSearchTestCase {
         assertThat("blobContainer has to initialize blob store", repository.getBlobStore(), not(nullValue()));
     }
 
-    public void testIfNotWhiteListedMustSetRepoURL() throws IOException {
+    public void testIfNotAllowListedMustSetRepoURL() throws IOException {
         String repoPath = createTempDir().resolve("repository").toUri().toURL().toString();
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
