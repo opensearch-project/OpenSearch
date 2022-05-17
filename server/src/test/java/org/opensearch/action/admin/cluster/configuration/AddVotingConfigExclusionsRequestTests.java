@@ -450,6 +450,64 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
+    // As of 2.0, MASTER_ROLE is deprecated to promote inclusive language.
+    // Validate node with MASTER_ROLE can be resolved by resolveVotingConfigExclusions() like before.
+    // The following 3 tests assign nodes by description, id and name respectively.
+    public void testResolveByNodeDescriptionWithDeprecatedMasterRole() {
+        final DiscoveryNode localNode = new DiscoveryNode(
+            "local",
+            "local",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .nodes(new Builder().add(localNode).localNodeId(localNode.getId()))
+            .build();
+
+        assertThat(makeRequestWithNodeDescriptions("_local").resolveVotingConfigExclusions(clusterState), contains(localNodeExclusion));
+        allowedWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
+    }
+
+    public void testResolveByNodeIdWithDeprecatedMasterRole() {
+        final DiscoveryNode node = new DiscoveryNode(
+            "nodeName",
+            "nodeId",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        final VotingConfigExclusion nodeExclusion = new VotingConfigExclusion(node);
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder().add(node)).build();
+
+        assertThat(
+            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { "nodeId" }, Strings.EMPTY_ARRAY, TimeValue.ZERO)
+                .resolveVotingConfigExclusions(clusterState),
+            contains(nodeExclusion)
+        );
+    }
+
+    public void testResolveByNodeNameWithDeprecatedMasterRole() {
+        final DiscoveryNode node = new DiscoveryNode(
+            "nodeName",
+            "nodeId",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        final VotingConfigExclusion nodeExclusion = new VotingConfigExclusion(node);
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder().add(node)).build();
+
+        assertThat(new AddVotingConfigExclusionsRequest("nodeName").resolveVotingConfigExclusions(clusterState), contains(nodeExclusion));
+    }
+
     private static AddVotingConfigExclusionsRequest makeRequestWithNodeDescriptions(String... nodeDescriptions) {
         return new AddVotingConfigExclusionsRequest(
             nodeDescriptions,

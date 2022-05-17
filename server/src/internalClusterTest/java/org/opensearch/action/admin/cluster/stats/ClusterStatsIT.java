@@ -51,6 +51,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -142,6 +143,27 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             response = client().admin().cluster().prepareClusterStats().get();
             assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
         }
+    }
+
+    // Validate assigning value "master" to setting "node.roles" can get correct count in Node Stats response after MASTER_ROLE deprecated.
+    public void testNodeCountsWithDeprecatedMasterRole() {
+        int total = 1;
+        Settings settings = Settings.builder()
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), Collections.singletonList(DiscoveryNodeRole.MASTER_ROLE.roleName()))
+            .build();
+        internalCluster().startNode(settings);
+        waitForNodes(total);
+
+        Map<String, Integer> expectedCounts = new HashMap<>();
+        expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 0);
+        expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 0);
+        expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 0);
+        expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
+
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
     }
 
     private static void incrementCountForRole(String role, Map<String, Integer> counts) {
