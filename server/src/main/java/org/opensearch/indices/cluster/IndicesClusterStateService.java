@@ -80,6 +80,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.snapshots.SnapshotShardsService;
@@ -202,18 +203,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
-    }
-
-    public ShardStateAction getShardStateAction() {
-        return shardStateAction;
-    }
-
-    public ClusterService getClusterService() {
-        return clusterService;
-    }
-
-    public ActionListener<Void> getShardStateActionListener() {
-        return SHARD_STATE_ACTION_LISTENER;
     }
 
     @Override
@@ -754,6 +743,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     // package-private for testing
     public synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
         failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
+    }
+
+    public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
+        RecoveryState RecState = (RecoveryState) state;
+        shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + RecState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
     }
 
     private void failAndRemoveShard(

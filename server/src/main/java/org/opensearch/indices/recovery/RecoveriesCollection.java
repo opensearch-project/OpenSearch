@@ -85,7 +85,7 @@ public class RecoveriesCollection {
 
     private void startRecoveryInternal(RecoveryTarget recoveryTarget, TimeValue activityTimeout) {
         RecoveryTarget existingTarget = onGoingRecoveries.putIfAbsent(recoveryTarget.getId(), recoveryTarget);
-        assert existingTarget == null : "found two RecoveryStatus instances with the same id";
+        assert existingTarget == null : "found two RecoveryTarget instances with the same id";
         logger.trace(
             "{} started recovery from {}, id [{}]",
             recoveryTarget.indexShard().shardId(),

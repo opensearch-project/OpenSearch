@@ -45,14 +45,7 @@ public class RecoveryListener implements ReplicationListener {
 
     @Override
     public void onDone(ReplicationState state) {
-        RecoveryState RecState = (RecoveryState) state;
-        indicesClusterStateService.getShardStateAction()
-            .shardStarted(
-                shardRouting,
-                primaryTerm,
-                "after " + RecState.getRecoverySource(),
-                indicesClusterStateService.getShardStateActionListener()
-            );
+        indicesClusterStateService.handleRecoveryDone(state, shardRouting, primaryTerm);
     }
 
     @Override
