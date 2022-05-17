@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
+public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
 
     public void testSimpleOnlyClusterManagerNodeElection() throws IOException {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
@@ -159,7 +159,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testElectOnlyBetweenMasterNodes() throws Exception {
+    public void testElectOnlyBetweenClusterManagerNodes() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start data node / non cluster-manager node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));

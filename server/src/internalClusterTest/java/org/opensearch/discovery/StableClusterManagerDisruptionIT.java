@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.equalTo;
  * not detect a cluster-manager failure too quickly.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
+public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -87,7 +87,7 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
     /**
      * Test that no split brain occurs under partial network partition. See https://github.com/elastic/elasticsearch/issues/2488
      */
-    public void testFailWithMinimumMasterNodesConfigured() throws Exception {
+    public void testFailWithMinimumClusterManagerNodesConfigured() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
 
@@ -96,9 +96,9 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         logger.info("---> legit elected cluster-manager node={}", clusterManagerNode);
 
         // Pick a node that isn't the elected cluster-manager.
-        Set<String> nonMasters = new HashSet<>(nodes);
-        nonMasters.remove(clusterManagerNode);
-        final String unluckyNode = randomFrom(nonMasters.toArray(Strings.EMPTY_ARRAY));
+        Set<String> nonClusterManagers = new HashSet<>(nodes);
+        nonClusterManagers.remove(clusterManagerNode);
+        final String unluckyNode = randomFrom(nonClusterManagers.toArray(Strings.EMPTY_ARRAY));
 
         // Simulate a network issue between the unlucky node and elected cluster-manager node in both directions.
 
@@ -167,11 +167,11 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         ensureStableCluster(3);
 
         final String clusterManager = internalCluster().getMasterName();
-        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames())
+        final List<String> nonClusterManagers = Arrays.stream(internalCluster().getNodeNames())
             .filter(n -> clusterManager.equals(n) == false)
             .collect(Collectors.toList());
-        final String isolatedNode = randomFrom(nonMasters);
-        final String otherNode = nonMasters.get(nonMasters.get(0).equals(isolatedNode) ? 1 : 0);
+        final String isolatedNode = randomFrom(nonClusterManagers);
+        final String otherNode = nonClusterManagers.get(nonClusterManagers.get(0).equals(isolatedNode) ? 1 : 0);
 
         logger.info("--> isolating [{}]", isolatedNode);
 
@@ -230,8 +230,8 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
                         event.previousState()
                     );
                     String previousClusterManagerNodeName = previousClusterManager != null ? previousClusterManager.getName() : null;
-                    String currentMasterNodeName = currentClusterManager != null ? currentClusterManager.getName() : null;
-                    clusterManagers.get(node).add(new Tuple<>(previousClusterManagerNodeName, currentMasterNodeName));
+                    String currentClusterManagerNodeName = currentClusterManager != null ? currentClusterManager.getName() : null;
+                    clusterManagers.get(node).add(new Tuple<>(previousClusterManagerNodeName, currentClusterManagerNodeName));
                 }
             });
         }
@@ -274,8 +274,8 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
             });
 
         // Save the new elected cluster-manager node
-        final String newMasterNode = internalCluster().getMasterName(majoritySide.get(0));
-        logger.info("--> new detected cluster-manager node [{}]", newMasterNode);
+        final String newClusterManagerNode = internalCluster().getMasterName(majoritySide.get(0));
+        logger.info("--> new detected cluster-manager node [{}]", newClusterManagerNode);
 
         // Stop disruption
         logger.info("--> unfreezing node [{}]", oldClusterManagerNode);

@@ -1385,7 +1385,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, clusterManagerName);
         awaitNumberOfSnapshotsInProgress(1);
 
-        awaitMasterFinishRepoOperations();
+        awaitClusterManagerFinishRepoOperations();
 
         unblockNode(repoName, dataNode);
         assertSuccessful(blockedSnapshot);

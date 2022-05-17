@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
+public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

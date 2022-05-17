@@ -539,7 +539,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertFalse(blockedClone.isDone());
         unblockNode(repoName, clusterManagerName);
         awaitNumberOfSnapshotsInProgress(1);
-        awaitMasterFinishRepoOperations();
+        awaitClusterManagerFinishRepoOperations();
         unblockNode(repoName, dataNode);
         assertAcked(blockedClone.get());
         assertEquals(getSnapshot(repoName, cloneName).state(), SnapshotState.SUCCESS);
@@ -569,7 +569,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertFalse(blockedClone.isDone());
         unblockNode(repoName, clusterManagerName);
         awaitNoMoreRunningOperations(clusterManagerName);
-        awaitMasterFinishRepoOperations();
+        awaitClusterManagerFinishRepoOperations();
         assertAcked(blockedClone.get());
         assertAcked(otherClone.get());
         assertEquals(getSnapshot(repoName, cloneName).state(), SnapshotState.SUCCESS);
@@ -607,7 +607,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
         awaitNoMoreRunningOperations();
 
-        awaitMasterFinishRepoOperations();
+        awaitClusterManagerFinishRepoOperations();
 
         assertSuccessful(blockedSnapshot);
         assertAcked(clone.get());
