@@ -91,7 +91,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("waiting for nodes to de-elect master [{}]", oldClusterManagerNode);
         for (String node : oldNonClusterManagerNodesSet) {
-            assertDifferentMaster(node, oldClusterManagerNode);
+            assertDifferentClusterManager(node, oldClusterManagerNode);
         }
 
         logger.info("waiting for nodes to elect a new master");

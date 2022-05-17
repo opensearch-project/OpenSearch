@@ -179,7 +179,7 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
         }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);
     }
 
-    void assertDifferentMaster(final String node, final String oldClusterManagerNode) throws Exception {
+    void assertDifferentClusterManager(final String node, final String oldClusterManagerNode) throws Exception {
         assertBusy(() -> {
             ClusterState state = getNodeClusterState(node);
             String clusterManagerNode = null;
