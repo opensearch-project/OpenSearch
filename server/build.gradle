@@ -76,7 +76,6 @@ if (!isEclipse) {
     }
   }
 
-
   jar {
     metaInf {
       into 'versions/11'

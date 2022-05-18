@@ -5,7 +5,7 @@ extensions:
       hostAddress: '127.0.0.0'
       port: '9301'
       version: '2.0.0'
-    - name: "firstExtension"
+    - name: "secondExtension"
       ephemeralId: 'uniqueid2'
       hostName: 'myIndependentPluginHost2'
       hostAddress: '127.0.0.0'
