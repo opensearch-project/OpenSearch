@@ -16,7 +16,6 @@
     "max_score": 0.0,
     "hits": [ {
       "_index": "test",
-      "_type": "test",
       "_id": "10000",
       "_version": 1,
       "_score": 0.0,
