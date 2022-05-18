@@ -80,7 +80,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.indices.common.ShardTargetState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.snapshots.SnapshotShardsService;
@@ -745,7 +745,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
     }
 
-    public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
+    public void handleRecoveryDone(ShardTargetState state, ShardRouting shardRouting, long primaryTerm) {
         RecoveryState RecState = (RecoveryState) state;
         shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + RecState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
     }

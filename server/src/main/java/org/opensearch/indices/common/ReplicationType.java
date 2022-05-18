@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.replication.common;
+package org.opensearch.indices.common;
 
 /**
  * Enumerates the types of replication strategies supported by OpenSearch.

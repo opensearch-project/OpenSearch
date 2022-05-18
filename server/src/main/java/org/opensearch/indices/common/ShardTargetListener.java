@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.replication.common;
+package org.opensearch.indices.common;
 
 import org.opensearch.OpenSearchException;
 
@@ -15,9 +15,9 @@ import org.opensearch.OpenSearchException;
  *
  * @opensearch.internal
  */
-public interface ReplicationListener {
+public interface ShardTargetListener {
 
-    void onDone(ReplicationState state);
+    void onDone(ShardTargetState state);
 
-    void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure);
+    void onFailure(ShardTargetState state, OpenSearchException e, boolean sendShardFailure);
 }

@@ -6,29 +6,28 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.replication.common;
+package org.opensearch.indices.common;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.Store;
-import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.recovery.MultiFileWriter;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Implemented to represent recovery or segment replication where the current node is the target of the process.
+ * Represents the target of an operation performed on a shard
  *
  * @opensearch.internal
  */
-public abstract class ReplicationTarget extends AbstractRefCounted {
+public abstract class ShardTarget extends AbstractRefCounted {
 
     private static final AtomicLong ID_GENERATOR = new AtomicLong();
 
@@ -39,10 +38,9 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     protected final AtomicBoolean finished = new AtomicBoolean();
     protected final IndexShard indexShard;
-    protected final Store store;
-    protected final ReplicationListener listener;
-    protected final MultiFileWriter multiFileWriter;
+    protected final ShardTargetListener listener;
     protected final Logger logger;
+    protected final CancellableThreads cancellableThreads;
     protected final ReplicationLuceneIndex recoveryStateIndex;
 
     protected abstract String getPrefix();
@@ -51,27 +49,39 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     protected abstract void onCancel(String reason);
 
-    protected abstract void onFail(OpenSearchException e, boolean sendShardFailure);
+    public abstract ShardTargetState state();
 
-    public abstract ReplicationState state();
+    public abstract ShardTarget retryCopy();
 
-    public ReplicationTarget(String name, IndexShard indexShard, ReplicationLuceneIndex recoveryStateIndex, ReplicationListener listener) {
+    public abstract String description();
+
+    public ShardTargetListener getListener() {
+        return listener;
+    }
+
+    public CancellableThreads cancellableThreads() {
+        return cancellableThreads;
+    }
+
+    public abstract void notifyListener(Exception e, boolean sendShardFailure);
+
+    public ShardTarget(String name, IndexShard indexShard, ReplicationLuceneIndex recoveryStateIndex, ShardTargetListener listener) {
         super(name);
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.listener = listener;
         this.id = ID_GENERATOR.incrementAndGet();
         this.recoveryStateIndex = recoveryStateIndex;
         this.indexShard = indexShard;
-        this.store = indexShard.store();
         final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
-        this.multiFileWriter = new MultiFileWriter(indexShard.store(), recoveryStateIndex, tempFilePrefix, logger, this::ensureRefCount);
         // make sure the store is not released until we are done.
-        store.incRef();
+        this.cancellableThreads = new CancellableThreads();
     }
 
     public long getId() {
         return id;
     }
+
+    public abstract boolean resetRecovery(CancellableThreads newTargetCancellableThreads) throws IOException;
 
     /**
      * return the last time this ReplicationStatus was used (based on System.nanoTime()
@@ -94,26 +104,6 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     public IndexShard indexShard() {
         ensureRefCount();
         return indexShard;
-    }
-
-    public Store store() {
-        ensureRefCount();
-        return store;
-    }
-
-    public void writeFileChunk(
-        StoreFileMetadata fileMetadata,
-        long position,
-        BytesReference content,
-        boolean lastChunk,
-        ActionListener<Void> actionListener
-    ) {
-        try {
-            multiFileWriter.writeFileChunk(fileMetadata, position, content, lastChunk);
-            actionListener.onResponse(null);
-        } catch (Exception e) {
-            actionListener.onFailure(e);
-        }
     }
 
     /**
@@ -157,10 +147,10 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     public void fail(OpenSearchException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
-                listener.onFailure(state(), e, sendShardFailure);
+                notifyListener(e, sendShardFailure);
             } finally {
                 try {
-                    onFail(e, sendShardFailure);
+                    cancellableThreads.cancel("failed" + description() +  "[" + ExceptionsHelper.stackTrace(e) + "]");
                 } finally {
                     // release the initial reference. replication files will be cleaned as soon as ref count goes to zero, potentially now
                     decRef();
@@ -177,13 +167,4 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         }
     }
 
-    @Override
-    protected void closeInternal() {
-        try {
-            multiFileWriter.close();
-        } finally {
-            // free store. increment happens in constructor
-            store.decRef();
-        }
-    }
 }

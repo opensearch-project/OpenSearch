@@ -71,7 +71,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.common.ShardTargetListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -809,7 +809,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             CountDownLatch releaseRecovery,
             IndexShard shard,
             DiscoveryNode sourceNode,
-            ReplicationListener listener,
+            ShardTargetListener listener,
             Logger logger
         ) {
             super(shard, sourceNode, listener);

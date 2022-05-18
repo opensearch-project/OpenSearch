@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.replication.common;
+package org.opensearch.indices.common;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;

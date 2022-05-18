@@ -45,8 +45,8 @@ import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
-import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.indices.common.ReplicationLuceneIndex;
+import org.opensearch.indices.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;

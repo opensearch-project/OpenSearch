@@ -45,9 +45,9 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
-import org.opensearch.indices.replication.common.ReplicationState;
-import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.indices.common.ShardTargetState;
+import org.opensearch.indices.common.ReplicationLuceneIndex;
+import org.opensearch.indices.common.ReplicationTimer;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -57,12 +57,71 @@ import java.util.Locale;
  *
  * @opensearch.internal
  */
-public class RecoveryState extends ReplicationState implements ToXContentFragment, Writeable {
+public class RecoveryState implements ShardTargetState, ToXContentFragment, Writeable {
+
+    /**
+     * The stage of the recovery state
+     *
+     * @opensearch.internal
+     */
+    public enum Stage {
+        INIT((byte) 0),
+
+        /**
+         * recovery of lucene files, either reusing local ones are copying new ones
+         */
+        INDEX((byte) 1),
+
+        /**
+         * potentially running check index
+         */
+        VERIFY_INDEX((byte) 2),
+
+        /**
+         * starting up the engine, replaying the translog
+         */
+        TRANSLOG((byte) 3),
+
+        /**
+         * performing final task after all translog ops have been done
+         */
+        FINALIZE((byte) 4),
+
+        DONE((byte) 5);
+
+        private static final Stage[] STAGES = new Stage[Stage.values().length];
+
+        static {
+            for (Stage stage : Stage.values()) {
+                assert stage.id() < STAGES.length && stage.id() >= 0;
+                STAGES[stage.id] = stage;
+            }
+        }
+
+        private final byte id;
+
+        Stage(byte id) {
+            this.id = id;
+        }
+
+        public byte id() {
+            return id;
+        }
+
+        public static Stage fromId(byte id) {
+            if (id < 0 || id >= STAGES.length) {
+                throw new IllegalArgumentException("No mapping for id [" + id + "]");
+            }
+            return STAGES[id];
+        }
+    }
 
     private Stage stage;
 
+    private final ReplicationLuceneIndex index;
     private final Translog translog;
     private final VerifyIndex verifyIndex;
+    private final ReplicationTimer timer;
 
     private RecoverySource recoverySource;
     private ShardId shardId;
@@ -189,12 +248,20 @@ public class RecoveryState extends ReplicationState implements ToXContentFragmen
         return this;
     }
 
+    public ReplicationLuceneIndex getIndex() {
+        return index;
+    }
+
     public VerifyIndex getVerifyIndex() {
         return this.verifyIndex;
     }
 
     public Translog getTranslog() {
         return translog;
+    }
+
+    public ReplicationTimer getTimer() {
+        return timer;
     }
 
     public RecoverySource getRecoverySource() {
@@ -229,6 +296,7 @@ public class RecoveryState extends ReplicationState implements ToXContentFragmen
             builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime());
         }
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
+
         if (recoverySource.getType() == RecoverySource.Type.PEER) {
             builder.startObject(Fields.SOURCE);
             builder.field(Fields.ID, sourceNode.getId());

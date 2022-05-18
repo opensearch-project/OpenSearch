@@ -69,8 +69,8 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.replication.common.ReplicationListener;
-import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.indices.common.ShardTargetListener;
+import org.opensearch.indices.common.ShardTargetState;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -451,14 +451,14 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             IndexShard replica = group.addReplica();
             expectThrows(
                 Exception.class,
-                () -> group.recoverReplica(replica, (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new ReplicationListener() {
+                () -> group.recoverReplica(replica, (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new ShardTargetListener() {
                     @Override
-                    public void onDone(ReplicationState state) {
+                    public void onDone(ShardTargetState state) {
                         throw new AssertionError("recovery must fail");
                     }
 
                     @Override
-                    public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    public void onFailure(ShardTargetState state, OpenSearchException e, boolean sendShardFailure) {
                         assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
                     }
                 }))

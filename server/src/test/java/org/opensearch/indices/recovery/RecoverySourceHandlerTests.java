@@ -94,7 +94,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
+import org.opensearch.indices.common.ReplicationLuceneIndex;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
