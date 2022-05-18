@@ -1417,12 +1417,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return snapshotNames;
     }
 
-    private ActionFuture<AcknowledgedResponse> startDeleteFromNonMasterClient(String repoName, String snapshotName) {
+    private ActionFuture<AcknowledgedResponse> startDeleteFromNonClusterManagerClient(String repoName, String snapshotName) {
         logger.info("--> deleting snapshot [{}] from repo [{}] from non cluster-manager client", snapshotName, repoName);
         return internalCluster().nonMasterClient().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 
-    private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromNonMasterClient(String repoName, String snapshotName) {
+    private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromNonClusterManagerClient(String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] to repo [{}] from non cluster-manager client", snapshotName, repoName);
         return internalCluster().nonMasterClient()
             .admin()
@@ -1432,7 +1432,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .execute();
     }
 
-    private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromMasterClient(String repoName, String snapshotName) {
+    private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromClusterManagerClient(String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] to repo [{}] from cluster-manager client", snapshotName, repoName);
         return internalCluster().masterClient()
             .admin()
