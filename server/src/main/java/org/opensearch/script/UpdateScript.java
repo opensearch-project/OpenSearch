@@ -32,10 +32,7 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.logging.DeprecationLogger;
-
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * An update script.
@@ -43,12 +40,6 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public abstract class UpdateScript {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of("_type", value -> {
-        deprecationLogger.deprecate("update-script", "[types removal] Looking up doc types [_type] in scripts is deprecated.");
-        return value;
-    });
 
     public static final String[] PARAMETERS = {};
 
@@ -63,7 +54,7 @@ public abstract class UpdateScript {
 
     public UpdateScript(Map<String, Object> params, Map<String, Object> ctx) {
         this.params = params;
-        this.ctx = new DynamicMap(ctx, PARAMS_FUNCTIONS);
+        this.ctx = ctx;
     }
 
     /** Return the parameters for this script. */
