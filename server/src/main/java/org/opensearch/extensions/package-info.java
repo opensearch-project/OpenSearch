@@ -6,10 +6,5 @@
  * compatible open source license.
  */
 
-/** 
- * Main OpenSearch extensions package. OpenSearch extensions provide extensibility to OpenSearch.
- * <p>
- * The primary extension points are: 
- *  <<enumerate the extension points and ideally give an example so users no how to extend OpenSearch>>>
- */
+/** Main OpenSearch extensions package. OpenSearch extensions provide extensibility to OpenSearch.*/
 package org.opensearch.extensions;
