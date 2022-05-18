@@ -163,56 +163,6 @@ public class ConditionalProcessorTests extends OpenSearchTestCase {
         assertMutatingCtxThrows(ctx -> ((List<Object>) ctx.get("listField")).remove("bar"));
     }
 
-    public void testTypeDeprecation() throws Exception {
-
-        ScriptService scriptService = new ScriptService(
-            Settings.builder().build(),
-            Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG,
-                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
-                    ctx.get("_type");
-                    return true;
-                }), Collections.emptyMap())
-            ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
-        );
-
-        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
-        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
-        ConditionalProcessor processor = new ConditionalProcessor(
-            randomAlphaOfLength(10),
-            "description",
-            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()),
-            scriptService,
-            new Processor() {
-                @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) {
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return null;
-                }
-
-                @Override
-                public String getTag() {
-                    return null;
-                }
-
-                @Override
-                public String getDescription() {
-                    return null;
-                }
-            },
-            relativeTimeProvider
-        );
-
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
-        processor.execute(ingestDocument, (result, e) -> {});
-        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
-    }
-
     public void testPrecompiledError() {
         ScriptService scriptService = MockScriptService.singleContext(
             IngestConditionalScript.CONTEXT,
