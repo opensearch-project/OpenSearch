@@ -121,7 +121,6 @@ public class IngestRequestConvertersTests extends OpenSearchTestCase {
             + "  \"docs\": ["
             + "    {"
             + "      \"_index\": \"index\","
-            + "      \"_type\": \"_doc\","
             + "      \"_id\": \"id\","
             + "      \"_source\": {"
             + "        \"foo\": \"rab\""
