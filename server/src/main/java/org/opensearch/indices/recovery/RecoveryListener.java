@@ -11,15 +11,15 @@ package org.opensearch.indices.recovery;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.indices.replication.common.ShardTargetListener;
-import org.opensearch.indices.replication.common.ShardTargetState;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
 
 /**
  * Listener that runs on changes in Recovery state
  *
  * @opensearch.internal
  */
-public class RecoveryListener implements ShardTargetListener {
+public class RecoveryListener implements ReplicationListener {
 
     /**
      * ShardRouting with which the shard was created
@@ -44,12 +44,12 @@ public class RecoveryListener implements ShardTargetListener {
     }
 
     @Override
-    public void onDone(ShardTargetState state) {
+    public void onDone(ReplicationState state) {
         indicesClusterStateService.handleRecoveryDone(state, shardRouting, primaryTerm);
     }
 
     @Override
-    public void onFailure(ShardTargetState state, OpenSearchException e, boolean sendShardFailure) {
+    public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
         indicesClusterStateService.handleRecoveryFailure(shardRouting, sendShardFailure, e);
     }
 }

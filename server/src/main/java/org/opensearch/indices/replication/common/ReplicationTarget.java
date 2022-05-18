@@ -23,11 +23,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Represents the target of an operation performed on a shard
+ * Represents the target of a replication operation performed on a shard
  *
  * @opensearch.internal
  */
-public abstract class ShardTarget extends AbstractRefCounted {
+public abstract class ReplicationTarget extends AbstractRefCounted {
 
     private static final AtomicLong ID_GENERATOR = new AtomicLong();
 
@@ -38,7 +38,7 @@ public abstract class ShardTarget extends AbstractRefCounted {
 
     protected final AtomicBoolean finished = new AtomicBoolean();
     protected final IndexShard indexShard;
-    protected final ShardTargetListener listener;
+    protected final ReplicationListener listener;
     protected final Logger logger;
     protected final CancellableThreads cancellableThreads;
     protected final ReplicationLuceneIndex recoveryStateIndex;
@@ -49,13 +49,13 @@ public abstract class ShardTarget extends AbstractRefCounted {
 
     protected abstract void onCancel(String reason);
 
-    public abstract ShardTargetState state();
+    public abstract ReplicationState state();
 
-    public abstract ShardTarget retryCopy();
+    public abstract ReplicationTarget retryCopy();
 
     public abstract String description();
 
-    public ShardTargetListener getListener() {
+    public ReplicationListener getListener() {
         return listener;
     }
 
@@ -65,7 +65,7 @@ public abstract class ShardTarget extends AbstractRefCounted {
 
     public abstract void notifyListener(Exception e, boolean sendShardFailure);
 
-    public ShardTarget(String name, IndexShard indexShard, ReplicationLuceneIndex recoveryStateIndex, ShardTargetListener listener) {
+    public ReplicationTarget(String name, IndexShard indexShard, ReplicationLuceneIndex recoveryStateIndex, ReplicationListener listener) {
         super(name);
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.listener = listener;

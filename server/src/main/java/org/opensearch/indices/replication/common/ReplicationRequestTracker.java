@@ -45,7 +45,7 @@ import java.util.Map;
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 /**
- * Tracks replication/recovery requests
+ * Tracks replication requests
  *
  * @opensearch.internal
  */

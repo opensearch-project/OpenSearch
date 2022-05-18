@@ -94,8 +94,8 @@ import org.opensearch.indices.recovery.RecoverySourceHandler;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
-import org.opensearch.indices.replication.common.ShardTargetListener;
-import org.opensearch.indices.replication.common.ShardTargetState;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
@@ -141,14 +141,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
     };
 
-    protected static final ShardTargetListener recoveryListener = new ShardTargetListener() {
+    protected static final ReplicationListener recoveryListener = new ReplicationListener() {
         @Override
-        public void onDone(ShardTargetState state) {
+        public void onDone(ReplicationState state) {
 
         }
 
         @Override
-        public void onFailure(ShardTargetState state, OpenSearchException e, boolean sendShardFailure) {
+        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
             throw new AssertionError(e);
         }
     };

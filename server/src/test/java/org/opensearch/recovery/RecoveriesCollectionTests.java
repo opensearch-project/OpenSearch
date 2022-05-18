@@ -38,9 +38,9 @@ import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
-import org.opensearch.indices.replication.common.ShardTargetCollection;
-import org.opensearch.indices.replication.common.ShardTargetListener;
-import org.opensearch.indices.replication.common.ShardTargetState;
+import org.opensearch.indices.replication.common.ReplicationCollection;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 
@@ -52,26 +52,26 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTestCase {
-    static final ShardTargetListener listener = new ShardTargetListener() {
+    static final ReplicationListener listener = new ReplicationListener() {
         @Override
-        public void onDone(ShardTargetState state) {
+        public void onDone(ReplicationState state) {
 
         }
 
         @Override
-        public void onFailure(ShardTargetState state, OpenSearchException e, boolean sendShardFailure) {
+        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
 
         }
     };
 
     public void testLastAccessTimeUpdate() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
-            final ShardTargetCollection<RecoveryTarget> collection = new ShardTargetCollection<>(logger, threadPool);
+            final ReplicationCollection<RecoveryTarget> collection = new ReplicationCollection<>(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
-            try (ShardTargetCollection.ShardTargetRef<RecoveryTarget> status = collection.get(recoveryId)) {
+            try (ReplicationCollection.ReplicationRef<RecoveryTarget> status = collection.get(recoveryId)) {
                 final long lastSeenTime = status.get().lastAccessTime();
                 assertBusy(() -> {
-                    try (ShardTargetCollection.ShardTargetRef<RecoveryTarget> currentStatus = collection.get(recoveryId)) {
+                    try (ReplicationCollection.ReplicationRef<RecoveryTarget> currentStatus = collection.get(recoveryId)) {
                         assertThat("access time failed to update", lastSeenTime, lessThan(currentStatus.get().lastAccessTime()));
                     }
                 });
@@ -83,17 +83,17 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
 
     public void testRecoveryTimeout() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
-            final ShardTargetCollection<RecoveryTarget> collection = new ShardTargetCollection<>(logger, threadPool);
+            final ReplicationCollection<RecoveryTarget> collection = new ReplicationCollection<>(logger, threadPool);
             final AtomicBoolean failed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(1);
-            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(), new ShardTargetListener() {
+            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(), new ReplicationListener() {
                 @Override
-                public void onDone(ShardTargetState state) {
+                public void onDone(ReplicationState state) {
                     latch.countDown();
                 }
 
                 @Override
-                public void onFailure(ShardTargetState state, OpenSearchException e, boolean sendShardFailure) {
+                public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
                     failed.set(true);
                     latch.countDown();
                 }
@@ -110,10 +110,10 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
 
     public void testRecoveryCancellation() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
-            final ShardTargetCollection<RecoveryTarget> collection = new ShardTargetCollection<>(logger, threadPool);
+            final ReplicationCollection<RecoveryTarget> collection = new ReplicationCollection<>(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
-            try (ShardTargetCollection.ShardTargetRef<RecoveryTarget> recoveryRef = collection.get(recoveryId)) {
+            try (ReplicationCollection.ReplicationRef<RecoveryTarget> recoveryRef = collection.get(recoveryId)) {
                 ShardId shardId = recoveryRef.get().indexShard().shardId();
                 assertTrue("failed to cancel recoveries", collection.cancelForShard(shardId, "test"));
                 assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
@@ -129,7 +129,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             shards.startAll();
             int numDocs = randomIntBetween(1, 15);
             shards.indexDocs(numDocs);
-            final ShardTargetCollection<RecoveryTarget> collection = new ShardTargetCollection<>(logger, threadPool);
+            final ReplicationCollection<RecoveryTarget> collection = new ReplicationCollection<>(logger, threadPool);
             IndexShard shard = shards.addReplica();
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard);
             RecoveryTarget recoveryTarget = collection.getTarget(recoveryId);
@@ -152,7 +152,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             String resetTempFileName = resetRecovery.getTempNameForFile("foobar");
             assertNotEquals(tempFileName, resetTempFileName);
             assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
-            try (ShardTargetCollection.ShardTargetRef<RecoveryTarget> newRecoveryRef = collection.get(resetRecoveryId)) {
+            try (ReplicationCollection.ReplicationRef<RecoveryTarget> newRecoveryRef = collection.get(resetRecoveryId)) {
                 shards.recoverReplica(shard, (s, n) -> {
                     assertSame(s, newRecoveryRef.get().indexShard());
                     return newRecoveryRef.get();
@@ -163,15 +163,15 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
         }
     }
 
-    long startRecovery(ShardTargetCollection<RecoveryTarget> collection, DiscoveryNode sourceNode, IndexShard shard) {
+    long startRecovery(ReplicationCollection<RecoveryTarget> collection, DiscoveryNode sourceNode, IndexShard shard) {
         return startRecovery(collection, sourceNode, shard, listener, TimeValue.timeValueMinutes(60));
     }
 
     long startRecovery(
-        ShardTargetCollection<RecoveryTarget> collection,
+        ReplicationCollection<RecoveryTarget> collection,
         DiscoveryNode sourceNode,
         IndexShard indexShard,
-        ShardTargetListener listener,
+        ReplicationListener listener,
         TimeValue timeValue
     ) {
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());

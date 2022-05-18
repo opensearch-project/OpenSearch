@@ -56,9 +56,9 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
-import org.opensearch.indices.replication.common.ShardTarget;
-import org.opensearch.indices.replication.common.ShardTargetListener;
-import org.opensearch.indices.replication.common.ShardTargetCollection;
+import org.opensearch.indices.replication.common.ReplicationTarget;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationCollection;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -67,11 +67,11 @@ import java.util.concurrent.CountDownLatch;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
- * this class are created through {@link ShardTargetCollection}.
+ * this class are created through {@link ReplicationCollection}.
  *
  * @opensearch.internal
  */
-public class RecoveryTarget extends ShardTarget implements RecoveryTargetHandler {
+public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetHandler {
 
     private static final String RECOVERY_PREFIX = "recovery.";
 
@@ -90,7 +90,7 @@ public class RecoveryTarget extends ShardTarget implements RecoveryTargetHandler
      * @param sourceNode                        source node of the recovery where we recover from
      * @param listener                          called when recovery is completed/failed
      */
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, ShardTargetListener listener) {
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, ReplicationListener listener) {
         super("recovery_status", indexShard, indexShard.recoveryState().getIndex(), listener);
         this.cancellableThreads = new CancellableThreads();
         this.sourceNode = sourceNode;

@@ -13,6 +13,6 @@ package org.opensearch.indices.replication.common;
  *
  * @opensearch.internal
  */
-public interface ShardTargetState {
+public interface ReplicationState {
 
 }

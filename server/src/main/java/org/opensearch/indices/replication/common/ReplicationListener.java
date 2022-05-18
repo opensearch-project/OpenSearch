@@ -11,13 +11,13 @@ package org.opensearch.indices.replication.common;
 import org.opensearch.OpenSearchException;
 
 /**
- * Interface for listeners that run when there's a change in replication state
+ * Interface for listeners that run when there's a change in {@link ReplicationState}
  *
  * @opensearch.internal
  */
-public interface ShardTargetListener {
+public interface ReplicationListener {
 
-    void onDone(ShardTargetState state);
+    void onDone(ReplicationState state);
 
-    void onFailure(ShardTargetState state, OpenSearchException e, boolean sendShardFailure);
+    void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure);
 }

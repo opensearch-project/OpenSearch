@@ -51,14 +51,14 @@ import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * This class holds a collection of all on going events on the current node (i.e., the node is the target node
- * of those events). The class is used to guarantee concurrent semantics such that once a recoveries was done/cancelled/failed
- * no other thread will be able to find it. Last, the {@link ShardTargetRef} inner class verifies that recovery temporary files
+ * This class holds a collection of all on going replication events on the current node (i.e., the node is the target node
+ * of those events). The class is used to guarantee concurrent semantics such that once an event was done/cancelled/failed
+ * no other thread will be able to find it. Last, the {@link ReplicationRef} inner class verifies that temporary files
  * and store will only be cleared once on going usage is finished.
  *
  * @opensearch.internal
  */
-public class ShardTargetCollection<T extends ShardTarget> {
+public class ReplicationCollection<T extends ReplicationTarget> {
 
     /** This is the single source of truth for ongoing target events. If it's not here, it was canceled or done */
     private final ConcurrentMap<Long, T> onGoingTargetEvents = ConcurrentCollections.newConcurrentMap();
@@ -66,7 +66,7 @@ public class ShardTargetCollection<T extends ShardTarget> {
     private final Logger logger;
     private final ThreadPool threadPool;
 
-    public ShardTargetCollection(Logger logger, ThreadPool threadPool) {
+    public ReplicationCollection(Logger logger, ThreadPool threadPool) {
         this.logger = logger;
         this.threadPool = threadPool;
     }
@@ -86,7 +86,7 @@ public class ShardTargetCollection<T extends ShardTarget> {
         assert existingTarget == null : "found two Target instances with the same id";
         logger.trace("started {}", target.description());
         threadPool.schedule(
-            new ShardTargetMonitor(target.getId(), target.lastAccessTime(), activityTimeout),
+            new ReplicationMonitor(target.getId(), target.lastAccessTime(), activityTimeout),
             activityTimeout,
             ThreadPool.Names.GENERIC
         );
@@ -143,23 +143,23 @@ public class ShardTargetCollection<T extends ShardTarget> {
     }
 
     /**
-     * gets the {@link ShardTarget } for a given id. The ShardTarget returned has it's ref count already incremented
-     * to make sure it's safe to use. However, you must call {@link ShardTarget#decRef()} when you are done with it, typically
+     * gets the {@link ReplicationTarget } for a given id. The ShardTarget returned has it's ref count already incremented
+     * to make sure it's safe to use. However, you must call {@link ReplicationTarget#decRef()} when you are done with it, typically
      * by using this method in a try-with-resources clause.
      * <p>
      * Returns null if recovery is not found
      */
-    public ShardTargetRef<T> get(long id) {
+    public ReplicationRef<T> get(long id) {
         T status = onGoingTargetEvents.get(id);
         if (status != null && status.tryIncRef()) {
-            return new ShardTargetRef<T>(status);
+            return new ReplicationRef<T>(status);
         }
         return null;
     }
 
     /** Similar to {@link #get(long)} but throws an exception if no target is found */
-    public ShardTargetRef<T> getSafe(long id, ShardId shardId) {
-        ShardTargetRef<T> ref = get(id);
+    public ReplicationRef<T> getSafe(long id, ShardId shardId) {
+        ReplicationRef<T> ref = get(id);
         if (ref == null) {
             throw new IndexShardClosedException(shardId);
         }
@@ -236,31 +236,31 @@ public class ShardTargetCollection<T extends ShardTarget> {
     }
 
     /**
-     * a reference to {@link ShardTarget}, which implements {@link AutoCloseable}. closing the reference
-     * causes {@link ShardTarget#decRef()} to be called. This makes sure that the underlying resources
-     * will not be freed until {@link ShardTargetRef#close()} is called.
+     * a reference to {@link ReplicationTarget}, which implements {@link AutoCloseable}. closing the reference
+     * causes {@link ReplicationTarget#decRef()} to be called. This makes sure that the underlying resources
+     * will not be freed until {@link ReplicationRef#close()} is called.
      *
      * @opensearch.internal
      */
-    public static class ShardTargetRef<T extends ShardTarget> extends AutoCloseableRefCounted<T> {
+    public static class ReplicationRef<T extends ReplicationTarget> extends AutoCloseableRefCounted<T> {
 
         /**
-         * Important: {@link ShardTarget#tryIncRef()} should
+         * Important: {@link ReplicationTarget#tryIncRef()} should
          * be *successfully* called on status before
          */
-        public ShardTargetRef(T status) {
+        public ReplicationRef(T status) {
             super(status);
             status.setLastAccessTime();
         }
     }
 
-    private class ShardTargetMonitor extends AbstractRunnable {
+    private class ReplicationMonitor extends AbstractRunnable {
         private final long id;
         private final TimeValue checkInterval;
 
         private volatile long lastSeenAccessTime;
 
-        private ShardTargetMonitor(long id, long lastSeenAccessTime, TimeValue checkInterval) {
+        private ReplicationMonitor(long id, long lastSeenAccessTime, TimeValue checkInterval) {
             this.id = id;
             this.checkInterval = checkInterval;
             this.lastSeenAccessTime = lastSeenAccessTime;
