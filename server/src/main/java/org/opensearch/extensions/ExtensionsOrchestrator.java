@@ -8,6 +8,9 @@
 
 package org.opensearch.extensions;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -36,6 +39,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
@@ -98,6 +102,32 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         for (final Path plugin : PluginsService.findPluginDirs(extensionsPath)) {
             try {
                 PluginInfo pluginInfo = PluginInfo.readFromProperties(plugin);
+
+                // TODO: Add unit tests for commented section below
+
+                /**
+                try {
+                    List<Extension> extensions = readFromExtensionsYml(extensionsPath.toString()).getExtensions();
+                    for(Extension extension : extensions) {
+                        extensionsSet.add(
+                            new DiscoveryExtension(
+                                extension.getName(),
+                                "id",
+                                extension.getEphemeralId(),
+                                extension.getHostName(),
+                                extension.getHostAddress(),
+                                new TransportAddress(TransportAddress.META_ADDRESS, Integer.parseInt(extension.getPort())),
+                                null,
+                                Version.fromString(extension.getVersion()),
+                                pluginInfo
+                    )
+                );
+                    }
+                } catch (Exception e) {
+                    //ignore
+                }
+                */
+
                 /*
                  * TODO: Read from extensions.yml
                  * https://github.com/opensearch-project/OpenSearch/issues/3084
@@ -262,4 +292,12 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             logger.error(e.toString());
         }
     }
+
+    public static ExtensionsSettings readFromExtensionsYml(String filePath) throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
+        InputStream input = ExtensionsOrchestrator.class.getResourceAsStream(filePath);
+        ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
+        return extensionSettings;
+    }
+
 }
