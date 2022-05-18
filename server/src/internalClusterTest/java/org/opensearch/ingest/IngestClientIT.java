@@ -111,7 +111,6 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 .startArray("docs")
                 .startObject()
                 .field("_index", "index")
-                .field("_type", "type")
                 .field("_id", "id")
                 .startObject("_source")
                 .field("foo", "bar")
