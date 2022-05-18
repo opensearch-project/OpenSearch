@@ -75,7 +75,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class NoMasterNodeIT extends OpenSearchIntegTestCase {
+public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int numberOfReplicas() {

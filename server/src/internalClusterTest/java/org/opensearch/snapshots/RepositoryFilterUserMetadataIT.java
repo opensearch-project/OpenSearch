@@ -101,7 +101,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
 
         private static final String MOCK_FILTERED_META = "mock_filtered_meta";
 
-        private static final String CLUSTER_MANAGER_SETTING_VALUE = "initial_master";
+        private static final String CLUSTER_MANAGER_SETTING_VALUE = "initial_cluster_manager";
 
         private static final String TYPE = "mock_meta_filtering";
 

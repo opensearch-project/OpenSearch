@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.not;
  * Tests relating to the loss of the cluster-manager.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class MasterDisruptionIT extends AbstractDisruptionTestCase {
+public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
 
     /**
      * Test that cluster recovers from a long GC on cluster-manager that causes other nodes to elect a new one

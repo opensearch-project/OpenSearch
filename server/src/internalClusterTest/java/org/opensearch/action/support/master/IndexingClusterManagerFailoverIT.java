@@ -48,7 +48,7 @@ import java.util.concurrent.CyclicBarrier;
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
+public class IndexingClusterManagerFailoverIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
