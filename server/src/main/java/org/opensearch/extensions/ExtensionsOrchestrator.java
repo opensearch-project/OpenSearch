@@ -8,6 +8,10 @@
 
 package org.opensearch.extensions;
 
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -284,14 +288,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             logger.error(e.toString());
         }
     }
-    /**
-    public static ExtensionSettings readFromExtensionsYml(String filePath) throws Exception {
+
+    public static ExtensionsSettings readFromExtensionsYml(String filePath) throws Exception {
         ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
-        //objectMapper.disable(MapperFeature.CAN_OVERRIDE_ACCESS_MODIFIERS);
+        objectMapper.disable(MapperFeature.CAN_OVERRIDE_ACCESS_MODIFIERS);
         InputStream input = ExtensionsOrchestrator.class.getResourceAsStream(filePath);
-        ExtensionSettings extensionSettings = objectMapper.readValue(input, ExtensionSettings.class);
+        ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
         return extensionSettings;
     }
-    */
 
 }

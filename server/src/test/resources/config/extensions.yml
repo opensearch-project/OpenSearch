@@ -1,0 +1,13 @@
+extensions:
+    - name: firstExtension
+      ephemeralId: uniqueid1
+      hostName: 'myIndependentPluginHost1'
+      hostAddress: '127.0.0.0'
+      port: '9301'
+      version: '2.0.0'
+    - name: "firstExtension"
+      ephemeralId: 'uniqueid2'
+      hostName: 'myIndependentPluginHost2'
+      hostAddress: '127.0.0.0'
+      port: '9301'
+      version: '2.0.0'
