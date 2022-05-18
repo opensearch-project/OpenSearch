@@ -34,7 +34,6 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -45,7 +44,6 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
-import org.opensearch.script.DynamicMap;
 import org.opensearch.script.IngestScript;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptException;
@@ -55,7 +53,6 @@ import org.opensearch.script.ScriptType;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
 
@@ -63,12 +60,6 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  * Processor that evaluates a script with an ingest document in its context.
  */
 public final class ScriptProcessor extends AbstractProcessor {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of("_type", value -> {
-        deprecationLogger.deprecate("script_processor", "[types removal] Looking up doc types [_type] in scripts is deprecated.");
-        return value;
-    });
 
     public static final String TYPE = "script";
 
@@ -111,7 +102,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         } else {
             ingestScript = precompiledIngestScript;
         }
-        ingestScript.execute(new DynamicMap(document.getSourceAndMetadata(), PARAMS_FUNCTIONS));
+        ingestScript.execute(document.getSourceAndMetadata());
         CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
         return document;
     }
