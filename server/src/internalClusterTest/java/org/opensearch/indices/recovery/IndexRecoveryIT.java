@@ -1467,7 +1467,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     }
 
     /** Makes sure the new cluster-manager does not repeatedly fetch index metadata from recovering replicas */
-    public void testOngoingRecoveryAndMasterFailOver() throws Exception {
+    public void testOngoingRecoveryAndClusterManagerFailOver() throws Exception {
         String indexName = "test";
         internalCluster().startNodes(2);
         String nodeWithPrimary = internalCluster().startDataOnlyNode();

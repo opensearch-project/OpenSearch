@@ -628,7 +628,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(), empty());
     }
 
-    public void testQueuedOperationsOnMasterRestart() throws Exception {
+    public void testQueuedOperationsOnClusterManagerRestart() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
@@ -649,7 +649,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
-    public void testQueuedOperationsOnMasterDisconnect() throws Exception {
+    public void testQueuedOperationsOnClusterManagerDisconnect() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
@@ -694,7 +694,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
-    public void testQueuedOperationsOnMasterDisconnectAndRepoFailure() throws Exception {
+    public void testQueuedOperationsOnClusterManagerDisconnectAndRepoFailure() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
@@ -737,7 +737,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
-    public void testQueuedOperationsAndBrokenRepoOnMasterFailOver() throws Exception {
+    public void testQueuedOperationsAndBrokenRepoOnClusterManagerFailOver() throws Exception {
         disableRepoConsistencyCheck("This test corrupts the repository on purpose");
 
         internalCluster().startMasterOnlyNodes(3);
@@ -766,7 +766,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(RepositoryException.class, deleteFuture::actionGet);
     }
 
-    public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver() throws Exception {
+    public void testQueuedSnapshotOperationsAndBrokenRepoOnClusterManagerFailOver() throws Exception {
         disableRepoConsistencyCheck("This test corrupts the repository on purpose");
 
         internalCluster().startMasterOnlyNodes(3);
@@ -794,7 +794,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(OpenSearchException.class, snapshotFour::actionGet);
     }
 
-    public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver2() throws Exception {
+    public void testQueuedSnapshotOperationsAndBrokenRepoOnClusterManagerFailOver2() throws Exception {
         disableRepoConsistencyCheck("This test corrupts the repository on purpose");
 
         internalCluster().startMasterOnlyNodes(3);
@@ -827,7 +827,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(OpenSearchException.class, snapshotFour::actionGet);
     }
 
-    public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOverMultipleRepos() throws Exception {
+    public void testQueuedSnapshotOperationsAndBrokenRepoOnClusterManagerFailOverMultipleRepos() throws Exception {
         disableRepoConsistencyCheck("This test corrupts the repository on purpose");
 
         internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);

@@ -137,15 +137,15 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
     /**
      * Verify that nodes fault detection detects a disconnected node after cluster-manager reelection
      */
-    public void testFollowerCheckerDetectsDisconnectedNodeAfterMasterReelection() throws Exception {
-        testFollowerCheckerAfterMasterReelection(NetworkDisruption.DISCONNECT, Settings.EMPTY);
+    public void testFollowerCheckerDetectsDisconnectedNodeAfterClusterManagerReelection() throws Exception {
+        testFollowerCheckerAfterClusterManagerReelection(NetworkDisruption.DISCONNECT, Settings.EMPTY);
     }
 
     /**
      * Verify that nodes fault detection detects an unresponsive node after cluster-manager reelection
      */
-    public void testFollowerCheckerDetectsUnresponsiveNodeAfterMasterReelection() throws Exception {
-        testFollowerCheckerAfterMasterReelection(
+    public void testFollowerCheckerDetectsUnresponsiveNodeAfterClusterManagerReelection() throws Exception {
+        testFollowerCheckerAfterClusterManagerReelection(
             NetworkDisruption.UNRESPONSIVE,
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
@@ -156,7 +156,7 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
         );
     }
 
-    private void testFollowerCheckerAfterMasterReelection(NetworkLinkDisruptionType networkLinkDisruptionType, Settings settings)
+    private void testFollowerCheckerAfterClusterManagerReelection(NetworkLinkDisruptionType networkLinkDisruptionType, Settings settings)
         throws Exception {
         internalCluster().startNodes(4, settings);
         ensureStableCluster(4);
@@ -194,7 +194,7 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
      * Tests that emulates a frozen elected cluster-manager node that unfreezes and pushes its cluster state to other nodes that already are
      * following another elected cluster-manager node. These nodes should reject this cluster state and prevent them from following the stale cluster-manager.
      */
-    public void testStaleMasterNotHijackingMajority() throws Exception {
+    public void testStaleClusterManagerNotHijackingMajority() throws Exception {
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()

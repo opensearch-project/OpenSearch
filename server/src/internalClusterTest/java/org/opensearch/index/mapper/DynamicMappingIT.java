@@ -140,7 +140,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testPreflightCheckAvoidsMaster() throws InterruptedException {
+    public void testPreflightCheckAvoidsClusterManager() throws InterruptedException {
         createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
         ensureGreen("index");
         client().prepareIndex("index").setId("1").setSource("field1", "value1").get();

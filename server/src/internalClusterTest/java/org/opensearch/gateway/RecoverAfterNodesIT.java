@@ -127,7 +127,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clientNode3).isEmpty(), equalTo(true));
     }
 
-    public void testRecoverAfterMasterNodes() throws Exception {
+    public void testRecoverAfterClusterManagerNodes() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start cluster_manager_node (1)");
         Client clusterManager1 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(clusterManagerOnlyNode()));
