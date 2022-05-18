@@ -291,7 +291,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     public static ExtensionsSettings readFromExtensionsYml(String filePath) throws Exception {
         ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
-        objectMapper.disable(MapperFeature.CAN_OVERRIDE_ACCESS_MODIFIERS);
         InputStream input = ExtensionsOrchestrator.class.getResourceAsStream(filePath);
         ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
         return extensionSettings;
