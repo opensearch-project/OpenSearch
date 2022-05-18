@@ -44,6 +44,11 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * The main class for Plugin Extensibility
+ *
+ * @opensearch.internal
+ */
 public class ExtensionsOrchestrator implements ReportingService<PluginsAndModules> {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
