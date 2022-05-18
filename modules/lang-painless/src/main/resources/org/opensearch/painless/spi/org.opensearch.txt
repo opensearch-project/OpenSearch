@@ -124,7 +124,29 @@ class org.opensearch.script.JodaCompatibleZonedDateTime {
   ZonedDateTime withYear(int)
   ZonedDateTime withZoneSameLocal(ZoneId)
   ZonedDateTime withZoneSameInstant(ZoneId)
+
+  #### Joda time methods
+  long getMillis()
+  int getCenturyOfEra()
+  int getEra()
+  int getHourOfDay()
+  int getMillisOfDay()
+  int getMillisOfSecond()
+  int getMinuteOfDay()
+  int getMinuteOfHour()
+  int getMonthOfYear()
+  int getSecondOfDay()
+  int getSecondOfMinute()
+  int getWeekOfWeekyear()
+  int getWeekyear()
+  int getYearOfCentury()
+  int getYearOfEra()
+  String toString(String)
+  String toString(String,Locale)
+
+  # conflicting methods
   DayOfWeek getDayOfWeekEnum()
+  int getDayOfWeek()
 }
 
 class org.opensearch.index.fielddata.ScriptDocValues$Dates {
