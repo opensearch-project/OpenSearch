@@ -157,9 +157,9 @@ The runner is able to send and receive `application/yaml` and perform all assert
 
 Asserts an array of object contains an object with a property set to a certain value. e.g:
 
-… contains: { nodes.$master.plugins: { name: painless-whitelist } } …
+… contains: { nodes.$cluster_manager.plugins: { name: painless-allowlist } } …
 
-Asserts the plugins array contains an object with a `name` property with the value `painless-whitelist`
+Asserts the plugins array contains an object with a `name` property with the value `painless-allowlist`
 
 ## `transform_and_set`
 
