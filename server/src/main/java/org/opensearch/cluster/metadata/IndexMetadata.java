@@ -70,7 +70,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.indices.common.ReplicationType;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.common;
+package org.opensearch.indices.replication.common;
 
 /**
  * Represents a state object used to track copying of segments from an external source

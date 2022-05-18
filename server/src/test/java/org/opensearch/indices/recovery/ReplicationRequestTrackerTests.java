@@ -36,7 +36,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.indices.common.ReplicationRequestTracker;
+import org.opensearch.indices.replication.common.ReplicationRequestTracker;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 

@@ -11,8 +11,8 @@ package org.opensearch.indices.recovery;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.indices.common.ShardTargetListener;
-import org.opensearch.indices.common.ShardTargetState;
+import org.opensearch.indices.replication.common.ShardTargetListener;
+import org.opensearch.indices.replication.common.ShardTargetState;
 
 /**
  * Listener that runs on changes in Recovery state

@@ -45,9 +45,9 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.indices.common.ShardTargetState;
-import org.opensearch.indices.common.ReplicationLuceneIndex;
-import org.opensearch.indices.common.ReplicationTimer;
+import org.opensearch.indices.replication.common.ShardTargetState;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 
 import java.io.IOException;
 import java.util.Locale;

@@ -55,10 +55,10 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.common.ReplicationLuceneIndex;
-import org.opensearch.indices.common.ShardTarget;
-import org.opensearch.indices.common.ShardTargetListener;
-import org.opensearch.indices.common.ShardTargetCollection;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
+import org.opensearch.indices.replication.common.ShardTarget;
+import org.opensearch.indices.replication.common.ShardTargetListener;
+import org.opensearch.indices.replication.common.ShardTargetCollection;
 
 import java.io.IOException;
 import java.nio.file.Path;

@@ -69,8 +69,8 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.common.ShardTargetListener;
-import org.opensearch.indices.common.ShardTargetState;
+import org.opensearch.indices.replication.common.ShardTargetListener;
+import org.opensearch.indices.replication.common.ShardTargetState;
 
 import java.io.IOException;
 import java.util.HashMap;

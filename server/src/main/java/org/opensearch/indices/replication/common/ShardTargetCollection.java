@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.indices.common;
+package org.opensearch.indices.replication.common;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;

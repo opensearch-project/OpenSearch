@@ -61,7 +61,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.indices.common.ReplicationLuceneIndex;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

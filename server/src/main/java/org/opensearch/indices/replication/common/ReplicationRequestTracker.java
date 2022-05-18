@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.indices.common;
+package org.opensearch.indices.replication.common;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;

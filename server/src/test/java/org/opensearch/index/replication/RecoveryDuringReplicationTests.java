@@ -71,7 +71,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.common.ShardTargetListener;
+import org.opensearch.indices.replication.common.ShardTargetListener;
 
 import java.io.IOException;
 import java.util.ArrayList;

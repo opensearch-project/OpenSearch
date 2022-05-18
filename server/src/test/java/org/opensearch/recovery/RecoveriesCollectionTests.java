@@ -38,9 +38,9 @@ import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
-import org.opensearch.indices.common.ShardTargetCollection;
-import org.opensearch.indices.common.ShardTargetListener;
-import org.opensearch.indices.common.ShardTargetState;
+import org.opensearch.indices.replication.common.ShardTargetCollection;
+import org.opensearch.indices.replication.common.ShardTargetListener;
+import org.opensearch.indices.replication.common.ShardTargetState;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 

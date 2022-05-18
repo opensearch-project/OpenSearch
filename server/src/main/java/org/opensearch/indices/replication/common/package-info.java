@@ -7,4 +7,4 @@
  */
 
 /** Foundation classes for Replication Implementation. */
-package org.opensearch.indices.common;
+package org.opensearch.indices.replication.common;

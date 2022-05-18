@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.common;
+package org.opensearch.indices.replication.common;
 
 import org.opensearch.OpenSearchException;
 
