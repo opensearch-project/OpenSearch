@@ -192,7 +192,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         // create a new recovery status, and process...
-        final long recoveryId = onGoingRecoveries.start(new RecoveryTarget(indexShard, sourceNode, listener), recoverySettings.activityTimeout());
+        final long recoveryId = onGoingRecoveries.start(
+            new RecoveryTarget(indexShard, sourceNode, listener),
+            recoverySettings.activityTimeout()
+        );
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
         // assertions to trip if we executed it on the same thread hence we fork off to the generic threadpool.
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
@@ -429,7 +432,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
-                            try (ShardTargetRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
+                            try (
+                                ShardTargetRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(
+                                    request.recoveryId(),
+                                    request.shardId()
+                                )
+                            ) {
                                 performTranslogOps(request, listener, recoveryRef);
                             }
                         }));
@@ -699,11 +707,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                 // this can also come from the source wrapped in a RemoteTransportException
-                onGoingRecoveries.fail(
-                    recoveryId,
-                    new RecoveryFailedException(request, "source has canceled the recovery", cause),
-                    false
-                );
+                onGoingRecoveries.fail(recoveryId, new RecoveryFailedException(request, "source has canceled the recovery", cause), false);
                 return;
             }
             if (cause instanceof RecoveryEngineException) {

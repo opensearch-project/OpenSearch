@@ -150,7 +150,7 @@ public abstract class ShardTarget extends AbstractRefCounted {
                 notifyListener(e, sendShardFailure);
             } finally {
                 try {
-                    cancellableThreads.cancel("failed" + description() +  "[" + ExceptionsHelper.stackTrace(e) + "]");
+                    cancellableThreads.cancel("failed" + description() + "[" + ExceptionsHelper.stackTrace(e) + "]");
                 } finally {
                     // release the initial reference. replication files will be cleaned as soon as ref count goes to zero, potentially now
                     decRef();

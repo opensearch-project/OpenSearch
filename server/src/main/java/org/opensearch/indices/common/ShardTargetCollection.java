@@ -84,10 +84,7 @@ public class ShardTargetCollection<T extends ShardTarget> {
     private void startInternal(T target, TimeValue activityTimeout) {
         T existingTarget = onGoingTargetEvents.putIfAbsent(target.getId(), target);
         assert existingTarget == null : "found two Target instances with the same id";
-        logger.trace(
-            "started {}",
-            target.description()
-        );
+        logger.trace("started {}", target.description());
         threadPool.schedule(
             new ShardTargetMonitor(target.getId(), target.lastAccessTime(), activityTimeout),
             activityTimeout,
@@ -122,11 +119,7 @@ public class ShardTargetCollection<T extends ShardTarget> {
             // Closes the current recovery target
             boolean successfulReset = oldTarget.resetRecovery(newTarget.cancellableThreads());
             if (successfulReset) {
-                logger.trace(
-                    "restarted {}, previous id [{}]",
-                    newTarget.description(),
-                    oldTarget.getId()
-                );
+                logger.trace("restarted {}, previous id [{}]", newTarget.description(), oldTarget.getId());
                 return newTarget;
             } else {
                 logger.trace(
@@ -179,11 +172,7 @@ public class ShardTargetCollection<T extends ShardTarget> {
         T removed = onGoingTargetEvents.remove(id);
         boolean cancelled = false;
         if (removed != null) {
-            logger.trace(
-                "canceled {} (reason [{}])",
-                removed.description(),
-                reason
-            );
+            logger.trace("canceled {} (reason [{}])", removed.description(), reason);
             removed.cancel(reason);
             cancelled = true;
         }
@@ -200,11 +189,7 @@ public class ShardTargetCollection<T extends ShardTarget> {
     public void fail(long id, OpenSearchException e, boolean sendShardFailure) {
         T removed = onGoingTargetEvents.remove(id);
         if (removed != null) {
-            logger.trace(
-                "failing {}. Send shard failure: [{}]",
-                removed.description(),
-                sendShardFailure
-            );
+            logger.trace("failing {}. Send shard failure: [{}]", removed.description(), sendShardFailure);
             removed.fail(e, sendShardFailure);
         }
     }
@@ -213,10 +198,7 @@ public class ShardTargetCollection<T extends ShardTarget> {
     public void markAsDone(long id) {
         T removed = onGoingTargetEvents.remove(id);
         if (removed != null) {
-            logger.trace(
-                "Marking {} as done",
-                removed.description()
-            );
+            logger.trace("Marking {} as done", removed.description());
             removed.markAsDone();
         }
     }
@@ -246,11 +228,7 @@ public class ShardTargetCollection<T extends ShardTarget> {
             }
         }
         for (T removed : matchedTargets) {
-            logger.trace(
-                "canceled {} (reason [{}])",
-                removed.description(),
-                reason
-            );
+            logger.trace("canceled {} (reason [{}])", removed.description(), reason);
             removed.cancel(reason);
             cancelled = true;
         }
