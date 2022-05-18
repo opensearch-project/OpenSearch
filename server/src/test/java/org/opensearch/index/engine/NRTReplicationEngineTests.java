@@ -129,8 +129,31 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             engine.flush();
             nrtEngine.syncTranslog(); // to advance persisted checkpoint
 
+            Set<Long> seqNos = operations.stream().map(Engine.Operation::seqNo).collect(Collectors.toSet());
+
+            try (Translog.Snapshot snapshot = nrtEngine.getTranslog().newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(operations.size()));
+                assertThat(
+                    TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),
+                    equalTo(seqNos)
+                );
+            }
+
             nrtEngine.updateSegments(engine.getLastCommittedSegmentInfos(), engine.getProcessedLocalCheckpoint());
             assertMatchingSegmentsAndCheckpoints(nrtEngine);
+
+            assertEquals(
+                nrtEngine.getTranslog().getGeneration().translogFileGeneration,
+                engine.getTranslog().getGeneration().translogFileGeneration
+            );
+
+            try (Translog.Snapshot snapshot = nrtEngine.getTranslog().newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(operations.size()));
+                assertThat(
+                    TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),
+                    equalTo(seqNos)
+                );
+            }
 
             // Ensure the same hit count between engines.
             int expectedDocCount;

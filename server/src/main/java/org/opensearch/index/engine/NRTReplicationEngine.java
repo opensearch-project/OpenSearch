@@ -18,6 +18,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -90,6 +91,7 @@ public class NRTReplicationEngine extends Engine {
         // generation. We can still refresh with incoming SegmentInfos that are not part of a commit point.
         if (infos.getGeneration() > lastCommittedSegmentInfos.getGeneration()) {
             this.lastCommittedSegmentInfos = infos;
+            rollTranslogGeneration();
         }
         localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
     }
@@ -121,10 +123,15 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
-        ensureOpen();
-        try {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
             translog.trimOperations(belowTerm, aboveSeqNo);
-        } catch (IOException e) {
+        } catch (Exception e) {
+            try {
+                failEngine("translog operations trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
             throw new EngineException(shardId, "failed to trim translog operations", e);
         }
     }
@@ -286,10 +293,15 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void trimUnreferencedTranslogFiles() throws EngineException {
-        ensureOpen();
-        try {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
             translog.trimUnreferencedReaders();
-        } catch (IOException e) {
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
             throw new EngineException(shardId, "failed to trim translog", e);
         }
     }
@@ -301,11 +313,16 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
-        ensureOpen();
-        try {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
             translog.rollGeneration();
             translog.trimUnreferencedReaders();
-        } catch (IOException e) {
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
             throw new EngineException(shardId, "failed to roll translog", e);
         }
     }
@@ -350,11 +367,8 @@ public class NRTReplicationEngine extends Engine {
             } catch (Exception e) {
                 logger.warn("failed to close engine", e);
             } finally {
-                try {
-                    logger.debug("engine closed [{}]", reason);
-                } finally {
-                    closedLatch.countDown();
-                }
+                logger.debug("engine closed [{}]", reason);
+                closedLatch.countDown();
             }
         }
     }
