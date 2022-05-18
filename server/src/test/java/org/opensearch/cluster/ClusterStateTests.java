@@ -86,9 +86,9 @@ public class ClusterStateTests extends OpenSearchTestCase {
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         ClusterName name = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
-        ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
+        ClusterState noClusterManager1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState noClusterManager2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
-        ClusterState withMaster1a = ClusterState.builder(name)
+        ClusterState withClusterManager1a = ClusterState.builder(name)
             .version(randomInt(5))
             .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
             .build();
@@ -102,15 +102,15 @@ public class ClusterStateTests extends OpenSearchTestCase {
             .build();
 
         // states with no cluster-manager should never supersede anything
-        assertFalse(noMaster1.supersedes(noClusterManager2));
-        assertFalse(noMaster1.supersedes(withMaster1a));
+        assertFalse(noClusterManager1.supersedes(noClusterManager2));
+        assertFalse(noClusterManager1.supersedes(withClusterManager1a));
 
         // states should never supersede states from another cluster-manager
-        assertFalse(withMaster1a.supersedes(withClusterManager2));
-        assertFalse(withMaster1a.supersedes(noMaster1));
+        assertFalse(withClusterManager1a.supersedes(withClusterManager2));
+        assertFalse(withClusterManager1a.supersedes(noClusterManager1));
 
         // state from the same cluster-manager compare by version
-        assertThat(withMaster1a.supersedes(withMaster1b), equalTo(withMaster1a.version() > withMaster1b.version()));
+        assertThat(withClusterManager1a.supersedes(withMaster1b), equalTo(withClusterManager1a.version() > withMaster1b.version()));
     }
 
     public void testBuilderRejectsNullCustom() {
