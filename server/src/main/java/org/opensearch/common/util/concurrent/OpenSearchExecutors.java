@@ -177,6 +177,32 @@ public class OpenSearchExecutors {
         );
     }
 
+    public static OpenSearchThreadPoolExecutor newResizable(
+        String name,
+        int size,
+        int queueCapacity,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
+
+        if (queueCapacity <= 0) {
+            throw new IllegalArgumentException("queue capacity for [" + name + "] executor must be positive, got: " + queueCapacity);
+        }
+
+        return new QueueResizableOpenSearchThreadPoolExecutor(
+            name,
+            size,
+            size,
+            0,
+            TimeUnit.MILLISECONDS,
+            new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity),
+            TimedRunnable::new,
+            threadFactory,
+            new OpenSearchAbortPolicy(),
+            contextHolder
+        );
+    }
+
     /**
      * Return a new executor that will automatically adjust the queue size based on queue throughput.
      *

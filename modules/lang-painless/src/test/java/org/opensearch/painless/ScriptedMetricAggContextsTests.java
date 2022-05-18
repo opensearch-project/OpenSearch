@@ -38,7 +38,7 @@ import org.apache.lucene.search.Scorable;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptedMetricAggContexts;
 import org.opensearch.search.lookup.LeafSearchLookup;
@@ -60,11 +60,11 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ScriptedMetricAggContexts.MapScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ScriptedMetricAggContexts.CombineScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ScriptedMetricAggContexts.ReduceScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        Map<ScriptContext<?>, List<Allowlist>> contexts = new HashMap<>();
+        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ScriptedMetricAggContexts.MapScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ScriptedMetricAggContexts.CombineScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
+        contexts.put(ScriptedMetricAggContexts.ReduceScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
 

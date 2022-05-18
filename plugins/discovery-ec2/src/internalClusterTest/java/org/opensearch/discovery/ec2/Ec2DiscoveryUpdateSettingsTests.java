@@ -48,7 +48,7 @@ import static org.hamcrest.CoreMatchers.is;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
-    public void testMinimumMasterNodesStart() {
+    public void testMinimumClusterManagerNodesStart() {
         Settings nodeSettings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "ec2").build();
         internalCluster().startNode(nodeSettings);
 

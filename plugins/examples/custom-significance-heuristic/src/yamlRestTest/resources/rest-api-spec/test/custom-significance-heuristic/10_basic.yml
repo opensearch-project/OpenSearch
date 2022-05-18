@@ -5,12 +5,12 @@
         reason: "contains is a newly added assertion"
         features: contains
 
-    # Get master node id
+    # Get cluster-manager node id
     - do:
         cluster.state: {}
-    - set: { master_node: master }
+    - set: { cluster_manager_node: cluster_manager }
 
     - do:
         nodes.info: {}
 
-    - contains: { nodes.$master.plugins: { name: custom-significance-heuristic } }
+    - contains: { nodes.$cluster_manager.plugins: { name: custom-significance-heuristic } }

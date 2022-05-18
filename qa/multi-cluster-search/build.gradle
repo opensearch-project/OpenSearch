@@ -45,7 +45,7 @@ task 'remote-cluster'(type: RestIntegTestTask) {
 
 testClusters.'remote-cluster' {
   numberOfNodes = 2
-  setting 'node.roles', '[data,ingest,master]'
+  setting 'node.roles', '[data,ingest,cluster_manager]'
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
