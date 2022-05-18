@@ -39,6 +39,11 @@ import org.opensearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * PluginResponse to intialize plugin
+ *
+ * @opensearch.internal
+ */
 public class PluginResponse extends TransportResponse {
     private String name;
 

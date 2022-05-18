@@ -18,6 +18,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * PluginRequest to intialize plugin
+ *
+ * @opensearch.internal
+ */
 public class PluginRequest extends TransportRequest {
     private final DiscoveryNode sourceNode;
     /*

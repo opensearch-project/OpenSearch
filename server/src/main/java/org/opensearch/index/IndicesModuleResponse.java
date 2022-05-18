@@ -15,6 +15,11 @@ import org.opensearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Response for onIndexModule extension point
+ *
+ * @opensearch.internal
+ */
 public class IndicesModuleResponse extends TransportResponse {
     private boolean addIndexEventListener;
     private boolean addIndexOperationListener;

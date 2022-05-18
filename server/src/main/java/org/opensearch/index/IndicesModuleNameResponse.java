@@ -14,6 +14,11 @@ import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 
+/**
+ * Response for index name of onIndexModule extension point
+ *
+ * @opensearch.internal
+ */
 public class IndicesModuleNameResponse extends TransportResponse {
     private boolean requestAck;
 

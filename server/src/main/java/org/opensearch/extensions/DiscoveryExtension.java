@@ -22,6 +22,11 @@ import org.opensearch.plugins.PluginInfo;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Discover extensions running independently or in a separate process
+ *
+ * @opensearch.internal
+ */
 public class DiscoveryExtension extends DiscoveryNode implements Writeable, ToXContentFragment {
 
     private final PluginInfo pluginInfo;

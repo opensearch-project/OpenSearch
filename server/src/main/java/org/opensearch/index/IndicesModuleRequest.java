@@ -16,6 +16,11 @@ import org.opensearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Request for onIndexModule extension point
+ *
+ * @opensearch.internal
+ */
 public class IndicesModuleRequest extends TransportRequest {
     private final Index index;
     private final Settings indexSettings;
