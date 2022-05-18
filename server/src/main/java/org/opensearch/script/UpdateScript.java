@@ -32,10 +32,7 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.logging.DeprecationLogger;
-
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * An update script.

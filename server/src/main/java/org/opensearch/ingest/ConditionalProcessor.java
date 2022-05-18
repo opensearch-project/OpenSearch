@@ -32,8 +32,6 @@
 
 package org.opensearch.ingest;
 
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.script.DynamicMap;
 import org.opensearch.script.IngestConditionalScript;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptException;
@@ -51,7 +49,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
