@@ -21,7 +21,6 @@
     "max_score" : null,
     "hits" : [ {
       "_index" : "test",
-      "_type" : "test",
       "_id" : "AVToMiC250DjIiBO3yJ_",
       "_version" : 1,
       "_score" : null,
