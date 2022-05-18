@@ -431,9 +431,13 @@ public class TransportService extends AbstractLifecycleComponent
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
-                final DiscoveryNode remote = resp.discoveryNode;
-                if (node.equals(remote) == false) {
+            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, response -> {
+                final DiscoveryNode responseNode = response.discoveryNode;
+                /**
+                 * Validate if the node we are trying to connect to and the response recieved remote node is the same.
+                 * If not, error out.
+                 */
+                if (!node.equals(responseNode)) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                 }
                 return null;
