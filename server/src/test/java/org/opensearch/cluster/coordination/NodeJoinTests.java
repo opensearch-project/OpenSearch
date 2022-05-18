@@ -760,7 +760,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = new DiscoveryNode("master1", "1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         long initialTerm = 1;
         long initialVersion = 1;
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
