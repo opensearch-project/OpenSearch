@@ -155,15 +155,15 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
         return client(node).admin().cluster().prepareState().setLocal(true).get().getState();
     }
 
-    void assertNoMaster(final String node) throws Exception {
-        assertNoMaster(node, null, TimeValue.timeValueSeconds(30));
+    void assertNoClusterManager(final String node) throws Exception {
+        assertNoClusterManager(node, null, TimeValue.timeValueSeconds(30));
     }
 
-    void assertNoMaster(final String node, TimeValue maxWaitTime) throws Exception {
-        assertNoMaster(node, null, maxWaitTime);
+    void assertNoClusterManager(final String node, TimeValue maxWaitTime) throws Exception {
+        assertNoClusterManager(node, null, maxWaitTime);
     }
 
-    void assertNoMaster(final String node, @Nullable final ClusterBlock expectedBlocks, TimeValue maxWaitTime) throws Exception {
+    void assertNoClusterManager(final String node, @Nullable final ClusterBlock expectedBlocks, TimeValue maxWaitTime) throws Exception {
         assertBusy(() -> {
             ClusterState state = getNodeClusterState(node);
             final DiscoveryNodes nodes = state.nodes();

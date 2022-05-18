@@ -386,7 +386,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         );
 
         if (isolatedNode.equals(nonClusterManagerNode)) {
-            assertNoMaster(nonClusterManagerNode);
+            assertNoClusterManager(nonClusterManagerNode);
         } else {
             ensureStableCluster(2, nonClusterManagerNode);
         }
