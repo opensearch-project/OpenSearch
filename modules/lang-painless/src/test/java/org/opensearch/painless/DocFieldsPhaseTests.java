@@ -35,7 +35,7 @@ package org.opensearch.painless;
 import org.opensearch.painless.Compiler.Loader;
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.symbol.ScriptScope;
 import org.opensearch.script.ScriptContext;
 
@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 public class DocFieldsPhaseTests extends ScriptTestCase {
-    PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
+    PainlessLookup lookup = PainlessLookupBuilder.buildFromAllowlists(Allowlist.BASE_ALLOWLISTS);
 
     ScriptScope compile(String script) {
         Compiler compiler = new Compiler(

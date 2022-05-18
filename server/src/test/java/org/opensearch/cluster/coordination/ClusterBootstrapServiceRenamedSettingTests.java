@@ -25,7 +25,7 @@ public class ClusterBootstrapServiceRenamedSettingTests extends OpenSearchTestCa
     /**
      * Validate the both settings are known and supported.
      */
-    public void testReindexSettingsExist() {
+    public void testClusterBootstrapServiceSettingsExist() {
         Set<Setting<?>> settings = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
         assertTrue(
             "Both 'cluster.initial_cluster_manager_nodes' and its predecessor should be supported built-in settings.",
