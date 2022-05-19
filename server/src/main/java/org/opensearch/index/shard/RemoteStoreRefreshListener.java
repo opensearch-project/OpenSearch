@@ -10,6 +10,7 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -59,10 +60,13 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                     remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
                     filesUploadedToRemoteStore.add(file);
                 } catch (NoSuchFileException e) {
-                    logger.info("The file {} does not exist anymore. It can happen in case of temp files", file);
+                    logger.info(
+                        () -> new ParameterizedMessage("The file {} does not exist anymore. It can happen in case of temp files", file),
+                        e
+                    );
                 } catch (IOException e) {
                     // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
-                    logger.warn("Exception while uploading file {} to the remote segment store", file);
+                    logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", file), e);
                 }
             });
 
@@ -74,7 +78,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                     remoteFilesToBeDeleted.add(file);
                 } catch (IOException e) {
                     // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
-                    logger.warn("Exception while deleting file {} from the remote segment store", file);
+                    logger.warn(() -> new ParameterizedMessage("Exception while deleting file {} from the remote segment store", file), e);
                 }
             });
 

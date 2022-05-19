@@ -16,7 +16,11 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.doThrow;
 
 public class RemoteStoreRefreshListenerTests extends OpenSearchTestCase {
     private Directory storeDirectory;
