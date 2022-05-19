@@ -342,7 +342,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         assertThat(apiCallSection, notNullValue());
         assertThat(apiCallSection.getApi(), equalTo("index"));
-        assertThat(apiCallSection.getParams().size(), equalTo(3));
+        assertThat(apiCallSection.getParams().size(), equalTo(2));
         assertThat(apiCallSection.getParams().get("index"), equalTo("test_1"));
         assertThat(apiCallSection.getParams().get("id"), equalTo("1"));
         assertThat(apiCallSection.hasBody(), equalTo(true));
@@ -457,7 +457,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_field_mapping"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(1));
         assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
         assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
@@ -493,7 +493,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_field_mapping"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(1));
         assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
         assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
