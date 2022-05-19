@@ -353,7 +353,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     private void assertBusyWithDiskUsageRefresh(String nodeName, String indexName, Matcher<? super Set<ShardRouting>> matcher)
         throws Exception {
         assertBusy(() -> {
-            // refresh the master's ClusterInfoService before checking the assigned shards because DiskThresholdMonitor might still
+            // refresh the cluster-manager's ClusterInfoService before checking the assigned shards because DiskThresholdMonitor might still
             // be processing a previous ClusterInfo update and will skip the new one (see DiskThresholdMonitor#onNewInfo(ClusterInfo)
             // and its internal checkInProgress flag)
             refreshDiskUsage();

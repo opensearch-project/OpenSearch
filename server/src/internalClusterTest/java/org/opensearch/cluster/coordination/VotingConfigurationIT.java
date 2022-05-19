@@ -64,12 +64,12 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
     public void testAbdicateAfterVotingConfigExclusionAdded() throws ExecutionException, InterruptedException {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         internalCluster().startNodes(2);
-        final String originalMaster = internalCluster().getMasterName();
+        final String originalClusterManager = internalCluster().getMasterName();
 
-        logger.info("--> excluding master node {}", originalMaster);
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
+        logger.info("--> excluding cluster-manager node {}", originalClusterManager);
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalClusterManager)).get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
-        assertNotEquals(originalMaster, internalCluster().getMasterName());
+        assertNotEquals(originalClusterManager, internalCluster().getMasterName());
     }
 
     public void testElectsNodeNotInVotingConfiguration() throws Exception {
@@ -77,7 +77,8 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(4);
 
         // a 4-node cluster settles on a 3-node configuration; we then prevent the nodes in the configuration from winning an election
-        // by failing at the pre-voting stage, so that the extra node must be elected instead when the master shuts down. This extra node
+        // by failing at the pre-voting stage, so that the extra node must be elected instead when the cluster-manager shuts down. This
+        // extra node
         // should then add itself into the voting configuration.
 
         assertFalse(

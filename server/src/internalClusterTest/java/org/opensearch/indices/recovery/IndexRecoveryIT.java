@@ -851,7 +851,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "500ms")
             .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "10s")
             .build();
-        // start a master node
+        // start a cluster-manager node
         internalCluster().startNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
@@ -1053,7 +1053,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "1s")
             .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "1s")
             .build();
-        // start a master node
+        // start a cluster-manager node
         internalCluster().startNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
@@ -1210,8 +1210,8 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             )
             .build();
         TimeValue disconnectAfterDelay = TimeValue.timeValueMillis(randomIntBetween(0, 100));
-        // start a master node
-        String masterNodeName = internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        // start a cluster-manager node
+        String clusterManagerNodeName = internalCluster().startClusterManagerOnlyNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
             Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build()
@@ -1238,9 +1238,9 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         ensureSearchable(indexName);
         assertHitCount(client().prepareSearch(indexName).get(), numDocs);
 
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
+        MockTransportService clusterManagerTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            masterNodeName
+            clusterManagerNodeName
         );
         MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
@@ -1311,7 +1311,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         });
 
         for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
-            mockTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
+            mockTransportService.addSendBehavior(clusterManagerTransportService, (connection, requestId, action, request, options) -> {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
                 if ((primaryRelocation && finalized.get()) == false) {
                     assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
@@ -1465,8 +1465,8 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         assertHitCount(client().prepareSearch().get(), numDocs);
     }
 
-    /** Makes sure the new master does not repeatedly fetch index metadata from recovering replicas */
-    public void testOngoingRecoveryAndMasterFailOver() throws Exception {
+    /** Makes sure the new cluster-manager does not repeatedly fetch index metadata from recovering replicas */
+    public void testOngoingRecoveryAndClusterManagerFailOver() throws Exception {
         String indexName = "test";
         internalCluster().startNodes(2);
         String nodeWithPrimary = internalCluster().startDataOnlyNode();

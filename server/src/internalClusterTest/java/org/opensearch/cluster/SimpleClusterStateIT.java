@@ -286,7 +286,12 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                 .get()
         );
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
-        MappingMetadata masterMappingMetadata = client().admin().indices().prepareGetMappings("test").get().getMappings().get("test");
+        MappingMetadata clusterManagerMappingMetadata = client().admin()
+            .indices()
+            .prepareGetMappings("test")
+            .get()
+            .getMappings()
+            .get("test");
         for (Client client : clients()) {
             MappingMetadata mappingMetadata = client.admin()
                 .indices()
@@ -295,8 +300,8 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                 .get()
                 .getMappings()
                 .get("test");
-            assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetadata.source().string()));
-            assertThat(mappingMetadata, equalTo(masterMappingMetadata));
+            assertThat(mappingMetadata.source().string(), equalTo(clusterManagerMappingMetadata.source().string()));
+            assertThat(mappingMetadata, equalTo(clusterManagerMappingMetadata));
         }
     }
 

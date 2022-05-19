@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.equalTo;
  * not detect a cluster-manager failure too quickly.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
+public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -87,43 +87,43 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
     /**
      * Test that no split brain occurs under partial network partition. See https://github.com/elastic/elasticsearch/issues/2488
      */
-    public void testFailWithMinimumMasterNodesConfigured() throws Exception {
+    public void testFailWithMinimumClusterManagerNodesConfigured() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
 
-        // Figure out what is the elected master node
-        final String masterNode = internalCluster().getMasterName();
-        logger.info("---> legit elected master node={}", masterNode);
+        // Figure out what is the elected cluster-manager node
+        final String clusterManagerNode = internalCluster().getMasterName();
+        logger.info("---> legit elected cluster-manager node={}", clusterManagerNode);
 
-        // Pick a node that isn't the elected master.
-        Set<String> nonMasters = new HashSet<>(nodes);
-        nonMasters.remove(masterNode);
-        final String unluckyNode = randomFrom(nonMasters.toArray(Strings.EMPTY_ARRAY));
+        // Pick a node that isn't the elected cluster-manager.
+        Set<String> nonClusterManagers = new HashSet<>(nodes);
+        nonClusterManagers.remove(clusterManagerNode);
+        final String unluckyNode = randomFrom(nonClusterManagers.toArray(Strings.EMPTY_ARRAY));
 
-        // Simulate a network issue between the unlucky node and elected master node in both directions.
+        // Simulate a network issue between the unlucky node and elected cluster-manager node in both directions.
 
         NetworkDisruption networkDisconnect = new NetworkDisruption(
-            new NetworkDisruption.TwoPartitions(masterNode, unluckyNode),
+            new NetworkDisruption.TwoPartitions(clusterManagerNode, unluckyNode),
             NetworkDisruption.DISCONNECT
         );
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
 
-        // Wait until elected master has removed that the unlucky node...
-        ensureStableCluster(2, masterNode);
+        // Wait until elected cluster-manager has removed that the unlucky node...
+        ensureStableCluster(2, clusterManagerNode);
 
-        // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
+        // The unlucky node must report *no* cluster-manager node, since it can't connect to cluster-manager and in fact it should
         // continuously ping until network failures have been resolved. However
-        // It may a take a bit before the node detects it has been cut off from the elected master
+        // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         ensureNoMaster(unluckyNode);
 
         networkDisconnect.stopDisrupting();
 
-        // Wait until the master node sees all 3 nodes again.
+        // Wait until the cluster-manager node sees all 3 nodes again.
         ensureStableCluster(3);
 
-        // The elected master shouldn't have changed, since the unlucky node never could have elected itself as master
-        assertThat(internalCluster().getMasterName(), equalTo(masterNode));
+        // The elected cluster-manager shouldn't have changed, since the unlucky node never could have elected itself as cluster-manager
+        assertThat(internalCluster().getMasterName(), equalTo(clusterManagerNode));
     }
 
     private void ensureNoMaster(String node) throws Exception {
@@ -135,17 +135,17 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Verify that nodes fault detection detects a disconnected node after master reelection
+     * Verify that nodes fault detection detects a disconnected node after cluster-manager reelection
      */
-    public void testFollowerCheckerDetectsDisconnectedNodeAfterMasterReelection() throws Exception {
-        testFollowerCheckerAfterMasterReelection(NetworkDisruption.DISCONNECT, Settings.EMPTY);
+    public void testFollowerCheckerDetectsDisconnectedNodeAfterClusterManagerReelection() throws Exception {
+        testFollowerCheckerAfterClusterManagerReelection(NetworkDisruption.DISCONNECT, Settings.EMPTY);
     }
 
     /**
-     * Verify that nodes fault detection detects an unresponsive node after master reelection
+     * Verify that nodes fault detection detects an unresponsive node after cluster-manager reelection
      */
-    public void testFollowerCheckerDetectsUnresponsiveNodeAfterMasterReelection() throws Exception {
-        testFollowerCheckerAfterMasterReelection(
+    public void testFollowerCheckerDetectsUnresponsiveNodeAfterClusterManagerReelection() throws Exception {
+        testFollowerCheckerAfterClusterManagerReelection(
             NetworkDisruption.UNRESPONSIVE,
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
@@ -156,34 +156,34 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         );
     }
 
-    private void testFollowerCheckerAfterMasterReelection(NetworkLinkDisruptionType networkLinkDisruptionType, Settings settings)
+    private void testFollowerCheckerAfterClusterManagerReelection(NetworkLinkDisruptionType networkLinkDisruptionType, Settings settings)
         throws Exception {
         internalCluster().startNodes(4, settings);
         ensureStableCluster(4);
 
-        logger.info("--> stopping current master");
+        logger.info("--> stopping current cluster-manager");
         internalCluster().stopCurrentMasterNode();
 
         ensureStableCluster(3);
 
-        final String master = internalCluster().getMasterName();
-        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames())
-            .filter(n -> master.equals(n) == false)
+        final String clusterManager = internalCluster().getMasterName();
+        final List<String> nonClusterManagers = Arrays.stream(internalCluster().getNodeNames())
+            .filter(n -> clusterManager.equals(n) == false)
             .collect(Collectors.toList());
-        final String isolatedNode = randomFrom(nonMasters);
-        final String otherNode = nonMasters.get(nonMasters.get(0).equals(isolatedNode) ? 1 : 0);
+        final String isolatedNode = randomFrom(nonClusterManagers);
+        final String otherNode = nonClusterManagers.get(nonClusterManagers.get(0).equals(isolatedNode) ? 1 : 0);
 
         logger.info("--> isolating [{}]", isolatedNode);
 
         final NetworkDisruption networkDisruption = new NetworkDisruption(
-            new TwoPartitions(singleton(isolatedNode), Sets.newHashSet(master, otherNode)),
+            new TwoPartitions(singleton(isolatedNode), Sets.newHashSet(clusterManager, otherNode)),
             networkLinkDisruptionType
         );
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
-        logger.info("--> waiting for master to remove it");
-        ensureStableCluster(2, master);
+        logger.info("--> waiting for cluster-manager to remove it");
+        ensureStableCluster(2, clusterManager);
         ensureNoMaster(isolatedNode);
 
         networkDisruption.stopDisrupting();
@@ -191,10 +191,10 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Tests that emulates a frozen elected master node that unfreezes and pushes its cluster state to other nodes that already are
-     * following another elected master node. These nodes should reject this cluster state and prevent them from following the stale master.
+     * Tests that emulates a frozen elected cluster-manager node that unfreezes and pushes its cluster state to other nodes that already are
+     * following another elected cluster-manager node. These nodes should reject this cluster state and prevent them from following the stale cluster-manager.
      */
-    public void testStaleMasterNotHijackingMajority() throws Exception {
+    public void testStaleClusterManagerNotHijackingMajority() throws Exception {
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -204,60 +204,63 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         );
         ensureStableCluster(3);
 
-        // Save the current master node as old master node, because that node will get frozen
-        final String oldMasterNode = internalCluster().getMasterName();
+        // Save the current cluster-manager node as old cluster-manager node, because that node will get frozen
+        final String oldClusterManagerNode = internalCluster().getMasterName();
 
-        // Simulating a painful gc by suspending all threads for a long time on the current elected master node.
-        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(random(), oldMasterNode);
+        // Simulating a painful gc by suspending all threads for a long time on the current elected cluster-manager node.
+        SingleNodeDisruption clusterManagerNodeDisruption = new LongGCDisruption(random(), oldClusterManagerNode);
 
         // Save the majority side
         final List<String> majoritySide = new ArrayList<>(nodes);
-        majoritySide.remove(oldMasterNode);
+        majoritySide.remove(oldClusterManagerNode);
 
-        // Keeps track of the previous and current master when a master node transition took place on each node on the majority side:
-        final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<>());
+        // Keeps track of the previous and current cluster-manager when a cluster-manager node transition took place on each node on the
+        // majority side:
+        final Map<String, List<Tuple<String, String>>> clusterManagers = Collections.synchronizedMap(new HashMap<>());
         for (final String node : majoritySide) {
-            masters.put(node, new ArrayList<>());
+            clusterManagers.put(node, new ArrayList<>());
             internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
-                DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-                DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
-                if (!Objects.equals(previousMaster, currentMaster)) {
+                DiscoveryNode previousClusterManager = event.previousState().nodes().getMasterNode();
+                DiscoveryNode currentClusterManager = event.state().nodes().getMasterNode();
+                if (!Objects.equals(previousClusterManager, currentClusterManager)) {
                     logger.info(
                         "--> node {} received new cluster state: {} \n and had previous cluster state: {}",
                         node,
                         event.state(),
                         event.previousState()
                     );
-                    String previousClusterManagerNodeName = previousMaster != null ? previousMaster.getName() : null;
-                    String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
-                    masters.get(node).add(new Tuple<>(previousClusterManagerNodeName, currentMasterNodeName));
+                    String previousClusterManagerNodeName = previousClusterManager != null ? previousClusterManager.getName() : null;
+                    String currentClusterManagerNodeName = currentClusterManager != null ? currentClusterManager.getName() : null;
+                    clusterManagers.get(node).add(new Tuple<>(previousClusterManagerNodeName, currentClusterManagerNodeName));
                 }
             });
         }
 
-        final CountDownLatch oldMasterNodeSteppedDown = new CountDownLatch(1);
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).addListener(event -> {
+        final CountDownLatch oldClusterManagerNodeSteppedDown = new CountDownLatch(1);
+        internalCluster().getInstance(ClusterService.class, oldClusterManagerNode).addListener(event -> {
             if (event.state().nodes().getMasterNodeId() == null) {
-                oldMasterNodeSteppedDown.countDown();
+                oldClusterManagerNodeSteppedDown.countDown();
             }
         });
 
-        internalCluster().setDisruptionScheme(masterNodeDisruption);
-        logger.info("--> freezing node [{}]", oldMasterNode);
-        masterNodeDisruption.startDisrupting();
+        internalCluster().setDisruptionScheme(clusterManagerNodeDisruption);
+        logger.info("--> freezing node [{}]", oldClusterManagerNode);
+        clusterManagerNodeDisruption.startDisrupting();
 
-        // Wait for majority side to elect a new master
+        // Wait for majority side to elect a new cluster-manager
         assertBusy(() -> {
-            for (final Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
+            for (final Map.Entry<String, List<Tuple<String, String>>> entry : clusterManagers.entrySet()) {
                 final List<Tuple<String, String>> transitions = entry.getValue();
                 assertTrue(entry.getKey() + ": " + transitions, transitions.stream().anyMatch(transition -> transition.v2() != null));
             }
         });
 
-        // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed, but will be queued and
-        // once the old master node un-freezes it gets executed. The old master node will send this update + the cluster state where it is
-        // flagged as master to the other nodes that follow the new master. These nodes should ignore this update.
-        internalCluster().getInstance(ClusterService.class, oldMasterNode)
+        // The old cluster-manager node is frozen, but here we submit a cluster state update task that doesn't get executed, but will be
+        // queued and
+        // once the old cluster-manager node un-freezes it gets executed. The old cluster-manager node will send this update + the cluster
+        // state where it is
+        // flagged as cluster-manager to the other nodes that follow the new cluster-manager. These nodes should ignore this update.
+        internalCluster().getInstance(ClusterService.class, oldClusterManagerNode)
             .submitStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -270,25 +273,30 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
                 }
             });
 
-        // Save the new elected master node
-        final String newMasterNode = internalCluster().getMasterName(majoritySide.get(0));
-        logger.info("--> new detected master node [{}]", newMasterNode);
+        // Save the new elected cluster-manager node
+        final String newClusterManagerNode = internalCluster().getMasterName(majoritySide.get(0));
+        logger.info("--> new detected cluster-manager node [{}]", newClusterManagerNode);
 
         // Stop disruption
-        logger.info("--> unfreezing node [{}]", oldMasterNode);
-        masterNodeDisruption.stopDisrupting();
+        logger.info("--> unfreezing node [{}]", oldClusterManagerNode);
+        clusterManagerNodeDisruption.stopDisrupting();
 
-        oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
-        logger.info("--> [{}] stepped down as master", oldMasterNode);
+        oldClusterManagerNodeSteppedDown.await(30, TimeUnit.SECONDS);
+        logger.info("--> [{}] stepped down as cluster-manager", oldClusterManagerNode);
         ensureStableCluster(3);
 
-        assertThat(masters.size(), equalTo(2));
-        for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
+        assertThat(clusterManagers.size(), equalTo(2));
+        for (Map.Entry<String, List<Tuple<String, String>>> entry : clusterManagers.entrySet()) {
             String nodeName = entry.getKey();
             List<Tuple<String, String>> transitions = entry.getValue();
             assertTrue(
-                "[" + nodeName + "] should not apply state from old master [" + oldMasterNode + "] but it did: " + transitions,
-                transitions.stream().noneMatch(t -> oldMasterNode.equals(t.v2()))
+                "["
+                    + nodeName
+                    + "] should not apply state from old cluster-manager ["
+                    + oldClusterManagerNode
+                    + "] but it did: "
+                    + transitions,
+                transitions.stream().noneMatch(t -> oldClusterManagerNode.equals(t.v2()))
             );
         }
     }
