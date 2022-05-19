@@ -118,7 +118,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         DIRECT("direct"),
         FIXED("fixed"),
         RESIZABLE("resizable"),
-        FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 
         private final String type;
@@ -696,7 +695,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         public Info(StreamInput in) throws IOException {
             name = in.readString();
-            type = ThreadPoolType.fromType(in.readString());
+            final String typeStr = in.readString();
+            // Opensearch on or after 3.0.0 version doesn't know about "fixed_auto_queue_size" thread pool. Convert it to RESIZABLE.
+            if (typeStr.equalsIgnoreCase("fixed_auto_queue_size")) {
+                type = ThreadPoolType.RESIZABLE;
+            } else {
+                type = ThreadPoolType.fromType(typeStr);
+            }
             min = in.readInt();
             max = in.readInt();
             keepAlive = in.readOptionalTimeValue();
