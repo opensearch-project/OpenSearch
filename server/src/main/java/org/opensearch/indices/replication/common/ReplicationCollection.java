@@ -72,9 +72,9 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     }
 
     /**
-     * Starts are new recovery for the given shard, source node and state
+     * Starts a new target event for the given shard, source node and state
      *
-     * @return the id of the new recovery.
+     * @return the id of the new target event.
      */
     public long start(T target, TimeValue activityTimeout) {
         startInternal(target, activityTimeout);
@@ -93,21 +93,21 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     }
 
     /**
-     * Resets the recovery and performs a recovery restart on the currently recovering index shard
+     * Resets the target event and performs a restart on the current index shard
      *
      * @see IndexShard#performRecoveryRestart()
-     * @return newly created RecoveryTarget
+     * @return newly created Target
      */
     @SuppressWarnings(value = "unchecked")
-    public T resetRecovery(final long recoveryId, final TimeValue activityTimeout) {
+    public T reset(final long id, final TimeValue activityTimeout) {
         T oldTarget = null;
         final T newTarget;
 
         try {
             synchronized (onGoingTargetEvents) {
-                // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
-                // cancelRecoveriesForShard whenever the old recovery target is picked up
-                oldTarget = onGoingTargetEvents.remove(recoveryId);
+                // swap targets in a synchronized block to ensure that the newly added target is picked up by
+                // cancelForShard whenever the old target is picked up
+                oldTarget = onGoingTargetEvents.remove(id);
                 if (oldTarget == null) {
                     return null;
                 }
@@ -116,8 +116,8 @@ public class ReplicationCollection<T extends ReplicationTarget> {
                 startInternal(newTarget, activityTimeout);
             }
 
-            // Closes the current recovery target
-            boolean successfulReset = oldTarget.resetRecovery(newTarget.cancellableThreads());
+            // Closes the current target
+            boolean successfulReset = oldTarget.reset(newTarget.cancellableThreads());
             if (successfulReset) {
                 logger.trace("restarted {}, previous id [{}]", newTarget.description(), oldTarget.getId());
                 return newTarget;
@@ -127,7 +127,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
                     newTarget.description(),
                     oldTarget.getId()
                 );
-                cancel(newTarget.getId(), "recovery cancelled during reset");
+                cancel(newTarget.getId(), "cancelled during reset");
                 return null;
             }
         } catch (Exception e) {
@@ -147,7 +147,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
      * to make sure it's safe to use. However, you must call {@link ReplicationTarget#decRef()} when you are done with it, typically
      * by using this method in a try-with-resources clause.
      * <p>
-     * Returns null if recovery is not found
+     * Returns null if target event is not found
      */
     public ReplicationRef<T> get(long id) {
         T status = onGoingTargetEvents.get(id);
@@ -203,7 +203,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
         }
     }
 
-    /** the number of ongoing recoveries */
+    /** the number of ongoing target events */
     public int size() {
         return onGoingTargetEvents.size();
     }

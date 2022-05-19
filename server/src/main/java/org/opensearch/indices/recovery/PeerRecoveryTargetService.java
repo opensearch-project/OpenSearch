@@ -212,7 +212,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
-        RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
+        RecoveryTarget newTarget = onGoingRecoveries.reset(recoveryId, activityTimeout);
         if (newTarget != null) {
             threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.getId()));
         }
@@ -241,7 +241,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     final IndexShard indexShard = recoveryTarget.indexShard();
                     indexShard.preRecovery();
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
-                    logger.trace("{} preparing shard for peer recovery", recoveryTarget.indexShard().shardId());
+                    logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
@@ -292,7 +292,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         long startingSeqNo
     ) {
         final StartRecoveryRequest request;
-        logger.trace("{} collecting local files for [{}]", recoveryTarget.indexShard().shardId(), recoveryTarget.sourceNode());
+        logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
         Store.MetadataSnapshot metadataSnapshot;
         try {
@@ -335,9 +335,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         }
-        logger.trace("{} local file count [{}]", recoveryTarget.indexShard().shardId(), metadataSnapshot.size());
+        logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
         request = new StartRecoveryRequest(
-            recoveryTarget.indexShard().shardId(),
+            recoveryTarget.shardId(),
             recoveryTarget.indexShard().routingEntry().allocationId().getId(),
             recoveryTarget.sourceNode(),
             localNode,

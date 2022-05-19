@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTestCase {
+public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationTestCase {
     static final ReplicationListener listener = new ReplicationListener() {
         @Override
         public void onDone(ReplicationState state) {
@@ -138,7 +138,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             IndexShard indexShard = recoveryTarget.indexShard();
             Store store = recoveryTarget.store();
             String tempFileName = recoveryTarget.getTempNameForFile("foobar");
-            RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
+            RecoveryTarget resetRecovery = collection.reset(recoveryId, TimeValue.timeValueMinutes(60));
             final long resetRecoveryId = resetRecovery.getId();
             assertNotSame(recoveryTarget, resetRecovery);
             assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());

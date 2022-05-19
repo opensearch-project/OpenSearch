@@ -12,11 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,11 +37,12 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     private final long id;
 
     protected final AtomicBoolean finished = new AtomicBoolean();
+    private final ShardId shardId;
     protected final IndexShard indexShard;
     protected final ReplicationListener listener;
     protected final Logger logger;
     protected final CancellableThreads cancellableThreads;
-    protected final ReplicationLuceneIndex recoveryStateIndex;
+    protected final ReplicationLuceneIndex stateIndex;
 
     protected abstract String getPrefix();
 
@@ -65,14 +66,14 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     public abstract void notifyListener(Exception e, boolean sendShardFailure);
 
-    public ReplicationTarget(String name, IndexShard indexShard, ReplicationLuceneIndex recoveryStateIndex, ReplicationListener listener) {
+    public ReplicationTarget(String name, IndexShard indexShard, ReplicationLuceneIndex stateIndex, ReplicationListener listener) {
         super(name);
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.listener = listener;
         this.id = ID_GENERATOR.incrementAndGet();
-        this.recoveryStateIndex = recoveryStateIndex;
+        this.stateIndex = stateIndex;
         this.indexShard = indexShard;
-        final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
+        this.shardId = indexShard.shardId();
         // make sure the store is not released until we are done.
         this.cancellableThreads = new CancellableThreads();
     }
@@ -81,7 +82,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         return id;
     }
 
-    public abstract boolean resetRecovery(CancellableThreads newTargetCancellableThreads) throws IOException;
+    public abstract boolean reset(CancellableThreads newTargetCancellableThreads) throws IOException;
 
     /**
      * return the last time this ReplicationStatus was used (based on System.nanoTime()
@@ -104,6 +105,10 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     public IndexShard indexShard() {
         ensureRefCount();
         return indexShard;
+    }
+
+    public ShardId shardId() {
+        return shardId;
     }
 
     /**

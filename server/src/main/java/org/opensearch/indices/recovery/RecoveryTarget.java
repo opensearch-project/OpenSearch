@@ -97,7 +97,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         indexShard.recoveryStats().incCurrentAsTarget();
         this.store = indexShard.store();
         final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
-        this.multiFileWriter = new MultiFileWriter(indexShard.store(), recoveryStateIndex, tempFilePrefix, logger, this::ensureRefCount);
+        this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, tempFilePrefix, logger, this::ensureRefCount);
         store.incRef();
     }
 
@@ -149,11 +149,11 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
      * Closes the current recovery target and waits up to a certain timeout for resources to be freed.
      * Returns true if resetting the recovery was successful, false if the recovery target is already cancelled / failed or marked as done.
      */
-    public boolean resetRecovery(CancellableThreads newTargetCancellableThreads) throws IOException {
+    public boolean reset(CancellableThreads newTargetCancellableThreads) throws IOException {
         final long recoveryId = getId();
         if (finished.compareAndSet(false, true)) {
             try {
-                logger.debug("reset of recovery with shard {} and id [{}]", indexShard.shardId(), recoveryId);
+                logger.debug("reset of recovery with shard {} and id [{}]", shardId(), recoveryId);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now.
                 decRef();
@@ -163,7 +163,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             } catch (CancellableThreads.ExecutionCancelledException e) {
                 logger.trace(
                     "new recovery target cancelled for shard {} while waiting on old recovery target with id [{}] to close",
-                    indexShard.shardId(),
+                    shardId(),
                     recoveryId
                 );
                 return false;
@@ -241,7 +241,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     @Override
     public String toString() {
-        return indexShard.shardId() + " [" + getId() + "]";
+        return shardId() + " [" + getId() + "]";
     }
 
     @Override
@@ -332,7 +332,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             translog.totalOperations(totalTranslogOps);
             assert indexShard().recoveryState() == state();
             if (indexShard().state() != IndexShardState.RECOVERING) {
-                throw new IndexShardNotRecoveringException(indexShard.shardId(), indexShard().state());
+                throw new IndexShardNotRecoveringException(shardId(), indexShard().state());
             }
             /*
              * The maxSeenAutoIdTimestampOnPrimary received from the primary is at least the highest auto_id_timestamp from any operation
@@ -418,7 +418,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(),
                     globalCheckpoint,
-                    indexShard.shardId(),
+                    shardId(),
                     indexShard.getPendingPrimaryTerm()
                 );
                 store.associateIndexWithNewTranslog(translogUUID);
