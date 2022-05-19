@@ -32,8 +32,6 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.XContentLocation;

@@ -173,10 +173,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseDoSectionNoBody() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "get:\n" + "    index:    test_index\n" + "    id:        1"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "get:\n" + "    index:    test_index\n" + "    id:        1");
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();
@@ -203,10 +200,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
     public void testParseDoSectionWithJsonBody() throws Exception {
         String body = "{ \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }";
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "index:\n" + "    index:  test_1\n" + "    id:     1\n" + "    body:   " + body
-        );
+        parser = createParser(YamlXContent.yamlXContent, "index:\n" + "    index:  test_1\n" + "    id:     1\n" + "    body:   " + body);
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();
@@ -321,10 +315,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 + "            - { _index: test_2, _id: 1}\n"
                 + "            - { _index: test_1, _id: 1}"
         );
-        String body = "{ \"docs\": [ "
-            + "{\"_index\": \"test_2\", \"_id\":1}, "
-            + "{\"_index\": \"test_1\", \"_id\":1} "
-            + "]}";
+        String body = "{ \"docs\": [ " + "{\"_index\": \"test_2\", \"_id\":1}, " + "{\"_index\": \"test_1\", \"_id\":1} " + "]}";
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();
