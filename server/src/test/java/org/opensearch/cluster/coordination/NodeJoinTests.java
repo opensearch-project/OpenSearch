@@ -369,7 +369,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         assertFalse(isLocalNodeElectedMaster());
     }
 
-    public void testJoinWithHigherTermButBetterStateStillElectsMasterThroughSelfJoin() {
+    public void testJoinWithHigherTermButBetterStateStillElectsClusterManagerThroughSelfJoin() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);

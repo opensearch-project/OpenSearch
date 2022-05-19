@@ -195,7 +195,7 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
         return IndexMetadata.builder(name).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2).build();
     }
 
-    public void testGetRelevantIndicesWithUnassignedShardsOnMasterEligibleNode() {
+    public void testGetRelevantIndicesWithUnassignedShardsOnClusterManagerEligibleNode() {
         IndexMetadata indexMetadata = createIndexMetadata("test");
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithUnassignedIndex(indexMetadata, true));
         assertThat(indices.size(), equalTo(0));

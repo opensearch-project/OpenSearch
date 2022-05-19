@@ -292,7 +292,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(updatedGlobalCheckpoint.get(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
-    public void testInSyncIdsAreIgnoredIfNotValidatedByMaster() {
+    public void testInSyncIdsAreIgnoredIfNotValidatedByClusterManager() {
         final Map<AllocationId, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<AllocationId, Long> nonApproved = randomAllocationsWithLocalCheckpoints(1, 5);
@@ -313,7 +313,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(tracker.getGlobalCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
-    public void testInSyncIdsAreRemovedIfNotValidatedByMaster() {
+    public void testInSyncIdsAreRemovedIfNotValidatedByClusterManager() {
         final long initialClusterStateVersion = randomNonNegativeLong();
         final Map<AllocationId, Long> activeToStay = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<AllocationId, Long> initializingToStay = randomAllocationsWithLocalCheckpoints(1, 5);
@@ -492,7 +492,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         thread.join();
     }
 
-    public void testUpdateAllocationIdsFromMaster() throws Exception {
+    public void testUpdateAllocationIdsFromClusterManager() throws Exception {
         final long initialClusterStateVersion = randomNonNegativeLong();
         final int numberOfActiveAllocationsIds = randomIntBetween(2, 16);
         final int numberOfInitializingIds = randomIntBetween(2, 16);

@@ -164,7 +164,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testDoesNotElectNonMasterNode() {
+    public void testDoesNotElectNonClusterManagerNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -1175,7 +1175,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testNodeCannotJoinIfJoinValidationFailsOnMaster() {
+    public void testNodeCannotJoinIfJoinValidationFailsOnClusterManager() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -1305,7 +1305,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testFollowerRemovedIfUnableToSendRequestsToMaster() {
+    public void testFollowerRemovedIfUnableToSendRequestsToClusterManager() {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -1679,7 +1679,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testReconfiguresToExcludeMasterIneligibleNodesInVotingConfig() {
+    public void testReconfiguresToExcludeClusterManagerIneligibleNodesInVotingConfig() {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();

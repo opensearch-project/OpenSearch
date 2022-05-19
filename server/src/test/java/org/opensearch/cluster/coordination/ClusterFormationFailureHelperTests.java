@@ -173,7 +173,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
         assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
     }
 
-    public void testDescriptionOnMasterIneligibleNodes() {
+    public void testDescriptionOnClusterManagerIneligibleNodes() {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)

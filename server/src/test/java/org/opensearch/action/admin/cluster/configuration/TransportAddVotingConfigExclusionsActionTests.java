@@ -252,7 +252,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
-    public void testWithdrawsVotesFromAllMasterEligibleNodes() throws InterruptedException {
+    public void testWithdrawsVotesFromAllClusterManagerEligibleNodes() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));

@@ -290,7 +290,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         assertThat("Expecting all snapshot shard size fetches to execute a Reroute", reroutes.get(), equalTo(maxShardsToCreate));
     }
 
-    public void testNoLongerMaster() throws Exception {
+    public void testNoLongerClusterManager() throws Exception {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
             clusterService,

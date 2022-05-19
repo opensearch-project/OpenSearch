@@ -292,7 +292,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public void testLocalNodeMasterListenerCallbacks() {
+    public void testLocalNodeClusterManagerListenerCallbacks() {
         TimedClusterApplierService timedClusterApplierService = createTimedClusterService(false);
 
         AtomicBoolean isClusterManager = new AtomicBoolean();
