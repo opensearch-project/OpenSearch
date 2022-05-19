@@ -48,7 +48,7 @@ import java.util.concurrent.CyclicBarrier;
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
+public class IndexingClusterManagerFailoverIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -58,12 +58,12 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Indexing operations which entail mapping changes require a blocking request to the master node to update the mapping.
-     * If the master node is being disrupted or if it cannot commit cluster state changes, it needs to retry within timeout limits.
-     * This retry logic is implemented in TransportMasterNodeAction and tested by the following master failover scenario.
+     * Indexing operations which entail mapping changes require a blocking request to the cluster-manager node to update the mapping.
+     * If the cluster-manager node is being disrupted or if it cannot commit cluster state changes, it needs to retry within timeout limits.
+     * This retry logic is implemented in TransportMasterNodeAction and tested by the following cluster-manager failover scenario.
      */
-    public void testMasterFailoverDuringIndexingWithMappingChanges() throws Throwable {
-        logger.info("--> start 4 nodes, 3 master, 1 data");
+    public void testClusterManagerFailoverDuringIndexingWithMappingChanges() throws Throwable {
+        logger.info("--> start 4 nodes, 3 cluster-manager, 1 data");
 
         internalCluster().setBootstrapClusterManagerNodeIndex(2);
 
@@ -74,7 +74,7 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
         logger.info("--> wait for all nodes to join the cluster");
         ensureStableCluster(4);
 
-        // We index data with mapping changes into cluster and have master failover at same time
+        // We index data with mapping changes into cluster and have cluster-manager failover at same time
         client().admin()
             .indices()
             .prepareCreate("myindex")
@@ -108,14 +108,14 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
 
         barrier.await();
 
-        // interrupt communication between master and other nodes in cluster
-        NetworkDisruption partition = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        // interrupt communication between cluster-manager and other nodes in cluster
+        NetworkDisruption partition = isolateClusterManagerDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
 
         logger.info("--> disrupting network");
         partition.startDisrupting();
 
-        logger.info("--> waiting for new master to be elected");
+        logger.info("--> waiting for new cluster-manager to be elected");
         ensureStableCluster(3, dataNode);
 
         partition.stopDisrupting();
