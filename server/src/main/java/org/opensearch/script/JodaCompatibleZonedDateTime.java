@@ -32,9 +32,16 @@
 
 package org.opensearch.script;
 
+import org.joda.time.DateTime;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressLoggerChecks;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateFormatters;
+import org.opensearch.common.time.DateUtils;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -48,6 +55,7 @@ import java.time.ZonedDateTime;
 import java.time.chrono.ChronoZonedDateTime;
 import java.time.chrono.Chronology;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
 import java.time.temporal.Temporal;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjuster;
@@ -56,6 +64,7 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQuery;
 import java.time.temporal.TemporalUnit;
 import java.time.temporal.ValueRange;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -71,6 +80,23 @@ public class JodaCompatibleZonedDateTime
         TemporalAccessor {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JodaCompatibleZonedDateTime.class);
+
+    private static void logDeprecated(String key, String message, Object... params) {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @SuppressLoggerChecks(reason = "safely delegates to logger")
+            @Override
+            public Void run() {
+                deprecationLogger.deprecate(key, message, params);
+                return null;
+            }
+        });
+    }
+
+    private static void logDeprecatedMethod(String oldMethod, String newMethod) {
+        logDeprecated(oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.", oldMethod, newMethod);
+    }
+
     private ZonedDateTime dt;
 
     public JodaCompatibleZonedDateTime(Instant instant, ZoneId zone) {
@@ -401,7 +427,120 @@ public class JodaCompatibleZonedDateTime
         return dt.withZoneSameInstant(zone);
     }
 
+    @Deprecated
+    public long getMillis() {
+        logDeprecatedMethod("getMillis()", "toInstant().toEpochMilli()");
+        return dt.toInstant().toEpochMilli();
+    }
+
+    @Deprecated
+    public int getCenturyOfEra() {
+        logDeprecatedMethod("getCenturyOfEra()", "get(ChronoField.YEAR_OF_ERA) / 100");
+        return dt.get(ChronoField.YEAR_OF_ERA) / 100;
+    }
+
+    @Deprecated
+    public int getEra() {
+        logDeprecatedMethod("getEra()", "get(ChronoField.ERA)");
+        return dt.get(ChronoField.ERA);
+    }
+
+    @Deprecated
+    public int getHourOfDay() {
+        logDeprecatedMethod("getHourOfDay()", "getHour()");
+        return dt.getHour();
+    }
+
+    @Deprecated
+    public int getMillisOfDay() {
+        logDeprecatedMethod("getMillisOfDay()", "get(ChronoField.MILLI_OF_DAY)");
+        return dt.get(ChronoField.MILLI_OF_DAY);
+    }
+
+    @Deprecated
+    public int getMillisOfSecond() {
+        logDeprecatedMethod("getMillisOfSecond()", "get(ChronoField.MILLI_OF_SECOND)");
+        return dt.get(ChronoField.MILLI_OF_SECOND);
+    }
+
+    @Deprecated
+    public int getMinuteOfDay() {
+        logDeprecatedMethod("getMinuteOfDay()", "get(ChronoField.MINUTE_OF_DAY)");
+        return dt.get(ChronoField.MINUTE_OF_DAY);
+    }
+
+    @Deprecated
+    public int getMinuteOfHour() {
+        logDeprecatedMethod("getMinuteOfHour()", "getMinute()");
+        return dt.getMinute();
+    }
+
+    @Deprecated
+    public int getMonthOfYear() {
+        logDeprecatedMethod("getMonthOfYear()", "getMonthValue()");
+        return dt.getMonthValue();
+    }
+
+    @Deprecated
+    public int getSecondOfDay() {
+        logDeprecatedMethod("getSecondOfDay()", "get(ChronoField.SECOND_OF_DAY)");
+        return dt.get(ChronoField.SECOND_OF_DAY);
+    }
+
+    @Deprecated
+    public int getSecondOfMinute() {
+        logDeprecatedMethod("getSecondOfMinute()", "getSecond()");
+        return dt.getSecond();
+    }
+
+    @Deprecated
+    public int getWeekOfWeekyear() {
+        logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())");
+        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear());
+    }
+
+    @Deprecated
+    public int getWeekyear() {
+        logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())");
+        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear());
+    }
+
+    @Deprecated
+    public int getYearOfCentury() {
+        logDeprecatedMethod("getYearOfCentury()", "get(ChronoField.YEAR_OF_ERA) % 100");
+        return dt.get(ChronoField.YEAR_OF_ERA) % 100;
+    }
+
+    @Deprecated
+    public int getYearOfEra() {
+        logDeprecatedMethod("getYearOfEra()", "get(ChronoField.YEAR_OF_ERA)");
+        return dt.get(ChronoField.YEAR_OF_ERA);
+    }
+
+    @Deprecated
+    public String toString(String format) {
+        logDeprecatedMethod("toString(String)", "a DateTimeFormatter");
+        // TODO: replace with bwc formatter
+        return new DateTime(dt.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dt.getZone())).toString(format);
+    }
+
+    @Deprecated
+    public String toString(String format, Locale locale) {
+        logDeprecatedMethod("toString(String,Locale)", "a DateTimeFormatter");
+        // TODO: replace with bwc formatter
+        return new DateTime(dt.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dt.getZone())).toString(format, locale);
+    }
+
     public DayOfWeek getDayOfWeekEnum() {
         return dt.getDayOfWeek();
+    }
+
+    @Deprecated
+    public int getDayOfWeek() {
+        logDeprecated(
+            "getDayOfWeek()",
+            "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue()."
+        );
+        return dt.getDayOfWeek().getValue();
     }
 }
