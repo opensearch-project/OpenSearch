@@ -386,13 +386,13 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
                 assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
             }
         }
-        assertMappingOnMaster(index, fieldNames);
+        assertMappingOnClusterManager(index, fieldNames);
     }
 
     /**
-     * Waits for the given mapping type to exists on the master node.
+     * Waits for the given mapping type to exists on the cluster-manager node.
      */
-    private void assertMappingOnMaster(final String index, final String... fieldNames) {
+    private void assertMappingOnClusterManager(final String index, final String... fieldNames) {
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).get();
         MappingMetadata mappings = response.getMappings().get(index);
         assertThat(mappings, notNullValue());

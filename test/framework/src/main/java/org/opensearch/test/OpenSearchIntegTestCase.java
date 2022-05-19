@@ -712,7 +712,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * @param disruptionType type of disruption to create
      * @return disruption
      */
-    protected static NetworkDisruption isolateMasterDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
+    protected static NetworkDisruption isolateClusterManagerDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
         final String clusterManagerNode = internalCluster().getMasterName();
         return new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(

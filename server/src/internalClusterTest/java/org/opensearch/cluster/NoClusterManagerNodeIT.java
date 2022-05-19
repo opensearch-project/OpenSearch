@@ -75,7 +75,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class NoMasterNodeIT extends OpenSearchIntegTestCase {
+public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int numberOfReplicas() {
@@ -87,7 +87,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
-    public void testNoMasterActions() throws Exception {
+    public void testNoClusterManagerActions() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true)
             .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all")
@@ -107,57 +107,63 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
-        final Client clientToMasterlessNode = client();
+        final Client clientToClusterManagerlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state = clientToClusterManagerlessNode.admin()
+                .cluster()
+                .prepareState()
+                .setLocal(true)
+                .execute()
+                .actionGet()
+                .getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareGet("test", "1"),
+            clientToClusterManagerlessNode.prepareGet("test", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareGet("no_index", "1"),
+            clientToClusterManagerlessNode.prepareGet("no_index", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareMultiGet().add("test", "1"),
+            clientToClusterManagerlessNode.prepareMultiGet().add("test", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareMultiGet().add("no_index", "1"),
+            clientToClusterManagerlessNode.prepareMultiGet().add("no_index", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.admin().indices().prepareAnalyze("test", "this is a test"),
+            clientToClusterManagerlessNode.admin().indices().prepareAnalyze("test", "this is a test"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.admin().indices().prepareAnalyze("no_index", "this is a test"),
+            clientToClusterManagerlessNode.admin().indices().prepareAnalyze("no_index", "this is a test"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareSearch("test").setSize(0),
+            clientToClusterManagerlessNode.prepareSearch("test").setSize(0),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareSearch("no_index").setSize(0),
+            clientToClusterManagerlessNode.prepareSearch("no_index").setSize(0),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
@@ -165,7 +171,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         checkUpdateAction(
             false,
             timeout,
-            clientToMasterlessNode.prepareUpdate("test", "1")
+            clientToClusterManagerlessNode.prepareUpdate("test", "1")
                 .setScript(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap()))
                 .setTimeout(timeout)
         );
@@ -173,41 +179,49 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         checkUpdateAction(
             true,
             timeout,
-            clientToMasterlessNode.prepareUpdate("no_index", "1")
+            clientToClusterManagerlessNode.prepareUpdate("no_index", "1")
                 .setScript(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap()))
                 .setTimeout(timeout)
         );
 
         checkWriteAction(
-            clientToMasterlessNode.prepareIndex("test")
+            clientToClusterManagerlessNode.prepareIndex("test")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
         );
 
         checkWriteAction(
-            clientToMasterlessNode.prepareIndex("no_index")
+            clientToClusterManagerlessNode.prepareIndex("no_index")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
         );
 
-        BulkRequestBuilder bulkRequestBuilder = clientToMasterlessNode.prepareBulk();
+        BulkRequestBuilder bulkRequestBuilder = clientToClusterManagerlessNode.prepareBulk();
         bulkRequestBuilder.add(
-            clientToMasterlessNode.prepareIndex("test").setId("1").setSource(XContentFactory.jsonBuilder().startObject().endObject())
+            clientToClusterManagerlessNode.prepareIndex("test")
+                .setId("1")
+                .setSource(XContentFactory.jsonBuilder().startObject().endObject())
         );
         bulkRequestBuilder.add(
-            clientToMasterlessNode.prepareIndex("test").setId("2").setSource(XContentFactory.jsonBuilder().startObject().endObject())
+            clientToClusterManagerlessNode.prepareIndex("test")
+                .setId("2")
+                .setSource(XContentFactory.jsonBuilder().startObject().endObject())
         );
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
 
-        bulkRequestBuilder = clientToMasterlessNode.prepareBulk();
+        bulkRequestBuilder = clientToClusterManagerlessNode.prepareBulk();
         bulkRequestBuilder.add(
-            clientToMasterlessNode.prepareIndex("no_index").setId("1").setSource(XContentFactory.jsonBuilder().startObject().endObject())
+            clientToClusterManagerlessNode.prepareIndex("no_index")
+                .setId("1")
+                .setSource(XContentFactory.jsonBuilder().startObject().endObject())
         );
         bulkRequestBuilder.add(
-            clientToMasterlessNode.prepareIndex("no_index").setId("2").setSource(XContentFactory.jsonBuilder().startObject().endObject())
+            clientToClusterManagerlessNode.prepareIndex("no_index")
+                .setId("2")
+                .setSource(XContentFactory.jsonBuilder().startObject().endObject())
         );
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
@@ -216,7 +230,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
     }
 
     void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?> builder) {
-        // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
+        // we clean the metadata when loosing a cluster-manager, therefore all operations on indices will auto create it, if allowed
         try {
             builder.get();
             fail("expected ClusterBlockException or MasterNotDiscoveredException");
@@ -239,7 +253,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testNoMasterActionsWriteMasterBlock() throws Exception {
+    public void testNoClusterManagerActionsWriteClusterManagerBlock() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false)
             .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "write")
@@ -270,31 +284,34 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
-        final Client clientToMasterlessNode = client();
+        final Client clientToClusterManagerlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
+            ClusterState state = clientToClusterManagerlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
-        GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
+        GetResponse getResponse = clientToClusterManagerlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        SearchResponse countResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();
+        SearchResponse countResponse = clientToClusterManagerlessNode.prepareSearch("test1")
+            .setAllowPartialSearchResults(true)
+            .setSize(0)
+            .get();
         assertHitCount(countResponse, 1L);
 
         logger.info("--> here 3");
-        SearchResponse searchResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).get();
+        SearchResponse searchResponse = clientToClusterManagerlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).get();
         assertHitCount(searchResponse, 1L);
 
-        countResponse = clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
+        countResponse = clientToClusterManagerlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(3));
         assertThat(countResponse.getSuccessfulShards(), equalTo(1));
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
         long now = System.currentTimeMillis();
         try {
-            clientToMasterlessNode.prepareUpdate("test1", "1")
+            clientToClusterManagerlessNode.prepareUpdate("test1", "1")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
                 .setTimeout(timeout)
                 .get();
@@ -308,7 +325,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         }
 
         try {
-            clientToMasterlessNode.prepareIndex("test1")
+            clientToClusterManagerlessNode.prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
@@ -321,7 +338,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         internalCluster().clearDisruptionScheme(true);
     }
 
-    public void testNoMasterActionsMetadataWriteMasterBlock() throws Exception {
+    public void testNoClusterManagerActionsMetadataWriteClusterManagerBlock() throws Exception {
         Settings settings = Settings.builder()
             .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "metadata_write")
             .put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), "100ms")

@@ -77,9 +77,9 @@ public class ConcurrentDocumentOperationIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("done indexing, check all have the same field value");
-        Map masterSource = client().prepareGet("test", "1").execute().actionGet().getSourceAsMap();
+        Map clusterManagerSource = client().prepareGet("test", "1").execute().actionGet().getSourceAsMap();
         for (int i = 0; i < (cluster().size() * 5); i++) {
-            assertThat(client().prepareGet("test", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().getSourceAsMap(), equalTo(clusterManagerSource));
         }
     }
 }
