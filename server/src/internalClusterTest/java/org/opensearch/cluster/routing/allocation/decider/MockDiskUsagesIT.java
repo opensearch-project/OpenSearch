@@ -269,9 +269,9 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
-        final AtomicReference<ClusterState> masterAppliedClusterState = new AtomicReference<>();
+        final AtomicReference<ClusterState> clusterManagerAppliedClusterState = new AtomicReference<>();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
-            masterAppliedClusterState.set(event.state());
+            clusterManagerAppliedClusterState.set(event.state());
             clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
         });
 
@@ -326,7 +326,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
                 fsInfoPath,
                 1000L,
                 discoveryNode.getId().equals(nodeIds.get(2))
-                    ? 101L - masterAppliedClusterState.get().getRoutingNodes().node(nodeIds.get(2)).numberOfOwningShards()
+                    ? 101L - clusterManagerAppliedClusterState.get().getRoutingNodes().node(nodeIds.get(2)).numberOfOwningShards()
                     : 1000L
             )
         );
@@ -349,7 +349,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final AtomicReference<ClusterState> masterAppliedClusterState = new AtomicReference<>();
+        final AtomicReference<ClusterState> clusterManagerAppliedClusterState = new AtomicReference<>();
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
@@ -360,7 +360,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
 
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             assertThat(event.state().getRoutingNodes().node(nodeIds.get(2)).size(), lessThanOrEqualTo(1));
-            masterAppliedClusterState.set(event.state());
+            clusterManagerAppliedClusterState.set(event.state());
             clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
         });
 
@@ -385,7 +385,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
                 fsInfoPath,
                 1000L,
                 discoveryNode.getId().equals(nodeIds.get(2))
-                    ? 150L - masterAppliedClusterState.get().getRoutingNodes().node(nodeIds.get(2)).numberOfOwningShards()
+                    ? 150L - clusterManagerAppliedClusterState.get().getRoutingNodes().node(nodeIds.get(2)).numberOfOwningShards()
                     : 1000L
             )
         );

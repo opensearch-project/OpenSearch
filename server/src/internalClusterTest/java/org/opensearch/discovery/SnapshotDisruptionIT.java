@@ -94,12 +94,12 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         createRepository("test-repo", "fs");
 
-        final String masterNode1 = internalCluster().getMasterName();
+        final String clusterManagerNode1 = internalCluster().getMasterName();
 
-        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.UNRESPONSIVE);
+        NetworkDisruption networkDisruption = isolateClusterManagerDisruption(NetworkDisruption.UNRESPONSIVE);
         internalCluster().setDisruptionScheme(networkDisruption);
 
-        ClusterService clusterService = internalCluster().clusterService(masterNode1);
+        ClusterService clusterService = internalCluster().clusterService(clusterManagerNode1);
         CountDownLatch disruptionStarted = new CountDownLatch(1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
@@ -124,7 +124,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String snapshot = "test-snap";
 
         logger.info("--> starting snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client(masterNode1).admin()
+        ActionFuture<CreateSnapshotResponse> future = client(clusterManagerNode1).admin()
             .cluster()
             .prepareCreateSnapshot("test-repo", snapshot)
             .setWaitForCompletion(true)
@@ -147,7 +147,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> stopping disrupting");
         networkDisruption.stopDisrupting();
-        ensureStableCluster(4, masterNode1);
+        ensureStableCluster(4, clusterManagerNode1);
         logger.info("--> done");
 
         try {
@@ -158,7 +158,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNotNull(sne);
             assertThat(
                 sne.getMessage(),
-                either(endsWith(" Failed to update cluster state during snapshot finalization")).or(endsWith(" no longer master"))
+                either(endsWith(" Failed to update cluster state during snapshot finalization")).or(endsWith(" no longer cluster-manager"))
             );
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
@@ -177,13 +177,13 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
 
-        final String masterNode = internalCluster().getMasterName();
+        final String clusterManagerNode = internalCluster().getMasterName();
 
         blockAllDataNodes(repoName);
 
         final String snapshot = "test-snap";
         logger.info("--> starting snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client(masterNode).admin()
+        ActionFuture<CreateSnapshotResponse> future = client(clusterManagerNode).admin()
             .cluster()
             .prepareCreateSnapshot(repoName, snapshot)
             .setWaitForCompletion(true)
@@ -191,7 +191,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         waitForBlockOnAnyDataNode(repoName, TimeValue.timeValueSeconds(10L));
 
-        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        NetworkDisruption networkDisruption = isolateClusterManagerDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -203,7 +203,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
         unblockAllDataNodes(repoName);
 
-        ensureStableCluster(2, masterNode);
+        ensureStableCluster(2, clusterManagerNode);
         logger.info("--> done");
 
         logger.info("--> recreate the index with potentially different shard counts");
@@ -213,17 +213,17 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> run a snapshot that fails to finalize but succeeds on the data node");
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client(masterNode).admin()
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client(clusterManagerNode).admin()
             .cluster()
             .prepareCreateSnapshot(repoName, "snapshot-2")
             .setWaitForCompletion(true)
             .execute();
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(10L));
-        unblockNode(repoName, masterNode);
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(10L));
+        unblockNode(repoName, clusterManagerNode);
         assertFutureThrows(snapshotFuture, SnapshotException.class);
 
         logger.info("--> create a snapshot expected to be successful");
-        final CreateSnapshotResponse successfulSnapshot = client(masterNode).admin()
+        final CreateSnapshotResponse successfulSnapshot = client(clusterManagerNode).admin()
             .cluster()
             .prepareCreateSnapshot(repoName, "snapshot-2")
             .setWaitForCompletion(true)
@@ -235,7 +235,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "snapshot-2").get());
     }
 
-    public void testMasterFailOverDuringShardSnapshots() throws Exception {
+    public void testClusterManagerFailOverDuringShardSnapshots() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
@@ -258,7 +258,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
 
-        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        final NetworkDisruption networkDisruption = isolateClusterManagerDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
         ensureStableCluster(3, dataNode);
@@ -267,7 +267,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
         awaitNoMoreRunningOperations(dataNode);
 
-        logger.info("--> make sure isolated master responds to snapshot request");
+        logger.info("--> make sure isolated cluster-manager responds to snapshot request");
         final SnapshotException sne = expectThrows(
             SnapshotException.class,
             () -> snapshotResponse.actionGet(TimeValue.timeValueSeconds(30L))

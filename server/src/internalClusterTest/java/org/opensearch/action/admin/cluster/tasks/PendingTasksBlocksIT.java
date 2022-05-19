@@ -91,7 +91,7 @@ public class PendingTasksBlocksIT extends OpenSearchIntegTestCase {
         }
 
         // restart the cluster but prevent it from performing state recovery
-        final int nodeCount = client().admin().cluster().prepareNodesInfo("data:true", "master:true").get().getNodes().size();
+        final int nodeCount = client().admin().cluster().prepareNodesInfo("data:true", "cluster_manager:true").get().getNodes().size();
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
@@ -107,7 +107,7 @@ public class PendingTasksBlocksIT extends OpenSearchIntegTestCase {
         assertNotNull(client().admin().cluster().preparePendingClusterTasks().get().getPendingTasks());
 
         // starting one more node allows the cluster to recover
-        internalCluster().startDataOnlyNode(); // cannot update minimum_master_nodes before the cluster has formed
+        internalCluster().startDataOnlyNode(); // cannot update minimum_cluster_manager_nodes before the cluster has formed
         ensureGreen();
     }
 

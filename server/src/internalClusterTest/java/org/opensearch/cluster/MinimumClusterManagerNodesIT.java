@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
+public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -83,7 +83,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         return classes;
     }
 
-    public void testTwoNodesNoMasterBlock() throws Exception {
+    public void testTwoNodesNoClusterManagerBlock() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(1);
 
         Settings settings = Settings.builder().put("discovery.initial_state_timeout", "500ms").build();
@@ -151,13 +151,13 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
             );
         }
 
-        String masterNode = internalCluster().getMasterName();
-        String otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
-        logger.info("--> add voting config exclusion for non-master node, to be sure it's not elected");
+        String clusterManagerNode = internalCluster().getMasterName();
+        String otherNode = node1Name.equals(clusterManagerNode) ? node2Name : node1Name;
+        logger.info("--> add voting config exclusion for non-cluster-manager node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(otherNode)).get();
-        logger.info("--> stop master node, no cluster-manager block should appear");
-        Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
+        logger.info("--> stop cluster-manager node, no cluster-manager block should appear");
+        Settings clusterManagerDataPathSettings = internalCluster().dataPathSettings(clusterManagerNode);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(clusterManagerNode));
 
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -170,8 +170,8 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         assertThat(state.nodes().getSize(), equalTo(2));
         assertThat(state.nodes().getMasterNode(), equalTo(null));
 
-        logger.info("--> starting the previous master node again...");
-        node2Name = internalCluster().startNode(Settings.builder().put(settings).put(masterDataPathSettings).build());
+        logger.info("--> starting the previous cluster-manager node again...");
+        node2Name = internalCluster().startNode(Settings.builder().put(settings).put(clusterManagerDataPathSettings).build());
 
         clusterHealthResponse = client().admin()
             .cluster()
@@ -204,11 +204,11 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         clearRequest.setWaitForRemoval(false);
         client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearRequest).get();
 
-        masterNode = internalCluster().getMasterName();
-        otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
-        logger.info("--> add voting config exclusion for master node, to be sure it's not elected");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNode)).get();
-        logger.info("--> stop non-master node, no cluster-manager block should appear");
+        clusterManagerNode = internalCluster().getMasterName();
+        otherNode = node1Name.equals(clusterManagerNode) ? node2Name : node1Name;
+        logger.info("--> add voting config exclusion for cluster-manager node, to be sure it's not elected");
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(clusterManagerNode)).get();
+        logger.info("--> stop non-cluster-manager node, no cluster-manager block should appear");
         Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNode));
 
@@ -217,7 +217,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
             assertThat(state1.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         });
 
-        logger.info("--> starting the previous master node again...");
+        logger.info("--> starting the previous cluster-manager node again...");
         internalCluster().startNode(Settings.builder().put(settings).put(otherNodeDataPathSettings).build());
 
         ensureGreen();
@@ -249,7 +249,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testThreeNodesNoMasterBlock() throws Exception {
+    public void testThreeNodesNoClusterManagerBlock() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(2);
 
         Settings settings = Settings.builder().put("discovery.initial_state_timeout", "500ms").build();
@@ -312,8 +312,8 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         List<String> nonClusterManagerNodes = new ArrayList<>(
             Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()), Collections.singleton(internalCluster().getMasterName()))
         );
-        Settings nonMasterDataPathSettings1 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(0));
-        Settings nonMasterDataPathSettings2 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(1));
+        Settings nonClusterManagerDataPathSettings1 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(0));
+        Settings nonClusterManagerDataPathSettings2 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(1));
         internalCluster().stopRandomNonMasterNode();
         internalCluster().stopRandomNonMasterNode();
 
@@ -325,7 +325,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         });
 
         logger.info("--> start back the 2 nodes ");
-        internalCluster().startNodes(nonMasterDataPathSettings1, nonMasterDataPathSettings2);
+        internalCluster().startNodes(nonClusterManagerDataPathSettings1, nonClusterManagerDataPathSettings2);
 
         internalCluster().validateClusterFormed();
         ensureGreen();
@@ -347,17 +347,17 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(3, settings);
         ensureStableCluster(3);
 
-        final String master = internalCluster().getMasterName();
+        final String clusterManager = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
-        otherNodes.remove(master);
-        NetworkDisruption partition = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        otherNodes.remove(clusterManager);
+        NetworkDisruption partition = isolateClusterManagerDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> failure = new AtomicReference<>();
         logger.debug("--> submitting for cluster state to be rejected");
-        final ClusterService masterClusterService = internalCluster().clusterService(master);
-        masterClusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        final ClusterService clusterManagerClusterService = internalCluster().clusterService(clusterManager);
+        clusterManagerClusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 latch.countDown();
@@ -387,11 +387,11 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         assertThat(failure.get(), instanceOf(FailedToCommitClusterStateException.class));
 
         logger.debug("--> check that there is no cluster-manager in minor partition");
-        assertBusy(() -> assertThat(masterClusterService.state().nodes().getMasterNode(), nullValue()));
+        assertBusy(() -> assertThat(clusterManagerClusterService.state().nodes().getMasterNode(), nullValue()));
 
-        // let major partition to elect new master, to ensure that old master is not elected once partition is restored,
-        // otherwise persistent setting (which is a part of accepted state on old master) will be propagated to other nodes
-        logger.debug("--> wait for master to be elected in major partition");
+        // let major partition to elect new cluster-manager, to ensure that old cluster-manager is not elected once partition is restored,
+        // otherwise persistent setting (which is a part of accepted state on old cluster-manager) will be propagated to other nodes
+        logger.debug("--> wait for cluster-manager to be elected in major partition");
         assertBusy(() -> {
             DiscoveryNode clusterManagerNode = internalCluster().client(randomFrom(otherNodes))
                 .admin()
@@ -403,7 +403,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
                 .nodes()
                 .getMasterNode();
             assertThat(clusterManagerNode, notNullValue());
-            assertThat(clusterManagerNode.getName(), not(equalTo(master)));
+            assertThat(clusterManagerNode.getName(), not(equalTo(clusterManager)));
         });
 
         partition.stopDisrupting();
@@ -414,7 +414,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         for (String node : internalCluster().getNodeNames()) {
             Settings nodeSetting = internalCluster().clusterService(node).state().metadata().settings();
             assertThat(
-                node + " processed the cluster state despite of a min master node violation",
+                node + " processed the cluster state despite of a min cluster-manager node violation",
                 nodeSetting.get("_SHOULD_NOT_BE_THERE_"),
                 nullValue()
             );
