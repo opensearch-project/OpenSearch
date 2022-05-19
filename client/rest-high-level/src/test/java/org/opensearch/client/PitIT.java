@@ -13,9 +13,13 @@ import org.apache.http.client.methods.HttpPut;
 import org.junit.Before;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -51,8 +55,27 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(1, pitResponse.getSuccessfulShards());
         assertEquals(0, pitResponse.getFailedShards());
         assertEquals(0, pitResponse.getSkippedShards());
+        List<String> pitIds = new ArrayList<>();
+        pitIds.add(pitResponse.getId());
+        DeletePitRequest deletePitRequest = new DeletePitRequest(pitIds);
+        DeletePitResponse deletePitResponse = execute(deletePitRequest, highLevelClient()::deletePit, highLevelClient()::deletePitAsync);
+        assertTrue(deletePitResponse.isSucceeded());
     }
-    /**
-     * Todo: add deletion logic and test cluster settings
-     */
+
+    public void testDeleteAllPits() throws IOException {
+        CreatePitRequest pitRequest = new CreatePitRequest(new TimeValue(1, TimeUnit.DAYS), true, "index");
+        CreatePitResponse pitResponse = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
+        CreatePitResponse pitResponse1 = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
+        assertTrue(pitResponse.getId() != null);
+        assertTrue(pitResponse1.getId() != null);
+        List<String> pitIds = new ArrayList<>();
+        pitIds.add("_all");
+        DeletePitRequest deletePitRequest = new DeletePitRequest(pitIds);
+        DeletePitResponse deletePitResponse = execute(
+            deletePitRequest,
+            highLevelClient()::deleteAllPits,
+            highLevelClient()::deleteAllPitsAsync
+        );
+        assertTrue(deletePitResponse.isSucceeded());
+    }
 }

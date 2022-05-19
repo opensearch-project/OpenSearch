@@ -45,6 +45,8 @@ import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchRequest;
@@ -103,6 +105,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -793,7 +796,15 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
             }
         } finally {
-            // TODO : Delete PIT
+            List<String> pitIds = new ArrayList<>();
+            pitIds.add(pitResponse.getId());
+            DeletePitRequest deletePitRequest = new DeletePitRequest(pitIds);
+            DeletePitResponse deletePitResponse = execute(
+                deletePitRequest,
+                highLevelClient()::deletePit,
+                highLevelClient()::deletePitAsync
+            );
+            assertTrue(deletePitResponse.isSucceeded());
         }
     }
 

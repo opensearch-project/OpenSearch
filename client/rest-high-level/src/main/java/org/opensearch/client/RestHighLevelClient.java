@@ -61,6 +61,8 @@ import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchRequest;
@@ -1293,6 +1295,86 @@ public class RestHighLevelClient implements Closeable {
             RequestConverters::createPit,
             options,
             CreatePitResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Delete PIT context using delete PIT API
+     *
+     * @param deletePitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final DeletePitResponse deletePit(DeletePitRequest deletePitRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            deletePitRequest,
+            RequestConverters::deletePit,
+            options,
+            DeletePitResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously Delete PIT context using delete PIT API
+     *
+     * @param deletePitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable deletePitAsync(
+        DeletePitRequest deletePitRequest,
+        RequestOptions options,
+        ActionListener<DeletePitResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            deletePitRequest,
+            RequestConverters::deletePit,
+            options,
+            DeletePitResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Delete all PIT contexts using delete all PITs API
+     *
+     * @param deletePitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final DeletePitResponse deleteAllPits(DeletePitRequest deletePitRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            deletePitRequest,
+            RequestConverters::deleteAllPits,
+            options,
+            DeletePitResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously Delete all PIT contexts using delete all PITs API
+     *
+     * @param deletePitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable deleteAllPitsAsync(
+        DeletePitRequest deletePitRequest,
+        RequestOptions options,
+        ActionListener<DeletePitResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            deletePitRequest,
+            RequestConverters::deleteAllPits,
+            options,
+            DeletePitResponse::fromXContent,
             listener,
             emptySet()
         );

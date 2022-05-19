@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.SetOnce;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
@@ -1018,6 +1019,39 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return false;
+    }
+
+    /**
+     * Free reader context if found otherwise return false
+     */
+    public boolean freeReaderContextIfFound(ShardSearchContextId contextId) {
+        try {
+            if (getReaderContext(contextId) != null) {
+                try (ReaderContext context = removeReaderContext(contextId.getId())) {
+                    return context != null;
+                }
+            }
+        } catch (SearchContextMissingException e) {
+            return true;
+        }
+        return true;
+    }
+
+    /**
+     * Free all active pit contexts
+     */
+    public boolean freeAllPitContexts() {
+        final SetOnce<Boolean> isFreed = new SetOnce<>();
+        for (ReaderContext readerContext : activeReaders.values()) {
+            if (readerContext instanceof PitReaderContext) {
+                final boolean succeeded = freeReaderContextIfFound(readerContext.id());
+                if (!succeeded) {
+                    isFreed.trySet(false);
+                }
+            }
+        }
+        isFreed.trySet(true);
+        return isFreed.get();
     }
 
     /**

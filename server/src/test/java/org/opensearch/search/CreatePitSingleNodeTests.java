@@ -10,7 +10,12 @@ package org.opensearch.search;
 
 import org.hamcrest.Matchers;
 import org.opensearch.action.ActionFuture;
-import org.opensearch.action.search.*;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitController;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -34,7 +39,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 /**
  * Single node integration tests for various PIT use cases such as create pit, search etc
  */
-public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
+public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected boolean resetNodeAfterTest() {
         return true;

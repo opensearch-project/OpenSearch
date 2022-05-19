@@ -268,6 +268,6 @@ public class CreatePitController {
                 logger.error("Cleaning up PIT contexts failed ", e);
             }
         };
-        ClearScrollController.closeContexts(clusterService.state().getNodes(), searchTransportService, contexts, deleteListener);
+        SearchUtils.deletePits(contexts, deleteListener, clusterService.state(), searchTransportService);
     }
 }

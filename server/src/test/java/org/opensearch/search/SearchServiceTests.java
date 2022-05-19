@@ -1414,6 +1414,33 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(searchService.freeReaderContext(future.actionGet()));
     }
 
+    public void testDeletePitReaderContext() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        future.actionGet();
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertTrue(searchService.freeReaderContextIfFound(future.actionGet()));
+        // assert true for reader context not found
+        assertTrue(searchService.freeReaderContextIfFound(future.actionGet()));
+        // adding this assert to showcase behavior difference
+        assertFalse(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testDeleteAllPitReaderContexts() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        future.actionGet();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        future.actionGet();
+        assertThat(searchService.getActiveContexts(), equalTo(2));
+        searchService.freeAllPitContexts();
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+    }
+
     public void testPitContextMaxKeepAlive() {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);
