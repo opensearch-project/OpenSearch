@@ -121,8 +121,8 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
 
         executeRepurposeCommand(noClusterManagerNoDataSettingsForClusterManagerNode, 1, 0);
 
-        // by restarting as master and data node, we can check that the index definition was really deleted and also that the tool
-        // does not mess things up so much that the nodes cannot boot as master or data node any longer.
+        // by restarting as cluster-manager and data node, we can check that the index definition was really deleted and also that the tool
+        // does not mess things up so much that the nodes cannot boot as cluster-manager or data node any longer.
         internalCluster().startClusterManagerOnlyNode(clusterManagerNodeDataPathSettings);
         internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
 

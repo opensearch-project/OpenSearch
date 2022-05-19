@@ -627,7 +627,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         return snapshotInfos.get(0);
     }
 
-    protected void awaitMasterFinishRepoOperations() throws Exception {
+    protected void awaitClusterManagerFinishRepoOperations() throws Exception {
         logger.info("--> waiting for cluster-manager to finish all repo operations on its SNAPSHOT pool");
         final ThreadPool clusterManagerThreadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
         assertBusy(() -> {

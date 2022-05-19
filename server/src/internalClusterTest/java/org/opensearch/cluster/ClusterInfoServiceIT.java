@@ -166,7 +166,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         }
         ensureGreen(indexName);
         InternalTestCluster internalTestCluster = internalCluster();
-        // Get the cluster info service on the master node
+        // Get the cluster info service on the cluster-manager node
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
             ClusterInfoService.class,
             internalTestCluster.getMasterName()
