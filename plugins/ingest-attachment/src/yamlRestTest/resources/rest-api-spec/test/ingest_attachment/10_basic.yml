@@ -5,10 +5,10 @@
     - do:
         cluster.state: {}
 
-    - set: {master_node: master}
+    - set: { cluster_manager_node: cluster_manager }
 
     - do:
         nodes.info: {}
 
-    - contains:  { 'nodes.$master.plugins': { name: ingest-attachment }  }
-    - contains:  { 'nodes.$master.ingest.processors': { type: attachment } }
+    - contains:  { 'nodes.$cluster_manager.plugins': { name: ingest-attachment }  }
+    - contains:  { 'nodes.$cluster_manager.ingest.processors': { type: attachment } }

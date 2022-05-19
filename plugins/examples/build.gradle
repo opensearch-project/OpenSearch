@@ -28,7 +28,7 @@ gradle.projectsEvaluated {
   }
 }
 
-configure(project('painless-whitelist')) {
+configure(project('painless-allowlist')) {
   configurations.all {
     resolutionStrategy.dependencySubstitution {
       substitute module('org.opensearch.plugin:opensearch-scripting-painless-spi') with project(':modules:lang-painless:spi')

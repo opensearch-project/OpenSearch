@@ -43,7 +43,7 @@ import org.opensearch.painless.phase.DocFieldsPhase;
 import org.opensearch.painless.phase.PainlessSemanticAnalysisPhase;
 import org.opensearch.painless.phase.PainlessSemanticHeaderPhase;
 import org.opensearch.painless.phase.PainlessUserTreeToIRTreePhase;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.opensearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
@@ -100,7 +100,7 @@ final class Compiler {
 
         /**
          * Will check to see if the {@link Class} has already been loaded when
-         * the {@link PainlessLookup} was initially created.  Allows for {@link Whitelist}ed
+         * the {@link PainlessLookup} was initially created.  Allows for {@link Allowlist}ed
          * classes to be loaded from other modules/plugins without a direct relationship
          * to the module's/plugin's {@link ClassLoader}.
          */

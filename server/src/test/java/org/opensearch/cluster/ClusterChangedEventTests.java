@@ -314,6 +314,35 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
         assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
     }
 
+    // Validate the above test case testLocalNodeIsMaster() passes when the deprecated 'master' role is assigned to the local node.
+    public void testLocalNodeIsMasterWithDeprecatedMasterRole() {
+        final DiscoveryNodes.Builder builderLocalIsMaster = DiscoveryNodes.builder();
+        final DiscoveryNode node0 = newNode("node_0", Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        final DiscoveryNode node1 = newNode("node_1", Set.of(DiscoveryNodeRole.DATA_ROLE));
+        builderLocalIsMaster.add(node0).add(node1).masterNodeId(node0.getId()).localNodeId(node0.getId());
+
+        final DiscoveryNodes.Builder builderLocalNotMaster = DiscoveryNodes.builder();
+        builderLocalNotMaster.add(node0).add(node1).masterNodeId(node0.getId()).localNodeId(node1.getId());
+
+        ClusterState previousState = createSimpleClusterState();
+        final Metadata metadata = createMetadata(initialIndices);
+        ClusterState newState = ClusterState.builder(TEST_CLUSTER_NAME)
+            .nodes(builderLocalIsMaster.build())
+            .metadata(metadata)
+            .routingTable(createRoutingTable(1, metadata))
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
+        assertTrue("local node should be master", event.localNodeMaster());
+
+        newState = ClusterState.builder(TEST_CLUSTER_NAME)
+            .nodes(builderLocalNotMaster.build())
+            .metadata(metadata)
+            .routingTable(createRoutingTable(1, metadata))
+            .build();
+        event = new ClusterChangedEvent("_na_", newState, previousState);
+        assertFalse("local node should not be master", event.localNodeMaster());
+    }
+
     private static class CustomMetadata2 extends TestCustomMetadata {
         protected CustomMetadata2(String data) {
             super(data);

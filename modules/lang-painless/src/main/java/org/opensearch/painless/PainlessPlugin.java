@@ -51,8 +51,8 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.painless.action.PainlessContextAction;
 import org.opensearch.painless.action.PainlessExecuteAction;
 import org.opensearch.painless.spi.PainlessExtension;
-import org.opensearch.painless.spi.Whitelist;
-import org.opensearch.painless.spi.WhitelistLoader;
+import org.opensearch.painless.spi.Allowlist;
+import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
@@ -83,7 +83,7 @@ import java.util.function.Supplier;
  */
 public final class PainlessPlugin extends Plugin implements ScriptPlugin, ExtensiblePlugin, ActionPlugin {
 
-    private static final Map<ScriptContext<?>, List<Whitelist>> allowlists;
+    private static final Map<ScriptContext<?>, List<Allowlist>> allowlists;
 
     /*
      * Contexts from Core that need custom allowlists can add them to the map below.
@@ -91,21 +91,21 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
      * under Painless' resources
      */
     static {
-        Map<ScriptContext<?>, List<Whitelist>> map = new HashMap<>();
+        Map<ScriptContext<?>, List<Allowlist>> map = new HashMap<>();
 
         // Moving Function Pipeline Agg
-        List<Whitelist> movFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        movFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.aggs.movfn.txt"));
+        List<Allowlist> movFn = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        movFn.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.aggs.movfn.txt"));
         map.put(MovingFunctionScript.CONTEXT, movFn);
 
         // Functions used for scoring docs
-        List<Whitelist> scoreFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        scoreFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.score.txt"));
+        List<Allowlist> scoreFn = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        scoreFn.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.score.txt"));
         map.put(ScoreScript.CONTEXT, scoreFn);
 
         // Functions available to ingest pipelines
-        List<Whitelist> ingest = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        ingest.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
+        List<Allowlist> ingest = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        ingest.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.ingest.txt"));
         map.put(IngestScript.CONTEXT, ingest);
 
         allowlists = map;
@@ -115,12 +115,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        Map<ScriptContext<?>, List<Whitelist>> contextsWithAllowlists = new HashMap<>();
+        Map<ScriptContext<?>, List<Allowlist>> contextsWithAllowlists = new HashMap<>();
         for (ScriptContext<?> context : contexts) {
             // we might have a context that only uses the base allowlists, so would not have been filled in by reloadSPI
-            List<Whitelist> contextAllowlists = allowlists.get(context);
+            List<Allowlist> contextAllowlists = allowlists.get(context);
             if (contextAllowlists == null) {
-                contextAllowlists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+                contextAllowlists = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
             }
             contextsWithAllowlists.put(context, contextAllowlists);
         }
@@ -156,9 +156,9 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     public void loadExtensions(ExtensionLoader loader) {
         loader.loadExtensions(PainlessExtension.class)
             .stream()
-            .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
+            .flatMap(extension -> extension.getContextAllowlists().entrySet().stream())
             .forEach(entry -> {
-                List<Whitelist> existing = allowlists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>(Whitelist.BASE_WHITELISTS));
+                List<Allowlist> existing = allowlists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>(Allowlist.BASE_ALLOWLISTS));
                 existing.addAll(entry.getValue());
             });
     }

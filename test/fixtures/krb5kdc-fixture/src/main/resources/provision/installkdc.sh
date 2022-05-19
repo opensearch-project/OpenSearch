@@ -29,7 +29,7 @@
 # GitHub history for details.
 #
 
-set -e
+set -e -o pipefail
 
 # KDC installation steps and considerations based on https://web.mit.edu/kerberos/krb5-latest/doc/admin/install_kdc.html
 # and helpful input from https://help.ubuntu.com/community/Kerberos

@@ -36,8 +36,8 @@ import junit.framework.AssertionFailedError;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.antlr.Walker;
-import org.opensearch.painless.spi.Whitelist;
-import org.opensearch.painless.spi.WhitelistLoader;
+import org.opensearch.painless.spi.Allowlist;
+import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptException;
 import org.opensearch.test.OpenSearchTestCase;
@@ -60,10 +60,10 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
     private static final PainlessScriptEngine SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, newDefaultContexts());
 
     /** Creates a new contexts map with PainlessTextScript = org.opensearch.painless.test */
-    protected static Map<ScriptContext<?>, List<Whitelist>> newDefaultContexts() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        List<Whitelist> allowlists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        allowlists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
+    protected static Map<ScriptContext<?>, List<Allowlist>> newDefaultContexts() {
+        Map<ScriptContext<?>, List<Allowlist>> contexts = new HashMap<>();
+        List<Allowlist> allowlists = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        allowlists.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.painless.test"));
         contexts.put(PainlessTestScript.CONTEXT, allowlists);
         return contexts;
     }

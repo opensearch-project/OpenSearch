@@ -742,6 +742,28 @@ public class NodeJoinTests extends OpenSearchTestCase {
         }
     }
 
+    // Validate the deprecated MASTER_ROLE can join another node and elected as leader.
+    public void testJoinElectedLeaderWithDeprecatedMasterRole() {
+        final Set<DiscoveryNodeRole> roles = singleton(DiscoveryNodeRole.MASTER_ROLE);
+        DiscoveryNode node0 = new DiscoveryNode("master0", "0", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        DiscoveryNode node1 = new DiscoveryNode("master1", "1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        long initialTerm = 1;
+        long initialVersion = 1;
+        setupFakeMasterServiceAndCoordinator(
+            initialTerm,
+            initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
+        assertFalse(isLocalNodeElectedMaster());
+        long newTerm = 2;
+        joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
+        assertTrue(isLocalNodeElectedMaster());
+        assertFalse(clusterStateHasNode(node1));
+        joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        assertTrue(isLocalNodeElectedMaster());
+        assertTrue(clusterStateHasNode(node1));
+    }
+
     private boolean isLocalNodeElectedMaster() {
         return MasterServiceTests.discoveryState(masterService).nodes().isLocalNodeElectedMaster();
     }

@@ -59,7 +59,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'com.google.api:api-common:1.8.1'
-  api 'com.google.api:gax:1.54.0'
+  api 'com.google.api:gax:2.17.0'
   api 'org.threeten:threetenbp:1.4.4'
   api 'com.google.protobuf:protobuf-java-util:3.20.0'
   api 'com.google.protobuf:protobuf-java:3.19.3'
@@ -75,7 +75,7 @@ dependencies {
   api 'com.google.http-client:google-http-client-jackson2:1.35.0'
   api 'com.google.http-client:google-http-client-gson:1.41.4'
   api 'com.google.api:gax-httpjson:0.101.0'
-  api 'io.grpc:grpc-context:1.45.1'
+  api 'io.grpc:grpc-context:1.46.0'
   api 'io.opencensus:opencensus-api:0.18.0'
   api 'io.opencensus:opencensus-contrib-http-util:0.18.0'
   api 'com.google.apis:google-api-services-storage:v1-rev20200814-1.30.10'
@@ -146,10 +146,7 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
-    'com.google.api.gax.rpc.ApiCallContext$Key',
-    'com.google.api.gax.rpc.internal.ApiCallContextOptions',
-    'com.google.api.gax.rpc.mtls.MtlsProvider',
-    'com.google.api.gax.tracing.BaseApiTracer',
+    'com.oracle.svm.core.configure.ResourcesRegistry',
     // commons-logging optional dependencies
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
@@ -197,6 +194,13 @@ thirdPartyAudit {
     'org.apache.http.protocol.HttpContext',
     'org.apache.http.protocol.HttpProcessor',
     'org.apache.http.protocol.HttpRequestExecutor',
+    'org.graalvm.nativeimage.ImageSingletons',
+    'org.graalvm.nativeimage.hosted.Feature',
+    'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
+    'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
+    'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
+    'org.graalvm.nativeimage.hosted.RuntimeReflection',
+    'org.graalvm.nativeimage.impl.ConfigurationCondition',
     // commons-logging provided dependencies
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
