@@ -207,19 +207,6 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
         assertEquals("explicit index in bulk is not allowed", ex.getMessage());
     }
 
-    public void testTypesStillParsedForBulkMonitoring() throws IOException {
-        BytesArray request = new BytesArray("{ \"index\":{ \"_type\": \"quux\", \"_id\": \"bar\" } }\n{}\n");
-        BulkRequestParser parser = new BulkRequestParser(false);
-        final AtomicBoolean parsed = new AtomicBoolean();
-        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, indexRequest -> {
-            assertFalse(parsed.get());
-            assertEquals("foo", indexRequest.index());
-            assertEquals("bar", indexRequest.id());
-            parsed.set(true);
-        }, req -> fail(), req -> fail());
-        assertTrue(parsed.get());
-    }
-
     public void testParseDeduplicatesParameterStrings() throws IOException {
         BytesArray request = new BytesArray(
             "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\"} }\n{}\n"
