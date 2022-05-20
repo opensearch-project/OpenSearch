@@ -221,6 +221,7 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("spanishpluralstem", Void.class)
         // LUCENE-10352
         .put("daitchmokotoffsoundex", Void.class)
+        .put("persianstem", Void.class)
         .immutableMap();
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String, Class<?>>()

@@ -763,6 +763,11 @@ public class MultiValueModeTests extends OpenSearchTestCase {
             public long getValueCount() {
                 return 1 << 20;
             }
+
+            @Override
+            public long docValueCount() {
+                return array[doc].length;
+            }
         };
         verifySortedSet(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
