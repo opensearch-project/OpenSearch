@@ -11,6 +11,11 @@ package org.opensearch.extensions;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * List of extension configurations from extension.yml
+ *
+ * @opensearch.internal
+ */
 public class ExtensionsSettings {
 
     private List<Extension> extensions;
@@ -19,6 +24,11 @@ public class ExtensionsSettings {
         extensions = new ArrayList<Extension>();
     }
 
+    /**
+     * Extension configuration used for extension discovery
+     *
+     * @opensearch.internal
+    */
     public static class Extension {
 
         private String name;
