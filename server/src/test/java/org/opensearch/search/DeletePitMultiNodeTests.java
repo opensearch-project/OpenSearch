@@ -29,6 +29,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 
 /**
@@ -76,7 +77,48 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         deletePITResponse = deleteExecute.get();
         assertTrue(deletePITResponse.isSucceeded());
+    }
 
+    public void testDeletePitWithValidAndDeletedIds() throws Exception {
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
+        List<String> pitIds = new ArrayList<>();
+        pitIds.add(pitResponse.getId());
+
+        /**
+         * Delete Pit #1
+         */
+        DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
+        ActionFuture<DeletePitResponse> deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
+        DeletePitResponse deletePITResponse = deleteExecute.get();
+        assertTrue(deletePITResponse.isSucceeded());
+
+        execute = client().execute(CreatePitAction.INSTANCE, request);
+        pitResponse = execute.get();
+        pitIds.add(pitResponse.getId());
+        /**
+         * Delete PIT with both Ids #1 (which is deleted) and #2 (which is present)
+         */
+        deletePITRequest = new DeletePitRequest(pitIds);
+        deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
+        deletePITResponse = deleteExecute.get();
+        assertTrue(deletePITResponse.isSucceeded());
+    }
+
+    public void testDeletePitWithValidAndInvalidIds() throws Exception {
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
+        List<String> pitIds = new ArrayList<>();
+        pitIds.add(pitResponse.getId());
+        pitIds.add("nondecodableid");
+        DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
+        ActionFuture<DeletePitResponse> deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
+        Exception e = assertThrows(ExecutionException.class, () -> deleteExecute.get());
+        assertThat(e.getMessage(), containsString("invalid id"));
     }
 
     public void testDeleteAllPits() throws Exception {
