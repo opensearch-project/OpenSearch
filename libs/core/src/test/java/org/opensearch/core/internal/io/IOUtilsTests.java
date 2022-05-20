@@ -40,7 +40,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.URI;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
@@ -172,10 +171,8 @@ public class IOUtilsTests extends OpenSearchTestCase {
         for (int i = 0; i < numberOfLocations; i++) {
             if (exception && randomBoolean()) {
                 final Path location = createTempDir();
-                final FileSystem fs = new AccessDeniedWhileDeletingFileSystem(location.getFileSystem()).getFileSystem(
-                    URI.create("file:///")
-                );
-                final Path wrapped = new FilterPath(location, fs);
+                final FilterFileSystemProvider ffsp = new AccessDeniedWhileDeletingFileSystem(location.getFileSystem());
+                final Path wrapped = ffsp.wrapPath(location);
                 locations[i] = wrapped.resolve(randomAlphaOfLength(8));
                 Files.createDirectory(locations[i]);
                 locationsThrowingException.add(locations[i]);
@@ -256,8 +253,8 @@ public class IOUtilsTests extends OpenSearchTestCase {
 
     public void testFsyncAccessDeniedOpeningDirectory() throws Exception {
         final Path path = createTempDir().toRealPath();
-        final FileSystem fs = new AccessDeniedWhileOpeningDirectoryFileSystem(path.getFileSystem()).getFileSystem(URI.create("file:///"));
-        final Path wrapped = new FilterPath(path, fs);
+        final FilterFileSystemProvider ffsp = new AccessDeniedWhileOpeningDirectoryFileSystem(path.getFileSystem());
+        final Path wrapped = ffsp.wrapPath(path);
         if (Constants.WINDOWS) {
             // no exception, we early return and do not even try to open the directory
             IOUtils.fsync(wrapped, true);
