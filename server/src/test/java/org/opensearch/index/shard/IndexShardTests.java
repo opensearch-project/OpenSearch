@@ -3429,23 +3429,21 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
-     * here we are mocking a SegmentReplicationcheckpointPublisher and testing that when a refresh happens on index shard if CheckpointRefreshListener is added to the InternalrefreshListerners List
+     * here we are mocking a SegmentReplicationcheckpointPublisher and testing on index shard if CheckpointRefreshListener is added to the InternalrefreshListerners List
      */
     public void testCheckpointRefreshListener() throws IOException {
         final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
         IndexShard shard = newStartedShard(p -> newShard(mock), true);
-        shard.refresh("test");
         List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
         assertTrue(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
         closeShards(shard);
     }
 
     /**
-     * here we are mocking a SegmentReplicationcheckpointPublisher and testing that when a refresh happens on index shard if CheckpointRefreshListener is added to the InternalrefreshListerners List
+     * here we are passing null in place of SegmentReplicationCheckpointPublisher and testing  on index shard if CheckpointRefreshListener is not added to the InternalrefreshListerners List
      */
     public void testCheckpointRefreshListenerWithNull() throws IOException {
         IndexShard shard = newStartedShard(p -> newShard(null), true);
-        shard.refresh("test");
         List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
         assertFalse(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
         closeShards(shard);
