@@ -136,6 +136,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -839,7 +840,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public IndexShard createShard(
         final ShardRouting shardRouting,
         final PeerRecoveryTargetService recoveryTargetService,
-        final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        final RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
         final Consumer<IndexShard.ShardFailure> onShardFailure,
         final Consumer<ShardId> globalCheckpointSyncer,
