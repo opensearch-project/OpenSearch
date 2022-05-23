@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.replication.copy;
+package org.opensearch.indices.replication.checkpoint;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;

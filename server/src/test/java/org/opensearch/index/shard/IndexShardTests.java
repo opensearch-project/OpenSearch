@@ -3441,6 +3441,17 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
+     * here we are mocking a SegmentReplicationcheckpointPublisher and testing that when a refresh happens on index shard if CheckpointRefreshListener is added to the InternalrefreshListerners List
+     */
+    public void testCheckpointRefreshListenerWithNull() throws IOException {
+        IndexShard shard = newStartedShard(p -> newShard(null), true);
+        shard.refresh("test");
+        List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
+        assertFalse(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
+        closeShards(shard);
+    }
+
+    /**
      * creates a new initializing shard. The shard will will be put in its proper path under the
      * current node id the shard is assigned to.
      * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint

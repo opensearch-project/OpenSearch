@@ -161,7 +161,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
-import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -324,7 +324,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
-        final SegmentReplicationCheckpointPublisher checkpointPublisher
+        @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -407,7 +407,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
-        if (indexSettings.isSegRepEnabled() == true) {
+        if (checkpointPublisher != null) {
             this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
         } else {
             this.checkpointRefreshListener = null;
@@ -1372,10 +1372,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Returns the lastest Replication Checkpoint that shard received
+     */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
         return new ReplicationCheckpoint(shardId, 0, 0, 0, 0);
     }
 
+    /**
+     * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
+     */
     public synchronized void onNewCheckpoint(final PublishCheckpointRequest request) {
         assert shardRouting.primary() == false;
         // TODO

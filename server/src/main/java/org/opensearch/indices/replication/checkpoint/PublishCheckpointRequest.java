@@ -11,7 +11,6 @@ package org.opensearch.indices.replication.checkpoint;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 
 import java.io.IOException;
 
