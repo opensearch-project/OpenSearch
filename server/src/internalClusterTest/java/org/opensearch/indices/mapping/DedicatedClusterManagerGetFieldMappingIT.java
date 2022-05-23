@@ -38,7 +38,7 @@ import static org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class DedicatedMasterGetFieldMappingIT extends SimpleGetFieldMappingsIT {
+public class DedicatedClusterManagerGetFieldMappingIT extends SimpleGetFieldMappingsIT {
 
     @Before
     public void before1() throws Exception {

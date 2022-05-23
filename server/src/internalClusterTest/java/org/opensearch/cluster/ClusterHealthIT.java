@@ -60,7 +60,7 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
 
     public void testSimpleLocalHealth() {
         createIndex("test");
-        ensureGreen(); // master should think it's green now.
+        ensureGreen(); // cluster-manager should think it's green now.
 
         for (final String node : internalCluster().getNodeNames()) {
             // a very high time out, which should never fire due to the local flag
@@ -336,7 +336,7 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
             assertFalse(client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
 
             // at this point the original health response should not have returned: there was never a point where the index was green AND
-            // the master had processed all pending tasks above LANGUID priority.
+            // the cluster-manager had processed all pending tasks above LANGUID priority.
             assertFalse(healthResponseFuture.isDone());
             keepSubmittingTasks.set(false);
             assertFalse(healthResponseFuture.actionGet(TimeValue.timeValueSeconds(30)).isTimedOut());
@@ -346,14 +346,14 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testHealthOnMasterFailover() throws Exception {
+    public void testHealthOnClusterManagerFailover() throws Exception {
         final String node = internalCluster().startDataOnlyNode();
         final boolean withIndex = randomBoolean();
         if (withIndex) {
-            // Create index with many shards to provoke the health request to wait (for green) while master is being shut down.
-            // Notice that this is set to 0 after the test completed starting a number of health requests and master restarts.
+            // Create index with many shards to provoke the health request to wait (for green) while cluster-manager is being shut down.
+            // Notice that this is set to 0 after the test completed starting a number of health requests and cluster-manager restarts.
             // This ensures that the cluster is yellow when the health request is made, making the health request wait on the observer,
-            // triggering a call to observer.onClusterServiceClose when master is shutdown.
+            // triggering a call to observer.onClusterServiceClose when cluster-manager is shutdown.
             createIndex(
                 "test",
                 Settings.builder()
@@ -364,8 +364,8 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
             );
         }
         final List<ActionFuture<ClusterHealthResponse>> responseFutures = new ArrayList<>();
-        // Run a few health requests concurrent to master fail-overs against a data-node to make sure master failover is handled
-        // without exceptions
+        // Run a few health requests concurrent to cluster-manager fail-overs against a data-node
+        // to make sure cluster-manager failover is handled without exceptions
         final int iterations = withIndex ? 10 : 20;
         for (int i = 0; i < iterations; ++i) {
             responseFutures.add(
@@ -394,7 +394,7 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testWaitForEventsTimesOutIfMasterBusy() {
+    public void testWaitForEventsTimesOutIfClusterManagerBusy() {
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();

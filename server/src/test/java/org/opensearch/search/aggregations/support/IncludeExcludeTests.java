@@ -98,6 +98,10 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
                 return 1;
             }
 
+            @Override
+            public long docValueCount() {
+                return 1;
+            }
         };
         IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
