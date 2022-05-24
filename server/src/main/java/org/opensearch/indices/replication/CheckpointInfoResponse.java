@@ -19,7 +19,8 @@ import java.util.Set;
 
 /**
  * Response returned from a {@link SegmentReplicationSource} that includes the file metadata, and SegmentInfos
- * associated with a particular {@link ReplicationCheckpoint}.
+ * associated with a particular {@link ReplicationCheckpoint}. The {@link SegmentReplicationSource} may determine that
+ * the requested {@link ReplicationCheckpoint} is behind and return a different {@link ReplicationCheckpoint} in this response.
  *
  * @opensearch.internal
  */

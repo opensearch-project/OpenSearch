@@ -18,15 +18,17 @@ import java.util.List;
 
 /**
  * TransportRequest to fetch segments from another Node.
+ * Request includes a list of {@link StoreFileMetadata} of the files to copy and
+ * the related {@link ReplicationCheckpoint}.
  *
  * @opensearch.internal
  */
-public class GetFilesRequest extends SegmentReplicationTransportRequest {
+public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest {
 
     private final List<StoreFileMetadata> filesToFetch;
     private final ReplicationCheckpoint checkpoint;
 
-    public GetFilesRequest(
+    public GetSegmentFilesRequest(
         long replicationId,
         String targetAllocationId,
         DiscoveryNode targetNode,
@@ -38,7 +40,7 @@ public class GetFilesRequest extends SegmentReplicationTransportRequest {
         this.checkpoint = checkpoint;
     }
 
-    public GetFilesRequest(StreamInput in) throws IOException {
+    public GetSegmentFilesRequest(StreamInput in) throws IOException {
         super(in);
         this.filesToFetch = in.readList(StoreFileMetadata::new);
         this.checkpoint = new ReplicationCheckpoint(in);

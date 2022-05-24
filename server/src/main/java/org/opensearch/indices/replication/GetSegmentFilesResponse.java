@@ -19,11 +19,11 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class GetFilesResponse extends TransportResponse {
+public class GetSegmentFilesResponse extends TransportResponse {
 
-    public GetFilesResponse() {}
+    public GetSegmentFilesResponse() {}
 
-    public GetFilesResponse(StreamInput streamInput) {
+    public GetSegmentFilesResponse(StreamInput streamInput) {
 
     }
 

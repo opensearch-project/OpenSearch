@@ -28,6 +28,6 @@ public interface SegmentReplicationSource {
         ReplicationCheckpoint checkpoint,
         Store store,
         List<StoreFileMetadata> filesToFetch,
-        StepListener<GetFilesResponse> listener
+        StepListener<GetSegmentFilesResponse> listener
     );
 }

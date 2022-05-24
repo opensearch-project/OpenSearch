@@ -15,20 +15,20 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Request object for fetching Segment Metadata from a {@link ReplicationCheckpoint}
+ * Request object for fetching Segment Metadata for a {@link ReplicationCheckpoint} from a {@link SegmentReplicationSource}.
  *
  * @opensearch.internal
  */
-public class GetCheckpointInfoRequest extends SegmentReplicationTransportRequest {
+public class CheckpointInfoRequest extends SegmentReplicationTransportRequest {
 
     private final ReplicationCheckpoint checkpoint;
 
-    public GetCheckpointInfoRequest(StreamInput in) throws IOException {
+    public CheckpointInfoRequest(StreamInput in) throws IOException {
         super(in);
         checkpoint = new ReplicationCheckpoint(in);
     }
 
-    public GetCheckpointInfoRequest(
+    public CheckpointInfoRequest(
         long replicationId,
         String targetAllocationId,
         DiscoveryNode targetNode,

@@ -33,10 +33,10 @@ public abstract class SegmentReplicationTransportRequest extends TransportReques
         targetNode = new DiscoveryNode(in);
     }
 
-    protected SegmentReplicationTransportRequest(long replicationId, String targetAllocationId, DiscoveryNode discoveryNode) {
+    protected SegmentReplicationTransportRequest(long replicationId, String targetAllocationId, DiscoveryNode targetNode) {
         this.replicationId = replicationId;
         this.targetAllocationId = targetAllocationId;
-        this.targetNode = discoveryNode;
+        this.targetNode = targetNode;
     }
 
     @Override

@@ -50,7 +50,7 @@ public class PeerReplicationSource implements SegmentReplicationSource {
     public void getCheckpointMetadata(long replicationId, ReplicationCheckpoint checkpoint, StepListener<CheckpointInfoResponse> listener) {
         final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
-        GetCheckpointInfoRequest request = new GetCheckpointInfoRequest(replicationId, allocationId, localNode, checkpoint);
+        CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, allocationId, localNode, checkpoint);
         transportClient.executeRetryableAction(GET_CHECKPOINT_INFO, request, responseListener, reader);
     }
 
@@ -60,12 +60,12 @@ public class PeerReplicationSource implements SegmentReplicationSource {
         ReplicationCheckpoint checkpoint,
         Store store,
         List<StoreFileMetadata> filesToFetch,
-        StepListener<GetFilesResponse> listener
+        StepListener<GetSegmentFilesResponse> listener
     ) {
-        final Writeable.Reader<GetFilesResponse> reader = GetFilesResponse::new;
-        final ActionListener<GetFilesResponse> responseListener = ActionListener.map(listener, r -> r);
+        final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
+        final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
 
-        GetFilesRequest request = new GetFilesRequest(replicationId, allocationId, localNode, filesToFetch, checkpoint);
+        GetSegmentFilesRequest request = new GetSegmentFilesRequest(replicationId, allocationId, localNode, filesToFetch, checkpoint);
         transportClient.executeRetryableAction(GET_FILES, request, responseListener, reader);
     }
 }
