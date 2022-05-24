@@ -19,7 +19,6 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
-import org.opensearch.indices.recovery.RateLimitedFileChunkHandler;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
@@ -152,7 +151,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             try (ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.getSafe(request.recoveryId(), request.shardId())) {
                 final SegmentReplicationTarget target = ref.get();
                 final ActionListener<Void> listener = target.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
-                RateLimitedFileChunkHandler.handleFileChunk(
+                target.handleFileChunk(
                     request,
                     target,
                     bytesSinceLastPause,

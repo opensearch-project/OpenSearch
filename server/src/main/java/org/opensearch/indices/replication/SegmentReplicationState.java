@@ -21,11 +21,13 @@ public class SegmentReplicationState implements ReplicationState {
 
     @Override
     public ReplicationLuceneIndex getIndex() {
+        // TODO
         return null;
     }
 
     @Override
     public ReplicationTimer getTimer() {
+        // TODO
         return null;
     }
 }

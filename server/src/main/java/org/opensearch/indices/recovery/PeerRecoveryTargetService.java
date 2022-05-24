@@ -529,7 +529,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
-                RateLimitedFileChunkHandler.handleFileChunk(
+                recoveryTarget.handleFileChunk(
                     request,
                     recoveryTarget,
                     bytesSinceLastPause,

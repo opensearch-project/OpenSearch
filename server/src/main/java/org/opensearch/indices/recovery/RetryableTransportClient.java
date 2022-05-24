@@ -34,7 +34,7 @@ import org.opensearch.transport.TransportService;
 import java.util.Map;
 
 /**
- * Transport client that implements retry functionality using {@link RecoverySettings}
+ * Transport client that implements retry functionality.
  *
  * @opensearch.internal
  */
@@ -56,6 +56,14 @@ public final class RetryableTransportClient {
         this.targetNode = targetNode;
     }
 
+    /**
+     * Execute a retryable action.
+     * @param action {@link String} Action Name.
+     * @param request {@link TransportRequest} Transport request to execute.
+     * @param actionListener {@link ActionListener} Listener to complete
+     * @param reader {@link Writeable.Reader} Reader to read the response stream.
+     * @param <T> {@link TransportResponse} type.
+     */
     public <T extends TransportResponse> void executeRetryableAction(
         String action,
         TransportRequest request,
