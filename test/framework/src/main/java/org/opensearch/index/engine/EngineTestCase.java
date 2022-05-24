@@ -328,21 +328,23 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         super.tearDown();
         try {
             if (engine != null && engine.isClosed.get() == false) {
-                engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-                assertNoInFlightDocuments(engine);
-                assertMaxSeqNoInCommitUserData(engine);
-                assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
+                assertEngineCleanedUp(engine, engine.getTranslog());
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
-                replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine);
-                assertNoInFlightDocuments(replicaEngine);
-                assertMaxSeqNoInCommitUserData(replicaEngine);
-                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
+                assertEngineCleanedUp(replicaEngine, replicaEngine.getTranslog());
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
+        }
+    }
+
+    protected void assertEngineCleanedUp(Engine engine, Translog translog) throws Exception {
+        if (engine.isClosed.get() == false) {
+            translog.getDeletionPolicy().assertNoOpenTranslogRefs();
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+            assertNoInFlightDocuments(engine);
+            assertMaxSeqNoInCommitUserData(engine);
+            assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
         }
     }
 

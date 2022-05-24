@@ -3160,7 +3160,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             globalCheckpointSupplier,
             replicationTracker::getRetentionLeases,
             () -> getOperationPrimaryTerm(),
-            tombstoneDocSupplier()
+            tombstoneDocSupplier(),
+            indexSettings.isSegRepEnabled() && shardRouting.primary() == false
         );
     }
 
