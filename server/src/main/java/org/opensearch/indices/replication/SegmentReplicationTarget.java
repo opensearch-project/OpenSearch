@@ -14,6 +14,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationTarget;

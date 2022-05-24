@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;

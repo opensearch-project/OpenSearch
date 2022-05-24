@@ -15,6 +15,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;

@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.opensearch.action.ActionListener;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.util.List;
 

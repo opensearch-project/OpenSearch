@@ -21,6 +21,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RateLimitedFileChunkHandler;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
 import org.opensearch.indices.replication.common.ReplicationListener;
