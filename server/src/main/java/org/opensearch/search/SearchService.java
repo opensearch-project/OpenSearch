@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
@@ -1022,7 +1021,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Free reader context if found otherwise return false
+     * Free reader context if found
      */
     public boolean freeReaderContextIfFound(ShardSearchContextId contextId) {
         try {
@@ -1038,20 +1037,40 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
+     * Free reader contexts if found
+     */
+    public boolean freeReaderContextsIfFound(List<ShardSearchContextId> contextIds) {
+        boolean success = true;
+        for (ShardSearchContextId contextId : contextIds) {
+            try {
+                if (getReaderContext(contextId) != null) {
+                    try (ReaderContext context = removeReaderContext(contextId.getId())) {
+                        boolean freed = context != null;
+                        if (!freed) {
+                            success = false;
+                        }
+                    }
+                }
+            } catch (SearchContextMissingException e) {
+                // do nothing in case of context not found case
+            }
+        }
+        return success;
+    }
+
+    /**
      * Free all active pit contexts
      */
     public boolean freeAllPitContexts() {
-        final SetOnce<Boolean> isFreed = new SetOnce<>();
+        boolean success = true;
         for (ReaderContext readerContext : activeReaders.values()) {
             if (readerContext instanceof PitReaderContext) {
-                final boolean succeeded = freeReaderContextIfFound(readerContext.id());
-                if (!succeeded) {
-                    isFreed.trySet(false);
+                if (!freeReaderContextIfFound(readerContext.id())) {
+                    success = false;
                 }
             }
         }
-        isFreed.trySet(true);
-        return isFreed.get();
+        return success;
     }
 
     /**

@@ -33,33 +33,25 @@ public class DeletePitRequest extends ActionRequest implements ToXContentObject 
     /**
      * List of PIT IDs to be deleted , and use "_all" to delete all PIT reader contexts
      */
-    private List<String> pitIds;
+    private final List<String> pitIds = new ArrayList<>();
 
     public DeletePitRequest(StreamInput in) throws IOException {
         super(in);
-        pitIds = Arrays.asList(in.readStringArray());
+        pitIds.addAll(Arrays.asList(in.readStringArray()));
     }
 
     public DeletePitRequest(String... pitIds) {
-        if (pitIds != null) {
-            this.pitIds = Arrays.asList(pitIds);
-        }
+        this.pitIds.addAll(Arrays.asList(pitIds));
     }
 
     public DeletePitRequest(List<String> pitIds) {
-        if (pitIds != null) {
-            this.pitIds = pitIds;
-        }
+        this.pitIds.addAll(pitIds);
     }
 
     public DeletePitRequest() {}
 
     public List<String> getPitIds() {
         return pitIds;
-    }
-
-    public void setPitIds(List<String> pitIds) {
-        this.pitIds = pitIds;
     }
 
     @Override
@@ -81,13 +73,6 @@ public class DeletePitRequest extends ActionRequest implements ToXContentObject 
         }
     }
 
-    public void addPitId(String pitId) {
-        if (pitIds == null) {
-            pitIds = new ArrayList<>();
-        }
-        pitIds.add(pitId);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -101,7 +86,7 @@ public class DeletePitRequest extends ActionRequest implements ToXContentObject 
     }
 
     public void fromXContent(XContentParser parser) throws IOException {
-        pitIds = null;
+        pitIds.clear();
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Malformed content, must start with an object");
         } else {
@@ -116,13 +101,13 @@ public class DeletePitRequest extends ActionRequest implements ToXContentObject 
                             if (token.isValue() == false) {
                                 throw new IllegalArgumentException("pit_id array element should only contain pit_id");
                             }
-                            addPitId(parser.text());
+                            pitIds.add(parser.text());
                         }
                     } else {
                         if (token.isValue() == false) {
                             throw new IllegalArgumentException("pit_id element should only contain pit_id");
                         }
-                        addPitId(parser.text());
+                        pitIds.add(parser.text());
                     }
                 } else {
                     throw new IllegalArgumentException(

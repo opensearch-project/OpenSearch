@@ -17,10 +17,13 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Strings;
+import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -52,15 +55,17 @@ public class SearchUtils {
     }
 
     /**
-     * Delete list of pits, return success if all reader contexts are deleted ( or not found ).
+     * Delete list of pit contexts. Returns success only if each reader context is either deleted or not found.
      */
-    public static void deletePits(
-        Collection<SearchContextIdForNode> contexts,
+    public static void deletePitContexts(
+        Map<String, List<SearchContextIdForNode>> nodeToContextsMap,
         ActionListener<Integer> listener,
         ClusterState state,
         SearchTransportService searchTransportService
     ) {
-        final Set<String> clusters = contexts.stream()
+        final Set<String> clusters = nodeToContextsMap.values()
+            .stream()
+            .flatMap(Collection::stream)
             .filter(ctx -> Strings.isEmpty(ctx.getClusterAlias()) == false)
             .map(SearchContextIdForNode::getClusterAlias)
             .collect(Collectors.toSet());
@@ -75,23 +80,28 @@ public class SearchUtils {
                     listener,
                     (l, result) -> l.onResponse(Math.toIntExact(result.stream().filter(r -> r).count()))
                 ),
-                contexts.size()
+                nodeToContextsMap.size()
             );
 
-            for (SearchContextIdForNode contextId : contexts) {
-                final DiscoveryNode node = nodeLookup.apply(contextId.getClusterAlias(), contextId.getNode());
+            for (Map.Entry<String, List<SearchContextIdForNode>> entry : nodeToContextsMap.entrySet()) {
+                String clusterAlias = entry.getValue().get(0).getClusterAlias();
+                final DiscoveryNode node = nodeLookup.apply(clusterAlias, entry.getValue().get(0).getNode());
                 if (node == null) {
                     groupedListener.onFailure(new OpenSearchException("node not found"));
                 } else {
                     try {
-                        final Transport.Connection connection = searchTransportService.getConnection(contextId.getClusterAlias(), node);
-                        searchTransportService.sendFreePITContext(
+                        final Transport.Connection connection = searchTransportService.getConnection(clusterAlias, node);
+                        List<ShardSearchContextId> contextIds = entry.getValue()
+                            .stream()
+                            .map(r -> r.getSearchContextId())
+                            .collect(Collectors.toList());
+                        searchTransportService.sendFreePITContexts(
                             connection,
-                            contextId.getSearchContextId(),
+                            contextIds,
                             ActionListener.wrap(r -> groupedListener.onResponse(r.isFreed()), e -> groupedListener.onResponse(false))
                         );
                     } catch (Exception e) {
-                        logger.debug("Delete PIT failed ", e);
+                        logger.error("Delete PIT failed ", e);
                         groupedListener.onResponse(false);
                     }
                 }

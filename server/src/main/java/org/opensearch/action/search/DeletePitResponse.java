@@ -27,12 +27,12 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
 /**
- * Response class for delete pit flow which returns if the contexts are freed
+ * Response class for delete pits flow which returns if the contexts are freed
  */
 public class DeletePitResponse extends ActionResponse implements StatusToXContentObject {
 
     /**
-     * This will be true if all PIT reader contexts are deleted.
+     * This will be true if PIT reader contexts are deleted ond also if contexts are not found.
      */
     private final boolean succeeded;
 

@@ -280,9 +280,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
             .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueSeconds(3)))
             .get();
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        Thread.sleep(2500);
         assertEquals(2, service.getActiveContexts());
-        Thread.sleep(1000);
+        Thread.sleep(3500);
         assertEquals(0, service.getActiveContexts());
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
             client().prepareSearch("index")

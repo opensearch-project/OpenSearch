@@ -12,7 +12,7 @@ package org.opensearch.action.search;
 import org.opensearch.action.ActionType;
 
 /**
- * Action type for deleting PIT reader contexts
+ * Action type for deleting point in time searches
  */
 public class DeletePitAction extends ActionType<DeletePitResponse> {
 

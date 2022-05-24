@@ -28,9 +28,12 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.Transport;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -260,7 +263,7 @@ public class CreatePitController {
             @Override
             public void onResponse(Integer freed) {
                 // log the number of freed contexts - this is invoke and forget call
-                logger.debug(() -> new ParameterizedMessage("Cleaned up {} contexts out of {}", freed, contexts.size()));
+                logger.debug(() -> new ParameterizedMessage("Cleared contexts in {} nodes out of {}", freed, contexts.size()));
             }
 
             @Override
@@ -268,6 +271,13 @@ public class CreatePitController {
                 logger.error("Cleaning up PIT contexts failed ", e);
             }
         };
-        SearchUtils.deletePits(contexts, deleteListener, clusterService.state(), searchTransportService);
+
+        Map<String, List<SearchContextIdForNode>> nodeToContextsMap = new HashMap<>();
+        for (SearchContextIdForNode context : contexts) {
+            List<SearchContextIdForNode> contextIdsForNode = nodeToContextsMap.getOrDefault(context.getNode(), new ArrayList<>());
+            contextIdsForNode.add(context);
+            nodeToContextsMap.put(context.getNode(), contextIdsForNode);
+        }
+        SearchUtils.deletePitContexts(nodeToContextsMap, deleteListener, clusterService.state(), searchTransportService);
     }
 }

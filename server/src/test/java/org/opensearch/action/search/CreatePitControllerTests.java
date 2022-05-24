@@ -197,9 +197,9 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                      * Test if cleanup request is called
                      */
                     @Override
-                    public void sendFreePITContext(
+                    public void sendFreePITContexts(
                         Transport.Connection connection,
-                        ShardSearchContextId contextId,
+                        List<ShardSearchContextId> contextIds,
                         ActionListener<SearchFreeContextResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
@@ -292,9 +292,9 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void sendFreePITContext(
+                    public void sendFreePITContexts(
                         Transport.Connection connection,
-                        ShardSearchContextId contextId,
+                        List<ShardSearchContextId> contextIds,
                         ActionListener<SearchFreeContextResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
@@ -389,9 +389,9 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void sendFreePITContext(
+                    public void sendFreePITContexts(
                         Transport.Connection connection,
-                        ShardSearchContextId contextId,
+                        List<ShardSearchContextId> contextIds,
                         ActionListener<SearchFreeContextResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
@@ -479,9 +479,9 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void sendFreePITContext(
+                    public void sendFreePITContexts(
                         Transport.Connection connection,
-                        ShardSearchContextId contextId,
+                        List<ShardSearchContextId> contextIds,
                         ActionListener<SearchFreeContextResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());

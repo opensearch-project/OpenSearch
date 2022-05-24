@@ -160,9 +160,9 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
 
                     @Override
-                    public void sendFreePITContext(
+                    public void sendFreePITContexts(
                         Transport.Connection connection,
-                        ShardSearchContextId contextId,
+                        List<ShardSearchContextId> contextIds,
                         ActionListener<SearchFreeContextResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
@@ -274,9 +274,9 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
 
                     @Override
-                    public void sendFreePITContext(
+                    public void sendFreePITContexts(
                         Transport.Connection connection,
-                        ShardSearchContextId contextId,
+                        List<ShardSearchContextId> contextIds,
                         ActionListener<SearchFreeContextResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
@@ -337,9 +337,9 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
                     @Override
-                    public void sendFreePITContext(
+                    public void sendFreePITContexts(
                         Transport.Connection connection,
-                        ShardSearchContextId contextId,
+                        List<ShardSearchContextId> contextIds,
                         ActionListener<SearchFreeContextResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
@@ -397,9 +397,9 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
 
                     @Override
-                    public void sendFreePITContext(
+                    public void sendFreePITContexts(
                         Transport.Connection connection,
-                        ShardSearchContextId contextId,
+                        List<ShardSearchContextId> contextId,
                         ActionListener<SearchFreeContextResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());

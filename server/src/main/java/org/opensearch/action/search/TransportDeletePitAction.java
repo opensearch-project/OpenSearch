@@ -25,10 +25,12 @@ import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Transport action for deleting pit reader context - supports deleting list and all pit contexts
+ * Transport action for deleting point in time searches - supports deleting list and all point in time searches
  */
 public class TransportDeletePitAction extends HandledTransportAction<DeletePitRequest, DeletePitResponse> {
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -70,23 +72,33 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      * Deletes list of pits, return success if all reader contexts are deleted ( or not found ).
      */
     private void deletePits(ActionListener<DeletePitResponse> listener, DeletePitRequest request) {
-        List<SearchContextIdForNode> contexts = new ArrayList<>();
+        Map<String, List<SearchContextIdForNode>> nodeToContextsMap = new HashMap<>();
         for (String pitId : request.getPitIds()) {
             SearchContextId contextId = SearchContextId.decode(namedWriteableRegistry, pitId);
-            contexts.addAll(contextId.shards().values());
+            for (SearchContextIdForNode contextIdForNode : contextId.shards().values()) {
+                List<SearchContextIdForNode> contexts = nodeToContextsMap.getOrDefault(contextIdForNode.getNode(), new ArrayList<>());
+                contexts.add(contextIdForNode);
+                nodeToContextsMap.put(contextIdForNode.getNode(), contexts);
+            }
         }
         ActionListener<Integer> deleteListener = ActionListener.wrap(r -> {
-            if (r == contexts.size()) {
+            if (r == nodeToContextsMap.size()) {
                 listener.onResponse(new DeletePitResponse(true));
             } else {
-                logger.debug(() -> new ParameterizedMessage("Delete PITs failed. " + "Cleared {} contexts out of {}", r, contexts.size()));
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "Delete PITs failed. Cleared contexts in {} nodes out of {}",
+                        r,
+                        nodeToContextsMap.size()
+                    )
+                );
                 listener.onResponse(new DeletePitResponse(false));
             }
         }, e -> {
-            logger.debug("Delete PITs failed ", e);
+            logger.error("Delete PITs failed ", e);
             listener.onResponse(new DeletePitResponse(false));
         });
-        SearchUtils.deletePits(contexts, deleteListener, clusterService.state(), searchTransportService);
+        SearchUtils.deletePitContexts(nodeToContextsMap, deleteListener, clusterService.state(), searchTransportService);
     }
 
     /**
@@ -104,7 +116,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
 
                 @Override
                 public void onFailure(final Exception e) {
-                    logger.debug("Delete all PITs failed ", e);
+                    logger.error("Delete all PITs failed ", e);
                     listener.onResponse(new DeletePitResponse(false));
                 }
             },

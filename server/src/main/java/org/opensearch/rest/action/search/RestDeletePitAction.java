@@ -35,10 +35,11 @@ public class RestDeletePitAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String allPitIdsQualifier = "_all";
-        DeletePitRequest deletePITRequest = new DeletePitRequest();
+        final DeletePitRequest deletePITRequest;
         if (request.path().contains(allPitIdsQualifier)) {
-            deletePITRequest.setPitIds(asList(allPitIdsQualifier));
+            deletePITRequest = new DeletePitRequest(asList(allPitIdsQualifier));
         } else {
+            deletePITRequest = new DeletePitRequest();
             request.withContentOrSourceParamParserOrNull((xContentParser -> {
                 if (xContentParser != null) {
                     try {
