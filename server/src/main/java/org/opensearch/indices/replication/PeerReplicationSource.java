@@ -47,7 +47,7 @@ public class PeerReplicationSource implements SegmentReplicationSource {
     }
 
     @Override
-    public void getCheckpointMetadata(long replicationId, ReplicationCheckpoint checkpoint, StepListener<CheckpointInfoResponse> listener) {
+    public void getCheckpointMetadata(long replicationId, ReplicationCheckpoint checkpoint, ActionListener<CheckpointInfoResponse> listener) {
         final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
         CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, allocationId, localNode, checkpoint);
@@ -55,12 +55,12 @@ public class PeerReplicationSource implements SegmentReplicationSource {
     }
 
     @Override
-    public void getFiles(
+    public void getSegmentFiles(
         long replicationId,
         ReplicationCheckpoint checkpoint,
-        Store store,
         List<StoreFileMetadata> filesToFetch,
-        StepListener<GetSegmentFilesResponse> listener
+        Store store,
+        ActionListener<GetSegmentFilesResponse> listener
     ) {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
