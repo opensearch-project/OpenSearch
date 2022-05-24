@@ -38,37 +38,35 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public abstract class RetryableTransportClient {
+public final class RetryableTransportClient {
 
     private static final Logger logger = LogManager.getLogger(RetryableTransportClient.class);
 
     private final ThreadPool threadPool;
     private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
     private volatile boolean isCancelled = false;
-    protected final TransportService transportService;
-    protected final RecoverySettings recoverySettings;
-    protected final DiscoveryNode targetNode;
+    private final TransportService transportService;
+    private final TimeValue retryTimeout;
+    private final DiscoveryNode targetNode;
 
-    public RetryableTransportClient(TransportService transportService, RecoverySettings recoverySettings, DiscoveryNode targetNode) {
+    public RetryableTransportClient(TransportService transportService, DiscoveryNode targetNode, TimeValue retryTimeout) {
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
-        this.recoverySettings = recoverySettings;
+        this.retryTimeout = retryTimeout;
         this.targetNode = targetNode;
     }
 
-    protected final <T extends TransportResponse> void executeRetryableAction(
+    public <T extends TransportResponse> void executeRetryableAction(
         String action,
         TransportRequest request,
         ActionListener<T> actionListener,
         Writeable.Reader<T> reader
     ) {
-        final TransportRequestOptions options = TransportRequestOptions.builder()
-            .withTimeout(recoverySettings.internalActionLongTimeout())
-            .build();
+        final TransportRequestOptions options = TransportRequestOptions.builder().withTimeout(retryTimeout).build();
         executeRetryableAction(action, request, options, actionListener, reader);
     }
 
-    final <T extends TransportResponse> void executeRetryableAction(
+    <T extends TransportResponse> void executeRetryableAction(
         String action,
         TransportRequest request,
         TransportRequestOptions options,
@@ -78,8 +76,7 @@ public abstract class RetryableTransportClient {
         final Object key = new Object();
         final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> onGoingRetryableActions.remove(key));
         final TimeValue initialDelay = TimeValue.timeValueMillis(200);
-        final TimeValue timeout = recoverySettings.internalActionRetryTimeout();
-        final RetryableAction<T> retryableAction = new RetryableAction<T>(logger, threadPool, initialDelay, timeout, removeListener) {
+        final RetryableAction<T> retryableAction = new RetryableAction<T>(logger, threadPool, initialDelay, retryTimeout, removeListener) {
 
             @Override
             public void tryAction(ActionListener<T> listener) {
@@ -104,19 +101,6 @@ public abstract class RetryableTransportClient {
         }
     }
 
-    private static boolean retryableException(Exception e) {
-        if (e instanceof ConnectTransportException) {
-            return true;
-        } else if (e instanceof SendRequestTransportException) {
-            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-            return cause instanceof ConnectTransportException;
-        } else if (e instanceof RemoteTransportException) {
-            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-            return cause instanceof CircuitBreakingException || cause instanceof OpenSearchRejectedExecutionException;
-        }
-        return false;
-    }
-
     public void cancel() {
         isCancelled = true;
         if (onGoingRetryableActions.isEmpty()) {
@@ -130,6 +114,18 @@ public abstract class RetryableTransportClient {
             }
             onGoingRetryableActions.clear();
         });
+    }
 
+    private static boolean retryableException(Exception e) {
+        if (e instanceof ConnectTransportException) {
+            return true;
+        } else if (e instanceof SendRequestTransportException) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            return cause instanceof ConnectTransportException;
+        } else if (e instanceof RemoteTransportException) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            return cause instanceof CircuitBreakingException || cause instanceof OpenSearchRejectedExecutionException;
+        }
+        return false;
     }
 }

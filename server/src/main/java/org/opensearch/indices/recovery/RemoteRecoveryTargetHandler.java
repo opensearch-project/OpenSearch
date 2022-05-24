@@ -59,10 +59,13 @@ import java.util.function.Consumer;
  *
  * @opensearch.internal
  */
-public class RemoteRecoveryTargetHandler extends RetryableTransportClient implements RecoveryTargetHandler {
+public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
+    private final TransportService transportService;
     private final long recoveryId;
     private final ShardId shardId;
+    private final DiscoveryNode targetNode;
+    private final RecoverySettings recoverySettings;
 
     private final TransportRequestOptions translogOpsRequestOptions;
     private final TransportRequestOptions fileChunkRequestOptions;
@@ -71,6 +74,7 @@ public class RemoteRecoveryTargetHandler extends RetryableTransportClient implem
     private final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
 
     private final Consumer<Long> onSourceThrottle;
+    private final RetryableTransportClient retryableTransportClient;
 
     public RemoteRecoveryTargetHandler(
         long recoveryId,
@@ -80,9 +84,16 @@ public class RemoteRecoveryTargetHandler extends RetryableTransportClient implem
         RecoverySettings recoverySettings,
         Consumer<Long> onSourceThrottle
     ) {
-        super(transportService, recoverySettings, targetNode);
+        this.transportService = transportService;
+        this.retryableTransportClient = new RetryableTransportClient(
+            transportService,
+            targetNode,
+            recoverySettings.internalActionRetryTimeout()
+        );
         this.recoveryId = recoveryId;
         this.shardId = shardId;
+        this.targetNode = targetNode;
+        this.recoverySettings = recoverySettings;
         this.onSourceThrottle = onSourceThrottle;
         this.translogOpsRequestOptions = TransportRequestOptions.builder()
             .withType(TransportRequestOptions.Type.RECOVERY)
@@ -110,7 +121,7 @@ public class RemoteRecoveryTargetHandler extends RetryableTransportClient implem
         );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, responseListener, reader);
+        retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
     }
 
     @Override
@@ -126,7 +137,7 @@ public class RemoteRecoveryTargetHandler extends RetryableTransportClient implem
         );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, responseListener, reader);
+        retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
     }
 
     @Override
@@ -165,7 +176,7 @@ public class RemoteRecoveryTargetHandler extends RetryableTransportClient implem
         );
         final Writeable.Reader<RecoveryTranslogOperationsResponse> reader = RecoveryTranslogOperationsResponse::new;
         final ActionListener<RecoveryTranslogOperationsResponse> responseListener = ActionListener.map(listener, r -> r.localCheckpoint);
-        executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
+        retryableTransportClient.executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
     }
 
     @Override
@@ -191,7 +202,7 @@ public class RemoteRecoveryTargetHandler extends RetryableTransportClient implem
         );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, responseListener, reader);
+        retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
     }
 
     @Override
@@ -213,7 +224,7 @@ public class RemoteRecoveryTargetHandler extends RetryableTransportClient implem
         );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, responseListener, reader);
+        retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
     }
 
     @Override
@@ -265,6 +276,17 @@ public class RemoteRecoveryTargetHandler extends RetryableTransportClient implem
             throttleTimeInNanos
         );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        executeRetryableAction(action, request, fileChunkRequestOptions, ActionListener.map(listener, r -> null), reader);
+        retryableTransportClient.executeRetryableAction(
+            action,
+            request,
+            fileChunkRequestOptions,
+            ActionListener.map(listener, r -> null),
+            reader
+        );
+    }
+
+    @Override
+    public void cancel() {
+        retryableTransportClient.cancel();
     }
 }

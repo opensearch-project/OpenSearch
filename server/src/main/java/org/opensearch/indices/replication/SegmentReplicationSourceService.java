@@ -26,4 +26,7 @@ public class SegmentReplicationSourceService {
         public static final String GET_FILES = "internal:index/shard/segrep/get_files";
     }
 
+    public SegmentReplicationSourceService() {
+        // TODO add handlers for both actions.
+    }
 }

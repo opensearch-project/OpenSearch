@@ -45,36 +45,40 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     protected void closeInternal() {
-
+        // TODO
     }
 
     @Override
     protected String getPrefix() {
+        // TODO
         return null;
     }
 
     @Override
     protected void onDone() {
-
+        // TODO
     }
 
     @Override
     protected void onCancel(String reason) {
-
+        // TODO
     }
 
     @Override
     public ReplicationState state() {
+        // TODO
         return null;
     }
 
     @Override
     public ReplicationTarget retryCopy() {
+        // TODO
         return null;
     }
 
     @Override
     public String description() {
+        // TODO
         return null;
     }
 
@@ -85,6 +89,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     public boolean reset(CancellableThreads newTargetCancellableThreads) throws IOException {
+        // TODO
         return false;
     }
 
@@ -97,7 +102,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         int totalTranslogOps,
         ActionListener<Void> listener
     ) {
-
+        // TODO
     }
 
     public void startReplication() {

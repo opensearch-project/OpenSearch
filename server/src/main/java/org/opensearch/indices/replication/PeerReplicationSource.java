@@ -28,20 +28,21 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
  *
  * @opensearch.internal
  */
-public class PeerReplicationSource extends RetryableTransportClient implements SegmentReplicationSource {
+public class PeerReplicationSource implements SegmentReplicationSource {
 
     private DiscoveryNode localNode;
     private String allocationId;
+    private RetryableTransportClient transportClient;
 
     public PeerReplicationSource(
         TransportService transportService,
         RecoverySettings recoverySettings,
+        DiscoveryNode sourceNode,
         DiscoveryNode targetNode,
-        DiscoveryNode localNode,
         String allocationId
     ) {
-        super(transportService, recoverySettings, targetNode);
-        this.localNode = localNode;
+        transportClient = new RetryableTransportClient(transportService, sourceNode, recoverySettings.internalActionLongTimeout());
+        this.localNode = targetNode;
         this.allocationId = allocationId;
     }
 
@@ -50,7 +51,7 @@ public class PeerReplicationSource extends RetryableTransportClient implements S
         final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
         GetCheckpointInfoRequest request = new GetCheckpointInfoRequest(replicationId, allocationId, localNode, checkpoint);
-        executeRetryableAction(GET_CHECKPOINT_INFO, request, responseListener, reader);
+        transportClient.executeRetryableAction(GET_CHECKPOINT_INFO, request, responseListener, reader);
     }
 
     @Override
@@ -65,6 +66,6 @@ public class PeerReplicationSource extends RetryableTransportClient implements S
         final ActionListener<GetFilesResponse> responseListener = ActionListener.map(listener, r -> r);
 
         GetFilesRequest request = new GetFilesRequest(replicationId, allocationId, localNode, filesToFetch, checkpoint);
-        executeRetryableAction(GET_FILES, request, responseListener, reader);
+        transportClient.executeRetryableAction(GET_FILES, request, responseListener, reader);
     }
 }
