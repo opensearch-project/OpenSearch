@@ -58,7 +58,6 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DiscoveryNodeRole.class);
     public static final String MASTER_ROLE_DEPRECATION_MESSAGE =
         "Assigning [master] role in setting [node.roles] is deprecated. To promote inclusive language, please use [cluster_manager] role instead.";
-
     private final String roleName;
 
     /**
@@ -299,7 +298,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
-     * version removes a role that an older version knows about.
+     * version removes a role that an older version knows about, or some custom role for extension function provided by plugin.
      */
     static class UnknownRole extends DiscoveryNodeRole {
 
