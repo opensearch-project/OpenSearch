@@ -125,7 +125,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
                 unassignedShards,
                 numberOfNodes,
                 numberOfDataNodes,
-                hasDiscoveredClusterManager,
+                hasDiscoveredClusterManager || hasDiscoveredMaster,
                 activeShardsPercent,
                 status,
                 indices
