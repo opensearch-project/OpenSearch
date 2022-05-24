@@ -160,6 +160,9 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -299,6 +302,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
+    private final ReferenceManager.RefreshListener checkpointRefreshListener;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -320,7 +324,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listeners,
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final CircuitBreakerService circuitBreakerService
+        final CircuitBreakerService circuitBreakerService,
+        @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -403,6 +408,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        if (checkpointPublisher != null) {
+            this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
+        } else {
+            this.checkpointRefreshListener = null;
+        }
     }
 
     public ThreadPool getThreadPool() {
@@ -1361,6 +1371,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
+    }
+
+    /**
+     * Returns the lastest Replication Checkpoint that shard received
+     */
+    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        return new ReplicationCheckpoint(shardId, 0, 0, 0, 0);
+    }
+
+    /**
+     * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
+     */
+    public synchronized void onNewCheckpoint(final PublishCheckpointRequest request) {
+        assert shardRouting.primary() == false;
+        // TODO
     }
 
     /**
@@ -3118,6 +3143,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
 
+        final List<ReferenceManager.RefreshListener> internalRefreshListener;
+        if (this.checkpointRefreshListener != null) {
+            internalRefreshListener = Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener);
+        } else {
+            internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));
+        }
+
         return this.engineConfigFactory.newEngineConfig(
             shardId,
             threadPool,
@@ -3134,7 +3166,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, refreshPendingLocationListener),
-            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            internalRefreshListener,
             indexSort,
             circuitBreakerService,
             globalCheckpointSupplier,

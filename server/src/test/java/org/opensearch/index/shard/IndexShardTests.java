@@ -37,6 +37,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -135,6 +136,7 @@ import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
@@ -201,6 +203,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.opensearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
@@ -3426,6 +3429,72 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(stop.compareAndSet(false, true));
         thread.join();
         closeShards(newShard);
+    }
+
+    /**
+     * here we are mocking a SegmentReplicationcheckpointPublisher and testing on index shard if CheckpointRefreshListener is added to the InternalrefreshListerners List
+     */
+    public void testCheckpointRefreshListener() throws IOException {
+        final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
+        IndexShard shard = newStartedShard(p -> newShard(mock), true);
+        List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
+        assertTrue(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
+        closeShards(shard);
+    }
+
+    /**
+     * here we are passing null in place of SegmentReplicationCheckpointPublisher and testing  on index shard if CheckpointRefreshListener is not added to the InternalrefreshListerners List
+     */
+    public void testCheckpointRefreshListenerWithNull() throws IOException {
+        IndexShard shard = newStartedShard(p -> newShard(null), true);
+        List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
+        assertFalse(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
+        closeShards(shard);
+    }
+
+    /**
+     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * current node id the shard is assigned to.
+     * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
+     */
+    private IndexShard newShard(SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomAlphaOfLength(10),
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        );
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
+        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
+            .put(Settings.EMPTY)
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName())
+            .settings(indexSettings)
+            .primaryTerm(0, primaryTerm)
+            .putMapping("{ \"properties\": {} }")
+            .build();
+        return newShard(
+            shardRouting,
+            shardPath,
+            metadata,
+            null,
+            null,
+            new InternalEngineFactory(),
+            new EngineConfigFactory(new IndexSettings(metadata, metadata.getSettings())),
+            () -> {},
+            RetentionLeaseSyncer.EMPTY,
+            EMPTY_EVENT_LISTENER,
+            checkpointPublisher
+        );
     }
 
     public void testIndexCheckOnStartup() throws Exception {
