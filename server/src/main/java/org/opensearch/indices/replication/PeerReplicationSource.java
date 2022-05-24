@@ -9,7 +9,6 @@
 package org.opensearch.indices.replication;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.StepListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.index.store.Store;
@@ -47,7 +46,11 @@ public class PeerReplicationSource implements SegmentReplicationSource {
     }
 
     @Override
-    public void getCheckpointMetadata(long replicationId, ReplicationCheckpoint checkpoint, ActionListener<CheckpointInfoResponse> listener) {
+    public void getCheckpointMetadata(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        ActionListener<CheckpointInfoResponse> listener
+    ) {
         final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
         CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, allocationId, localNode, checkpoint);

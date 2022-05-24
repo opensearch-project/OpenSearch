@@ -12,19 +12,26 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
-import org.opensearch.indices.recovery.FileChunkRequestHandler;
+import org.opensearch.indices.recovery.RateLimitedFileChunkHandler;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationCollection;
+import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Service class that orchestrates replication events on replicas.
@@ -37,7 +44,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final ThreadPool threadPool;
     private final RecoverySettings replicationSettings;
-    private final TransportService transportService;
 
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
@@ -60,7 +66,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     ) {
         this.threadPool = threadPool;
         this.replicationSettings = recoverySettings;
-        this.transportService = transportService;
         this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
         this.source = source;
 
@@ -68,7 +73,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             Actions.FILE_CHUNK,
             ThreadPool.Names.GENERIC,
             FileChunkRequest::new,
-            new FileChunkRequestHandler<>(onGoingReplications, recoverySettings)
+            new FileChunkTransportRequestHandler()
         );
     }
 
@@ -130,8 +135,30 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     }
 
     private void start(final long replicationId) {
-        try (ReplicationCollection.ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)) {
+        try (ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)) {
             replicationRef.get().startReplication();
+        }
+    }
+
+    private class FileChunkTransportRequestHandler implements TransportRequestHandler<FileChunkRequest> {
+
+        // How many bytes we've copied since we last called RateLimiter.pause
+        final AtomicLong bytesSinceLastPause = new AtomicLong();
+
+        @Override
+        public void messageReceived(FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
+            // How many bytes we've copied since we last called RateLimiter.pause
+            try (ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.getSafe(request.recoveryId(), request.shardId())) {
+                final SegmentReplicationTarget target = ref.get();
+                final ActionListener<Void> listener = target.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
+                RateLimitedFileChunkHandler.handleFileChunk(
+                    request,
+                    target,
+                    bytesSinceLastPause,
+                    replicationSettings.rateLimiter(),
+                    listener
+                );
+            }
         }
     }
 }

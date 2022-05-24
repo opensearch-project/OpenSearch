@@ -9,7 +9,6 @@
 package org.opensearch.indices.replication;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.StepListener;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 
@@ -27,7 +26,7 @@ public interface SegmentReplicationSource {
      *
      * @param replicationId {@link long} - ID of the replication event.
      * @param checkpoint    {@link ReplicationCheckpoint} Checkpoint to fetch metadata for.
-     * @param listener      {@link ActionListener<CheckpointInfoResponse>} listener that completes with the metadata.
+     * @param listener      {@link ActionListener} listener that completes with a {@link CheckpointInfoResponse}.
      */
     void getCheckpointMetadata(long replicationId, ReplicationCheckpoint checkpoint, ActionListener<CheckpointInfoResponse> listener);
 
@@ -36,9 +35,9 @@ public interface SegmentReplicationSource {
      *
      * @param replicationId {@link long} - ID of the replication event.
      * @param checkpoint    {@link ReplicationCheckpoint} Checkpoint to fetch metadata for.
-     * @param filesToFetch  {@link List<StoreFileMetadata>} List of files to fetch.
+     * @param filesToFetch  {@link List} List of files to fetch.
      * @param store         {@link Store} Reference to the local store.
-     * @param listener      {@link ActionListener<GetSegmentFilesResponse>} Listener that completes with the list of files copied.
+     * @param listener      {@link ActionListener} Listener that completes with the list of files copied.
      */
     void getSegmentFiles(
         long replicationId,

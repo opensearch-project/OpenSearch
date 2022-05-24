@@ -80,6 +80,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
@@ -143,7 +144,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             Actions.FILE_CHUNK,
             ThreadPool.Names.GENERIC,
             FileChunkRequest::new,
-            new FileChunkRequestHandler<>(onGoingRecoveries, recoverySettings)
+            new FileChunkTransportRequestHandler()
         );
         transportService.registerRequestHandler(
             Actions.CLEAN_FILES,
@@ -512,6 +513,27 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     request.totalTranslogOps(),
                     request.getGlobalCheckpoint(),
                     request.sourceMetaSnapshot(),
+                    listener
+                );
+            }
+        }
+    }
+
+    class FileChunkTransportRequestHandler implements TransportRequestHandler<FileChunkRequest> {
+
+        // How many bytes we've copied since we last called RateLimiter.pause
+        final AtomicLong bytesSinceLastPause = new AtomicLong();
+
+        @Override
+        public void messageReceived(FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
+            try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
+                final RecoveryTarget recoveryTarget = recoveryRef.get();
+                final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
+                RateLimitedFileChunkHandler.handleFileChunk(
+                    request,
+                    recoveryTarget,
+                    bytesSinceLastPause,
+                    recoverySettings.rateLimiter(),
                     listener
                 );
             }
