@@ -311,6 +311,11 @@ public enum MissingValues {
             }
 
             @Override
+            public long docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
             public String toString() {
                 return "anon AbstractSortedDocValues of [" + super.toString() + "]";
             }
@@ -338,6 +343,11 @@ public enum MissingValues {
             @Override
             public long getValueCount() {
                 return 1 + values.getValueCount();
+            }
+
+            @Override
+            public long docValueCount() {
+                return values.docValueCount();
             }
 
             @Override

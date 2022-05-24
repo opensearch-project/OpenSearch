@@ -57,6 +57,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
@@ -397,6 +398,38 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                     + localNode
                     + "] from last-known cluster state; node term 4, last-accepted version 7 in term 4"
             )
+        );
+    }
+
+    // Validate the value of the deprecated 'master' setting can be obtained during cluster formation failure.
+    public void testDescriptionBeforeBootstrappingWithDeprecatedMasterNodesSetting() {
+        final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .version(7L)
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(4L).build()))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+            .build();
+        assertThat(
+            new ClusterFormationState(
+                Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "other").build(),
+                clusterState,
+                emptyList(),
+                emptyList(),
+                4L,
+                electionStrategy,
+                new StatusInfo(HEALTHY, "healthy-info")
+            ).getDescription(),
+            is(
+                "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and "
+                    + "this node must discover cluster-manager-eligible nodes [other] to bootstrap a cluster: have discovered []; "
+                    + "discovery will continue using [] from hosts providers and ["
+                    + localNode
+                    + "] from last-known cluster state; node term 4, last-accepted version 7 in term 4"
+            )
+        );
+        assertWarnings(
+            "[cluster.initial_master_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

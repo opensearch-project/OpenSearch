@@ -147,7 +147,7 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
         );
 
         final String targetNode = internalCluster().startDataOnlyNode();
-        ensureClusterSizeConsistency(); // wait for the master to finish processing join.
+        ensureClusterSizeConsistency(); // wait for the cluster-manager to finish processing join.
 
         try {
             final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());

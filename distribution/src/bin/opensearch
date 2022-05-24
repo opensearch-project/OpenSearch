@@ -13,6 +13,8 @@
 #
 #   OPENSEARCH_JAVA_OPTS="-Xms8g -Xmx8g" ./bin/opensearch
 
+set -e -o pipefail
+
 source "`dirname "$0"`"/opensearch-env
 
 CHECK_KEYSTORE=true

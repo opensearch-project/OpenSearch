@@ -35,8 +35,8 @@ package org.opensearch.painless;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.painless.spi.Whitelist;
-import org.opensearch.painless.spi.WhitelistLoader;
+import org.opensearch.painless.spi.Allowlist;
+import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.script.ScriptContext;
 
 import java.util.ArrayList;
@@ -52,9 +52,9 @@ public class AugmentationTests extends ScriptTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
-        List<Whitelist> digestAllowlist = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        digestAllowlist.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
+        Map<ScriptContext<?>, List<Allowlist>> contexts = newDefaultContexts();
+        List<Allowlist> digestAllowlist = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        digestAllowlist.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.ingest.txt"));
         contexts.put(DigestTestScript.CONTEXT, digestAllowlist);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }

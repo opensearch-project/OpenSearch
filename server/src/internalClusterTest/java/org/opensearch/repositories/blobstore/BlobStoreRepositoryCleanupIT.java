@@ -51,11 +51,11 @@ import static org.hamcrest.Matchers.is;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase {
 
-    public void testMasterFailoverDuringCleanup() throws Exception {
+    public void testClusterManagerFailoverDuringCleanup() throws Exception {
         startBlockedCleanup("test-repo");
 
         final int nodeCount = internalCluster().numDataAndMasterNodes();
-        logger.info("-->  stopping master node");
+        logger.info("-->  stopping cluster-manager node");
         internalCluster().stopCurrentMasterNode();
 
         ensureStableCluster(nodeCount - 1);
@@ -67,7 +67,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
     }
 
     public void testRepeatCleanupsDontRemove() throws Exception {
-        final String masterNode = startBlockedCleanup("test-repo");
+        final String clusterManagerNode = startBlockedCleanup("test-repo");
 
         logger.info("-->  sending another cleanup");
         assertFutureThrows(client().admin().cluster().prepareCleanupRepository("test-repo").execute(), IllegalStateException.class);
@@ -81,8 +81,8 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
             .custom(RepositoryCleanupInProgress.TYPE);
         assertTrue(cleanup.hasCleanupInProgress());
 
-        logger.info("-->  unblocking master node");
-        unblockNode("test-repo", masterNode);
+        logger.info("-->  unblocking cluster-manager node");
+        unblockNode("test-repo", clusterManagerNode);
 
         logger.info("-->  wait for cleanup to finish and disappear from cluster state");
         awaitClusterState(
@@ -91,7 +91,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
     }
 
     private String startBlockedCleanup(String repoName) throws Exception {
-        logger.info("-->  starting two master nodes and one data node");
+        logger.info("-->  starting two cluster-manager nodes and one data node");
         internalCluster().startMasterOnlyNodes(2);
         internalCluster().startDataOnlyNodes(1);
 
@@ -117,17 +117,17 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
             );
         garbageFuture.get();
 
-        final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        final String clusterManagerNode = blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
 
         logger.info("--> starting repository cleanup");
         client().admin().cluster().prepareCleanupRepository(repoName).execute();
 
-        logger.info("--> waiting for block to kick in on " + masterNode);
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(60));
+        logger.info("--> waiting for block to kick in on " + clusterManagerNode);
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(60));
         awaitClusterState(
             state -> state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()
         );
-        return masterNode;
+        return clusterManagerNode;
     }
 
     public void testCleanupOldIndexN() throws ExecutionException, InterruptedException {

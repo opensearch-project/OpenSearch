@@ -142,7 +142,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             scripts.put("_fields['num1'].value", vars -> fieldsScript(vars, "num1"));
             scripts.put("_fields._uid.value", vars -> fieldsScript(vars, "_uid"));
             scripts.put("_fields._id.value", vars -> fieldsScript(vars, "_id"));
-            scripts.put("_fields._type.value", vars -> fieldsScript(vars, "_type"));
 
             scripts.put("_source.obj1", vars -> sourceScript(vars, "obj1"));
             scripts.put("_source.obj1.test", vars -> sourceScript(vars, "obj1.test"));
