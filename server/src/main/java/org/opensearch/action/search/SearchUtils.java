@@ -10,6 +10,7 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
@@ -87,7 +88,7 @@ public class SearchUtils {
                 String clusterAlias = entry.getValue().get(0).getClusterAlias();
                 final DiscoveryNode node = nodeLookup.apply(clusterAlias, entry.getValue().get(0).getNode());
                 if (node == null) {
-                    groupedListener.onFailure(new OpenSearchException("node not found"));
+                    groupedListener.onFailure(new OpenSearchException("node [" + entry.getValue().get(0).getNode() + "] not found"));
                 } else {
                     try {
                         final Transport.Connection connection = searchTransportService.getConnection(clusterAlias, node);
@@ -101,7 +102,7 @@ public class SearchUtils {
                             ActionListener.wrap(r -> groupedListener.onResponse(r.isFreed()), e -> groupedListener.onResponse(false))
                         );
                     } catch (Exception e) {
-                        logger.error("Delete PIT failed ", e);
+                        logger.error(() -> new ParameterizedMessage("Delete PITs failed on node [{}]", node.getName()), e);
                         groupedListener.onResponse(false);
                     }
                 }

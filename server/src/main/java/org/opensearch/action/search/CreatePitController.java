@@ -271,7 +271,6 @@ public class CreatePitController {
                 logger.error("Cleaning up PIT contexts failed ", e);
             }
         };
-
         Map<String, List<SearchContextIdForNode>> nodeToContextsMap = new HashMap<>();
         for (SearchContextIdForNode context : contexts) {
             List<SearchContextIdForNode> contextIdsForNode = nodeToContextsMap.getOrDefault(context.getNode(), new ArrayList<>());

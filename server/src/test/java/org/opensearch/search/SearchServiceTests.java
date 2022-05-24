@@ -1419,11 +1419,12 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         SearchService searchService = getInstanceFromNode(SearchService.class);
         PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
         searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
-        future.actionGet();
+        List<ShardSearchContextId> contextIds = new ArrayList<>();
+        contextIds.add(future.actionGet());
         assertThat(searchService.getActiveContexts(), equalTo(1));
-        assertTrue(searchService.freeReaderContextIfFound(future.actionGet()));
+        assertTrue(searchService.freeReaderContextsIfFound(contextIds));
         // assert true for reader context not found
-        assertTrue(searchService.freeReaderContextIfFound(future.actionGet()));
+        assertTrue(searchService.freeReaderContextsIfFound(contextIds));
         // adding this assert to showcase behavior difference
         assertFalse(searchService.freeReaderContext(future.actionGet()));
     }

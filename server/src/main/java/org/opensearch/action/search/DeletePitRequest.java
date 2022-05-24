@@ -26,7 +26,7 @@ import java.util.List;
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
- * Request to delete one or more PIT contexts based on IDs.
+ * Request to delete one or more PIT search contexts based on IDs.
  */
 public class DeletePitRequest extends ActionRequest implements ToXContentObject {
 

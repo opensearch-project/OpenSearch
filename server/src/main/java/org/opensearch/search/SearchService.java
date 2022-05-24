@@ -138,12 +138,7 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1021,22 +1016,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Free reader context if found
-     */
-    public boolean freeReaderContextIfFound(ShardSearchContextId contextId) {
-        try {
-            if (getReaderContext(contextId) != null) {
-                try (ReaderContext context = removeReaderContext(contextId.getId())) {
-                    return context != null;
-                }
-            }
-        } catch (SearchContextMissingException e) {
-            return true;
-        }
-        return true;
-    }
-
-    /**
      * Free reader contexts if found
      */
     public boolean freeReaderContextsIfFound(List<ShardSearchContextId> contextIds) {
@@ -1062,15 +1041,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Free all active pit contexts
      */
     public boolean freeAllPitContexts() {
-        boolean success = true;
+        List<ShardSearchContextId> contextIds = new ArrayList<>();
         for (ReaderContext readerContext : activeReaders.values()) {
             if (readerContext instanceof PitReaderContext) {
-                if (!freeReaderContextIfFound(readerContext.id())) {
-                    success = false;
-                }
+                contextIds.add(readerContext.id());
             }
         }
-        return success;
+        return freeReaderContextsIfFound(contextIds);
     }
 
     /**

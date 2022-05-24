@@ -1301,7 +1301,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Delete PIT context using delete PIT API
+     * Delete point in time searches using delete PIT API
      *
      * @param deletePitRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1318,7 +1318,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously Delete PIT context using delete PIT API
+     * Asynchronously Delete point in time searches using delete PIT API
      *
      * @param deletePitRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1341,7 +1341,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Delete all PIT contexts using delete all PITs API
+     * Delete all point in time searches using delete all PITs API
      *
      * @param deletePitRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1358,7 +1358,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously Delete all PIT contexts using delete all PITs API
+     * Asynchronously Delete all point in time searches using delete all PITs API
      *
      * @param deletePitRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

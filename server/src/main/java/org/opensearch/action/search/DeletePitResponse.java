@@ -27,7 +27,7 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
 /**
- * Response class for delete pits flow which returns if the contexts are freed
+ * Response class for delete pits flow which clears the point in time search contexts
  */
 public class DeletePitResponse extends ActionResponse implements StatusToXContentObject {
 
