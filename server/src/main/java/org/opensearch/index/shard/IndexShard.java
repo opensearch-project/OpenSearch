@@ -1529,6 +1529,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public IndexCommit getLatestSegmentInfos() {
+        // TODO: Fix to create metadata from seginfos.
+        return null;
+    }
+
     /**
      * Wrapper for a non-closing reader
      *

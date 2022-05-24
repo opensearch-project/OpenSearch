@@ -32,41 +32,25 @@
 
 package org.opensearch.indices.recovery;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionListenerResponseHandler;
-import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.EmptyTransportResponseHandler;
-import org.opensearch.transport.RemoteTransportException;
-import org.opensearch.transport.SendRequestTransportException;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -75,17 +59,10 @@ import java.util.function.Consumer;
  *
  * @opensearch.internal
  */
-public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
+public class RemoteRecoveryTargetHandler extends RetryableTransportClient implements RecoveryTargetHandler {
 
-    private static final Logger logger = LogManager.getLogger(RemoteRecoveryTargetHandler.class);
-
-    private final TransportService transportService;
-    private final ThreadPool threadPool;
     private final long recoveryId;
     private final ShardId shardId;
-    private final DiscoveryNode targetNode;
-    private final RecoverySettings recoverySettings;
-    private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
 
     private final TransportRequestOptions translogOpsRequestOptions;
     private final TransportRequestOptions fileChunkRequestOptions;
@@ -94,8 +71,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
 
     private final Consumer<Long> onSourceThrottle;
-    private final boolean retriesSupported;
-    private volatile boolean isCancelled = false;
 
     public RemoteRecoveryTargetHandler(
         long recoveryId,
@@ -105,12 +80,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         RecoverySettings recoverySettings,
         Consumer<Long> onSourceThrottle
     ) {
-        this.transportService = transportService;
-        this.threadPool = transportService.getThreadPool();
+        super(transportService, recoverySettings, targetNode);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
-        this.targetNode = targetNode;
-        this.recoverySettings = recoverySettings;
         this.onSourceThrottle = onSourceThrottle;
         this.translogOpsRequestOptions = TransportRequestOptions.builder()
             .withType(TransportRequestOptions.Type.RECOVERY)
@@ -120,7 +92,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             .withType(TransportRequestOptions.Type.RECOVERY)
             .withTimeout(recoverySettings.internalActionTimeout())
             .build();
-        this.retriesSupported = targetNode.getVersion().onOrAfter(LegacyESVersion.V_7_9_0);
     }
 
     public DiscoveryNode targetNode() {
@@ -137,12 +108,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             shardId,
             totalTranslogOps
         );
-        final TransportRequestOptions options = TransportRequestOptions.builder()
-            .withTimeout(recoverySettings.internalActionTimeout())
-            .build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, options, responseListener, reader);
+        executeRetryableAction(action, request, responseListener, reader);
     }
 
     @Override
@@ -156,12 +124,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             globalCheckpoint,
             trimAboveSeqNo
         );
-        final TransportRequestOptions options = TransportRequestOptions.builder()
-            .withTimeout(recoverySettings.internalActionLongTimeout())
-            .build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, options, responseListener, reader);
+        executeRetryableAction(action, request, responseListener, reader);
     }
 
     @Override
@@ -224,12 +189,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             phase1ExistingFileSizes,
             totalTranslogOps
         );
-        final TransportRequestOptions options = TransportRequestOptions.builder()
-            .withTimeout(recoverySettings.internalActionTimeout())
-            .build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, options, responseListener, reader);
+        executeRetryableAction(action, request, responseListener, reader);
     }
 
     @Override
@@ -249,12 +211,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             totalTranslogOps,
             globalCheckpoint
         );
-        final TransportRequestOptions options = TransportRequestOptions.builder()
-            .withTimeout(recoverySettings.internalActionTimeout())
-            .build();
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, options, responseListener, reader);
+        executeRetryableAction(action, request, responseListener, reader);
     }
 
     @Override
@@ -294,7 +253,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
          * see how many translog ops we accumulate while copying files across the network. A future optimization
          * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
          */
-        final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
+        final FileChunkRequest request = new FileChunkRequest(
             recoveryId,
             requestSeqNo,
             shardId,
@@ -307,70 +266,5 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         executeRetryableAction(action, request, fileChunkRequestOptions, ActionListener.map(listener, r -> null), reader);
-    }
-
-    @Override
-    public void cancel() {
-        isCancelled = true;
-        if (onGoingRetryableActions.isEmpty()) {
-            return;
-        }
-        final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("recovery was cancelled");
-        // Dispatch to generic as cancellation calls can come on the cluster state applier thread
-        threadPool.generic().execute(() -> {
-            for (RetryableAction<?> action : onGoingRetryableActions.values()) {
-                action.cancel(exception);
-            }
-            onGoingRetryableActions.clear();
-        });
-    }
-
-    private <T extends TransportResponse> void executeRetryableAction(
-        String action,
-        RecoveryTransportRequest request,
-        TransportRequestOptions options,
-        ActionListener<T> actionListener,
-        Writeable.Reader<T> reader
-    ) {
-        final Object key = new Object();
-        final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> onGoingRetryableActions.remove(key));
-        final TimeValue initialDelay = TimeValue.timeValueMillis(200);
-        final TimeValue timeout = recoverySettings.internalActionRetryTimeout();
-        final RetryableAction<T> retryableAction = new RetryableAction<T>(logger, threadPool, initialDelay, timeout, removeListener) {
-
-            @Override
-            public void tryAction(ActionListener<T> listener) {
-                transportService.sendRequest(
-                    targetNode,
-                    action,
-                    request,
-                    options,
-                    new ActionListenerResponseHandler<>(listener, reader, ThreadPool.Names.GENERIC)
-                );
-            }
-
-            @Override
-            public boolean shouldRetry(Exception e) {
-                return retriesSupported && retryableException(e);
-            }
-        };
-        onGoingRetryableActions.put(key, retryableAction);
-        retryableAction.run();
-        if (isCancelled) {
-            retryableAction.cancel(new CancellableThreads.ExecutionCancelledException("recovery was cancelled"));
-        }
-    }
-
-    private static boolean retryableException(Exception e) {
-        if (e instanceof ConnectTransportException) {
-            return true;
-        } else if (e instanceof SendRequestTransportException) {
-            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-            return cause instanceof ConnectTransportException;
-        } else if (e instanceof RemoteTransportException) {
-            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-            return cause instanceof CircuitBreakingException || cause instanceof OpenSearchRejectedExecutionException;
-        }
-        return false;
     }
 }

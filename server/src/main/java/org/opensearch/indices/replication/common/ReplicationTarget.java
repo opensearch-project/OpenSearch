@@ -12,11 +12,19 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.recovery.RecoveryTransportRequest;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,7 +72,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         return cancellableThreads;
     }
 
-    public abstract void notifyListener(Exception e, boolean sendShardFailure);
+    public abstract void notifyListener(OpenSearchException e, boolean sendShardFailure);
 
     public ReplicationTarget(String name, IndexShard indexShard, ReplicationLuceneIndex stateIndex, ReplicationListener listener) {
         super(name);
@@ -172,4 +180,40 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         }
     }
 
+    public ActionListener<Void> createOrFinishListener(
+        final TransportChannel channel,
+        final String action,
+        final RecoveryTransportRequest request
+    ) {
+        return createOrFinishListener(channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
+    }
+
+    public ActionListener<Void> createOrFinishListener(
+        final TransportChannel channel,
+        final String action,
+        final RecoveryTransportRequest request,
+        final CheckedFunction<Void, TransportResponse, Exception> responseFn
+    ) {
+        final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, action, request);
+        final ActionListener<Void> voidListener = ActionListener.map(channelListener, responseFn);
+
+        final long requestSeqNo = request.requestSeqNo();
+        final ActionListener<Void> listener;
+        if (requestSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            listener = markRequestReceivedAndCreateListener(requestSeqNo, voidListener);
+        } else {
+            listener = voidListener;
+        }
+
+        return listener;
+    }
+
+    public abstract void writeFileChunk(
+        StoreFileMetadata metadata,
+        long position,
+        BytesReference content,
+        boolean lastChunk,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    );
 }
