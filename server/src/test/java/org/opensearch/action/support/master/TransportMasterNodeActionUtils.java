@@ -42,7 +42,7 @@ public class TransportMasterNodeActionUtils {
      * Allows to directly call {@link TransportMasterNodeAction#masterOperation(MasterNodeRequest, ClusterState, ActionListener)} which is
      * a protected method.
      */
-    public static <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> void runMasterOperation(
+    public static <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> void runClusterManagerOperation(
         TransportMasterNodeAction<Request, Response> clusterManagerNodeAction,
         Request request,
         ClusterState clusterState,

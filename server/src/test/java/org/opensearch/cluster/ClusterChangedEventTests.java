@@ -314,8 +314,8 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
         assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
     }
 
-    // Validate the above test case testLocalNodeIsMaster() passes when the deprecated 'master' role is assigned to the local node.
-    public void testLocalNodeIsMasterWithDeprecatedMasterRole() {
+    // Validate the above test case testLocalNodeIsClusterManager() passes when the deprecated 'master' role is assigned to the local node.
+    public void testLocalNodeIsClusterManagerWithDeprecatedMasterRole() {
         final DiscoveryNodes.Builder builderLocalIsMaster = DiscoveryNodes.builder();
         final DiscoveryNode node0 = newNode("node_0", Set.of(DiscoveryNodeRole.MASTER_ROLE));
         final DiscoveryNode node1 = newNode("node_1", Set.of(DiscoveryNodeRole.DATA_ROLE));
