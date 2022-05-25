@@ -218,7 +218,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         AtomicInteger retries = new AtomicInteger();
         AtomicBoolean success = new AtomicBoolean();
 
-        setUpMasterRetryVerification(1, retries, latch, requestId -> {});
+        setUpClusterManagerRetryVerification(1, retries, latch, requestId -> {});
 
         ShardRouting failedShard = getRandomShardRouting(index);
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
@@ -268,7 +268,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         };
 
         final int numberOfRetries = randomIntBetween(1, 256);
-        setUpMasterRetryVerification(numberOfRetries, retries, latch, retryLoop);
+        setUpClusterManagerRetryVerification(numberOfRetries, retries, latch, retryLoop);
 
         ShardRouting failedShard = getRandomShardRouting(index);
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
@@ -496,7 +496,12 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         return shardRouting;
     }
 
-    private void setUpMasterRetryVerification(int numberOfRetries, AtomicInteger retries, CountDownLatch latch, LongConsumer retryLoop) {
+    private void setUpClusterManagerRetryVerification(
+        int numberOfRetries,
+        AtomicInteger retries,
+        CountDownLatch latch,
+        LongConsumer retryLoop
+    ) {
         shardStateAction.setOnBeforeWaitForNewClusterManagerAndRetry(() -> {
             DiscoveryNodes.Builder clusterManagerBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
             clusterManagerBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().iterator().next().value.getId());

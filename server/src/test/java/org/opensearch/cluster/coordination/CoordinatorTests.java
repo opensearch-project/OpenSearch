@@ -1096,7 +1096,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
      * does not notice the node disconnecting, it is important for the node not to be turned back into a follower but try
      * and join the leader again.
      */
-    public void testStayCandidateAfterReceivingFollowerCheckFromKnownMaster() {
+    public void testStayCandidateAfterReceivingFollowerCheckFromKnownClusterManager() {
         try (Cluster cluster = new Cluster(2, false, Settings.EMPTY)) {
             cluster.runRandomly();
             cluster.stabilise();
