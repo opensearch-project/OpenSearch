@@ -23,7 +23,7 @@ public class SegmentReplicationSourceService {
      */
     public static class Actions {
         public static final String GET_CHECKPOINT_INFO = "internal:index/shard/segrep/checkpoint_info";
-        public static final String GET_FILES = "internal:index/shard/segrep/get_files";
+        public static final String GET_SEGMENT_FILES = "internal:index/shard/segrep/get_segment_files";
     }
 
     public SegmentReplicationSourceService() {

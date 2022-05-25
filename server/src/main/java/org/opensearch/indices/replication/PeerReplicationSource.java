@@ -21,7 +21,7 @@ import org.opensearch.transport.TransportService;
 import java.util.List;
 
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_CHECKPOINT_INFO;
-import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_FILES;
+import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES;
 
 /**
  * Implementation of {@link SegmentReplicationSource} where the source is another Node.
@@ -30,19 +30,19 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
  */
 public class PeerReplicationSource implements SegmentReplicationSource {
 
-    private DiscoveryNode targetNode;
+    private DiscoveryNode localNode;
     private String allocationId;
     private RetryableTransportClient transportClient;
 
     public PeerReplicationSource(
         TransportService transportService,
         RecoverySettings recoverySettings,
-        DiscoveryNode sourceNode,
         DiscoveryNode targetNode,
+        DiscoveryNode localNode,
         String allocationId
     ) {
-        transportClient = new RetryableTransportClient(transportService, sourceNode, recoverySettings.internalActionLongTimeout());
-        this.targetNode = targetNode;
+        transportClient = new RetryableTransportClient(transportService, targetNode, recoverySettings.internalActionLongTimeout());
+        this.localNode = localNode;
         this.allocationId = allocationId;
     }
 
@@ -54,7 +54,7 @@ public class PeerReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
-        CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, allocationId, targetNode, checkpoint);
+        CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, allocationId, localNode, checkpoint);
         transportClient.executeRetryableAction(GET_CHECKPOINT_INFO, request, responseListener, reader);
     }
 
@@ -69,7 +69,7 @@ public class PeerReplicationSource implements SegmentReplicationSource {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
 
-        GetSegmentFilesRequest request = new GetSegmentFilesRequest(replicationId, allocationId, targetNode, filesToFetch, checkpoint);
-        transportClient.executeRetryableAction(GET_FILES, request, responseListener, reader);
+        GetSegmentFilesRequest request = new GetSegmentFilesRequest(replicationId, allocationId, localNode, filesToFetch, checkpoint);
+        transportClient.executeRetryableAction(GET_SEGMENT_FILES, request, responseListener, reader);
     }
 }
