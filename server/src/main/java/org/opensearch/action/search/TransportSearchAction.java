@@ -65,7 +65,6 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.Rewriteable;
