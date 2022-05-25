@@ -85,6 +85,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -105,6 +106,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.test.TestSearchContext;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1077,6 +1079,50 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 expectThrows(TaskCancelledException.class, () -> new QueryPhase().preProcess(context));
             }
         }
+    }
+
+    public void testQueryTimeoutChecker() throws Exception {
+        long timeCacheLifespan = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+        long timeTolerance = timeCacheLifespan / 20;
+
+        // should throw time exceed exception for sure after timeCacheLifespan*2+timeTolerance (next's next cached time is available)
+        assertThrows(
+            QueryPhase.TimeExceededException.class,
+            () -> createTimeoutCheckerThenWaitThenRun(timeCacheLifespan, timeCacheLifespan * 2 + timeTolerance, true, false)
+        );
+
+        // should not throw time exceed exception after timeCacheLifespan+timeTolerance because new cached time - init time < timeout
+        createTimeoutCheckerThenWaitThenRun(timeCacheLifespan, timeCacheLifespan + timeTolerance, true, false);
+
+        // should not throw time exceed exception after timeout < timeCacheLifespan when cached time didn't change
+        createTimeoutCheckerThenWaitThenRun(timeCacheLifespan / 2, timeCacheLifespan / 2 + timeTolerance, false, true);
+        createTimeoutCheckerThenWaitThenRun(timeCacheLifespan / 4, timeCacheLifespan / 2 + timeTolerance, false, true);
+    }
+
+    private void createTimeoutCheckerThenWaitThenRun(
+        long timeout,
+        long sleepAfterCreation,
+        boolean checkCachedTimeChanged,
+        boolean checkCachedTimeHasNotChanged
+    ) throws Exception {
+        long timeCacheLifespan = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+        long timeTolerance = timeCacheLifespan / 20;
+        long currentTimeDiffWithCachedTime = TimeValue.nsecToMSec(System.nanoTime()) - threadPool.relativeTimeInMillis();
+        // need to run this test approximately at the start of cached time window
+        long timeToAlignTimeWithCachedTimeOffset = timeCacheLifespan - currentTimeDiffWithCachedTime + timeTolerance;
+        Thread.sleep(timeToAlignTimeWithCachedTimeOffset);
+
+        long initialRelativeCachedTime = threadPool.relativeTimeInMillis();
+        Runnable queryTimeoutChecker = QueryPhase.createQueryTimeoutChecker(() -> threadPool.relativeTimeInMillis(), timeout);
+        // make sure next time slot become available
+        Thread.sleep(sleepAfterCreation);
+        if (checkCachedTimeChanged) {
+            assertNotEquals(initialRelativeCachedTime, threadPool.relativeTimeInMillis());
+        }
+        if (checkCachedTimeHasNotChanged) {
+            assertEquals(initialRelativeCachedTime, threadPool.relativeTimeInMillis());
+        }
+        queryTimeoutChecker.run();
     }
 
     private static class TestSearchContextWithRewriteAndCancellation extends TestSearchContext {

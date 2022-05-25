@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.lucene.queries.MinDocQuery;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -74,6 +75,7 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.function.LongSupplier;
 
 import static org.opensearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
@@ -257,15 +259,9 @@ public class QueryPhase {
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
-                final long startTime = searchContext.getRelativeTimeInMillis();
-                final long timeout = searchContext.timeout().millis();
-                final long maxTime = startTime + timeout;
-                timeoutRunnable = searcher.addQueryCancellation(() -> {
-                    final long time = searchContext.getRelativeTimeInMillis();
-                    if (time > maxTime) {
-                        throw new TimeExceededException();
-                    }
-                });
+                timeoutRunnable = searcher.addQueryCancellation(
+                    createQueryTimeoutChecker(searchContext::getRelativeTimeInMillis, searchContext.timeout().millis())
+                );
             } else {
                 timeoutRunnable = null;
             }
@@ -307,6 +303,29 @@ public class QueryPhase {
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }
+    }
+
+    /**
+     * Create runnable which throws {@link TimeExceededException} when the runnable is called after timeout + runnable creation time
+     * exceeds currentTime
+     * @param relativeMsTimeSupplier supplier of currentTime in milliseconds which is okay to be cached
+     * @param timeout the max time duration in milliseconds before throwing {@link TimeExceededException}
+     * @return the created runnable
+     */
+    static Runnable createQueryTimeoutChecker(LongSupplier relativeMsTimeSupplier, final long timeout) {
+        /* for startTime, relative non-cached time must be used to prevent false positive timeouts.
+        * Using cached time for startTime will fail and produce false positive timeouts when maxTime = (startTime + timeout) falls in
+        * next time cache slot(s) AND time caching lifespan > passed timeout */
+        final long startTime = TimeValue.nsecToMSec(System.nanoTime());
+        final long maxTime = startTime + timeout;
+        return () -> {
+            /* As long as startTime is non cached time, using cached time here might only produce false negative timeouts within the time
+            * cache life span which is acceptable */
+            final long time = relativeMsTimeSupplier.getAsLong();
+            if (time > maxTime) {
+                throw new TimeExceededException();
+            }
+        };
     }
 
     private static boolean searchWithCollector(
