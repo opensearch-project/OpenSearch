@@ -1121,23 +1121,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testAppliesNoMasterBlockWritesByDefault() {
-        testAppliesNoMasterBlock(null, NO_MASTER_BLOCK_WRITES);
+    public void testAppliesNoClusterManagerBlockWritesByDefault() {
+        testAppliesNoClusterManagerBlock(null, NO_MASTER_BLOCK_WRITES);
     }
 
-    public void testAppliesNoMasterBlockWritesIfConfigured() {
-        testAppliesNoMasterBlock("write", NO_MASTER_BLOCK_WRITES);
+    public void testAppliesNoClusterManagerBlockWritesIfConfigured() {
+        testAppliesNoClusterManagerBlock("write", NO_MASTER_BLOCK_WRITES);
     }
 
-    public void testAppliesNoMasterBlockAllIfConfigured() {
-        testAppliesNoMasterBlock("all", NO_MASTER_BLOCK_ALL);
+    public void testAppliesNoClusterManagerBlockAllIfConfigured() {
+        testAppliesNoClusterManagerBlock("all", NO_MASTER_BLOCK_ALL);
     }
 
-    public void testAppliesNoMasterBlockMetadataWritesIfConfigured() {
-        testAppliesNoMasterBlock("metadata_write", NO_MASTER_BLOCK_METADATA_WRITES);
+    public void testAppliesNoClusterManagerBlockMetadataWritesIfConfigured() {
+        testAppliesNoClusterManagerBlock("metadata_write", NO_MASTER_BLOCK_METADATA_WRITES);
     }
 
-    private void testAppliesNoMasterBlock(String noMasterBlockSetting, ClusterBlock expectedBlock) {
+    private void testAppliesNoClusterManagerBlock(String noClusterManagerBlockSetting, ClusterBlock expectedBlock) {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -1145,7 +1145,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             leader.submitUpdateTask("update NO_CLUSTER_MANAGER_BLOCK_SETTING", cs -> {
                 final Builder settingsBuilder = Settings.builder().put(cs.metadata().persistentSettings());
-                settingsBuilder.put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), noMasterBlockSetting);
+                settingsBuilder.put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), noClusterManagerBlockSetting);
                 return ClusterState.builder(cs)
                     .metadata(Metadata.builder(cs.metadata()).persistentSettings(settingsBuilder.build()))
                     .build();
