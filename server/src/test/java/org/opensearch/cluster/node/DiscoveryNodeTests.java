@@ -179,9 +179,6 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
     // as a workaround for making the new CLUSTER_MANAGER_ROLE has got the same abbreviation 'm'.
     // The test validate this behavior.
     public void testSetAdditionalRolesCanAddDeprecatedMasterRole() {
-        // Validate MASTER_ROLE is not in DiscoveryNodeRole.BUILT_IN_ROLES
-        assertFalse(DiscoveryNode.getPossibleRoleNames().contains(DiscoveryNodeRole.MASTER_ROLE.roleName()));
-
         DiscoveryNode.setAdditionalRoles(Collections.emptySet());
         assertTrue(DiscoveryNode.getPossibleRoleNames().contains(DiscoveryNodeRole.MASTER_ROLE.roleName()));
     }
