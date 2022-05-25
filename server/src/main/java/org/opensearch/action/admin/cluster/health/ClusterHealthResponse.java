@@ -71,6 +71,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String TIMED_OUT = "timed_out";
     private static final String NUMBER_OF_NODES = "number_of_nodes";
     private static final String NUMBER_OF_DATA_NODES = "number_of_data_nodes";
+    @Deprecated
     private static final String DISCOVERED_MASTER = "discovered_master";
     private static final String DISCOVERED_CLUSTER_MANAGER = "discovered_cluster_manager";
     private static final String NUMBER_OF_PENDING_TASKS = "number_of_pending_tasks";
@@ -95,6 +96,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             // ClusterStateHealth fields
             int numberOfNodes = (int) parsedObjects[i++];
             int numberOfDataNodes = (int) parsedObjects[i++];
+            boolean hasDiscoveredMaster = Boolean.TRUE.equals(parsedObjects[i++]);
             boolean hasDiscoveredClusterManager = Boolean.TRUE.equals(parsedObjects[i++]);
             int activeShards = (int) parsedObjects[i++];
             int relocatingShards = (int) parsedObjects[i++];
@@ -123,7 +125,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
                 unassignedShards,
                 numberOfNodes,
                 numberOfDataNodes,
-                hasDiscoveredClusterManager,
+                hasDiscoveredClusterManager || hasDiscoveredMaster,
                 activeShardsPercent,
                 status,
                 indices
@@ -157,6 +159,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_NODES));
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_DATA_NODES));
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DISCOVERED_MASTER));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DISCOVERED_CLUSTER_MANAGER));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(RELOCATING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_PRIMARY_SHARDS));
