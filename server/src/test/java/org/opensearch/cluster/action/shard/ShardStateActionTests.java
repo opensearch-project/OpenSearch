@@ -112,16 +112,16 @@ public class ShardStateActionTests extends OpenSearchTestCase {
             super(clusterService, transportService, allocationService, rerouteService, THREAD_POOL);
         }
 
-        private Runnable onBeforeWaitForNewMasterAndRetry;
+        private Runnable onBeforeWaitForNewClusterManagerAndRetry;
 
-        public void setOnBeforeWaitForNewMasterAndRetry(Runnable onBeforeWaitForNewMasterAndRetry) {
-            this.onBeforeWaitForNewMasterAndRetry = onBeforeWaitForNewMasterAndRetry;
+        public void setOnBeforeWaitForNewClusterManagerAndRetry(Runnable onBeforeWaitForNewClusterManagerAndRetry) {
+            this.onBeforeWaitForNewClusterManagerAndRetry = onBeforeWaitForNewClusterManagerAndRetry;
         }
 
-        private Runnable onAfterWaitForNewMasterAndRetry;
+        private Runnable onAfterWaitForNewClusterManagerAndRetry;
 
-        public void setOnAfterWaitForNewMasterAndRetry(Runnable onAfterWaitForNewMasterAndRetry) {
-            this.onAfterWaitForNewMasterAndRetry = onAfterWaitForNewMasterAndRetry;
+        public void setOnAfterWaitFornewClusterManagerAndRetry(Runnable onAfterWaitFornewClusterManagerAndRetry) {
+            this.onAfterWaitForNewClusterManagerAndRetry = onAfterWaitFornewClusterManagerAndRetry;
         }
 
         @Override
@@ -132,9 +132,9 @@ public class ShardStateActionTests extends OpenSearchTestCase {
             ActionListener<Void> listener,
             Predicate<ClusterState> changePredicate
         ) {
-            onBeforeWaitForNewMasterAndRetry.run();
+            onBeforeWaitForNewClusterManagerAndRetry.run();
             super.waitForNewClusterManagerAndRetry(actionName, observer, request, listener, changePredicate);
-            onAfterWaitForNewMasterAndRetry.run();
+            onAfterWaitForNewClusterManagerAndRetry.run();
         }
     }
 
@@ -160,8 +160,8 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new TestShardStateAction(clusterService, transportService, null, null);
-        shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {});
-        shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> {});
+        shardStateAction.setOnBeforeWaitForNewClusterManagerAndRetry(() -> {});
+        shardStateAction.setOnAfterWaitFornewClusterManagerAndRetry(() -> {});
     }
 
     @Override
@@ -196,7 +196,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         // for the right shard
         assertEquals(shardEntry.shardId, shardRouting.shardId());
         assertEquals(shardEntry.allocationId, shardRouting.allocationId().getId());
-        // sent to the master
+        // sent to the cluster-manager
         assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node.getId());
 
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
@@ -205,20 +205,20 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         assertNull(listener.failure.get());
     }
 
-    public void testNoMaster() throws InterruptedException {
+    public void testNoClusterManager() throws InterruptedException {
         final String index = "test";
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        DiscoveryNodes.Builder noMasterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-        noMasterBuilder.masterNodeId(null);
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(noMasterBuilder));
+        DiscoveryNodes.Builder noClusterManagerBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
+        noClusterManagerBuilder.masterNodeId(null);
+        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(noClusterManagerBuilder));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger retries = new AtomicInteger();
         AtomicBoolean success = new AtomicBoolean();
 
-        setUpMasterRetryVerification(1, retries, latch, requestId -> {});
+        setUpClusterManagerRetryVerification(1, retries, latch, requestId -> {});
 
         ShardRouting failedShard = getRandomShardRouting(index);
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
@@ -242,7 +242,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         assertTrue(success.get());
     }
 
-    public void testMasterChannelException() throws InterruptedException {
+    public void testClusterManagerChannelException() throws InterruptedException {
         final String index = "test";
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
@@ -268,7 +268,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         };
 
         final int numberOfRetries = randomIntBetween(1, 256);
-        setUpMasterRetryVerification(numberOfRetries, retries, latch, retryLoop);
+        setUpClusterManagerRetryVerification(numberOfRetries, retries, latch, retryLoop);
 
         ShardRouting failedShard = getRandomShardRouting(index);
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
@@ -413,8 +413,8 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         }
         Thread[] clientThreads = new Thread[between(1, 6)];
         int iterationsPerThread = scaledRandomIntBetween(50, 500);
-        Phaser barrier = new Phaser(clientThreads.length + 2); // one for master thread, one for the main thread
-        Thread masterThread = new Thread(() -> {
+        Phaser barrier = new Phaser(clientThreads.length + 2); // one for cluster-manager thread, one for the main thread
+        Thread clusterManagerThread = new Thread(() -> {
             barrier.arriveAndAwaitAdvance();
             while (shutdown.get() == false) {
                 for (CapturingTransport.CapturedRequest request : transport.getCapturedRequestsAndClear()) {
@@ -426,7 +426,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
                 }
             }
         });
-        masterThread.start();
+        clusterManagerThread.start();
 
         AtomicInteger notifiedResponses = new AtomicInteger();
         for (int t = 0; t < clientThreads.length; t++) {
@@ -463,7 +463,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         }
         assertBusy(() -> assertThat(notifiedResponses.get(), equalTo(clientThreads.length * iterationsPerThread)));
         shutdown.set(true);
-        masterThread.join();
+        clusterManagerThread.join();
     }
 
     public void testShardStarted() throws InterruptedException {
@@ -496,14 +496,19 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         return shardRouting;
     }
 
-    private void setUpMasterRetryVerification(int numberOfRetries, AtomicInteger retries, CountDownLatch latch, LongConsumer retryLoop) {
-        shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {
-            DiscoveryNodes.Builder masterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-            masterBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().iterator().next().value.getId());
-            setState(clusterService, ClusterState.builder(clusterService.state()).nodes(masterBuilder));
+    private void setUpClusterManagerRetryVerification(
+        int numberOfRetries,
+        AtomicInteger retries,
+        CountDownLatch latch,
+        LongConsumer retryLoop
+    ) {
+        shardStateAction.setOnBeforeWaitForNewClusterManagerAndRetry(() -> {
+            DiscoveryNodes.Builder clusterManagerBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
+            clusterManagerBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().iterator().next().value.getId());
+            setState(clusterService, ClusterState.builder(clusterService.state()).nodes(clusterManagerBuilder));
         });
 
-        shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> verifyRetry(numberOfRetries, retries, latch, retryLoop));
+        shardStateAction.setOnAfterWaitFornewClusterManagerAndRetry(() -> verifyRetry(numberOfRetries, retries, latch, retryLoop));
     }
 
     private void verifyRetry(int numberOfRetries, AtomicInteger retries, CountDownLatch latch, LongConsumer retryLoop) {

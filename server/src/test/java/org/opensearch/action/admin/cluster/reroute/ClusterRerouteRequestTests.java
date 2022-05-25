@@ -161,7 +161,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
             assertEquals(request, copy);
             assertEquals(request.hashCode(), copy.hashCode());
 
-            // Changing masterNodeTime makes requests not equal
+            // Changing clusterManagerNodeTimeout makes requests not equal
             copy.masterNodeTimeout(timeValueMillis(request.masterNodeTimeout().millis() + 1));
             assertNotEquals(request, copy);
             assertNotEquals(request.hashCode(), copy.hashCode());

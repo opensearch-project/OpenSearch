@@ -81,7 +81,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         );
         nonClusterManagerTransportService.addFailToSendNoConnectRule(clusterManagerTranspotService);
 
-        assertNoMaster(nonClusterManagerNode);
+        assertNoClusterManager(nonClusterManagerNode);
 
         logger.info(
             "blocking cluster state publishing from cluster-manager [{}] to non cluster-manager [{}]",
@@ -166,7 +166,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         logger.info("--> forcing a complete election to make sure \"preferred\" cluster-manager is elected");
         isolateAllNodes.startDisrupting();
         for (String node : nodes) {
-            assertNoMaster(node);
+            assertNoClusterManager(node);
         }
         internalCluster().clearDisruptionScheme();
         ensureStableCluster(3);
@@ -194,7 +194,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         logger.info("--> forcing a complete election again");
         isolateAllNodes.startDisrupting();
         for (String node : nodes) {
-            assertNoMaster(node);
+            assertNoClusterManager(node);
         }
 
         isolateAllNodes.stopDisrupting();
@@ -242,7 +242,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(2, clusterManagerNode);
 
         logger.info("waiting for [{}] to have no cluster-manager", nonClusterManagerNode);
-        assertNoMaster(nonClusterManagerNode);
+        assertNoClusterManager(nonClusterManagerNode);
 
         logger.info("healing partition and checking cluster reforms");
         clusterManagerTransportService.clearAllRules();

@@ -169,7 +169,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         testDoesNothingWithSettings(builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()));
     }
 
-    public void testDoesNothingByDefaultOnMasterIneligibleNodes() {
+    public void testDoesNothingByDefaultOnClusterManagerIneligibleNodes() {
         localNode = new DiscoveryNode(
             "local",
             randomAlphaOfLength(10),
@@ -401,7 +401,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testDoesNotBootstrapsOnNonMasterNode() {
+    public void testDoesNotBootstrapsOnNonClusterManagerNode() {
         localNode = new DiscoveryNode(
             "local",
             randomAlphaOfLength(10),
@@ -676,7 +676,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         );
     }
 
-    public void testFailBootstrapNonMasterEligibleNodeWithSingleNodeDiscovery() {
+    public void testFailBootstrapNonClusterManagerEligibleNodeWithSingleNodeDiscovery() {
         final Settings.Builder settings = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
             .put(NODE_NAME_SETTING.getKey(), localNode.getName())
