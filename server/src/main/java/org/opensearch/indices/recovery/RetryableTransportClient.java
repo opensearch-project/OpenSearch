@@ -34,7 +34,7 @@ import org.opensearch.transport.TransportService;
 import java.util.Map;
 
 /**
- * Transport client that implements retry functionality.
+ * Client that implements retry functionality for transport layer requests.
  *
  * @opensearch.internal
  */

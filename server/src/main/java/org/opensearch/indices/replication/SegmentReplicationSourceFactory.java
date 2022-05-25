@@ -17,6 +17,11 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Factory to build {@link SegmentReplicationSource} used by {@link SegmentReplicationTargetService}.
+ *
+ * @opensearch.internal
+ */
 public class SegmentReplicationSourceFactory {
 
     private TransportService transportService;
