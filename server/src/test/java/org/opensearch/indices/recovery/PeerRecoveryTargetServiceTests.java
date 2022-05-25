@@ -105,7 +105,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             receiveFileInfoFuture
         );
         receiveFileInfoFuture.actionGet();
-        List<RecoveryFileChunkRequest> requests = new ArrayList<>();
+        List<FileChunkRequest> requests = new ArrayList<>();
         long seqNo = 0;
         for (StoreFileMetadata md : mdFiles) {
             try (IndexInput in = sourceShard.store().directory().openInput(md.name(), IOContext.READONCE)) {
@@ -115,7 +115,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     byte[] buffer = new byte[length];
                     in.readBytes(buffer, 0, length);
                     requests.add(
-                        new RecoveryFileChunkRequest(
+                        new FileChunkRequest(
                             0,
                             seqNo++,
                             sourceShard.shardId(),
@@ -132,7 +132,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             }
         }
         Randomness.shuffle(requests);
-        BlockingQueue<RecoveryFileChunkRequest> queue = new ArrayBlockingQueue<>(requests.size());
+        BlockingQueue<FileChunkRequest> queue = new ArrayBlockingQueue<>(requests.size());
         queue.addAll(requests);
         Thread[] senders = new Thread[between(1, 4)];
         CyclicBarrier barrier = new CyclicBarrier(senders.length);
@@ -140,7 +140,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             senders[i] = new Thread(() -> {
                 try {
                     barrier.await();
-                    RecoveryFileChunkRequest r;
+                    FileChunkRequest r;
                     while ((r = queue.poll()) != null) {
                         recoveryTarget.writeFileChunk(
                             r.metadata(),

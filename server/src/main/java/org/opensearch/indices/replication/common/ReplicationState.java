@@ -14,5 +14,7 @@ package org.opensearch.indices.replication.common;
  * @opensearch.internal
  */
 public interface ReplicationState {
+    ReplicationLuceneIndex getIndex();
 
+    ReplicationTimer getTimer();
 }
