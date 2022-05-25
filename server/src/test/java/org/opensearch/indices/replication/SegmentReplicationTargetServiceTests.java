@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexShard;
@@ -33,13 +34,15 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         final TransportService transportService = mock(TransportService.class);
         final IndexShard indexShard = newShard(false, settings);
         ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 0L, 0L, 0L, 0L);
-        SegmentReplicationSource replicationSource = mock(SegmentReplicationSource.class);
+        SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
+        final SegmentReplicationSource replicationSource = mock(SegmentReplicationSource.class);
+        when(replicationSourceFactory.get(indexShard)).thenReturn(replicationSource);
 
         SegmentReplicationTargetService sut = new SegmentReplicationTargetService(
             threadPool,
             recoverySettings,
             transportService,
-            replicationSource
+            replicationSourceFactory
         );
 
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
@@ -48,7 +51,9 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             replicationSource,
             new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override
-                public void onReplicationDone(SegmentReplicationState state) {}
+                public void onReplicationDone(SegmentReplicationState state) {
+                    assertEquals(SegmentReplicationState.Stage.DONE, state.getStage());
+                }
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
@@ -58,9 +63,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         final SegmentReplicationTarget spy = Mockito.spy(target);
         doAnswer(invocation -> {
-            spy.markAsDone();
+            final ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onResponse(null);
             return null;
-        }).when(spy).startReplication();
+        }).when(spy).startReplication(any());
         sut.startReplication(spy);
         closeShards(indexShard);
     }
@@ -72,15 +78,17 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         final TransportService transportService = mock(TransportService.class);
         final IndexShard indexShard = newShard(false, settings);
         ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 0L, 0L, 0L, 0L);
+        SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
         SegmentReplicationSource replicationSource = mock(SegmentReplicationSource.class);
 
         SegmentReplicationTargetService sut = new SegmentReplicationTargetService(
             threadPool,
             recoverySettings,
             transportService,
-            replicationSource
+            replicationSourceFactory
         );
 
+        final OpenSearchException expectedError = new OpenSearchException("Fail");
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
             indexShard,
@@ -93,15 +101,18 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    assertEquals(SegmentReplicationState.Stage.INIT, state.getStage());
+                    assertEquals(expectedError, e.getCause());
                     assertTrue(sendShardFailure);
                 }
             }
         );
         final SegmentReplicationTarget spy = Mockito.spy(target);
         doAnswer(invocation -> {
-            spy.fail(new OpenSearchException("Test fail"), true);
+            final ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onFailure(expectedError);
             return null;
-        }).when(spy).startReplication();
+        }).when(spy).startReplication(any());
         sut.startReplication(spy);
         closeShards(indexShard);
     }
@@ -113,13 +124,14 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         final TransportService transportService = mock(TransportService.class);
         final IndexShard indexShard = newShard(false, settings);
         ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 0L, 0L, 0L, 0L);
+        SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
         SegmentReplicationSource replicationSource = mock(SegmentReplicationSource.class);
 
         SegmentReplicationTargetService sut = new SegmentReplicationTargetService(
             threadPool,
             recoverySettings,
             transportService,
-            replicationSource
+            replicationSourceFactory
         );
 
         final SegmentReplicationTarget target = new SegmentReplicationTarget(

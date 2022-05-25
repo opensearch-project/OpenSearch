@@ -218,21 +218,21 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
      * @param rateLimiter {@link RateLimiter} Rate limiter.
      * @throws IOException When there is an issue pausing the rate limiter.
      */
-    public void handleFileChunk(final FileChunkRequest request,
-                                final ReplicationTarget replicationTarget,
-                                final AtomicLong bytesSinceLastPause,
-                                final RateLimiter rateLimiter,
-                                final ActionListener<Void> listener) throws IOException {
+    public void handleFileChunk(
+        final FileChunkRequest request,
+        final ReplicationTarget replicationTarget,
+        final AtomicLong bytesSinceLastPause,
+        final RateLimiter rateLimiter,
+        final ActionListener<Void> listener
+    ) throws IOException {
 
         if (listener == null) {
             return;
         }
-
         final ReplicationLuceneIndex indexState = replicationTarget.state().getIndex();
         if (request.sourceThrottleTimeInNanos() != ReplicationLuceneIndex.UNKNOWN) {
             indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
         }
-
         if (rateLimiter != null) {
             long bytes = bytesSinceLastPause.addAndGet(request.content().length());
             if (bytes > rateLimiter.getMinPauseCheckBytes()) {
@@ -243,7 +243,6 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
                 replicationTarget.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
             }
         }
-
         writeFileChunk(
             request.metadata(),
             request.position(),
@@ -253,6 +252,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
             listener
         );
     }
+
     public abstract void writeFileChunk(
         StoreFileMetadata metadata,
         long position,

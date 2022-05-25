@@ -57,7 +57,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     protected void onDone() {
-        // TODO
+        this.state.setStage(SegmentReplicationState.Stage.DONE);
     }
 
     @Override
@@ -67,8 +67,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     public ReplicationState state() {
-        // TODO
-        return null;
+        return state;
     }
 
     @Override
@@ -106,7 +105,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         // TODO
     }
 
-    public void startReplication() {
+    /**
+     * Start the Replication event.
+     * @param listener {@link ActionListener} listener.
+     */
+    public void startReplication(ActionListener<Void> listener) {
         // TODO
     }
 }

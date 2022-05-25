@@ -43,11 +43,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SegmentReplicationTargetService.class);
 
     private final ThreadPool threadPool;
-    private final RecoverySettings replicationSettings;
+    private final RecoverySettings recoverySettings;
 
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
-    private final SegmentReplicationSource source;
+    private final SegmentReplicationSourceFactory sourceFactory;
 
     /**
      * The internal actions
@@ -62,12 +62,12 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final ThreadPool threadPool,
         final RecoverySettings recoverySettings,
         final TransportService transportService,
-        final SegmentReplicationSource source
+        final SegmentReplicationSourceFactory sourceFactory
     ) {
         this.threadPool = threadPool;
-        this.replicationSettings = recoverySettings;
+        this.recoverySettings = recoverySettings;
         this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
-        this.source = source;
+        this.sourceFactory = sourceFactory;
 
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
@@ -89,11 +89,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final IndexShard indexShard,
         final SegmentReplicationListener listener
     ) {
-        startReplication(new SegmentReplicationTarget(checkpoint, indexShard, source, listener));
+        startReplication(new SegmentReplicationTarget(checkpoint, indexShard, sourceFactory.get(indexShard), listener));
     }
 
     public void startReplication(final SegmentReplicationTarget target) {
-        final long replicationId = onGoingReplications.start(target, replicationSettings.activityTimeout());
+        final long replicationId = onGoingReplications.start(target, recoverySettings.activityTimeout());
         logger.trace(() -> new ParameterizedMessage("Starting replication {}", replicationId));
         threadPool.generic().execute(new ReplicationRunner(replicationId));
     }
@@ -136,7 +136,17 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private void start(final long replicationId) {
         try (ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)) {
-            replicationRef.get().startReplication();
+            replicationRef.get().startReplication(new ActionListener<>() {
+                @Override
+                public void onResponse(Void o) {
+                    onGoingReplications.markAsDone(replicationId);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    onGoingReplications.fail(replicationId, new OpenSearchException("Segment Replication failed", e), true);
+                }
+            });
         }
     }
 
@@ -151,13 +161,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             try (ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.getSafe(request.recoveryId(), request.shardId())) {
                 final SegmentReplicationTarget target = ref.get();
                 final ActionListener<Void> listener = target.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
-                target.handleFileChunk(
-                    request,
-                    target,
-                    bytesSinceLastPause,
-                    replicationSettings.rateLimiter(),
-                    listener
-                );
+                target.handleFileChunk(request, target, bytesSinceLastPause, recoverySettings.rateLimiter(), listener);
             }
         }
     }

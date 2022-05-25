@@ -19,6 +19,49 @@ import org.opensearch.indices.replication.common.ReplicationTimer;
  */
 public class SegmentReplicationState implements ReplicationState {
 
+    /**
+     * The stage of the recovery state
+     *
+     * @opensearch.internal
+     */
+    public enum Stage {
+        INIT((byte) 0),
+
+        DONE((byte) 1);
+
+        private static final Stage[] STAGES = new Stage[Stage.values().length];
+
+        static {
+            for (Stage stage : Stage.values()) {
+                assert stage.id() < STAGES.length && stage.id() >= 0;
+                STAGES[stage.id] = stage;
+            }
+        }
+
+        private final byte id;
+
+        Stage(byte id) {
+            this.id = id;
+        }
+
+        public byte id() {
+            return id;
+        }
+
+        public static Stage fromId(byte id) {
+            if (id < 0 || id >= STAGES.length) {
+                throw new IllegalArgumentException("No mapping for id [" + id + "]");
+            }
+            return STAGES[id];
+        }
+    }
+
+    public SegmentReplicationState() {
+        this.stage = Stage.INIT;
+    }
+
+    private Stage stage;
+
     @Override
     public ReplicationLuceneIndex getIndex() {
         // TODO
@@ -29,5 +72,13 @@ public class SegmentReplicationState implements ReplicationState {
     public ReplicationTimer getTimer() {
         // TODO
         return null;
+    }
+
+    public Stage getStage() {
+        return stage;
+    }
+
+    public void setStage(Stage stage) {
+        this.stage = stage;
     }
 }

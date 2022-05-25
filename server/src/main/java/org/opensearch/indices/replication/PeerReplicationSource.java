@@ -30,7 +30,7 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
  */
 public class PeerReplicationSource implements SegmentReplicationSource {
 
-    private DiscoveryNode localNode;
+    private DiscoveryNode targetNode;
     private String allocationId;
     private RetryableTransportClient transportClient;
 
@@ -42,7 +42,7 @@ public class PeerReplicationSource implements SegmentReplicationSource {
         String allocationId
     ) {
         transportClient = new RetryableTransportClient(transportService, sourceNode, recoverySettings.internalActionLongTimeout());
-        this.localNode = targetNode;
+        this.targetNode = targetNode;
         this.allocationId = allocationId;
     }
 
@@ -54,7 +54,7 @@ public class PeerReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
-        CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, allocationId, localNode, checkpoint);
+        CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, allocationId, targetNode, checkpoint);
         transportClient.executeRetryableAction(GET_CHECKPOINT_INFO, request, responseListener, reader);
     }
 
@@ -69,7 +69,7 @@ public class PeerReplicationSource implements SegmentReplicationSource {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
 
-        GetSegmentFilesRequest request = new GetSegmentFilesRequest(replicationId, allocationId, localNode, filesToFetch, checkpoint);
+        GetSegmentFilesRequest request = new GetSegmentFilesRequest(replicationId, allocationId, targetNode, filesToFetch, checkpoint);
         transportClient.executeRetryableAction(GET_FILES, request, responseListener, reader);
     }
 }
