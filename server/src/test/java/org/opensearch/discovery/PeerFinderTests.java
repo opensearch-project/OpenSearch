@@ -147,7 +147,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
                                 listener.onResponse(discoveryNode);
                                 return;
                             } else {
-                                listener.onFailure(new OpenSearchException("non-master node " + discoveryNode));
+                                listener.onFailure(new OpenSearchException("non-cluster-manager node " + discoveryNode));
                                 return;
                             }
                         }
@@ -165,20 +165,20 @@ public class PeerFinderTests extends OpenSearchTestCase {
     }
 
     class TestPeerFinder extends PeerFinder {
-        DiscoveryNode discoveredMasterNode;
-        OptionalLong discoveredMasterTerm = OptionalLong.empty();
+        DiscoveryNode discoveredClusterManagerNode;
+        OptionalLong discoveredClusterManagerTerm = OptionalLong.empty();
 
         TestPeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector) {
             super(settings, transportService, transportAddressConnector, PeerFinderTests.this::resolveConfiguredHosts);
         }
 
         @Override
-        protected void onActiveClusterManagerFound(DiscoveryNode masterNode, long term) {
+        protected void onActiveClusterManagerFound(DiscoveryNode clusterManagerNode, long term) {
             assert holdsLock() == false : "PeerFinder lock held in error";
-            assertThat(discoveredMasterNode, nullValue());
-            assertFalse(discoveredMasterTerm.isPresent());
-            discoveredMasterNode = masterNode;
-            discoveredMasterTerm = OptionalLong.of(term);
+            assertThat(discoveredClusterManagerNode, nullValue());
+            assertFalse(discoveredClusterManagerTerm.isPresent());
+            discoveredClusterManagerNode = clusterManagerNode;
+            discoveredClusterManagerTerm = OptionalLong.of(term);
         }
 
         @Override
@@ -335,8 +335,8 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers();
     }
 
-    public void testDoesNotAddNonMasterEligibleNodesFromUnicastHostsList() {
-        final DiscoveryNode nonMasterNode = new DiscoveryNode(
+    public void testDoesNotAddNonClusterManagerEligibleNodesFromUnicastHostsList() {
+        final DiscoveryNode nonClusterManagerNode = new DiscoveryNode(
             "node-from-hosts-list",
             buildNewFakeTransportAddress(),
             emptyMap(),
@@ -344,8 +344,8 @@ public class PeerFinderTests extends OpenSearchTestCase {
             Version.CURRENT
         );
 
-        providedAddresses.add(nonMasterNode.getAddress());
-        transportAddressConnector.addReachableNode(nonMasterNode);
+        providedAddresses.add(nonClusterManagerNode.getAddress());
+        transportAddressConnector.addReachableNode(nonClusterManagerNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -423,7 +423,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers(sourceNode, otherKnownNode);
     }
 
-    public void testDoesNotAddReachableNonMasterEligibleNodesFromIncomingRequests() {
+    public void testDoesNotAddReachableNonClusterManagerEligibleNodesFromIncomingRequests() {
         final DiscoveryNode sourceNode = new DiscoveryNode(
             "request-source",
             buildNewFakeTransportAddress(),
@@ -494,7 +494,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
     }
 
     public void testDelegatesRequestHandlingWhenInactive() {
-        final DiscoveryNode masterNode = newDiscoveryNode("master-node");
+        final DiscoveryNode clusterManagerNode = newDiscoveryNode("cluster-manager-node");
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
         transportAddressConnector.addReachableNode(sourceNode);
 
@@ -502,9 +502,9 @@ public class PeerFinderTests extends OpenSearchTestCase {
 
         final long term = randomNonNegativeLong();
         peerFinder.setCurrentTerm(term);
-        peerFinder.deactivate(masterNode);
+        peerFinder.deactivate(clusterManagerNode);
 
-        final PeersResponse expectedResponse = new PeersResponse(Optional.of(masterNode), Collections.emptyList(), term);
+        final PeersResponse expectedResponse = new PeersResponse(Optional.of(clusterManagerNode), Collections.emptyList(), term);
         final PeersResponse peersResponse = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
         assertThat(peersResponse, equalTo(expectedResponse));
     }
@@ -590,7 +590,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers(otherNode, discoveredNode);
     }
 
-    public void testAddsReachableMasterFromResponse() {
+    public void testAddsReachableClusterManagerFromResponse() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
         transportAddressConnector.addReachableNode(otherNode);
@@ -599,21 +599,21 @@ public class PeerFinderTests extends OpenSearchTestCase {
         runAllRunnableTasks();
 
         assertFoundPeers(otherNode);
-        final DiscoveryNode discoveredMaster = newDiscoveryNode("discovered-master");
+        final DiscoveryNode discoveredClusterManager = newDiscoveryNode("discovered-cluster-manager");
 
         respondToRequests(node -> {
             assertThat(node, is(otherNode));
-            return new PeersResponse(Optional.of(discoveredMaster), emptyList(), randomNonNegativeLong());
+            return new PeersResponse(Optional.of(discoveredClusterManager), emptyList(), randomNonNegativeLong());
         });
 
-        transportAddressConnector.addReachableNode(discoveredMaster);
+        transportAddressConnector.addReachableNode(discoveredClusterManager);
         runAllRunnableTasks();
-        assertFoundPeers(otherNode, discoveredMaster);
-        assertThat(peerFinder.discoveredMasterNode, nullValue());
-        assertFalse(peerFinder.discoveredMasterTerm.isPresent());
+        assertFoundPeers(otherNode, discoveredClusterManager);
+        assertThat(peerFinder.discoveredClusterManagerNode, nullValue());
+        assertFalse(peerFinder.discoveredClusterManagerTerm.isPresent());
     }
 
-    public void testHandlesDiscoveryOfMasterFromResponseFromMaster() {
+    public void testHandlesDiscoveryOfClusterManagerFromResponseFromClusterManager() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
         transportAddressConnector.addReachableNode(otherNode);
@@ -631,8 +631,8 @@ public class PeerFinderTests extends OpenSearchTestCase {
 
         runAllRunnableTasks();
         assertFoundPeers(otherNode);
-        assertThat(peerFinder.discoveredMasterNode, is(otherNode));
-        assertThat(peerFinder.discoveredMasterTerm, is(OptionalLong.of(term)));
+        assertThat(peerFinder.discoveredClusterManagerNode, is(otherNode));
+        assertThat(peerFinder.discoveredClusterManagerTerm, is(OptionalLong.of(term)));
     }
 
     public void testOnlyRequestsPeersOncePerRoundButDoesRetryNextRound() {

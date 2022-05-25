@@ -159,8 +159,9 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     }
 
     public void testUpdatesNodeWithNewRoles() throws Exception {
-        // Node roles vary by version, and new roles are suppressed for BWC. This means we can receive a join from a node that's already
-        // in the cluster but with a different set of roles: the node didn't change roles, but the cluster state came via an older master.
+        // Node roles vary by version, and new roles are suppressed for BWC.
+        // This means we can receive a join from a node that's already in the cluster but with a different set of roles:
+        // the node didn't change roles, but the cluster state came via an older cluster-manager.
         // In this case we must properly process its join to ensure that the roles are correct.
 
         final AllocationService allocationService = mock(AllocationService.class);
@@ -169,7 +170,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, rerouteService, null);
 
-        final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
         final DiscoveryNode actualNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode bwcNode = new DiscoveryNode(
@@ -184,7 +185,13 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             actualNode.getVersion()
         );
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(bwcNode))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .masterNodeId(clusterManagerNode.getId())
+                    .add(bwcNode)
+            )
             .build();
 
         final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(

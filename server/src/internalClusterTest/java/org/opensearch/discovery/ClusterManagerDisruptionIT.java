@@ -91,7 +91,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("waiting for nodes to de-elect cluster-manager [{}]", oldClusterManagerNode);
         for (String node : oldNonClusterManagerNodesSet) {
-            assertDifferentMaster(node, oldClusterManagerNode);
+            assertDifferentClusterManager(node, oldClusterManagerNode);
         }
 
         logger.info("waiting for nodes to elect a new cluster-manager");
@@ -107,7 +107,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         // make sure all nodes agree on cluster-manager
         String newClusterManager = internalCluster().getMasterName();
         assertThat(newClusterManager, not(equalTo(oldClusterManagerNode)));
-        assertMaster(newClusterManager, nodes);
+        assertClusterManager(newClusterManager, nodes);
     }
 
     /**
@@ -137,7 +137,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(2, nonIsolatedNode);
 
         // make sure isolated need picks up on things.
-        assertNoMaster(isolatedNode, TimeValue.timeValueSeconds(40));
+        assertNoClusterManager(isolatedNode, TimeValue.timeValueSeconds(40));
 
         // restore isolation
         networkDisruption.stopDisrupting();
@@ -227,7 +227,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
-        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(30));
+        assertNoClusterManager(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(30));
 
         logger.info("wait until elected cluster-manager has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
         ensureStableCluster(2, nonIsolatedNode);
@@ -273,7 +273,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
-        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
+        assertNoClusterManager(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause

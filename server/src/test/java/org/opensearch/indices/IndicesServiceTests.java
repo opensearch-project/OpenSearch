@@ -438,7 +438,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState originalState = clusterService.state();
 
-        // import an index with minor version incremented by one over cluster master version, it should be ignored
+        // import an index with minor version incremented by one over cluster cluster-manager version, it should be ignored
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettingsLater = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(Version.CURRENT.id + 10000))

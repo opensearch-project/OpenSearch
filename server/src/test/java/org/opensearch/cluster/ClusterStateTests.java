@@ -86,31 +86,34 @@ public class ClusterStateTests extends OpenSearchTestCase {
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         ClusterName name = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
-        ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
-        ClusterState noMaster2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
-        ClusterState withMaster1a = ClusterState.builder(name)
+        ClusterState noClusterManager1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
+        ClusterState noClusterManager2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
+        ClusterState withClusterManager1a = ClusterState.builder(name)
             .version(randomInt(5))
             .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
             .build();
-        ClusterState withMaster1b = ClusterState.builder(name)
+        ClusterState withClusterManager1b = ClusterState.builder(name)
             .version(randomInt(5))
             .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
             .build();
-        ClusterState withMaster2 = ClusterState.builder(name)
+        ClusterState withClusterManager2 = ClusterState.builder(name)
             .version(randomInt(5))
             .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node2.getId()))
             .build();
 
         // states with no cluster-manager should never supersede anything
-        assertFalse(noMaster1.supersedes(noMaster2));
-        assertFalse(noMaster1.supersedes(withMaster1a));
+        assertFalse(noClusterManager1.supersedes(noClusterManager2));
+        assertFalse(noClusterManager1.supersedes(withClusterManager1a));
 
-        // states should never supersede states from another master
-        assertFalse(withMaster1a.supersedes(withMaster2));
-        assertFalse(withMaster1a.supersedes(noMaster1));
+        // states should never supersede states from another cluster-manager
+        assertFalse(withClusterManager1a.supersedes(withClusterManager2));
+        assertFalse(withClusterManager1a.supersedes(noClusterManager1));
 
-        // state from the same master compare by version
-        assertThat(withMaster1a.supersedes(withMaster1b), equalTo(withMaster1a.version() > withMaster1b.version()));
+        // state from the same cluster-manager compare by version
+        assertThat(
+            withClusterManager1a.supersedes(withClusterManager1b),
+            equalTo(withClusterManager1a.version() > withClusterManager1b.version())
+        );
     }
 
     public void testBuilderRejectsNullCustom() {
@@ -146,8 +149,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "  \"cluster_uuid\" : \"clusterUUID\",\n"
                 + "  \"version\" : 0,\n"
                 + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : \"masterNodeId\",\n"
-                + "  \"cluster_manager_node\" : \"masterNodeId\",\n"
+                + "  \"master_node\" : \"clusterManagerNodeId\",\n"
+                + "  \"cluster_manager_node\" : \"clusterManagerNodeId\",\n"
                 + "  \"blocks\" : {\n"
                 + "    \"global\" : {\n"
                 + "      \"1\" : {\n"
@@ -352,8 +355,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "  \"cluster_uuid\" : \"clusterUUID\",\n"
                 + "  \"version\" : 0,\n"
                 + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : \"masterNodeId\",\n"
-                + "  \"cluster_manager_node\" : \"masterNodeId\",\n"
+                + "  \"master_node\" : \"clusterManagerNodeId\",\n"
+                + "  \"cluster_manager_node\" : \"clusterManagerNodeId\",\n"
                 + "  \"blocks\" : {\n"
                 + "    \"global\" : {\n"
                 + "      \"1\" : {\n"
@@ -551,8 +554,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "  \"cluster_uuid\" : \"clusterUUID\",\n"
                 + "  \"version\" : 0,\n"
                 + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : \"masterNodeId\",\n"
-                + "  \"cluster_manager_node\" : \"masterNodeId\",\n"
+                + "  \"master_node\" : \"clusterManagerNodeId\",\n"
+                + "  \"cluster_manager_node\" : \"clusterManagerNodeId\",\n"
                 + "  \"blocks\" : {\n"
                 + "    \"global\" : {\n"
                 + "      \"1\" : {\n"
@@ -868,7 +871,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
             .stateUUID("stateUUID")
             .nodes(
                 DiscoveryNodes.builder()
-                    .masterNodeId("masterNodeId")
+                    .masterNodeId("clusterManagerNodeId")
                     .add(new DiscoveryNode("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111), Version.CURRENT))
                     .build()
             )

@@ -240,7 +240,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
     }
 
     public void testLocalOperationWithoutBlocks() throws ExecutionException, InterruptedException {
-        final boolean masterOperationFailure = randomBoolean();
+        final boolean clusterManagerOperationFailure = randomBoolean();
 
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -253,7 +253,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-                if (masterOperationFailure) {
+                if (clusterManagerOperationFailure) {
                     listener.onFailure(exception);
                 } else {
                     listener.onResponse(response);
@@ -262,7 +262,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         }.execute(request, listener);
         assertTrue(listener.isDone());
 
-        if (masterOperationFailure) {
+        if (clusterManagerOperationFailure) {
             try {
                 listener.get();
                 fail("Expected exception but returned proper result");
@@ -376,7 +376,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         listener.get();
     }
 
-    public void testMasterNotAvailable() throws ExecutionException, InterruptedException {
+    public void testClusterManagerNotAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(0));
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -385,7 +385,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertListenerThrows("MasterNotDiscoveredException should be thrown", listener, MasterNotDiscoveredException.class);
     }
 
-    public void testMasterBecomesAvailable() throws ExecutionException, InterruptedException {
+    public void testClusterManagerBecomesAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -396,7 +396,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         listener.get();
     }
 
-    public void testDelegateToMaster() throws ExecutionException, InterruptedException {
+    public void testDelegateToClusterManager() throws ExecutionException, InterruptedException {
         Request request = new Request();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
 
@@ -415,15 +415,15 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertThat(listener.get(), equalTo(response));
     }
 
-    public void testDelegateToFailingMaster() throws ExecutionException, InterruptedException {
+    public void testDelegateToFailingClusterManager() throws ExecutionException, InterruptedException {
         boolean failsWithConnectTransportException = randomBoolean();
-        boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
+        boolean rejoinSameClusterManager = failsWithConnectTransportException && randomBoolean();
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
-        DiscoveryNode masterNode = this.remoteNode;
+        DiscoveryNode clusterManagerNode = this.remoteNode;
         setState(
             clusterService,
             // use a random base version so it can go down when simulating a restart.
-            ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, allNodes)).version(randomIntBetween(0, 10))
+            ClusterState.builder(ClusterStateCreationUtils.state(localNode, clusterManagerNode, allNodes)).version(randomIntBetween(0, 10))
         );
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -436,14 +436,16 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
-        if (rejoinSameMaster) {
+        if (rejoinSameClusterManager) {
             transport.handleRemoteError(
                 capturedRequest.requestId,
-                randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode)
+                randomBoolean()
+                    ? new ConnectTransportException(clusterManagerNode, "Fake error")
+                    : new NodeClosedException(clusterManagerNode)
             );
             assertFalse(listener.isDone());
             if (randomBoolean()) {
-                // simulate master node removal
+                // simulate cluster-manager node removal
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.masterNodeId(null);
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
@@ -452,15 +454,19 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
                 // reset the same state to increment a version simulating a join of an existing node
                 // simulating use being disconnected
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(masterNode.getId());
+                nodesBuilder.masterNodeId(clusterManagerNode.getId());
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
             } else {
-                // simulate master restart followed by a state recovery - this will reset the cluster state version
+                // simulate cluster-manager restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.remove(masterNode);
-                masterNode = new DiscoveryNode(masterNode.getId(), masterNode.getAddress(), masterNode.getVersion());
-                nodesBuilder.add(masterNode);
-                nodesBuilder.masterNodeId(masterNode.getId());
+                nodesBuilder.remove(clusterManagerNode);
+                clusterManagerNode = new DiscoveryNode(
+                    clusterManagerNode.getId(),
+                    clusterManagerNode.getAddress(),
+                    clusterManagerNode.getVersion()
+                );
+                nodesBuilder.add(clusterManagerNode);
+                nodesBuilder.masterNodeId(clusterManagerNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
                 setState(clusterService, builder.version(0));
             }
@@ -472,7 +478,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
             assertThat(capturedRequest.request, equalTo(request));
             assertThat(capturedRequest.action, equalTo("internal:testAction"));
         } else if (failsWithConnectTransportException) {
-            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(masterNode, "Fake error"));
+            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(clusterManagerNode, "Fake error"));
             assertFalse(listener.isDone());
             setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
             assertTrue(listener.isDone());
@@ -495,7 +501,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         }
     }
 
-    public void testMasterFailoverAfterStepDown() throws ExecutionException, InterruptedException {
+    public void testClusterManagerFailoverAfterStepDown() throws ExecutionException, InterruptedException {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueHours(1));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
@@ -506,7 +512,8 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
             protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-                // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
+                // The other node has become cluster-manager, simulate failures of this node while publishing cluster state through
+                // ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()
                     ? new FailedToCommitClusterStateException("Fake error")
@@ -526,8 +533,8 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertThat(listener.get(), equalTo(response));
     }
 
-    // Validate TransportMasterNodeAction.testDelegateToMaster() works correctly on node with the deprecated MASTER_ROLE.
-    public void testDelegateToMasterOnNodeWithDeprecatedMasterRole() throws ExecutionException, InterruptedException {
+    // Validate TransportMasterNodeAction.testDelegateToClusterManager() works correctly on node with the deprecated MASTER_ROLE.
+    public void testDelegateToClusterManagerOnNodeWithDeprecatedMasterRole() throws ExecutionException, InterruptedException {
         DiscoveryNode localNode = new DiscoveryNode(
             "local_node",
             buildNewFakeTransportAddress(),

@@ -260,7 +260,7 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
         }
         builder.add(
             new DiscoveryNode(
-                "master",
+                "cluster_manager",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),

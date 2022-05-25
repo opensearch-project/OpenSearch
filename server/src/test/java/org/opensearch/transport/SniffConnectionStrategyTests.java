@@ -743,24 +743,24 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             assertTrue(nodePredicate.test(all));
         }
         {
-            DiscoveryNode dataMaster = new DiscoveryNode(
+            DiscoveryNode dataClusterManager = new DiscoveryNode(
                 "id",
                 address,
                 Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)),
                 Version.CURRENT
             );
-            assertTrue(nodePredicate.test(dataMaster));
+            assertTrue(nodePredicate.test(dataClusterManager));
         }
         {
-            DiscoveryNode dedicatedMaster = new DiscoveryNode(
+            DiscoveryNode dedicatedClusterManager = new DiscoveryNode(
                 "id",
                 address,
                 Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)),
                 Version.CURRENT
             );
-            assertFalse(nodePredicate.test(dedicatedMaster));
+            assertFalse(nodePredicate.test(dedicatedClusterManager));
         }
         {
             DiscoveryNode dedicatedIngest = new DiscoveryNode(
@@ -773,14 +773,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             assertTrue(nodePredicate.test(dedicatedIngest));
         }
         {
-            DiscoveryNode masterIngest = new DiscoveryNode(
+            DiscoveryNode clusterManagerIngest = new DiscoveryNode(
                 "id",
                 address,
                 Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)),
                 Version.CURRENT
             );
-            assertTrue(nodePredicate.test(masterIngest));
+            assertTrue(nodePredicate.test(clusterManagerIngest));
         }
         {
             DiscoveryNode dedicatedData = new DiscoveryNode(
@@ -855,14 +855,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
         Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(settings);
-        Set<DiscoveryNodeRole> dedicatedMasterRoles = new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
+        Set<DiscoveryNodeRole> dedicatedClusterManagerRoles = new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
         Set<DiscoveryNodeRole> allRoles = DiscoveryNodeRole.BUILT_IN_ROLES;
         {
             DiscoveryNode node = new DiscoveryNode(
                 "id",
                 address,
                 Collections.singletonMap("gateway", "true"),
-                dedicatedMasterRoles,
+                dedicatedClusterManagerRoles,
                 Version.CURRENT
             );
             assertFalse(nodePredicate.test(node));
@@ -872,7 +872,7 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                 "id",
                 address,
                 Collections.singletonMap("gateway", "false"),
-                dedicatedMasterRoles,
+                dedicatedClusterManagerRoles,
                 Version.CURRENT
             );
             assertFalse(nodePredicate.test(node));
@@ -882,7 +882,7 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                 "id",
                 address,
                 Collections.singletonMap("gateway", "false"),
-                dedicatedMasterRoles,
+                dedicatedClusterManagerRoles,
                 Version.CURRENT
             );
             assertFalse(nodePredicate.test(node));
