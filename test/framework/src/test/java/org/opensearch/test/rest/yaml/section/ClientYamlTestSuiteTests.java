@@ -32,8 +32,6 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.XContentLocation;
@@ -76,23 +74,9 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 + "      indices.get_mapping:\n"
                 + "        index: test_index\n"
                 + "\n"
-                + "  - match: {test_index.test_type.properties.text.type:     string}\n"
-                + "  - match: {test_index.test_type.properties.text.analyzer: whitespace}\n"
+                + "  - match: {test_index.properties.text.type:     string}\n"
+                + "  - match: {test_index.properties.text.analyzer: whitespace}\n"
                 + "\n"
-                + "---\n"
-                + "\"Get type mapping - pre 6.0\":\n"
-                + "\n"
-                + "  - skip:\n"
-                + "      version:     \"6.0.0 - \"\n"
-                + "      reason:      \"for newer versions the index name is always returned\"\n"
-                + "\n"
-                + "  - do:\n"
-                + "      indices.get_mapping:\n"
-                + "        index: test_index\n"
-                + "        type: test_type\n"
-                + "\n"
-                + "  - match: {test_type.properties.text.type:     string}\n"
-                + "  - match: {test_type.properties.text.analyzer: whitespace}\n"
         );
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
@@ -135,7 +119,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             assertThat(restTestSuite.getTeardownSection().isEmpty(), equalTo(true));
         }
 
-        assertThat(restTestSuite.getTestSections().size(), equalTo(2));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
 
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Get index mapping"));
         assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(true));
@@ -147,36 +131,13 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(1), instanceOf(MatchAssertion.class));
         MatchAssertion matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(1);
-        assertThat(matchAssertion.getField(), equalTo("test_index.test_type.properties.text.type"));
+        assertThat(matchAssertion.getField(), equalTo("test_index.properties.text.type"));
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("string"));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(2), instanceOf(MatchAssertion.class));
         matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(2);
-        assertThat(matchAssertion.getField(), equalTo("test_index.test_type.properties.text.analyzer"));
+        assertThat(matchAssertion.getField(), equalTo("test_index.properties.text.analyzer"));
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("whitespace"));
 
-        assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Get type mapping - pre 6.0"));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
-        assertThat(
-            restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
-            equalTo("for newer versions the index name is always returned")
-        );
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(), equalTo(LegacyESVersion.fromString("6.0.0")));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
-        assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
-        assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));
-        doSection = (DoSection) restTestSuite.getTestSections().get(1).getExecutableSections().get(0);
-        assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_mapping"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
-        assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
-        assertThat(doSection.getApiCallSection().getParams().get("type"), equalTo("test_type"));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(1), instanceOf(MatchAssertion.class));
-        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(1).getExecutableSections().get(1);
-        assertThat(matchAssertion.getField(), equalTo("test_type.properties.text.type"));
-        assertThat(matchAssertion.getExpectedValue().toString(), equalTo("string"));
-        assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(2), instanceOf(MatchAssertion.class));
-        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(1).getExecutableSections().get(2);
-        assertThat(matchAssertion.getField(), equalTo("test_type.properties.text.analyzer"));
-        assertThat(matchAssertion.getExpectedValue().toString(), equalTo("whitespace"));
     }
 
     public void testParseTestSingleTestSection() throws Exception {
@@ -188,24 +149,20 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 + " - do:\n"
                 + "      index:\n"
                 + "          index:  test-weird-index-中文\n"
-                + "          type:   weird.type\n"
                 + "          id:     1\n"
                 + "          body:   { foo: bar }\n"
                 + "\n"
                 + " - is_true:   ok\n"
                 + " - match:   { _index:   test-weird-index-中文 }\n"
-                + " - match:   { _type:    weird.type }\n"
                 + " - match:   { _id:      \"1\"}\n"
                 + " - match:   { _version: 1}\n"
                 + "\n"
                 + " - do:\n"
                 + "      get:\n"
                 + "          index:  test-weird-index-中文\n"
-                + "          type:   weird.type\n"
                 + "          id:     1\n"
                 + "\n"
                 + " - match:   { _index:   test-weird-index-中文 }\n"
-                + " - match:   { _type:    weird.type }\n"
                 + " - match:   { _id:      \"1\"}\n"
                 + " - match:   { _version: 1}\n"
                 + " - match:   { _source: { foo: bar }}"
@@ -222,12 +179,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Index with ID"));
         assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(true));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(12));
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(10));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(0), instanceOf(DoSection.class));
         DoSection doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(0);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("index"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(1), instanceOf(IsTrueAssertion.class));
         IsTrueAssertion trueAssertion = (IsTrueAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(1);
@@ -238,40 +195,32 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("test-weird-index-中文"));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(3), instanceOf(MatchAssertion.class));
         matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(3);
-        assertThat(matchAssertion.getField(), equalTo("_type"));
-        assertThat(matchAssertion.getExpectedValue().toString(), equalTo("weird.type"));
+        assertThat(matchAssertion.getField(), equalTo("_id"));
+        assertThat(matchAssertion.getExpectedValue().toString(), equalTo("1"));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(4), instanceOf(MatchAssertion.class));
         matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(4);
-        assertThat(matchAssertion.getField(), equalTo("_id"));
-        assertThat(matchAssertion.getExpectedValue().toString(), equalTo("1"));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(5), instanceOf(MatchAssertion.class));
-        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(5);
         assertThat(matchAssertion.getField(), equalTo("_version"));
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("1"));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(6), instanceOf(DoSection.class));
-        doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(6);
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(5), instanceOf(DoSection.class));
+        doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(5);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("get"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(7), instanceOf(MatchAssertion.class));
-        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(7);
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(6), instanceOf(MatchAssertion.class));
+        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(6);
         assertThat(matchAssertion.getField(), equalTo("_index"));
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("test-weird-index-中文"));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(8), instanceOf(MatchAssertion.class));
-        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(8);
-        assertThat(matchAssertion.getField(), equalTo("_type"));
-        assertThat(matchAssertion.getExpectedValue().toString(), equalTo("weird.type"));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(9), instanceOf(MatchAssertion.class));
-        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(9);
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(7), instanceOf(MatchAssertion.class));
+        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(7);
         assertThat(matchAssertion.getField(), equalTo("_id"));
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("1"));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(10), instanceOf(MatchAssertion.class));
-        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(10);
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(8), instanceOf(MatchAssertion.class));
+        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(8);
         assertThat(matchAssertion.getField(), equalTo("_version"));
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("1"));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(11), instanceOf(MatchAssertion.class));
-        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(11);
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(9), instanceOf(MatchAssertion.class));
+        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(9);
         assertThat(matchAssertion.getField(), equalTo("_source"));
         assertThat(matchAssertion.getExpectedValue(), instanceOf(Map.class));
         assertThat(((Map) matchAssertion.getExpectedValue()).get("foo").toString(), equalTo("bar"));
@@ -287,14 +236,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 + "      catch:      missing\n"
                 + "      update:\n"
                 + "          index:  test_1\n"
-                + "          type:   test\n"
                 + "          id:     1\n"
                 + "          body:   { doc: { foo: bar } }\n"
                 + "\n"
                 + "  - do:\n"
                 + "      update:\n"
                 + "          index: test_1\n"
-                + "          type:  test\n"
                 + "          id:    1\n"
                 + "          body:  { doc: { foo: bar } }\n"
                 + "          ignore: 404\n"
@@ -307,7 +254,6 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 + "      catch:      missing\n"
                 + "      update:\n"
                 + "          index:  test_1\n"
-                + "          type:   test\n"
                 + "          id:     1\n"
                 + "          body:\n"
                 + "            script: \"ctx._source.foo = bar\"\n"
@@ -316,7 +262,6 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 + "  - do:\n"
                 + "      update:\n"
                 + "          index:  test_1\n"
-                + "          type:   test\n"
                 + "          id:     1\n"
                 + "          ignore: 404\n"
                 + "          body:\n"
@@ -341,13 +286,13 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(0);
         assertThat(doSection.getCatch(), equalTo("missing"));
         assertThat(doSection.getApiCallSection().getApi(), equalTo("update"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(1), instanceOf(DoSection.class));
         doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(1);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("update"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(4));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
 
         assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Missing document (script)"));
@@ -358,13 +303,13 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection = (DoSection) restTestSuite.getTestSections().get(1).getExecutableSections().get(0);
         assertThat(doSection.getCatch(), equalTo("missing"));
         assertThat(doSection.getApiCallSection().getApi(), equalTo("update"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(1), instanceOf(DoSection.class));
         doSection = (DoSection) restTestSuite.getTestSections().get(1).getExecutableSections().get(1);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("update"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(4));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
     }
 
@@ -378,7 +323,6 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 + "      catch:      missing\n"
                 + "      update:\n"
                 + "          index:  test_1\n"
-                + "          type:   test\n"
                 + "          id:     1\n"
                 + "          body:   { doc: { foo: bar } }\n"
                 + "\n"
@@ -390,7 +334,6 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 + "      catch:      missing\n"
                 + "      update:\n"
                 + "          index:  test_1\n"
-                + "          type:   test\n"
                 + "          id:     1\n"
                 + "          body:\n"
                 + "            script: \"ctx._source.foo = bar\"\n"

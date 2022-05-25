@@ -78,8 +78,10 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
-import org.opensearch.indices.recovery.RecoveryFailedException;
+import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.snapshots.SnapshotShardsService;
@@ -137,6 +139,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final Consumer<ShardId> globalCheckpointSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
+    private final SegmentReplicationCheckpointPublisher checkpointPublisher;
+
     @Inject
     public IndicesClusterStateService(
         final Settings settings,
@@ -152,13 +156,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final GlobalCheckpointSyncAction globalCheckpointSyncAction,
-        final RetentionLeaseSyncer retentionLeaseSyncer
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher
     ) {
         this(
             settings,
             indicesService,
             clusterService,
             threadPool,
+            checkpointPublisher,
             recoveryTargetService,
             shardStateAction,
             nodeMappingRefreshAction,
@@ -178,6 +184,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService,
         final ClusterService clusterService,
         final ThreadPool threadPool,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final PeerRecoveryTargetService recoveryTargetService,
         final ShardStateAction shardStateAction,
         final NodeMappingRefreshAction nodeMappingRefreshAction,
@@ -190,6 +197,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final RetentionLeaseSyncer retentionLeaseSyncer
     ) {
         this.settings = settings;
+        this.checkpointPublisher = checkpointPublisher;
         this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -623,8 +631,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
             indicesService.createShard(
                 shardRouting,
+                checkpointPublisher,
                 recoveryTargetService,
-                new RecoveryListener(shardRouting, primaryTerm),
+                new RecoveryListener(shardRouting, primaryTerm, this),
                 repositoriesService,
                 failedShardHandler,
                 globalCheckpointSyncer,
@@ -739,37 +748,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return sourceNode;
     }
 
-    private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
-
-        /**
-         * ShardRouting with which the shard was created
-         */
-        private final ShardRouting shardRouting;
-
-        /**
-         * Primary term with which the shard was created
-         */
-        private final long primaryTerm;
-
-        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
-            this.shardRouting = shardRouting;
-            this.primaryTerm = primaryTerm;
-        }
-
-        @Override
-        public void onRecoveryDone(final RecoveryState state) {
-            shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + state.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
-        }
-
-        @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-            handleRecoveryFailure(shardRouting, sendShardFailure, e);
-        }
+    // package-private for testing
+    public synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
+        failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
     }
 
-    // package-private for testing
-    synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
-        failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
+    public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
+        RecoveryState RecState = (RecoveryState) state;
+        shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + RecState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
     }
 
     private void failAndRemoveShard(
@@ -1003,8 +989,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         T createShard(
             ShardRouting shardRouting,
+            SegmentReplicationCheckpointPublisher checkpointPublisher,
             PeerRecoveryTargetService recoveryTargetService,
-            PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,
             Consumer<ShardId> globalCheckpointSyncer,

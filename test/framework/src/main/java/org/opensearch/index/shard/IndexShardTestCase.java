@@ -34,6 +34,7 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -93,6 +94,9 @@ import org.opensearch.indices.recovery.RecoverySourceHandler;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
@@ -138,14 +142,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
     };
 
-    protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+    protected static final ReplicationListener recoveryListener = new ReplicationListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state) {
+        public void onDone(ReplicationState state) {
 
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
             throw new AssertionError(e);
         }
     };
@@ -409,7 +413,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * creates a new initializing shard.
+     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * current node id the shard is assigned to.
      * @param routing                       shard routing to use
      * @param shardPath                     path to use for shard data
      * @param indexMetadata                 indexMetadata for the shard, including any mapping
@@ -430,6 +435,48 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
+        IndexingOperationListener... listeners
+    ) throws IOException {
+        return newShard(
+            routing,
+            shardPath,
+            indexMetadata,
+            storeProvider,
+            indexReaderWrapper,
+            engineFactory,
+            engineConfigFactory,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            indexEventListener,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            listeners
+        );
+    }
+
+    /**
+     * creates a new initializing shard.
+     * @param routing                       shard routing to use
+     * @param shardPath                     path to use for shard data
+     * @param indexMetadata                 indexMetadata for the shard, including any mapping
+     * @param storeProvider                 an optional custom store provider to use. If null a default file based store will be created
+     * @param indexReaderWrapper            an optional wrapper to be used during search
+     * @param globalCheckpointSyncer        callback for syncing global checkpoints
+     * @param indexEventListener            index event listener
+     * @param checkpointPublisher           segment Replication Checkpoint Publisher to publish checkpoint
+     * @param listeners                     an optional set of listeners to add to the shard
+     */
+    protected IndexShard newShard(
+        ShardRouting routing,
+        ShardPath shardPath,
+        IndexMetadata indexMetadata,
+        @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
+        @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+        @Nullable EngineFactory engineFactory,
+        @Nullable EngineConfigFactory engineConfigFactory,
+        Runnable globalCheckpointSyncer,
+        RetentionLeaseSyncer retentionLeaseSyncer,
+        IndexEventListener indexEventListener,
+        SegmentReplicationCheckpointPublisher checkpointPublisher,
         IndexingOperationListener... listeners
     ) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
@@ -477,7 +524,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Arrays.asList(listeners),
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
-                breakerService
+                breakerService,
+                checkpointPublisher
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
