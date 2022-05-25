@@ -447,7 +447,7 @@ public class PublicationTests extends OpenSearchTestCase {
             );
     }
 
-    public void testPublishingToMastersFirst() {
+    public void testPublishingToClusterManagersFirst() {
         VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 

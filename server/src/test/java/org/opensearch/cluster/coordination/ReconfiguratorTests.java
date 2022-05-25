@@ -223,14 +223,14 @@ public class ReconfiguratorTests extends OpenSearchTestCase {
         boolean autoShrinkVotingConfiguration,
         VotingConfiguration expectedConfig
     ) {
-        final DiscoveryNode master = liveNodes.stream().sorted(Comparator.comparing(DiscoveryNode::getId)).findFirst().get();
-        check(liveNodes, retired, master.getId(), config, autoShrinkVotingConfiguration, expectedConfig);
+        final DiscoveryNode clusterManager = liveNodes.stream().sorted(Comparator.comparing(DiscoveryNode::getId)).findFirst().get();
+        check(liveNodes, retired, clusterManager.getId(), config, autoShrinkVotingConfiguration, expectedConfig);
     }
 
     private void check(
         Set<DiscoveryNode> liveNodes,
         Set<String> retired,
-        String masterId,
+        String clusterManagerId,
         VotingConfiguration config,
         boolean autoShrinkVotingConfiguration,
         VotingConfiguration expectedConfig
@@ -239,14 +239,14 @@ public class ReconfiguratorTests extends OpenSearchTestCase {
             Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration).build()
         );
 
-        final DiscoveryNode master = liveNodes.stream().filter(n -> n.getId().equals(masterId)).findFirst().get();
-        final VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, master, config);
+        final DiscoveryNode clusterManager = liveNodes.stream().filter(n -> n.getId().equals(clusterManagerId)).findFirst().get();
+        final VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, clusterManager, config);
         assertEquals(
             new ParameterizedMessage(
-                "[liveNodes={}, retired={}, master={}, config={}, autoShrinkVotingConfiguration={}]",
+                "[liveNodes={}, retired={}, clusterManager={}, config={}, autoShrinkVotingConfiguration={}]",
                 liveNodes,
                 retired,
-                master,
+                clusterManager,
                 config,
                 autoShrinkVotingConfiguration
             ).getFormattedMessage(),

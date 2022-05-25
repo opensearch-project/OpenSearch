@@ -42,13 +42,13 @@ public class TransportMasterNodeActionUtils {
      * Allows to directly call {@link TransportMasterNodeAction#masterOperation(MasterNodeRequest, ClusterState, ActionListener)} which is
      * a protected method.
      */
-    public static <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> void runMasterOperation(
-        TransportMasterNodeAction<Request, Response> masterNodeAction,
+    public static <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> void runClusterManagerOperation(
+        TransportMasterNodeAction<Request, Response> clusterManagerNodeAction,
         Request request,
         ClusterState clusterState,
         ActionListener<Response> actionListener
     ) throws Exception {
-        assert masterNodeAction.checkBlock(request, clusterState) == null;
-        masterNodeAction.masterOperation(request, clusterState, actionListener);
+        assert clusterManagerNodeAction.checkBlock(request, clusterState) == null;
+        clusterManagerNodeAction.masterOperation(request, clusterState, actionListener);
     }
 }
