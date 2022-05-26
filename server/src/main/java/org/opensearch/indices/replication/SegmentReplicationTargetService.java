@@ -120,6 +120,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure);
     }
 
+    /**
+     * Runnable implementation to trigger a replication event.
+     */
     private class ReplicationRunner implements Runnable {
 
         final long replicationId;
@@ -156,8 +159,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final AtomicLong bytesSinceLastPause = new AtomicLong();
 
         @Override
-        public void messageReceived(FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
-            // How many bytes we've copied since we last called RateLimiter.pause
+        public void messageReceived(final FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
             try (ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.getSafe(request.recoveryId(), request.shardId())) {
                 final SegmentReplicationTarget target = ref.get();
                 final ActionListener<Void> listener = target.createOrFinishListener(channel, Actions.FILE_CHUNK, request);

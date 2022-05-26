@@ -27,24 +27,34 @@ import static org.mockito.Mockito.*;
 
 public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
-    public void testTargetReturnsSuccess_listenerCompletes() throws IOException {
-        Settings settings = Settings.builder().put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName()).build();
+    private IndexShard indexShard;
+    private ReplicationCheckpoint checkpoint;
+    private SegmentReplicationSource replicationSource;
+    private SegmentReplicationTargetService sut;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        final Settings settings = Settings.builder().put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName()).build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
         final TransportService transportService = mock(TransportService.class);
-        final IndexShard indexShard = newShard(false, settings);
-        ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 0L, 0L, 0L, 0L);
+        indexShard = newShard(false, settings);
+        checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 0L, 0L, 0L, 0L);
         SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
-        final SegmentReplicationSource replicationSource = mock(SegmentReplicationSource.class);
+        replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(indexShard)).thenReturn(replicationSource);
 
-        SegmentReplicationTargetService sut = new SegmentReplicationTargetService(
-            threadPool,
-            recoverySettings,
-            transportService,
-            replicationSourceFactory
-        );
+        sut = new SegmentReplicationTargetService(threadPool, recoverySettings, transportService, replicationSourceFactory);
+    }
 
+    @Override
+    public void tearDown() throws Exception {
+        closeShards(indexShard);
+        super.tearDown();
+    }
+
+    public void testTargetReturnsSuccess_listenerCompletes() throws IOException {
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
             indexShard,
@@ -72,22 +82,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testTargetThrowsException() throws IOException {
-        Settings settings = Settings.builder().put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName()).build();
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-        final TransportService transportService = mock(TransportService.class);
-        final IndexShard indexShard = newShard(false, settings);
-        ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 0L, 0L, 0L, 0L);
-        SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
-        SegmentReplicationSource replicationSource = mock(SegmentReplicationSource.class);
-
-        SegmentReplicationTargetService sut = new SegmentReplicationTargetService(
-            threadPool,
-            recoverySettings,
-            transportService,
-            replicationSourceFactory
-        );
-
         final OpenSearchException expectedError = new OpenSearchException("Fail");
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
@@ -118,22 +112,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testBeforeIndexShardClosed_CancelsOngoingReplications() throws IOException {
-        Settings settings = Settings.builder().put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName()).build();
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-        final TransportService transportService = mock(TransportService.class);
-        final IndexShard indexShard = newShard(false, settings);
-        ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 0L, 0L, 0L, 0L);
-        SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
-        SegmentReplicationSource replicationSource = mock(SegmentReplicationSource.class);
-
-        SegmentReplicationTargetService sut = new SegmentReplicationTargetService(
-            threadPool,
-            recoverySettings,
-            transportService,
-            replicationSourceFactory
-        );
-
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
             indexShard,
@@ -142,7 +120,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         final SegmentReplicationTarget spy = Mockito.spy(target);
         sut.startReplication(spy);
-        sut.beforeIndexShardClosed(indexShard.shardId(), indexShard, settings);
+        sut.beforeIndexShardClosed(indexShard.shardId(), indexShard, Settings.EMPTY);
         Mockito.verify(spy, times(1)).cancel(any());
         closeShards(indexShard);
     }

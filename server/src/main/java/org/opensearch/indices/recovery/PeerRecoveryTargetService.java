@@ -525,7 +525,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final AtomicLong bytesSinceLastPause = new AtomicLong();
 
         @Override
-        public void messageReceived(FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(final FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FILE_CHUNK, request);

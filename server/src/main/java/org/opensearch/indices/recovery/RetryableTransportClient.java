@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.recovery;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.LegacyESVersion;
@@ -40,8 +39,6 @@ import java.util.Map;
  */
 public final class RetryableTransportClient {
 
-    private static final Logger logger = LogManager.getLogger(RetryableTransportClient.class);
-
     private final ThreadPool threadPool;
     private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
     private volatile boolean isCancelled = false;
@@ -49,11 +46,14 @@ public final class RetryableTransportClient {
     private final TimeValue retryTimeout;
     private final DiscoveryNode targetNode;
 
-    public RetryableTransportClient(TransportService transportService, DiscoveryNode targetNode, TimeValue retryTimeout) {
+    private final Logger logger;
+
+    public RetryableTransportClient(TransportService transportService, DiscoveryNode targetNode, TimeValue retryTimeout, Logger logger) {
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
         this.retryTimeout = retryTimeout;
         this.targetNode = targetNode;
+        this.logger = logger;
     }
 
     /**
@@ -105,7 +105,7 @@ public final class RetryableTransportClient {
         onGoingRetryableActions.put(key, retryableAction);
         retryableAction.run();
         if (isCancelled) {
-            retryableAction.cancel(new CancellableThreads.ExecutionCancelledException("recovery was cancelled"));
+            retryableAction.cancel(new CancellableThreads.ExecutionCancelledException("retryable action was cancelled"));
         }
     }
 
@@ -114,7 +114,7 @@ public final class RetryableTransportClient {
         if (onGoingRetryableActions.isEmpty()) {
             return;
         }
-        final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("recovery was cancelled");
+        final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("retryable action was cancelled");
         // Dispatch to generic as cancellation calls can come on the cluster state applier thread
         threadPool.generic().execute(() -> {
             for (RetryableAction<?> action : onGoingRetryableActions.values()) {

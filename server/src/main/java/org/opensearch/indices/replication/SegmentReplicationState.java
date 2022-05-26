@@ -25,9 +25,9 @@ public class SegmentReplicationState implements ReplicationState {
      * @opensearch.internal
      */
     public enum Stage {
-        INIT((byte) 0),
+        DONE((byte) 0),
 
-        DONE((byte) 1);
+        INIT((byte) 1);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
 

@@ -15,6 +15,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
@@ -108,6 +109,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         lastAccessTime = System.nanoTime();
     }
 
+    @Nullable
     public ActionListener<Void> markRequestReceivedAndCreateListener(long requestSeqNo, ActionListener<Void> listener) {
         return requestTracker.markReceivedAndCreateListener(requestSeqNo, listener);
     }
@@ -182,6 +184,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         }
     }
 
+    @Nullable
     public ActionListener<Void> createOrFinishListener(
         final TransportChannel channel,
         final String action,
@@ -190,6 +193,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         return createOrFinishListener(channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
     }
 
+    @Nullable
     public ActionListener<Void> createOrFinishListener(
         final TransportChannel channel,
         final String action,
@@ -216,6 +220,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
      * @param request {@link FileChunkRequest} Request containing the file chunk.
      * @param bytesSinceLastPause {@link AtomicLong} Bytes since the last pause.
      * @param rateLimiter {@link RateLimiter} Rate limiter.
+     * @param listener {@link ActionListener} listener that completes when the chunk has been written.
      * @throws IOException When there is an issue pausing the rate limiter.
      */
     public void handleFileChunk(

@@ -32,6 +32,8 @@
 
 package org.opensearch.indices.recovery;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
@@ -61,6 +63,8 @@ import java.util.function.Consumer;
  */
 public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
+    private static final Logger logger = LogManager.getLogger(RemoteRecoveryTargetHandler.class);
+
     private final TransportService transportService;
     private final long recoveryId;
     private final ShardId shardId;
@@ -85,10 +89,14 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         Consumer<Long> onSourceThrottle
     ) {
         this.transportService = transportService;
+        // It is safe to pass the retry timeout value here because RemoteRecoveryTargetHandler
+        // created per recovery. Any change to RecoverySettings will be applied on the next
+        // recovery.
         this.retryableTransportClient = new RetryableTransportClient(
             transportService,
             targetNode,
-            recoverySettings.internalActionRetryTimeout()
+            recoverySettings.internalActionRetryTimeout(),
+            logger
         );
         this.recoveryId = recoveryId;
         this.shardId = shardId;
