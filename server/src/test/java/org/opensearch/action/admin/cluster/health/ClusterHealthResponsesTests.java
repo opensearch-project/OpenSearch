@@ -112,9 +112,9 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         assertThat(clusterHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
 
-    public void testClusterHealthVerifyMasterNodeDiscovery() throws IOException {
+    public void testClusterHealthVerifyClusterManagerNodeDiscovery() throws IOException {
         DiscoveryNode localNode = new DiscoveryNode("node", OpenSearchTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        // set the node information to verify master_node discovery in ClusterHealthResponse
+        // set the node information to verify cluster_manager_node discovery in ClusterHealthResponse
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .build();

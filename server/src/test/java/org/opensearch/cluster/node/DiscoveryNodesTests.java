@@ -108,14 +108,14 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         assertThat(discoveryNodes.resolveNodes(new String[0]), arrayContainingInAnyOrder(allNodes));
         assertThat(discoveryNodes.resolveNodes("_all"), arrayContainingInAnyOrder(allNodes));
 
-        final String[] nonMasterNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+        final String[] nonClusterManagerNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
             .map(n -> n.value)
             .filter(n -> n.isMasterNode() == false)
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
-        assertThat(discoveryNodes.resolveNodes("_all", "master:false"), arrayContainingInAnyOrder(nonMasterNodes));
+        assertThat(discoveryNodes.resolveNodes("_all", "cluster_manager:false"), arrayContainingInAnyOrder(nonClusterManagerNodes));
 
-        assertThat(discoveryNodes.resolveNodes("master:false", "_all"), arrayContainingInAnyOrder(allNodes));
+        assertThat(discoveryNodes.resolveNodes("cluster_manager:false", "_all"), arrayContainingInAnyOrder(allNodes));
     }
 
     public void testCoordinatorOnlyNodes() {
@@ -135,7 +135,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
 
         assertThat(discoveryNodes.resolveNodes("coordinating_only:true"), arrayContainingInAnyOrder(coordinatorOnlyNodes));
         assertThat(
-            discoveryNodes.resolveNodes("_all", "data:false", "ingest:false", "master:false"),
+            discoveryNodes.resolveNodes("_all", "data:false", "ingest:false", "cluster_manager:false"),
             arrayContainingInAnyOrder(coordinatorOnlyNodes)
         );
         assertThat(discoveryNodes.resolveNodes("_all", "coordinating_only:false"), arrayContainingInAnyOrder(nonCoordinatorOnlyNodes));
@@ -175,7 +175,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         assertThat(resolvedNodesIds, equalTo(expectedNodesIds));
     }
 
-    public void testMastersFirst() {
+    public void testClusterManagersFirst() {
         final List<DiscoveryNode> inputNodes = randomNodes(10);
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         inputNodes.forEach(discoBuilder::add);
@@ -254,19 +254,19 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
             nodesB.add(node);
         }
 
-        DiscoveryNode masterA = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesA);
-        DiscoveryNode masterB = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesB);
+        DiscoveryNode clusterManagerA = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesA);
+        DiscoveryNode clusterManagerB = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesB);
 
         DiscoveryNodes.Builder builderA = DiscoveryNodes.builder();
         nodesA.stream().forEach(builderA::add);
-        final String masterAId = masterA == null ? null : masterA.getId();
-        builderA.masterNodeId(masterAId);
+        final String clusterManagerAId = clusterManagerA == null ? null : clusterManagerA.getId();
+        builderA.masterNodeId(clusterManagerAId);
         builderA.localNodeId(RandomPicks.randomFrom(random(), nodesA).getId());
 
         DiscoveryNodes.Builder builderB = DiscoveryNodes.builder();
         nodesB.stream().forEach(builderB::add);
-        final String masterBId = masterB == null ? null : masterB.getId();
-        builderB.masterNodeId(masterBId);
+        final String clusterManagerBId = clusterManagerB == null ? null : clusterManagerB.getId();
+        builderB.masterNodeId(clusterManagerBId);
         builderB.localNodeId(RandomPicks.randomFrom(random(), nodesB).getId());
 
         final DiscoveryNodes discoNodesA = builderA.build();
@@ -276,18 +276,18 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
 
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
 
-        if (masterA == null) {
+        if (clusterManagerA == null) {
             assertThat(delta.previousClusterManagerNode(), nullValue());
         } else {
-            assertThat(delta.previousClusterManagerNode().getId(), equalTo(masterAId));
+            assertThat(delta.previousClusterManagerNode().getId(), equalTo(clusterManagerAId));
         }
-        if (masterB == null) {
+        if (clusterManagerB == null) {
             assertThat(delta.newMasterNode(), nullValue());
         } else {
-            assertThat(delta.newMasterNode().getId(), equalTo(masterBId));
+            assertThat(delta.newMasterNode().getId(), equalTo(clusterManagerBId));
         }
 
-        if (Objects.equals(masterAId, masterBId)) {
+        if (Objects.equals(clusterManagerAId, clusterManagerBId)) {
             assertFalse(delta.masterNodeChanged());
         } else {
             assertTrue(delta.masterNodeChanged());
@@ -304,6 +304,32 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         assertThat(delta.removed(), equalTo(removedNodes.isEmpty() == false));
         assertThat(delta.removedNodes(), containsInAnyOrder(removedNodes.stream().collect(Collectors.toList()).toArray()));
         assertThat(delta.removedNodes().size(), equalTo(removedNodes.size()));
+    }
+
+    // Validate using the deprecated 'master' role in the node filter can get correct result.
+    public void testDeprecatedMasterNodeFilter() {
+        final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
+
+        final String[] allNodes = StreamSupport.stream(discoveryNodes.spliterator(), false)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
+
+        final String[] clusterManagerNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+            .map(n -> n.value)
+            .filter(n -> n.isMasterNode() == true)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
+
+        final String[] nonClusterManagerNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+            .map(n -> n.value)
+            .filter(n -> n.isMasterNode() == false)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
+
+        assertThat(discoveryNodes.resolveNodes("cluster_manager:true"), arrayContainingInAnyOrder(clusterManagerNodes));
+        assertThat(discoveryNodes.resolveNodes("master:true"), arrayContainingInAnyOrder(clusterManagerNodes));
+        assertThat(discoveryNodes.resolveNodes("_all", "master:false"), arrayContainingInAnyOrder(nonClusterManagerNodes));
+        assertThat(discoveryNodes.resolveNodes("master:false", "_all"), arrayContainingInAnyOrder(allNodes));
     }
 
     private static AtomicInteger idGenerator = new AtomicInteger();

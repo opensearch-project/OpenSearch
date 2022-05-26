@@ -470,7 +470,12 @@ public class ClusterStateChanges {
     ) {
         return executeClusterStateUpdateTask(clusterState, () -> {
             try {
-                TransportMasterNodeActionUtils.runMasterOperation(masterNodeAction, request, clusterState, new PlainActionFuture<>());
+                TransportMasterNodeActionUtils.runClusterManagerOperation(
+                    masterNodeAction,
+                    request,
+                    clusterState,
+                    new PlainActionFuture<>()
+                );
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

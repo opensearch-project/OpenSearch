@@ -230,7 +230,7 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
 
     public ClusterState randomInitialClusterState() {
         List<DiscoveryNode> allNodes = new ArrayList<>();
-        DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the master
+        DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the cluster-manager
         allNodes.add(localNode);
         // at least two nodes that have the data role so that we can allocate shards
         allNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));

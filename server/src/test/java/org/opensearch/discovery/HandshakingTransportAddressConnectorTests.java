@@ -137,7 +137,7 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
         terminate(threadPool);
     }
 
-    public void testConnectsToMasterNode() throws InterruptedException {
+    public void testConnectsToClustreManagerNode() throws InterruptedException {
         final CountDownLatch completionLatch = new CountDownLatch(1);
         final SetOnce<DiscoveryNode> receivedNode = new SetOnce<>();
 
@@ -190,7 +190,7 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
         }
     }
 
-    public void testDoesNotConnectToNonMasterNode() throws InterruptedException {
+    public void testDoesNotConnectToNonClusterManagerNode() throws InterruptedException {
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "local-cluster";

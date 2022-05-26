@@ -257,9 +257,9 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
         for (int i = 0; i < nodes.length; i++) {
             discoveryNodes[i] = nodes[i].discoveryNode();
         }
-        DiscoveryNode master = discoveryNodes[0];
+        DiscoveryNode clusterManager = discoveryNodes[0];
         for (TestNode node : nodes) {
-            setState(node.clusterService, ClusterStateCreationUtils.state(node.discoveryNode(), master, discoveryNodes));
+            setState(node.clusterService, ClusterStateCreationUtils.state(node.discoveryNode(), clusterManager, discoveryNodes));
         }
         for (TestNode nodeA : nodes) {
             for (TestNode nodeB : nodes) {

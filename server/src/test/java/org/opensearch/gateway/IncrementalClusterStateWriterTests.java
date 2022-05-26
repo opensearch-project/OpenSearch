@@ -86,7 +86,7 @@ import static org.mockito.Mockito.when;
 
 public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTestCase {
 
-    private ClusterState clusterStateWithUnassignedIndex(IndexMetadata indexMetadata, boolean masterEligible) {
+    private ClusterState clusterStateWithUnassignedIndex(IndexMetadata indexMetadata, boolean clusterManagerEligible) {
         Metadata metadata = Metadata.builder().put(indexMetadata, false).build();
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
@@ -94,11 +94,11 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
         return ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(routingTable)
-            .nodes(generateDiscoveryNodes(masterEligible))
+            .nodes(generateDiscoveryNodes(clusterManagerEligible))
             .build();
     }
 
-    private ClusterState clusterStateWithAssignedIndex(IndexMetadata indexMetadata, boolean masterEligible) {
+    private ClusterState clusterStateWithAssignedIndex(IndexMetadata indexMetadata, boolean clusterManagerEligible) {
         AllocationService strategy = createAllocationService(
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
@@ -108,7 +108,7 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
                 .build()
         );
 
-        ClusterState oldClusterState = clusterStateWithUnassignedIndex(indexMetadata, masterEligible);
+        ClusterState oldClusterState = clusterStateWithUnassignedIndex(indexMetadata, clusterManagerEligible);
         RoutingTable routingTable = strategy.reroute(oldClusterState, "reroute").routingTable();
 
         Metadata metadataNewClusterState = Metadata.builder().put(oldClusterState.metadata().index("test"), false).build();
@@ -120,8 +120,8 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
             .build();
     }
 
-    private ClusterState clusterStateWithNonReplicatedClosedIndex(IndexMetadata indexMetadata, boolean masterEligible) {
-        ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetadata, masterEligible);
+    private ClusterState clusterStateWithNonReplicatedClosedIndex(IndexMetadata indexMetadata, boolean clusterManagerEligible) {
+        ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetadata, clusterManagerEligible);
 
         Metadata metadataNewClusterState = Metadata.builder()
             .put(
@@ -142,8 +142,12 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
             .build();
     }
 
-    private ClusterState clusterStateWithReplicatedClosedIndex(IndexMetadata indexMetadata, boolean masterEligible, boolean assigned) {
-        ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetadata, masterEligible);
+    private ClusterState clusterStateWithReplicatedClosedIndex(
+        IndexMetadata indexMetadata,
+        boolean clusterManagerEligible,
+        boolean assigned
+    ) {
+        ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetadata, clusterManagerEligible);
 
         Metadata metadataNewClusterState = Metadata.builder()
             .put(
@@ -178,20 +182,20 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
             .build();
     }
 
-    private DiscoveryNodes.Builder generateDiscoveryNodes(boolean masterEligible) {
+    private DiscoveryNodes.Builder generateDiscoveryNodes(boolean clusterManagerEligible) {
         Set<DiscoveryNodeRole> dataOnlyRoles = Collections.singleton(DiscoveryNodeRole.DATA_ROLE);
         return DiscoveryNodes.builder()
-            .add(newNode("node1", masterEligible ? CLUSTER_MANAGER_DATA_ROLES : dataOnlyRoles))
-            .add(newNode("master_node", CLUSTER_MANAGER_DATA_ROLES))
+            .add(newNode("node1", clusterManagerEligible ? CLUSTER_MANAGER_DATA_ROLES : dataOnlyRoles))
+            .add(newNode("cluster_manager_node", CLUSTER_MANAGER_DATA_ROLES))
             .localNodeId("node1")
-            .masterNodeId(masterEligible ? "node1" : "master_node");
+            .masterNodeId(clusterManagerEligible ? "node1" : "cluster_manager_node");
     }
 
     private IndexMetadata createIndexMetadata(String name) {
         return IndexMetadata.builder(name).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2).build();
     }
 
-    public void testGetRelevantIndicesWithUnassignedShardsOnMasterEligibleNode() {
+    public void testGetRelevantIndicesWithUnassignedShardsOnClusterManagerEligibleNode() {
         IndexMetadata indexMetadata = createIndexMetadata("test");
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithUnassignedIndex(indexMetadata, true));
         assertThat(indices.size(), equalTo(0));
@@ -205,8 +209,10 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
 
     public void testGetRelevantIndicesWithAssignedShards() {
         IndexMetadata indexMetadata = createIndexMetadata("test");
-        boolean masterEligible = randomBoolean();
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithAssignedIndex(indexMetadata, masterEligible));
+        boolean clusterManagerEligible = randomBoolean();
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
+            clusterStateWithAssignedIndex(indexMetadata, clusterManagerEligible)
+        );
         assertThat(indices.size(), equalTo(1));
     }
 
