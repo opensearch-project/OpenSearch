@@ -175,6 +175,19 @@ public abstract class Engine implements Closeable {
      */
     protected abstract SegmentInfos getLatestSegmentInfos();
 
+    /**
+     * Fetch a snapshot of the latest SegmentInfos from the engine. Using this method
+     * ensures that segment files are retained in the directory until the reference is closed.
+     *
+     * @return {@link GatedCloseable} - A wrapper around a {@link SegmentInfos} instance that
+     * must be closed for segment files to be deleted.
+     * @throws EngineException - When segment infos cannot be safely retrieved
+     */
+    public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        // default implementation
+        return new GatedCloseable<>(getLatestSegmentInfos(), () -> {});
+    }
+
     public MergeStats getMergeStats() {
         return new MergeStats();
     }
@@ -845,6 +858,11 @@ public abstract class Engine implements Closeable {
      * @return the persisted local checkpoint for this Engine
      */
     public abstract long getPersistedLocalCheckpoint();
+
+    public long getProcessedLocalCheckpoint() {
+        // default implementation
+        return 0L;
+    }
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
