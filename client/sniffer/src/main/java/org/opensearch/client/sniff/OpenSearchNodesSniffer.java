@@ -262,23 +262,7 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
             realAttributes.put(entry.getKey(), singletonList(entry.getValue()));
         }
 
-        if (version.startsWith("2.")) {
-            /*
-             * 2.x doesn't send roles, instead we try to read them from
-             * attributes.
-             */
-            boolean clientAttribute = v2RoleAttributeValue(realAttributes, "client", false);
-            Boolean masterAttribute = v2RoleAttributeValue(realAttributes, "master", null);
-            Boolean dataAttribute = v2RoleAttributeValue(realAttributes, "data", null);
-            if ((masterAttribute == null && false == clientAttribute) || masterAttribute) {
-                roles.add("master");
-            }
-            if ((dataAttribute == null && false == clientAttribute) || dataAttribute) {
-                roles.add("data");
-            }
-        } else {
-            assert sawRoles : "didn't see roles for [" + nodeId + "]";
-        }
+        assert sawRoles : "didn't see roles for [" + nodeId + "]";
         assert boundHosts.contains(publishedHost) : "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
         logger.trace("adding node [" + nodeId + "]");
         return new Node(publishedHost, boundHosts, name, version, new Roles(roles), unmodifiableMap(realAttributes));
