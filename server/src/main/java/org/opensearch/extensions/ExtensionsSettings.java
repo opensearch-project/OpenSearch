@@ -8,8 +8,8 @@
 
 package org.opensearch.extensions;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * List of extension configurations from extension.yml
@@ -18,10 +18,10 @@ import java.util.List;
  */
 public class ExtensionsSettings {
 
-    private List<Extension> extensions;
+    private Set<Extension> extensions;
 
     public ExtensionsSettings() {
-        extensions = new ArrayList<Extension>();
+        extensions = new HashSet<Extension>();
     }
 
     /**
@@ -114,11 +114,11 @@ public class ExtensionsSettings {
 
     }
 
-    public List<Extension> getExtensions() {
+    public Set<Extension> getExtensions() {
         return extensions;
     }
 
-    public void setExtensions(List<Extension> extensions) {
+    public void setExtensions(Set<Extension> extensions) {
         this.extensions = extensions;
     }
 
