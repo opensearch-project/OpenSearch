@@ -37,6 +37,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.Assertions;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -141,7 +142,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     }
 
     @Override
-    public void notifyListener(Exception e, boolean sendShardFailure) {
+    public void notifyListener(OpenSearchException e, boolean sendShardFailure) {
         listener.onFailure(state(), new RecoveryFailedException(state(), e.getMessage(), e), sendShardFailure);
     }
 
