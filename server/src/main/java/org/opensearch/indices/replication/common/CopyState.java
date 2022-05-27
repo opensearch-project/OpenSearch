@@ -20,6 +20,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashSet;
 
 /**
@@ -72,6 +73,18 @@ public class CopyState extends AbstractRefCounted {
 
     @Override
     protected void closeInternal() {
-        // TODO
+        try {
+            segmentInfosRef.close();
+            // commitRef may be null if there were no pending delete files
+            if (commitRef != null) {
+                commitRef.close();
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public ReplicationCheckpoint getReplicationCheckpoint() {
+        return replicationCheckpoint;
     }
 }

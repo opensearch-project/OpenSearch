@@ -27,16 +27,6 @@ import java.util.List;
  */
 public class PrimaryShardReplicationSource implements SegmentReplicationSource {
 
-    /**
-     * Internal actions used by the segment replication source service on the primary shard
-     *
-     * @opensearch.internal
-     */
-    public static class Actions {
-        public static final String GET_CHECKPOINT_INFO = "internal:index/shard/replication/get_checkpoint_info";
-        public static final String GET_SEGMENT_FILES = "internal:index/shard/replication/get_segment_files";
-    }
-
     private final RetryableTransportClient transportClient;
     private final RecoverySettings recoverySettings;
     private final DiscoveryNode localNode;
