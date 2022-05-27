@@ -553,6 +553,18 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(RestRequest.Method.GET.toString())));
     }
 
+    public void testHandleBadRequestWithHtmlSpecialCharsInUri() {
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath(
+            "/<script>alert('xss');alert(\"&#x6A&#x61&#x76&#x61\");</script>"
+        ).build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        assertThat(
+            channel.getRestResponse().content().utf8ToString(),
+            containsString("/&#60;script&#62;alert(&#39;xss&#39;);alert(&#34;&#38;#x6A&#38;#x61&#38;#x76&#38;#x61&#34;);&#60;/script&#62;")
+        );
+    }
+
     public void testDispatchUnsupportedHttpMethod() {
         final boolean hasContent = randomBoolean();
         final RestRequest request = RestRequest.request(xContentRegistry(), new HttpRequest() {
