@@ -20,6 +20,9 @@ import org.opensearch.transport.TransportService;
 
 import java.util.List;
 
+import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_CHECKPOINT_INFO;
+import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES;
+
 /**
  * Implementation of a {@link SegmentReplicationSource} where the source is a primary node
  *
@@ -28,7 +31,6 @@ import java.util.List;
 public class PrimaryShardReplicationSource implements SegmentReplicationSource {
 
     private final RetryableTransportClient transportClient;
-    private final RecoverySettings recoverySettings;
     private final DiscoveryNode localNode;
     private final String allocationId;
 
@@ -40,7 +42,6 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         String allocationId
     ) {
         this.transportClient = new RetryableTransportClient(transportService, targetNode, recoverySettings.internalActionRetryTimeout());
-        this.recoverySettings = recoverySettings;
         this.localNode = localNode;
         this.allocationId = allocationId;
     }
@@ -53,7 +54,8 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
-        // TODO CheckpointInfoRequest and execute action
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, allocationId, localNode, checkpoint);
+        transportClient.executeRetryableAction(GET_CHECKPOINT_INFO, request, responseListener, reader);
     }
 
     @Override
@@ -66,6 +68,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
-        // TODO GetSegmentFilesRequest and execute action
+        final GetSegmentFilesRequest request = new GetSegmentFilesRequest(replicationId, allocationId, localNode, filesToFetch, checkpoint);
+        transportClient.executeRetryableAction(GET_SEGMENT_FILES, request, responseListener, reader);
     }
 }
