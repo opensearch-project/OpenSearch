@@ -26,7 +26,8 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES;
 
 /**
- * Implementation of a {@link SegmentReplicationSource} where the source is a primary node
+ * Implementation of a {@link SegmentReplicationSource} where the source is a primary node.
+ * This code executes on the target node.
  *
  * @opensearch.internal
  */
@@ -35,24 +36,24 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     private static final Logger logger = LogManager.getLogger(PrimaryShardReplicationSource.class);
 
     private final RetryableTransportClient transportClient;
-    private final DiscoveryNode localNode;
-    private final String allocationId;
+    private final DiscoveryNode targetNode;
+    private final String targetAllocationId;
 
     public PrimaryShardReplicationSource(
+        DiscoveryNode targetNode,
+        String targetAllocationId,
         TransportService transportService,
         RecoverySettings recoverySettings,
-        DiscoveryNode targetNode,
-        DiscoveryNode localNode,
-        String allocationId
+        DiscoveryNode sourceNode
     ) {
+        this.targetAllocationId = targetAllocationId;
         this.transportClient = new RetryableTransportClient(
             transportService,
-            targetNode,
+            sourceNode,
             recoverySettings.internalActionRetryTimeout(),
             logger
         );
-        this.localNode = localNode;
-        this.allocationId = allocationId;
+        this.targetNode = targetNode;
     }
 
     @Override
@@ -63,7 +64,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
-        final CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, allocationId, localNode, checkpoint);
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, targetAllocationId, targetNode, checkpoint);
         transportClient.executeRetryableAction(GET_CHECKPOINT_INFO, request, responseListener, reader);
     }
 
@@ -77,7 +78,13 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
-        final GetSegmentFilesRequest request = new GetSegmentFilesRequest(replicationId, allocationId, localNode, filesToFetch, checkpoint);
+        final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
+            replicationId,
+            targetAllocationId,
+            targetNode,
+            filesToFetch,
+            checkpoint
+        );
         transportClient.executeRetryableAction(GET_SEGMENT_FILES, request, responseListener, reader);
     }
 }

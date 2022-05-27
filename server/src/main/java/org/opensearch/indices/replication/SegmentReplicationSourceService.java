@@ -30,7 +30,7 @@ import java.util.Map;
 
 /**
  * Service class that handles segment replication requests from replica shards.
- * Typically, the "source" is a primary shard.
+ * Typically, the "source" is a primary shard. This code executes on the source node.
  *
  * @opensearch.internal
  */
@@ -75,7 +75,6 @@ public class SegmentReplicationSourceService {
     private class CheckpointInfoRequestHandler implements TransportRequestHandler<CheckpointInfoRequest> {
         @Override
         public void messageReceived(CheckpointInfoRequest request, TransportChannel channel, Task task) throws Exception {
-            // TODO is this the right checkpoint?
             final ReplicationCheckpoint checkpoint = request.getCheckpoint();
             logger.trace("Received request for checkpoint {}", checkpoint);
             final CopyState copyState = getCachedCopyState(checkpoint);
@@ -122,6 +121,7 @@ public class SegmentReplicationSourceService {
             final IndexShard indexShard = indexService.getShard(shardId.id());
             // build the CopyState object and cache it before returning
             final CopyState copyState = new CopyState(indexShard);
+            // TODO This will add with the latest checkpoint, not the one from the request
             addToCopyStateMap(copyState);
             return copyState;
         }

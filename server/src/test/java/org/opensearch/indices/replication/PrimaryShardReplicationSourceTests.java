@@ -44,7 +44,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
     private TransportService transportService;
     private PrimaryShardReplicationSource replicationSource;
     private IndexShard indexShard;
-    private DiscoveryNode targetNode;
+    private DiscoveryNode sourceNode;
 
     @Override
     public void setUp() throws Exception {
@@ -53,7 +53,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
         transport = new CapturingTransport();
-        targetNode = newDiscoveryNode("targetNode");
+        sourceNode = newDiscoveryNode("sourceNode");
         final DiscoveryNode localNode = newDiscoveryNode("localNode");
         clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode);
         transportService = transport.createTransportService(
@@ -70,11 +70,11 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
         indexShard = newStartedShard(true);
 
         replicationSource = new PrimaryShardReplicationSource(
+            localNode,
+            indexShard.routingEntry().allocationId().toString(),
             transportService,
             recoverySettings,
-            targetNode,
-            localNode,
-            indexShard.routingEntry().allocationId().toString()
+            sourceNode
         );
     }
 
@@ -98,7 +98,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
         assertEquals(1, requestList.length);
         CapturingTransport.CapturedRequest capturedRequest = requestList[0];
         assertEquals(SegmentReplicationSourceService.Actions.GET_CHECKPOINT_INFO, capturedRequest.action);
-        assertEquals(targetNode, capturedRequest.node);
+        assertEquals(sourceNode, capturedRequest.node);
         assertTrue(capturedRequest.request instanceof CheckpointInfoRequest);
     }
 
@@ -122,7 +122,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
         assertEquals(1, requestList.length);
         CapturingTransport.CapturedRequest capturedRequest = requestList[0];
         assertEquals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES, capturedRequest.action);
-        assertEquals(targetNode, capturedRequest.node);
+        assertEquals(sourceNode, capturedRequest.node);
         assertTrue(capturedRequest.request instanceof GetSegmentFilesRequest);
     }
 
