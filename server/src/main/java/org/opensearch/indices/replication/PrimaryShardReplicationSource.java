@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.Writeable;
@@ -30,6 +32,8 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
  */
 public class PrimaryShardReplicationSource implements SegmentReplicationSource {
 
+    private static final Logger logger = LogManager.getLogger(PrimaryShardReplicationSource.class);
+
     private final RetryableTransportClient transportClient;
     private final DiscoveryNode localNode;
     private final String allocationId;
@@ -41,7 +45,12 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         DiscoveryNode localNode,
         String allocationId
     ) {
-        this.transportClient = new RetryableTransportClient(transportService, targetNode, recoverySettings.internalActionRetryTimeout());
+        this.transportClient = new RetryableTransportClient(
+            transportService,
+            targetNode,
+            recoverySettings.internalActionRetryTimeout(),
+            logger
+        );
         this.localNode = localNode;
         this.allocationId = allocationId;
     }
