@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @opensearch.internal
  */
-public class SegmentReplicationTargetService implements IndexEventListener {
+public final class SegmentReplicationTargetService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(SegmentReplicationTargetService.class);
 
