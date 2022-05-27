@@ -133,7 +133,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
         } catch (Exception e) {
             // fail shard to be safe
             assert oldTarget != null;
-            oldTarget.notifyListener(e, true);
+            oldTarget.notifyListener(new OpenSearchException("Unable to reset target", e), true);
             return null;
         }
     }
