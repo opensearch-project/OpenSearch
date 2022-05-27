@@ -46,4 +46,8 @@ public class CheckpointInfoRequest extends SegmentReplicationTransportRequest {
         super.writeTo(out);
         checkpoint.writeTo(out);
     }
+
+    public ReplicationCheckpoint getCheckpoint() {
+        return checkpoint;
+    }
 }

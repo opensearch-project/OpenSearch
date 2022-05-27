@@ -47,4 +47,8 @@ public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest {
         out.writeList(filesToFetch);
         checkpoint.writeTo(out);
     }
+
+    public ReplicationCheckpoint getCheckpoint() {
+        return checkpoint;
+    }
 }

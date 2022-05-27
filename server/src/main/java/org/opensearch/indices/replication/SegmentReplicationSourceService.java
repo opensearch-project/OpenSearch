@@ -8,10 +8,22 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
+import org.opensearch.tasks.Task;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -23,6 +35,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class SegmentReplicationSourceService {
+
+    private static final Logger logger = LogManager.getLogger(SegmentReplicationSourceService.class);
 
     /**
      * Internal actions used by the segment replication source service on the primary shard
@@ -36,26 +50,54 @@ public class SegmentReplicationSourceService {
 
     private final Map<ReplicationCheckpoint, CopyState> copyStateMap;
     private final TransportService transportService;
+    private final IndicesService indicesService;
 
-    public SegmentReplicationSourceService(TransportService transportService) {
+    // TODO mark this as injected and bind in Node
+    public SegmentReplicationSourceService(TransportService transportService, IndicesService indicesService) {
         copyStateMap = Collections.synchronizedMap(new HashMap<>());
         this.transportService = transportService;
-        // TODO register request handlers
+        this.indicesService = indicesService;
+
+        transportService.registerRequestHandler(
+            Actions.GET_CHECKPOINT_INFO,
+            ThreadPool.Names.GENERIC,
+            CheckpointInfoRequest::new,
+            new CheckpointInfoRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            Actions.GET_SEGMENT_FILES,
+            ThreadPool.Names.GENERIC,
+            GetSegmentFilesRequest::new,
+            new GetSegmentFilesRequestHandler()
+        );
     }
 
-    /**
-     * A synchronized method that checks {@link #copyStateMap} for the given {@link ReplicationCheckpoint} key
-     * and returns the cached value if one is present. If the key is not present, a {@link CopyState}
-     * object is constructed and stored in the map before being returned.
-     */
-    private synchronized CopyState getCachedCopyState(ReplicationCheckpoint replicationCheckpoint) {
-        if (isInCopyStateMap(replicationCheckpoint)) {
-            final CopyState copyState = fetchFromCopyStateMap(replicationCheckpoint);
-            copyState.incRef();
-            return copyState;
-        } else {
-            // TODO fetch the shard object to build the CopyState
-            return null;
+    private class CheckpointInfoRequestHandler implements TransportRequestHandler<CheckpointInfoRequest> {
+        @Override
+        public void messageReceived(CheckpointInfoRequest request, TransportChannel channel, Task task) throws Exception {
+            // TODO is this the right checkpoint?
+            final ReplicationCheckpoint checkpoint = request.getCheckpoint();
+            logger.trace("Received request for checkpoint {}", checkpoint);
+            final CopyState copyState = getCachedCopyState(checkpoint);
+            channel.sendResponse(
+                new CheckpointInfoResponse(
+                    copyState.getCheckpoint(),
+                    copyState.getMetadataSnapshot(),
+                    copyState.getInfosBytes(),
+                    copyState.getPendingDeleteFiles()
+                )
+            );
+        }
+    }
+
+    class GetSegmentFilesRequestHandler implements TransportRequestHandler<GetSegmentFilesRequest> {
+        @Override
+        public void messageReceived(GetSegmentFilesRequest request, TransportChannel channel, Task task) throws Exception {
+            if (isInCopyStateMap(request.getCheckpoint())) {
+                // TODO send files
+            } else {
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            }
         }
     }
 
@@ -64,11 +106,33 @@ public class SegmentReplicationSourceService {
      */
 
     /**
+     * A synchronized method that checks {@link #copyStateMap} for the given {@link ReplicationCheckpoint} key
+     * and returns the cached value if one is present. If the key is not present, a {@link CopyState}
+     * object is constructed and stored in the map before being returned.
+     */
+    private synchronized CopyState getCachedCopyState(ReplicationCheckpoint checkpoint) throws IOException {
+        if (isInCopyStateMap(checkpoint)) {
+            final CopyState copyState = fetchFromCopyStateMap(checkpoint);
+            copyState.incRef();
+            return copyState;
+        } else {
+            // From the checkpoint's shard ID, fetch the IndexShard
+            ShardId shardId = checkpoint.getShardId();
+            final IndexService indexService = indicesService.indexService(shardId.getIndex());
+            final IndexShard indexShard = indexService.getShard(shardId.id());
+            // build the CopyState object and cache it before returning
+            final CopyState copyState = new CopyState(indexShard);
+            addToCopyStateMap(copyState);
+            return copyState;
+        }
+    }
+
+    /**
      * Adds the input {@link CopyState} object to {@link #copyStateMap}.
      * The key is the CopyState's {@link ReplicationCheckpoint} object.
      */
     private void addToCopyStateMap(CopyState copyState) {
-        copyStateMap.putIfAbsent(copyState.getReplicationCheckpoint(), copyState);
+        copyStateMap.putIfAbsent(copyState.getCheckpoint(), copyState);
     }
 
     /**

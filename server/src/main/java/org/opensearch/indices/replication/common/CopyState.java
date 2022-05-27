@@ -22,6 +22,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * An Opensearch-specific version of Lucene's CopyState class that
@@ -84,7 +85,19 @@ public class CopyState extends AbstractRefCounted {
         }
     }
 
-    public ReplicationCheckpoint getReplicationCheckpoint() {
+    public ReplicationCheckpoint getCheckpoint() {
         return replicationCheckpoint;
+    }
+
+    public Store.MetadataSnapshot getMetadataSnapshot() {
+        return metadataSnapshot;
+    }
+
+    public byte[] getInfosBytes() {
+        return infosBytes;
+    }
+
+    public Set<StoreFileMetadata> getPendingDeleteFiles() {
+        return pendingDeleteFiles;
     }
 }
