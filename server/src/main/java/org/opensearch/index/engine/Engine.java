@@ -81,7 +81,7 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -107,7 +107,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -166,6 +165,8 @@ public abstract class Engine implements Closeable {
     public final EngineConfig config() {
         return engineConfig;
     }
+
+    public abstract TranslogManager translogManager();
 
     protected abstract SegmentInfos getLastCommittedSegmentInfos();
 
@@ -329,12 +330,6 @@ public abstract class Engine implements Closeable {
      * @see #getIndexThrottleTimeInMillis()
      */
     public abstract boolean isThrottled();
-
-    /**
-     * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
-     * @see Translog#trimOperations(long, long)
-     */
-    public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
 
     /**
      * A Lock implementation that always allows the lock to be acquired
@@ -769,18 +764,6 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Checks if the underlying storage sync is required.
-     */
-    public abstract boolean isTranslogSyncNeeded();
-
-    /**
-     * Ensures that all locations in the given stream have been written to the underlying storage.
-     */
-    public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
-
-    public abstract void syncTranslog() throws IOException;
-
-    /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
     public abstract Closeable acquireHistoryRetentionLock();
@@ -815,13 +798,6 @@ public abstract class Engine implements Closeable {
      */
     public abstract long getMinRetainedSeqNo();
 
-    public abstract TranslogStats getTranslogStats();
-
-    /**
-     * Returns the last location that the translog of this engine has written into.
-     */
-    public abstract Translog.Location getTranslogLastWriteLocation();
-
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
             AlreadyClosedException ace = new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
@@ -855,6 +831,8 @@ public abstract class Engine implements Closeable {
      * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
      */
     public abstract long getLastSyncedGlobalCheckpoint();
+
+    public abstract long getProcessedLocalCheckpoint();
 
     /**
      * Global stats on segments.
@@ -1129,25 +1107,6 @@ public abstract class Engine implements Closeable {
     public final void flush() throws EngineException {
         flush(false, false);
     }
-
-    /**
-     * checks and removes translog files that no longer need to be retained. See
-     * {@link org.opensearch.index.translog.TranslogDeletionPolicy} for details
-     */
-    public abstract void trimUnreferencedTranslogFiles() throws EngineException;
-
-    /**
-     * Tests whether or not the translog generation should be rolled to a new generation.
-     * This test is based on the size of the current generation compared to the configured generation threshold size.
-     *
-     * @return {@code true} if the current generation should be rolled to a new generation
-     */
-    public abstract boolean shouldRollTranslogGeneration();
-
-    /**
-     * Rolls the translog generation and cleans unneeded.
-     */
-    public abstract void rollTranslogGeneration() throws EngineException;
 
     /**
      * Triggers a forced merge on this engine
@@ -1959,15 +1918,6 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #activateThrottling} call.
      */
     public abstract void deactivateThrottling();
-
-    /**
-     * This method replays translog to restore the Lucene index which might be reverted previously.
-     * This ensures that all acknowledged writes are restored correctly when this engine is promoted.
-     *
-     * @return the number of translog operations have been recovered
-     */
-    public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
-
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint
      * and the max seen sequence ID are identical.
@@ -1975,21 +1925,6 @@ public abstract class Engine implements Closeable {
      * @return the number of no-ops added
      */
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
-
-    /**
-     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
-     * This operation will close the engine if the recovery fails.
-     *
-     * @param translogRecoveryRunner the translog recovery runner
-     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
-     */
-    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
-
-    /**
-     * Do not replay translog operations, but make the engine be ready.
-     */
-    public abstract void skipTranslogRecovery();
-
     /**
      * Tries to prune buffered deletes from the version map.
      */
@@ -2009,16 +1944,6 @@ public abstract class Engine implements Closeable {
      * The engine will disable optimization for all append-only whose timestamp at most {@code newTimestamp}.
      */
     public abstract void updateMaxUnsafeAutoIdTimestamp(long newTimestamp);
-
-    /**
-     * The runner for translog recovery
-     *
-     * @opensearch.internal
-     */
-    @FunctionalInterface
-    public interface TranslogRecoveryRunner {
-        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
-    }
 
     /**
      * Returns the maximum sequence number of either update or delete operations have been processed in this engine
