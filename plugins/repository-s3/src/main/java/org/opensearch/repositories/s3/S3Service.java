@@ -35,8 +35,11 @@ package org.opensearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSSessionCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
+import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
+import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.http.SystemPropertyTlsKeyManagersProvider;
@@ -45,6 +48,8 @@ import com.amazonaws.internal.SdkSSLContext;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -52,9 +57,11 @@ import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 
 import javax.net.ssl.SSLContext;
 import java.io.Closeable;
@@ -66,13 +73,19 @@ import java.net.Proxy;
 import java.net.Socket;
 import java.security.SecureRandom;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
+import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
+import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
+import static com.amazonaws.SDKGlobalConfiguration.AWS_WEB_IDENTITY_ENV_VAR;
 import static java.util.Collections.emptyMap;
 
 class S3Service implements Closeable {
     private static final Logger logger = LogManager.getLogger(S3Service.class);
 
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
+    private Set<Closeable> credentialsCache = ConcurrentHashMap.newKeySet();
 
     /**
      * Client settings calculated from static configuration and settings in the keystore.
@@ -165,7 +178,13 @@ class S3Service implements Closeable {
     // proxy for testing
     AmazonS3 buildClient(final S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
-        builder.withCredentials(buildCredentials(logger, clientSettings));
+
+        final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+        if (credentials instanceof Closeable) {
+            credentialsCache.add((Closeable) credentials);
+        }
+
+        builder.withCredentials(credentials);
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
         String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
@@ -259,13 +278,70 @@ class S3Service implements Closeable {
     // pkg private for tests
     static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
         final S3BasicCredentials credentials = clientSettings.credentials;
-        if (credentials == null) {
-            logger.debug("Using instance profile credentials");
-            return new PrivilegedInstanceProfileCredentialsProvider();
-        } else {
+        final IrsaCredentials irsaCredentials = buildFromEnviroment(clientSettings.irsaCredentials);
+
+        // If IAM Roles for Service Accounts (IRSA) credentials are configured, start with them first
+        if (irsaCredentials != null) {
+            logger.debug("Using IRSA credentials");
+
+            AWSSecurityTokenService securityTokenService = null;
+            final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
+            if (region != null || credentials != null) {
+                securityTokenService = SocketAccess.doPrivileged(
+                    () -> AWSSecurityTokenServiceClientBuilder.standard()
+                        .withCredentials((credentials != null) ? new AWSStaticCredentialsProvider(credentials) : null)
+                        .withRegion(region)
+                        .build()
+                );
+            }
+
+            if (irsaCredentials.getIdentityTokenFile() == null) {
+                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(
+                    securityTokenService,
+                    new STSAssumeRoleSessionCredentialsProvider.Builder(irsaCredentials.getRoleArn(), irsaCredentials.getRoleSessionName())
+                        .withStsClient(securityTokenService)
+                        .build()
+                );
+            } else {
+                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(
+                    securityTokenService,
+                    new STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder(
+                        irsaCredentials.getRoleArn(),
+                        irsaCredentials.getRoleSessionName(),
+                        irsaCredentials.getIdentityTokenFile()
+                    ).withStsClient(securityTokenService).build()
+                );
+            }
+        } else if (credentials != null) {
             logger.debug("Using basic key/secret credentials");
             return new AWSStaticCredentialsProvider(credentials);
+        } else {
+            logger.debug("Using instance profile credentials");
+            return new PrivilegedInstanceProfileCredentialsProvider();
         }
+    }
+
+    private static IrsaCredentials buildFromEnviroment(IrsaCredentials defaults) {
+        if (defaults == null) {
+            return null;
+        }
+
+        String webIdentityTokenFile = defaults.getIdentityTokenFile();
+        if (webIdentityTokenFile == null) {
+            webIdentityTokenFile = System.getenv(AWS_WEB_IDENTITY_ENV_VAR);
+        }
+
+        String roleArn = defaults.getRoleArn();
+        if (roleArn == null) {
+            roleArn = System.getenv(AWS_ROLE_ARN_ENV_VAR);
+        }
+
+        String roleSessionName = defaults.getRoleSessionName();
+        if (roleSessionName == null) {
+            roleSessionName = System.getenv(AWS_ROLE_SESSION_NAME_ENV_VAR);
+        }
+
+        return new IrsaCredentials(webIdentityTokenFile, roleArn, roleSessionName);
     }
 
     private synchronized void releaseCachedClients() {
@@ -273,9 +349,20 @@ class S3Service implements Closeable {
         for (final AmazonS3Reference clientReference : clientsCache.values()) {
             clientReference.decRef();
         }
+
+        for (final Closeable closeable : credentialsCache) {
+            try {
+                closeable.close();
+            } catch (IOException e) {
+                /* Ignoring */
+            }
+        }
+
         // clear previously cached clients, they will be build lazily
         clientsCache = emptyMap();
         derivedClientSettings = emptyMap();
+        credentialsCache.clear();
+
         // shutdown IdleConnectionReaper background thread
         // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();
@@ -298,6 +385,43 @@ class S3Service implements Closeable {
         public void refresh() {
             SocketAccess.doPrivilegedVoid(credentials::refresh);
         }
+    }
+
+    static class PrivilegedSTSAssumeRoleSessionCredentialsProvider<P extends AWSSessionCredentialsProvider & Closeable>
+        implements
+            AWSCredentialsProvider,
+            Closeable {
+        private final P credentials;
+        private final AWSSecurityTokenService securityTokenService;
+
+        private PrivilegedSTSAssumeRoleSessionCredentialsProvider(
+            @Nullable final AWSSecurityTokenService securityTokenService,
+            final P credentials
+        ) {
+            this.securityTokenService = securityTokenService;
+            this.credentials = credentials;
+        }
+
+        @Override
+        public AWSCredentials getCredentials() {
+            return SocketAccess.doPrivileged(credentials::getCredentials);
+        }
+
+        @Override
+        public void refresh() {
+            SocketAccess.doPrivilegedVoid(credentials::refresh);
+        }
+
+        @Override
+        public void close() throws IOException {
+            SocketAccess.doPrivilegedIOException(() -> {
+                credentials.close();
+                if (securityTokenService != null) {
+                    securityTokenService.shutdown();
+                }
+                return null;
+            });
+        };
     }
 
     @Override
