@@ -93,6 +93,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     public void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_CREATE_COMPONENT,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ClusterServiceRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleCreateComponentRequest(request)))
+        );
     }
 
     @Override
@@ -196,7 +204,11 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
+<<<<<<< HEAD
                 new PluginRequest(extensionNode, new ArrayList<DiscoveryExtension>(extensionsSet)),
+=======
+                new PluginRequest(transportService.getLocalNode(), extensionsSet),
+>>>>>>> Integrated cluster state for createComponent
                 pluginResponseHandler
             );
         } catch (Exception e) {
@@ -227,14 +239,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             @Override
             public void handleResponse(IndicesModuleNameResponse response) {
                 logger.info("ACK Response" + response);
-                transportService.registerRequestHandler(
-                    REQUEST_EXTENSION_CREATE_COMPONENT,
-                    ThreadPool.Names.GENERIC,
-                    false,
-                    false,
-                    ClusterServiceRequest::new,
-                    ((request, channel, task) -> channel.sendResponse(handleCreateComponentRequest(request)))
-                );
                 inProgressIndexNameLatch.countDown();
             }
 

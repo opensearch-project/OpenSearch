@@ -8,40 +8,50 @@
 
 package org.opensearch.cluster;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ClusterServiceRequest extends TransportRequest {
-    private enum ClusterStateEnum {
-        CLUSTER_STATE("CLUSTER_STATE"),
-        CLUSTER_SETTINGS("CLUSTER_SETTINGS");
+    private static final Logger logger = LogManager.getLogger(ClusterServiceRequest.class);
+    private boolean clusterState;
 
-        public final String label;
-
-        ClusterStateEnum(String label) {
-            this.label = label;
-        }
-    }
-
-    private String state;
-
-    public ClusterServiceRequest(String state) {
-        this.state = state;
+    public ClusterServiceRequest(Boolean clusterState) {
+        this.clusterState = clusterState;
     }
 
     public ClusterServiceRequest(StreamInput in) throws IOException {
         super(in);
-        in.readEnum(ClusterStateEnum.class);
+        this.clusterState = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeEnum(ClusterStateEnum.CLUSTER_STATE);
-        out.writeEnum(ClusterStateEnum.CLUSTER_SETTINGS);
+        out.writeBoolean(clusterState);
+    }
+
+    public String toString() {
+        return "ClusterServiceRequest{" + "clusterstate=" + clusterState + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusterServiceRequest that = (ClusterServiceRequest) o;
+        return Objects.equals(clusterState, that.clusterState);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clusterState);
     }
 
 }

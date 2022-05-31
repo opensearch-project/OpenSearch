@@ -45,7 +45,14 @@ public class CreateComponentResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "CreateComponentRequest{" + ", pluginSettings=" + pluginSettings + '}';
+        return "CreateComponentResponse{"
+            + ", pluginSettings="
+            + pluginSettings
+            + "localNode="
+            + localNode
+            + "clusterState="
+            + clusterState
+            + '}';
     }
 
     @Override
