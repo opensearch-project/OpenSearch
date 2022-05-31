@@ -174,7 +174,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         );
         engine = new InternalEngine(config);
         engine.translogManager()
-            .recoverFromTranslog((s) -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE, () -> engine.flush(false, true));
+            .recoverFromTranslog((s) -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine.translogManager()::getTranslogLastWriteLocation);
     }
 

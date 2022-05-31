@@ -23,6 +23,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -45,7 +46,7 @@ public class InternalTranslogManager extends TranslogManager {
         EngineConfig engineConfig,
         ShardId shardId,
         ReleasableLock readLock,
-        LocalCheckpointTracker tracker,
+        Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier,
         String translogUUID,
         TranslogManager.TranslogEventListener translogEventListener,
         Runnable ensureOpen,
@@ -60,6 +61,7 @@ public class InternalTranslogManager extends TranslogManager {
         this.translogEventListener = translogEventListener;
         final TranslogDeletionPolicy translogDeletionPolicy;
         TranslogDeletionPolicy customTranslogDeletionPolicy = null;
+        Translog translog;
         if (engineConfig.getCustomTranslogDeletionPolicyFactory() != null) {
             customTranslogDeletionPolicy = engineConfig.getCustomTranslogDeletionPolicyFactory()
                 .create(engineConfig.getIndexSettings(), engineConfig.retentionLeasesSupplier());
@@ -73,7 +75,8 @@ public class InternalTranslogManager extends TranslogManager {
                 engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
             );
         }
-        Translog translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(), seqNo -> {
+        translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(), seqNo -> {
+            final LocalCheckpointTracker tracker = localCheckpointTrackerSupplier.get();
             assert tracker != null || getTranslog(true).isOpen() == false;
             if (tracker != null) {
                 tracker.markSeqNoAsPersisted(seqNo);
@@ -119,8 +122,7 @@ public class InternalTranslogManager extends TranslogManager {
     public void recoverFromTranslog(
         TranslogRecoveryRunner translogRecoveryRunner,
         long localCheckpoint,
-        long recoverUpToSeqNo,
-        Runnable flush
+        long recoverUpToSeqNo
     ) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
@@ -128,7 +130,7 @@ public class InternalTranslogManager extends TranslogManager {
                 throw new IllegalStateException("Engine has already been recovered");
             }
             try {
-                recoverFromTranslogInternal(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo, flush);
+                recoverFromTranslogInternal(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo);
             } catch (Exception e) {
                 try {
                     pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
@@ -144,8 +146,7 @@ public class InternalTranslogManager extends TranslogManager {
     private void recoverFromTranslogInternal(
         TranslogRecoveryRunner translogRecoveryRunner,
         long localCheckpoint,
-        long recoverUpToSeqNo,
-        Runnable flush
+        long recoverUpToSeqNo
     ) throws IOException {
         final int opsRecovered;
         if (localCheckpoint < recoverUpToSeqNo) {
@@ -168,8 +169,7 @@ public class InternalTranslogManager extends TranslogManager {
                 translog.currentFileGeneration()
             )
         );
-        flush.run();
-        translog.trimUnreferencedReaders();
+        translogEventListener.onTranslogRecovery();
     }
 
     /**

@@ -72,9 +72,9 @@ public class NRTReplicationEngine extends Engine {
                 engineConfig,
                 shardId,
                 readLock,
-                getLocalCheckpointTracker(),
+                this::getLocalCheckpointTracker,
                 translogUUID,
-                () -> {},
+                TranslogManager.TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> ensureOpen(null),
                 this::failEngine,
                 (ex) -> null

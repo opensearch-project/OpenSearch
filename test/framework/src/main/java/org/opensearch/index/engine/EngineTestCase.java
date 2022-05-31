@@ -662,8 +662,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.translogManager().recoverFromTranslog(translogHandler, internalEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE,
-            () -> engine.flush(false, true));
+        internalEngine.translogManager()
+            .recoverFromTranslog(
+                translogHandler,
+                internalEngine.getProcessedLocalCheckpoint(),
+                Long.MAX_VALUE
+            );
         return internalEngine;
     }
 

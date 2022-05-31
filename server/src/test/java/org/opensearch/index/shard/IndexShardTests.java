@@ -129,7 +129,12 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.StoreUtils;
-import org.opensearch.index.translog.*;
+import org.opensearch.index.translog.InternalTranslogManager;
+import org.opensearch.index.translog.TestTranslog;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.index.translog.TranslogRecoveryRunner;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -4126,8 +4131,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         public void recoverFromTranslog(
                             TranslogRecoveryRunner translogRecoveryRunner,
                             long localCheckpoint,
-                            long recoverUpToSeqNo,
-                            Runnable flush
+                            long recoverUpToSeqNo
                         ) throws IOException {
                             readyToCloseLatch.countDown();
                             try {
@@ -4135,7 +4139,7 @@ public class IndexShardTests extends IndexShardTestCase {
                             } catch (InterruptedException e) {
                                 throw new AssertionError(e);
                             }
-                            super.recoverFromTranslog(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo, flush);
+                            super.recoverFromTranslog(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo);
                         }
                     };
                 } catch (IOException ex) {
@@ -4208,10 +4212,9 @@ public class IndexShardTests extends IndexShardTestCase {
                         public void recoverFromTranslog(
                             TranslogRecoveryRunner translogRecoveryRunner,
                             long localCheckpoint,
-                            long recoverUpToSeqNo,
-                            Runnable flush
+                            long recoverUpToSeqNo
                         ) throws IOException {
-                            super.recoverFromTranslog(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo, flush);
+                            super.recoverFromTranslog(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo);
                             readyToSnapshotLatch.countDown();
                             try {
                                 snapshotDoneLatch.await();

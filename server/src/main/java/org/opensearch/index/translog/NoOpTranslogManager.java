@@ -43,8 +43,7 @@ public class NoOpTranslogManager extends TranslogManager {
     public void recoverFromTranslog(
         TranslogRecoveryRunner translogRecoveryRunner,
         long localCheckpoint,
-        long recoverUpToSeqNo,
-        Runnable flush
+        long recoverUpToSeqNo
     ) throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen.run();

@@ -17,6 +17,7 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /***
  *
@@ -27,14 +28,14 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
         EngineConfig engineConfig,
         ShardId shardId,
         ReleasableLock readLock,
-        LocalCheckpointTracker tracker,
+        Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier,
         String translogUUID,
         TranslogEventListener translogEventListener,
         Runnable ensureOpen,
         BiConsumer<String, Exception> failEngine,
         Function<AlreadyClosedException, Boolean> failOnTragicEvent
     ) throws IOException {
-        super(engineConfig, shardId, readLock, tracker, translogUUID, translogEventListener, ensureOpen, failEngine, failOnTragicEvent);
+        super(engineConfig, shardId, readLock, localCheckpointTrackerSupplier, translogUUID, translogEventListener, ensureOpen, failEngine, failOnTragicEvent);
     }
 
     @Override
@@ -46,8 +47,7 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
     public void recoverFromTranslog(
         TranslogRecoveryRunner translogRecoveryRunner,
         long localCheckpoint,
-        long recoverUpToSeqNo,
-        Runnable flush
+        long recoverUpToSeqNo
     ) throws IOException {
         throw new UnsupportedOperationException("Read only replicas do not have an IndexWriter and cannot recover from a translog.");
     }

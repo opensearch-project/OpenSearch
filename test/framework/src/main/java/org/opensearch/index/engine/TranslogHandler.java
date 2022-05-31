@@ -117,11 +117,11 @@ public class TranslogHandler implements TranslogRecoveryRunner {
         int opsRecovered = 0;
         Translog.Operation operation;
         while ((operation = snapshot.next()) != null) {
-            //applyOperation(convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
+            // applyOperation(convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
             opsRecovered++;
             appliedOperations.incrementAndGet();
         }
-        //engine.syncTranslog();
+        // engine.syncTranslog();
         return opsRecovered;
     }
 

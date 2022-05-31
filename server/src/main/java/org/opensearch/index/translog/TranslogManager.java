@@ -32,8 +32,7 @@ public abstract class TranslogManager {
     abstract public void recoverFromTranslog(
         TranslogRecoveryRunner translogRecoveryRunner,
         long localCheckpoint,
-        long recoverUpToSeqNo,
-        Runnable flush
+        long recoverUpToSeqNo
     ) throws IOException;
 
     /**
@@ -98,6 +97,17 @@ public abstract class TranslogManager {
     public abstract void ensureCanFlush();
 
     public interface TranslogEventListener {
-        void onTranslogSync();
+
+        TranslogEventListener NOOP_TRANSLOG_EVENT_LISTENER = new TranslogEventListener() {};
+        /**
+         * Invoked after translog sync operations
+         */
+        default void onTranslogSync() {};
+
+        /**
+         * Invoked after recovering operations from translog
+         */
+        default void onTranslogRecovery() {};
+
     }
 }

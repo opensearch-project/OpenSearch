@@ -244,9 +244,20 @@ public class InternalEngine extends Engine {
                     engineConfig,
                     shardId,
                     readLock,
-                    getLocalCheckpointTracker(),
+                    this::getLocalCheckpointTracker,
                     translogUUID,
-                    this::revisitIndexDeletionPolicyOnTranslogSynced,
+                    new TranslogManager.TranslogEventListener() {
+                        @Override
+                        public void onTranslogSync() {
+                            revisitIndexDeletionPolicyOnTranslogSynced();
+                        }
+
+                        @Override
+                        public void onTranslogRecovery() {
+                            flush(false, true);
+                            translogManager.trimUnreferencedTranslogFiles();
+                        }
+                    },
                     () -> ensureOpen(null),
                     this::failEngine,
                     this::failOnTragicEvent
