@@ -57,6 +57,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Build service for detecting available Docker installation and checking for compatibility with OpenSearch Docker image build
@@ -66,13 +67,17 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
     private static Logger LOGGER = Logging.getLogger(DockerSupportService.class);
     // Defines the possible locations of the Docker CLI. These will be searched in order.
-    private static String[] DOCKER_BINARIES_UNIX = { "/usr/bin/docker", "/usr/local/bin/docker" };
+    private static String[] LINUX_BIN_LOCATIONS = { "/usr/local/bin", "/usr/bin", "/opt/homebrew/bin" };
+
+    private static String[] DOCKER_BINARIES_UNIX = Stream.of(LINUX_BIN_LOCATIONS).map(e -> e.concat("/docker")).toArray(String[]::new);
 
     private static String[] DOCKER_BINARIES_WINDOWS = { System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker.exe" };
 
     private static String[] DOCKER_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS) ? DOCKER_BINARIES_WINDOWS : DOCKER_BINARIES_UNIX;
 
-    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = Stream.of(LINUX_BIN_LOCATIONS)
+        .map(e -> e.concat("/docker-compose"))
+        .toArray(String[]::new);
 
     private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
         System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
@@ -84,7 +89,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
     private final ExecOperations execOperations;
-    private DockerAvailability dockerAvailability;
+    private volatile DockerAvailability dockerAvailability;
 
     @Inject
     public DockerSupportService(ExecOperations execOperations) {
@@ -98,48 +103,61 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     public DockerAvailability getDockerAvailability() {
         if (this.dockerAvailability == null) {
-            String dockerPath = null;
-            Result lastResult = null;
-            Version version = null;
-            boolean isVersionHighEnough = false;
-            boolean isComposeAvailable = false;
+            // Gradle BuildService implementations must be thread-safe
+            synchronized (this) {
+                String dockerPath = null;
+                Result lastResult = null;
+                Version version = null;
+                boolean isVersionHighEnough = false;
+                boolean isComposeAvailable = false;
 
-            // Check if the Docker binary exists
-            final Optional<String> dockerBinary = getDockerPath();
-            if (isExcludedOs() == false && dockerBinary.isPresent()) {
-                dockerPath = dockerBinary.get();
+                // Check if the Docker binary exists
+                final Optional<String> dockerBinary = getDockerPath();
+                if (isExcludedOs() == false && dockerBinary.isPresent()) {
+                    dockerPath = dockerBinary.get();
 
-                // Since we use a multi-stage Docker build, check the Docker version meets minimum requirement
-                lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
+                    // Since we use a multi-stage Docker build, check the Docker version meets minimum requirement
+                    lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
+                    if (LOGGER.isInfoEnabled()) {
+                        LOGGER.info("Docker binary found at: {}", dockerPath);
+                        LOGGER.info("Docker version check: {}", lastResult.toString());
+                    }
 
-                if (lastResult.isSuccess()) {
-                    version = Version.fromString(lastResult.stdout.trim(), Version.Mode.RELAXED);
+                    if (lastResult.isSuccess()) {
+                        version = Version.fromString(lastResult.stdout.trim(), Version.Mode.RELAXED);
 
-                    isVersionHighEnough = version.onOrAfter(MINIMUM_DOCKER_VERSION);
+                        isVersionHighEnough = version.onOrAfter(MINIMUM_DOCKER_VERSION);
 
-                    if (isVersionHighEnough) {
-                        // Check that we can execute a privileged command
-                        lastResult = runCommand(dockerPath, "images");
+                        if (isVersionHighEnough) {
+                            // Check that we can execute a privileged command
+                            lastResult = runCommand(dockerPath, "images");
 
-                        // If docker all checks out, see if docker-compose is available and working
-                        Optional<String> composePath = getDockerComposePath();
-                        if (lastResult.isSuccess() && composePath.isPresent()) {
-                            isComposeAvailable = runCommand(composePath.get(), "version").isSuccess();
+                            // If docker all checks out, see if docker-compose is available and working
+                            Optional<String> composePath = getDockerComposePath();
+                            if (lastResult.isSuccess() && composePath.isPresent()) {
+                                Result composeCmdCheck = runCommand(composePath.get(), "version");
+                                isComposeAvailable = composeCmdCheck.isSuccess();
+                                if (LOGGER.isInfoEnabled()) {
+                                    LOGGER.info("Docker-compose binary found at: {}", composePath);
+                                    LOGGER.info("Docker-compose version check: {}", composeCmdCheck.toString());
+                                }
+                            }
                         }
                     }
                 }
+
+                boolean isAvailable = isVersionHighEnough && lastResult != null && lastResult.isSuccess();
+
+                // "Double checked locking"
+                if (this.dockerAvailability == null) this.dockerAvailability = new DockerAvailability(
+                    isAvailable,
+                    isComposeAvailable,
+                    isVersionHighEnough,
+                    dockerPath,
+                    version,
+                    lastResult
+                );
             }
-
-            boolean isAvailable = isVersionHighEnough && lastResult != null && lastResult.isSuccess();
-
-            this.dockerAvailability = new DockerAvailability(
-                isAvailable,
-                isComposeAvailable,
-                isVersionHighEnough,
-                dockerPath,
-                version,
-                lastResult
-            );
         }
 
         return this.dockerAvailability;
@@ -272,6 +290,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         return values;
     }
 
+    private Optional<String> findFirstPath(String[] paths) {
+        return Arrays.asList(paths).stream().filter(path -> new File(path).exists()).findFirst();
+    }
+
     /**
      * Searches the entries in {@link #DOCKER_BINARIES} for the Docker CLI. This method does
      * not check whether the Docker installation appears usable, see {@link #getDockerAvailability()}
@@ -281,7 +303,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerPath() {
         // Check if the Docker binary exists
-        return Arrays.asList(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return findFirstPath(DOCKER_BINARIES);
     }
 
     /**
@@ -292,7 +314,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerComposePath() {
         // Check if the Docker binary exists
-        return Arrays.asList(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return findFirstPath(DOCKER_COMPOSE_BINARIES);
     }
 
     private void throwDockerRequiredException(final String message) {
