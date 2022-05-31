@@ -86,6 +86,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -128,9 +129,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.StoreUtils;
-import org.opensearch.index.translog.TestTranslog;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.index.translog.*;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -174,6 +173,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -2192,7 +2192,7 @@ public class IndexShardTests extends IndexShardTestCase {
         long primaryTerm = shard.getOperationPrimaryTerm();
         shard.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
         shard.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
-        shard.getEngine().rollTranslogGeneration(); // isolate the delete in it's own generation
+        shard.getEngine().translogManager().rollTranslogGeneration(); // isolate the delete in it's own generation
         shard.applyIndexOperationOnReplica(
             0,
             primaryTerm,
@@ -2240,7 +2240,7 @@ public class IndexShardTests extends IndexShardTestCase {
             replayedOps = 3;
         } else {
             if (randomBoolean()) {
-                shard.getEngine().rollTranslogGeneration();
+                shard.getEngine().translogManager().rollTranslogGeneration();
             }
             translogOps = 5;
             replayedOps = 5;
@@ -2513,7 +2513,7 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
-        shard.getEngine().rollTranslogGeneration();
+        shard.getEngine().translogManager().rollTranslogGeneration();
         shard.markSeqNoAsNoop(1, primaryTerm, "test");
         shard.applyIndexOperationOnReplica(
             2,
@@ -4109,15 +4109,38 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch closeDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
-                throws IOException {
-                readyToCloseLatch.countDown();
+            public TranslogManager translogManager() {
                 try {
-                    closeDoneLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
+                    return new InternalTranslogManager(
+                        config,
+                        null,
+                        new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+                        null,
+                        null,
+                        null,
+                        () -> {},
+                        (str, ex) -> {},
+                        null
+                    ) {
+                        @Override
+                        public void recoverFromTranslog(
+                            TranslogRecoveryRunner translogRecoveryRunner,
+                            long localCheckpoint,
+                            long recoverUpToSeqNo,
+                            Runnable flush
+                        ) throws IOException {
+                            readyToCloseLatch.countDown();
+                            try {
+                                closeDoneLatch.await();
+                            } catch (InterruptedException e) {
+                                throw new AssertionError(e);
+                            }
+                            super.recoverFromTranslog(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo, flush);
+                        }
+                    };
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
                 }
-                return super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
             }
         });
 
@@ -4168,16 +4191,38 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch snapshotDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
-                throws IOException {
-                InternalEngine engine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
-                readyToSnapshotLatch.countDown();
+            public TranslogManager translogManager() {
                 try {
-                    snapshotDoneLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
+                    return new InternalTranslogManager(
+                        config,
+                        null,
+                        new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+                        null,
+                        null,
+                        null,
+                        () -> {},
+                        (str, ex) -> {},
+                        null
+                    ) {
+                        @Override
+                        public void recoverFromTranslog(
+                            TranslogRecoveryRunner translogRecoveryRunner,
+                            long localCheckpoint,
+                            long recoverUpToSeqNo,
+                            Runnable flush
+                        ) throws IOException {
+                            super.recoverFromTranslog(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo, flush);
+                            readyToSnapshotLatch.countDown();
+                            try {
+                                snapshotDoneLatch.await();
+                            } catch (InterruptedException e) {
+                                throw new AssertionError(e);
+                            }
+                        }
+                    };
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
                 }
-                return engine;
             }
         });
 

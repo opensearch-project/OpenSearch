@@ -8,12 +8,13 @@
 
 package org.opensearch.index.translog;
 
-import org.opensearch.index.engine.Engine;
-import org.opensearch.index.shard.ShardId;
-
 import java.io.IOException;
 import java.util.stream.Stream;
 
+/**
+ *
+ * @opensearch.internal
+ */
 public abstract class TranslogManager {
 
     /**
@@ -28,8 +29,12 @@ public abstract class TranslogManager {
      * @param translogRecoveryRunner the translog recovery runner
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    abstract public void recoverFromTranslog(Engine engine, TranslogRecoveryRunner translogRecoveryRunner,
-                                    long localCheckpoint, long recoverUpToSeqNo, Runnable flush) throws IOException;
+    abstract public void recoverFromTranslog(
+        TranslogRecoveryRunner translogRecoveryRunner,
+        long localCheckpoint,
+        long recoverUpToSeqNo,
+        Runnable flush
+    ) throws IOException;
 
     /**
      * Checks if the underlying storage sync is required.
@@ -72,7 +77,7 @@ public abstract class TranslogManager {
      * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
      * @see Translog#trimOperations(long, long)
      */
-    abstract public void trimOperationsFromTranslog(ShardId shardId, long belowTerm, long aboveSeqNo) throws TranslogException;
+    abstract public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws TranslogException;
 
     /**
      * This method replays translog to restore the Lucene index which might be reverted previously.
@@ -80,7 +85,8 @@ public abstract class TranslogManager {
      *
      * @return the number of translog operations have been recovered
      */
-    abstract public int restoreLocalHistoryFromTranslog(Engine engine, long processedCheckpoint, TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
+    abstract public int restoreLocalHistoryFromTranslog(long processedCheckpoint, TranslogRecoveryRunner translogRecoveryRunner)
+        throws IOException;
 
     /**
      * Do not replay translog operations, but make the engine be ready.
@@ -89,10 +95,9 @@ public abstract class TranslogManager {
 
     abstract public Translog getTranslog(boolean ensureOpen);
 
-    public abstract void ensureCanFlush(ShardId shardId);
+    public abstract void ensureCanFlush();
 
     public interface TranslogEventListener {
         void onTranslogSync();
     }
 }
-

@@ -22,7 +22,10 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.translog.*;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -33,8 +36,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
-import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
 
 /**
  * This is an {@link Engine} implementation intended for replica shards when Segment Replication
@@ -67,8 +68,17 @@ public class NRTReplicationEngine extends Engine {
             this.readerManager.addListener(completionStatsCache);
             final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
             final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
-            translogManager = new WriteOnlyTranslogManager(engineConfig, shardId, readLock, getLocalCheckpointTracker(), translogUUID,
-                () -> {}, () -> ensureOpen(null), this::failEngine, (ex) -> null);
+            translogManager = new WriteOnlyTranslogManager(
+                engineConfig,
+                shardId,
+                readLock,
+                getLocalCheckpointTracker(),
+                translogUUID,
+                () -> {},
+                () -> ensureOpen(null),
+                this::failEngine,
+                (ex) -> null
+            );
 
         } catch (IOException e) {
             IOUtils.closeWhileHandlingException(store::decRef, readerManager);
@@ -147,7 +157,8 @@ public class NRTReplicationEngine extends Engine {
     public NoOpResult noOp(NoOp noOp) throws IOException {
         ensureOpen();
         NoOpResult noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
-        final Translog.Location location = translogManager.getTranslog(false).add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+        final Translog.Location location = translogManager.getTranslog(false)
+            .add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
         noOpResult.setTranslogLocation(location);
         noOpResult.setTook(System.nanoTime() - noOp.startTime());
         noOpResult.freeze();

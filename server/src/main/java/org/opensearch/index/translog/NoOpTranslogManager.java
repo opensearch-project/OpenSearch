@@ -9,7 +9,6 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -23,8 +22,13 @@ public class NoOpTranslogManager extends TranslogManager {
     private final ShardId shardId;
     private final TranslogStats translogStats;
 
-    public NoOpTranslogManager(ShardId shardId, ReleasableLock readLock, Runnable ensureOpen, TranslogStats translogStats,
-                               Translog.Snapshot emptyTranslogSnapshot) throws IOException {
+    public NoOpTranslogManager(
+        ShardId shardId,
+        ReleasableLock readLock,
+        Runnable ensureOpen,
+        TranslogStats translogStats,
+        Translog.Snapshot emptyTranslogSnapshot
+    ) throws IOException {
         this.emptyTranslogSnapshot = emptyTranslogSnapshot;
         this.readLock = readLock;
         this.shardId = shardId;
@@ -36,12 +40,16 @@ public class NoOpTranslogManager extends TranslogManager {
     public void rollTranslogGeneration() throws TranslogException {}
 
     @Override
-    public void recoverFromTranslog(Engine engine, TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint,
-                                    long recoverUpToSeqNo, Runnable flush) throws IOException {
+    public void recoverFromTranslog(
+        TranslogRecoveryRunner translogRecoveryRunner,
+        long localCheckpoint,
+        long recoverUpToSeqNo,
+        Runnable flush
+    ) throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen.run();
             try (Translog.Snapshot snapshot = emptyTranslogSnapshot) {
-                translogRecoveryRunner.run(engine, snapshot);
+                translogRecoveryRunner.run(snapshot);
             } catch (final Exception e) {
                 throw new TranslogException(shardId, "failed to recover from empty translog snapshot", e);
             }
@@ -80,7 +88,7 @@ public class NoOpTranslogManager extends TranslogManager {
     }
 
     @Override
-    public void trimOperationsFromTranslog(ShardId shardId, long belowTerm, long aboveSeqNo) throws TranslogException {}
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws TranslogException {}
 
     @Override
     public Translog getTranslog(boolean ensureOpen) {
@@ -88,10 +96,10 @@ public class NoOpTranslogManager extends TranslogManager {
     }
 
     @Override
-    public void ensureCanFlush(ShardId shardId) {}
+    public void ensureCanFlush() {}
 
     @Override
-    public int restoreLocalHistoryFromTranslog(Engine engine, long processedCheckpoint, TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
+    public int restoreLocalHistoryFromTranslog(long processedCheckpoint, TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
         return 0;
     }
 

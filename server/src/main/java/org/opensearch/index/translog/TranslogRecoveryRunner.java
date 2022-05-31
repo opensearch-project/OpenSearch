@@ -7,13 +7,10 @@
  */
 
 package org.opensearch.index.translog;
-import org.opensearch.index.engine.Engine;
 
 import java.io.IOException;
 
 @FunctionalInterface
 public interface TranslogRecoveryRunner {
-    int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    int run(Translog.Snapshot snapshot) throws IOException;
 }
-
-

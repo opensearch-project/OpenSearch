@@ -1918,6 +1918,7 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #activateThrottling} call.
      */
     public abstract void deactivateThrottling();
+
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint
      * and the max seen sequence ID are identical.
@@ -1925,6 +1926,7 @@ public abstract class Engine implements Closeable {
      * @return the number of no-ops added
      */
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
+
     /**
      * Tries to prune buffered deletes from the version map.
      */

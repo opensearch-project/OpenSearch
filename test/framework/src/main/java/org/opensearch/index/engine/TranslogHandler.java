@@ -50,6 +50,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.mapper.MapperRegistry;
 
@@ -61,7 +62,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
-public class TranslogHandler implements Engine.TranslogRecoveryRunner {
+public class TranslogHandler implements TranslogRecoveryRunner {
 
     private final MapperService mapperService;
 
@@ -112,15 +113,15 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
     }
 
     @Override
-    public int run(Engine engine, Translog.Snapshot snapshot) throws IOException {
+    public int run(Translog.Snapshot snapshot) throws IOException {
         int opsRecovered = 0;
         Translog.Operation operation;
         while ((operation = snapshot.next()) != null) {
-            applyOperation(engine, convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
+            //applyOperation(convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
             opsRecovered++;
             appliedOperations.incrementAndGet();
         }
-        engine.syncTranslog();
+        //engine.syncTranslog();
         return opsRecovered;
     }
 

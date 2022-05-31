@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.shard.ShardId;
@@ -26,6 +25,10 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
+/**
+ * The {@link TranslogManager} implementation capable of orchestrating all {@link Translog} operations while
+ * interfacing with the {@link org.opensearch.index.engine.InternalEngine}
+ */
 public class InternalTranslogManager extends TranslogManager {
 
     private final ReleasableLock readLock;
@@ -36,11 +39,19 @@ public class InternalTranslogManager extends TranslogManager {
     private final Function<AlreadyClosedException, Boolean> failOnTragicEvent;
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     private final TranslogManager.TranslogEventListener translogEventListener;
-    private static final Logger logger = LogManager.getLogger(TranslogManager.class);
+    private static final Logger logger = LogManager.getLogger(InternalTranslogManager.class);
 
-    public InternalTranslogManager(EngineConfig engineConfig, ShardId shardId, ReleasableLock readLock, LocalCheckpointTracker tracker,
-                           String translogUUID, TranslogManager.TranslogEventListener translogEventListener, Runnable ensureOpen,
-                           BiConsumer<String, Exception> failEngine, Function<AlreadyClosedException, Boolean> failOnTragicEvent) throws IOException {
+    public InternalTranslogManager(
+        EngineConfig engineConfig,
+        ShardId shardId,
+        ReleasableLock readLock,
+        LocalCheckpointTracker tracker,
+        String translogUUID,
+        TranslogManager.TranslogEventListener translogEventListener,
+        Runnable ensureOpen,
+        BiConsumer<String, Exception> failEngine,
+        Function<AlreadyClosedException, Boolean> failOnTragicEvent
+    ) throws IOException {
         this.shardId = shardId;
         this.readLock = readLock;
         this.ensureOpen = ensureOpen;
@@ -78,6 +89,7 @@ public class InternalTranslogManager extends TranslogManager {
     /**
      * Rolls the translog generation and cleans unneeded.
      */
+    @Override
     public void rollTranslogGeneration() throws TranslogException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
@@ -103,15 +115,20 @@ public class InternalTranslogManager extends TranslogManager {
      * @param translogRecoveryRunner the translog recovery runner
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    public void recoverFromTranslog(Engine engine, TranslogRecoveryRunner translogRecoveryRunner,
-                                    long localCheckpoint, long recoverUpToSeqNo, Runnable flush) throws IOException {
-        try (ReleasableLock lock = readLock.acquire()) {
+    @Override
+    public void recoverFromTranslog(
+        TranslogRecoveryRunner translogRecoveryRunner,
+        long localCheckpoint,
+        long recoverUpToSeqNo,
+        Runnable flush
+    ) throws IOException {
+        try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
             if (pendingTranslogRecovery.get() == false) {
                 throw new IllegalStateException("Engine has already been recovered");
             }
             try {
-                recoverFromTranslogInternal(engine, translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo, flush);
+                recoverFromTranslogInternal(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo, flush);
             } catch (Exception e) {
                 try {
                     pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
@@ -124,12 +141,16 @@ public class InternalTranslogManager extends TranslogManager {
         }
     }
 
-    private void recoverFromTranslogInternal(Engine engine, TranslogRecoveryRunner translogRecoveryRunner,
-                                             long localCheckpoint, long recoverUpToSeqNo, Runnable flush) throws IOException {
+    private void recoverFromTranslogInternal(
+        TranslogRecoveryRunner translogRecoveryRunner,
+        long localCheckpoint,
+        long recoverUpToSeqNo,
+        Runnable flush
+    ) throws IOException {
         final int opsRecovered;
         if (localCheckpoint < recoverUpToSeqNo) {
             try (Translog.Snapshot snapshot = translog.newSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
-                opsRecovered = translogRecoveryRunner.run(engine, snapshot);
+                opsRecovered = translogRecoveryRunner.run(snapshot);
             } catch (Exception e) {
                 throw new TranslogException(shardId, "failed to recover from translog", e);
             }
@@ -151,10 +172,10 @@ public class InternalTranslogManager extends TranslogManager {
         translog.trimUnreferencedReaders();
     }
 
-
     /**
      * Checks if the underlying storage sync is required.
      */
+    @Override
     public boolean isTranslogSyncNeeded() {
         return getTranslog(true).syncNeeded();
     }
@@ -162,6 +183,7 @@ public class InternalTranslogManager extends TranslogManager {
     /**
      * Ensures that all locations in the given stream have been written to the underlying storage.
      */
+    @Override
     public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
         final boolean synced = translog.ensureSynced(locations);
         if (synced) {
@@ -170,11 +192,13 @@ public class InternalTranslogManager extends TranslogManager {
         return synced;
     }
 
+    @Override
     public void syncTranslog() throws IOException {
         translog.sync();
         translogEventListener.onTranslogSync();
     }
 
+    @Override
     public TranslogStats getTranslogStats() {
         return getTranslog(true).stats();
     }
@@ -182,6 +206,7 @@ public class InternalTranslogManager extends TranslogManager {
     /**
      * Returns the last location that the translog of this engine has written into.
      */
+    @Override
     public Translog.Location getTranslogLastWriteLocation() {
         return getTranslog(true).getLastWriteLocation();
     }
@@ -190,8 +215,9 @@ public class InternalTranslogManager extends TranslogManager {
      * checks and removes translog files that no longer need to be retained. See
      * {@link org.opensearch.index.translog.TranslogDeletionPolicy} for details
      */
+    @Override
     public void trimUnreferencedTranslogFiles() throws TranslogException {
-        try (ReleasableLock lock = readLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
             translog.trimUnreferencedReaders();
         } catch (AlreadyClosedException e) {
@@ -213,6 +239,7 @@ public class InternalTranslogManager extends TranslogManager {
      *
      * @return {@code true} if the current generation should be rolled to a new generation
      */
+    @Override
     public boolean shouldRollTranslogGeneration() {
         return getTranslog(true).shouldRollGeneration();
     }
@@ -221,8 +248,9 @@ public class InternalTranslogManager extends TranslogManager {
      * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
      * @see Translog#trimOperations(long, long)
      */
-    public void trimOperationsFromTranslog(ShardId shardId, long belowTerm, long aboveSeqNo) throws TranslogException {
-        try (ReleasableLock lock = readLock.acquire()) {
+    @Override
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws TranslogException {
+        try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
             translog.trimOperations(belowTerm, aboveSeqNo);
         } catch (AlreadyClosedException e) {
@@ -238,23 +266,24 @@ public class InternalTranslogManager extends TranslogManager {
         }
     }
 
-
     /**
      * This method replays translog to restore the Lucene index which might be reverted previously.
      * This ensures that all acknowledged writes are restored correctly when this engine is promoted.
      *
      * @return the number of translog operations have been recovered
      */
-    public int restoreLocalHistoryFromTranslog(Engine engine, long processedCheckpoint, TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
+    @Override
+    public int restoreLocalHistoryFromTranslog(long processedCheckpoint, TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
             try (Translog.Snapshot snapshot = getTranslog(true).newSnapshot(processedCheckpoint + 1, Long.MAX_VALUE)) {
-                return translogRecoveryRunner.run(engine, snapshot);
+                return translogRecoveryRunner.run(snapshot);
             }
         }
     }
 
-    public void ensureCanFlush(ShardId shardId) {
+    @Override
+    public void ensureCanFlush() {
         // translog recovery happens after the engine is fully constructed.
         // If we are in this stage we have to prevent flushes from this
         // engine otherwise we might loose documents if the flush succeeds
@@ -267,6 +296,7 @@ public class InternalTranslogManager extends TranslogManager {
     /**
      * Do not replay translog operations, but make the engine be ready.
      */
+    @Override
     public void skipTranslogRecovery() {
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
         pendingTranslogRecovery.set(false); // we are good - now we can commit
@@ -292,6 +322,7 @@ public class InternalTranslogManager extends TranslogManager {
         );
     }
 
+    @Override
     public Translog getTranslog(boolean ensureOpen) {
         if (ensureOpen) {
             this.ensureOpen.run();
