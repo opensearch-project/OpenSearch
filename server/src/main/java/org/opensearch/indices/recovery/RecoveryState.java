@@ -260,6 +260,7 @@ public class RecoveryState implements ReplicationState, ToXContentFragment, Writ
         return translog;
     }
 
+    @Override
     public ReplicationTimer getTimer() {
         return timer;
     }

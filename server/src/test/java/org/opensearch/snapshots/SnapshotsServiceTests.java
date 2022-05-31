@@ -371,11 +371,11 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
         final String indexName1 = "index-1";
         final IndexId indexId1 = indexId(indexName1);
         final RepositoryShardId shardId1 = new RepositoryShardId(indexId1, 0);
-        final String masterNodeId = uuid();
+        final String clusterManagerNodeId = uuid();
         final SnapshotsInProgress.Entry cloneSingleShard = cloneEntry(
             targetSnapshot,
             sourceSnapshot.getSnapshotId(),
-            clonesMap(shardId1, initShardStatus(masterNodeId))
+            clonesMap(shardId1, initShardStatus(clusterManagerNodeId))
         );
 
         final Snapshot queuedTargetSnapshot = snapshot(repoName, "test-snapshot");
@@ -388,11 +388,11 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
         assertThat(cloneSingleShard.state(), is(SnapshotsInProgress.State.STARTED));
 
         final ClusterState stateWithUnassignedRoutingShard = stateWithSnapshots(
-            ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoveryNodes(masterNodeId)).build(),
+            ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoveryNodes(clusterManagerNodeId)).build(),
             cloneSingleShard,
             queuedClone
         );
-        final SnapshotsService.ShardSnapshotUpdate completeShardClone = successUpdate(targetSnapshot, shardId1, masterNodeId);
+        final SnapshotsService.ShardSnapshotUpdate completeShardClone = successUpdate(targetSnapshot, shardId1, clusterManagerNodeId);
 
         final ClusterState updatedClusterState = applyUpdates(stateWithUnassignedRoutingShard, completeShardClone);
         final SnapshotsInProgress snapshotsInProgress = updatedClusterState.custom(SnapshotsInProgress.TYPE);

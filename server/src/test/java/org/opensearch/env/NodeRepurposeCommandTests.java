@@ -75,18 +75,18 @@ import static org.hamcrest.Matchers.not;
 public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
     private static final Index INDEX = new Index("testIndex", "testUUID");
-    private Settings dataMasterSettings;
+    private Settings dataClusterManagerSettings;
     private Environment environment;
     private Path[] nodePaths;
-    private Settings dataNoMasterSettings;
-    private Settings noDataNoMasterSettings;
-    private Settings noDataMasterSettings;
+    private Settings dataNoClusterManagerSettings;
+    private Settings noDataNoClusterManagerSettings;
+    private Settings noDataClusterManagerSettings;
 
     @Before
     public void createNodePaths() throws IOException {
-        dataMasterSettings = buildEnvSettings(Settings.EMPTY);
-        environment = TestEnvironment.newEnvironment(dataMasterSettings);
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
+        dataClusterManagerSettings = buildEnvSettings(Settings.EMPTY);
+        environment = TestEnvironment.newEnvironment(dataClusterManagerSettings);
+        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataClusterManagerSettings, environment)) {
             nodePaths = nodeEnvironment.nodeDataPaths();
             final String nodeId = randomAlphaOfLength(10);
             try (
@@ -95,36 +95,36 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
                     nodeId,
                     xContentRegistry(),
                     BigArrays.NON_RECYCLING_INSTANCE,
-                    new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    new ClusterSettings(dataClusterManagerSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
             }
         }
-        dataNoMasterSettings = nonMasterNode(dataMasterSettings);
-        noDataNoMasterSettings = removeRoles(
-            dataMasterSettings,
+        dataNoClusterManagerSettings = nonMasterNode(dataClusterManagerSettings);
+        noDataNoClusterManagerSettings = removeRoles(
+            dataClusterManagerSettings,
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
         );
 
-        noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
+        noDataClusterManagerSettings = masterNode(nonDataNode(dataClusterManagerSettings));
     }
 
     public void testEarlyExitNoCleanup() throws Exception {
-        createIndexDataFiles(dataMasterSettings, randomInt(10), randomBoolean());
+        createIndexDataFiles(dataClusterManagerSettings, randomInt(10), randomBoolean());
 
-        verifyNoQuestions(dataMasterSettings, containsString(NO_CLEANUP));
-        verifyNoQuestions(dataNoMasterSettings, containsString(NO_CLEANUP));
+        verifyNoQuestions(dataClusterManagerSettings, containsString(NO_CLEANUP));
+        verifyNoQuestions(dataNoClusterManagerSettings, containsString(NO_CLEANUP));
     }
 
     public void testNothingToCleanup() throws Exception {
-        verifyNoQuestions(noDataNoMasterSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
-        verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
+        verifyNoQuestions(noDataNoClusterManagerSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
+        verifyNoQuestions(noDataClusterManagerSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
-        Environment environment = TestEnvironment.newEnvironment(noDataMasterSettings);
+        Environment environment = TestEnvironment.newEnvironment(noDataClusterManagerSettings);
         if (randomBoolean()) {
-            try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
+            try (NodeEnvironment env = new NodeEnvironment(noDataClusterManagerSettings, environment)) {
                 try (
                     PersistedClusterStateService.Writer writer = OpenSearchNodeCommand.createPersistedClusterStateService(
                         Settings.EMPTY,
@@ -136,19 +136,24 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
             }
         }
 
-        verifyNoQuestions(noDataNoMasterSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
-        verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
+        verifyNoQuestions(noDataNoClusterManagerSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
+        verifyNoQuestions(noDataClusterManagerSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
-        createIndexDataFiles(dataMasterSettings, 0, randomBoolean());
+        createIndexDataFiles(dataClusterManagerSettings, 0, randomBoolean());
 
-        verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
+        verifyNoQuestions(noDataClusterManagerSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
     }
 
     public void testLocked() throws IOException {
-        try (NodeEnvironment env = new NodeEnvironment(dataMasterSettings, TestEnvironment.newEnvironment(dataMasterSettings))) {
+        try (
+            NodeEnvironment env = new NodeEnvironment(
+                dataClusterManagerSettings,
+                TestEnvironment.newEnvironment(dataClusterManagerSettings)
+            )
+        ) {
             assertThat(
-                expectThrows(OpenSearchException.class, () -> verifyNoQuestions(noDataNoMasterSettings, null)).getMessage(),
+                expectThrows(OpenSearchException.class, () -> verifyNoQuestions(noDataNoClusterManagerSettings, null)).getMessage(),
                 containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG)
             );
         }
@@ -158,7 +163,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
         boolean hasClusterState = randomBoolean();
-        createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
+        createIndexDataFiles(dataClusterManagerSettings, shardCount, hasClusterState);
 
         String messageText = NodeRepurposeCommand.noClusterManagerMessage(1, environment.dataFiles().length * shardCount, 0);
 
@@ -168,22 +173,22 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
             conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
         );
 
-        verifyUnchangedOnAbort(noDataNoMasterSettings, outputMatcher, verbose);
+        verifyUnchangedOnAbort(noDataNoClusterManagerSettings, outputMatcher, verbose);
 
         // verify test setup
-        expectThrows(IllegalStateException.class, () -> new NodeEnvironment(noDataNoMasterSettings, environment).close());
+        expectThrows(IllegalStateException.class, () -> new NodeEnvironment(noDataNoClusterManagerSettings, environment).close());
 
-        verifySuccess(noDataNoMasterSettings, outputMatcher, verbose);
+        verifySuccess(noDataNoClusterManagerSettings, outputMatcher, verbose);
 
         // verify cleaned.
-        new NodeEnvironment(noDataNoMasterSettings, environment).close();
+        new NodeEnvironment(noDataNoClusterManagerSettings, environment).close();
     }
 
     public void testCleanupShardData() throws Exception {
         int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
         boolean hasClusterState = randomBoolean();
-        createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
+        createIndexDataFiles(dataClusterManagerSettings, shardCount, hasClusterState);
 
         Matcher<String> matcher = allOf(
             containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
@@ -192,15 +197,15 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
             conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
         );
 
-        verifyUnchangedOnAbort(noDataMasterSettings, matcher, verbose);
+        verifyUnchangedOnAbort(noDataClusterManagerSettings, matcher, verbose);
 
         // verify test setup
-        expectThrows(IllegalStateException.class, () -> new NodeEnvironment(noDataMasterSettings, environment).close());
+        expectThrows(IllegalStateException.class, () -> new NodeEnvironment(noDataClusterManagerSettings, environment).close());
 
-        verifySuccess(noDataMasterSettings, matcher, verbose);
+        verifySuccess(noDataClusterManagerSettings, matcher, verbose);
 
         // verify clean.
-        new NodeEnvironment(noDataMasterSettings, environment).close();
+        new NodeEnvironment(noDataClusterManagerSettings, environment).close();
     }
 
     static void verifySuccess(Settings settings, Matcher<String> outputMatcher, boolean verbose) throws Exception {

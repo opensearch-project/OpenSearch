@@ -252,7 +252,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
-    public void testWithdrawsVotesFromAllMasterEligibleNodes() throws InterruptedException {
+    public void testWithdrawsVotesFromAllClusterManagerEligibleNodes() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
@@ -349,14 +349,14 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
-    public void testOnlyMatchesMasterEligibleNodes() throws InterruptedException {
+    public void testOnlyMatchesClusterManagerEligibleNodes() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
         transportService.sendRequest(
             localNode,
             AddVotingConfigExclusionsAction.NAME,
-            makeRequestWithNodeDescriptions("_all", "master:false"),
+            makeRequestWithNodeDescriptions("_all", "cluster_manager:false"),
             expectError(e -> {
                 exceptionHolder.set(e);
                 countDownLatch.countDown();
@@ -368,7 +368,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
         assertThat(
             rootCause.getMessage(),
-            equalTo("add voting config exclusions request for [_all, master:false] matched no cluster-manager-eligible nodes")
+            equalTo("add voting config exclusions request for [_all, cluster_manager:false] matched no cluster-manager-eligible nodes")
         );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }

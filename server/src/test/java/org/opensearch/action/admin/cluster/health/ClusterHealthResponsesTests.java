@@ -110,9 +110,9 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         assertThat(clusterHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
 
-    public void testClusterHealthVerifyMasterNodeDiscovery() throws IOException {
+    public void testClusterHealthVerifyClusterManagerNodeDiscovery() throws IOException {
         DiscoveryNode localNode = new DiscoveryNode("node", OpenSearchTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        // set the node information to verify master_node discovery in ClusterHealthResponse
+        // set the node information to verify cluster_manager_node discovery in ClusterHealthResponse
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .build();
@@ -157,13 +157,13 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         return clusterHealth;
     }
 
-    public void testParseFromXContentWithDiscoveredMasterField() throws IOException {
+    public void testParseFromXContentWithDiscoveredClusterManagerField() throws IOException {
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 "{\"cluster_name\":\"535799904437:7-1-3-node\",\"status\":\"green\","
-                    + "\"timed_out\":false,\"number_of_nodes\":6,\"number_of_data_nodes\":3,\"discovered_master\":true,"
+                    + "\"timed_out\":false,\"number_of_nodes\":6,\"number_of_data_nodes\":3,\"discovered_cluster_manager\":true,"
                     + "\"active_primary_shards\":4,\"active_shards\":5,\"relocating_shards\":0,\"initializing_shards\":0,"
                     + "\"unassigned_shards\":0,\"delayed_unassigned_shards\":0,\"number_of_pending_tasks\":0,"
                     + "\"number_of_in_flight_fetch\":0,\"task_max_waiting_in_queue_millis\":0,"
@@ -179,7 +179,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         }
     }
 
-    public void testParseFromXContentWithoutDiscoveredMasterField() throws IOException {
+    public void testParseFromXContentWithoutDiscoveredClusterManagerField() throws IOException {
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -197,6 +197,44 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             assertThat(clusterHealth.getClusterName(), Matchers.equalTo("535799904437:7-1-3-node"));
             assertThat(clusterHealth.getNumberOfNodes(), Matchers.equalTo(6));
             assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(false));
+        }
+    }
+
+    /**
+     * Validate the ClusterHealthResponse can be parsed from JsonXContent that contains the deprecated "discovered_master" field.
+     * As of 2.0, to support inclusive language, "discovered_master" field will be replaced by "discovered_cluster_manager".
+     */
+    public void testParseFromXContentWithDeprecatedDiscoveredMasterField() throws IOException {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                "{\"cluster_name\":\"opensearch-cluster\",\"status\":\"green\",\"timed_out\":false,"
+                    + "\"number_of_nodes\":6,\"number_of_data_nodes\":3,\"discovered_cluster_manager\":true,\"discovered_master\":true,"
+                    + "\"active_primary_shards\":4,\"active_shards\":5,\"relocating_shards\":0,\"initializing_shards\":0,"
+                    + "\"unassigned_shards\":0,\"delayed_unassigned_shards\":0,\"number_of_pending_tasks\":0,"
+                    + "\"number_of_in_flight_fetch\":0,\"task_max_waiting_in_queue_millis\":0,"
+                    + "\"active_shards_percent_as_number\":100}"
+            )
+        ) {
+            ClusterHealthResponse clusterHealth = ClusterHealthResponse.fromXContent(parser);
+            assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(true));
+        }
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                "{\"cluster_name\":\"opensearch-cluster\",\"status\":\"green\","
+                    + "\"timed_out\":false,\"number_of_nodes\":6,\"number_of_data_nodes\":3,\"discovered_master\":true,"
+                    + "\"active_primary_shards\":4,\"active_shards\":5,\"relocating_shards\":0,\"initializing_shards\":0,"
+                    + "\"unassigned_shards\":0,\"delayed_unassigned_shards\":0,\"number_of_pending_tasks\":0,"
+                    + "\"number_of_in_flight_fetch\":0,\"task_max_waiting_in_queue_millis\":0,"
+                    + "\"active_shards_percent_as_number\":100}"
+            )
+        ) {
+            ClusterHealthResponse clusterHealth = ClusterHealthResponse.fromXContent(parser);
+            assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(true));
         }
     }
 

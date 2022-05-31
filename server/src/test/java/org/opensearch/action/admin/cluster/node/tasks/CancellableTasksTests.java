@@ -474,12 +474,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             for (int i = 1; i < testNodes.length; i++) {
                 discoveryNodes[i - 1] = testNodes[i].discoveryNode();
             }
-            DiscoveryNode master = discoveryNodes[0];
+            DiscoveryNode clusterManager = discoveryNodes[0];
             for (int i = 1; i < testNodes.length; i++) {
                 // Notify only nodes that should remain in the cluster
                 setState(
                     testNodes[i].clusterService,
-                    ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), master, discoveryNodes)
+                    ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), clusterManager, discoveryNodes)
                 );
             }
             if (randomBoolean()) {

@@ -433,7 +433,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
                         try {
                             entry = simulations.get(nodeId);
                             if (entry == null) {
-                                // we are simulating a master node switch, wait for it to not be null
+                                // we are simulating a cluster-manager node switch, wait for it to not be null
                                 assertBusy(() -> assertTrue(simulations.containsKey(nodeId)));
                             }
                             assert entry != null;

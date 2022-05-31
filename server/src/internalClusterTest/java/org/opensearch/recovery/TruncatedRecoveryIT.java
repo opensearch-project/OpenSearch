@@ -43,7 +43,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
-import org.opensearch.indices.recovery.RecoveryFileChunkRequest;
+import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.node.RecoverySettingsChunkSizePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -146,7 +146,7 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
                 internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
                 (connection, requestId, action, request, options) -> {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                        FileChunkRequest req = (FileChunkRequest) request;
                         logger.info("file chunk [{}] lastChunk: {}", req, req.lastChunk());
                         if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
                             latch.countDown();
