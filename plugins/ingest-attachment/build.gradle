@@ -54,7 +54,7 @@ dependencies {
   api "org.apache.tika:tika-langdetect-optimaize:${versions.tika}"
   // Optimaize libraries/dependencies
   runtimeOnly "com.optimaize.languagedetector:language-detector:0.6"
-  runtimeOnly 'com.google.guava:guava:18.0'
+  runtimeOnly 'com.google.guava:guava:23.0'
   // Other dependencies
   api 'org.tukaani:xz:1.9'
   api 'commons-io:commons-io:2.11.0'
