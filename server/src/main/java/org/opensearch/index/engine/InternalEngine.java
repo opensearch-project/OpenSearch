@@ -2307,8 +2307,6 @@ public class InternalEngine extends Engine {
 
     @Override
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-        // this should never be called by read-only engines
-        assert (engineConfig.isReadOnlyReplica() == false);
         final SegmentInfos segmentInfos = getLatestSegmentInfos();
         try {
             indexWriter.incRefDeleter(segmentInfos);

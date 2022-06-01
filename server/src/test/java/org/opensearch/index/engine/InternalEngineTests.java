@@ -147,7 +147,6 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
@@ -7386,61 +7385,6 @@ public class InternalEngineTests extends EngineTestCase {
         } finally {
             restoreIndexWriterMaxDocs();
         }
-    }
-
-    public void testGetSegmentInfosSnapshot_OnReadReplica() throws IOException {
-        engine.close();
-        Store store = createStore();
-        // create an engine just so we can easily fetch the engine config constructor parameters
-        InternalEngine tempEngine = createEngine(store, createTempDir());
-        EngineConfig tempConfig = tempEngine.config();
-        // read-only engine config requires the replication type setting to be SEGMENT
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            "test",
-            Settings.builder()
-                .put(defaultSettings.getSettings())
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .build()
-        );
-        // create the read-only engine config
-        EngineConfig readOnlyEngineConfig = new EngineConfig(
-            tempConfig.getShardId(),
-            tempConfig.getThreadPool(),
-            indexSettings,
-            tempConfig.getWarmer(),
-            store,
-            tempConfig.getMergePolicy(),
-            tempConfig.getAnalyzer(),
-            tempConfig.getSimilarity(),
-            new CodecService(null, logger),
-            tempConfig.getEventListener(),
-            tempConfig.getQueryCache(),
-            tempConfig.getQueryCachingPolicy(),
-            tempConfig.getTranslogConfig(),
-            null,
-            tempConfig.getFlushMergesAfter(),
-            tempConfig.getExternalRefreshListener(),
-            tempConfig.getInternalRefreshListener(),
-            tempConfig.getIndexSort(),
-            tempConfig.getCircuitBreakerService(),
-            tempConfig.getGlobalCheckpointSupplier(),
-            tempConfig.retentionLeasesSupplier(),
-            tempConfig.getPrimaryTermSupplier(),
-            tempConfig.getTombstoneDocSupplier(),
-            true
-        );
-        // close engine now that it is no longer needed
-        tempEngine.close();
-
-        SetOnce<IndexWriter> indexWriterHolder = new SetOnce<>();
-        IndexWriterFactory indexWriterFactory = (directory, iwc) -> {
-            indexWriterHolder.set(new IndexWriter(directory, iwc));
-            return indexWriterHolder.get();
-        };
-        InternalEngine engine = createEngine(readOnlyEngineConfig);
-        expectThrows(AssertionError.class, engine::getSegmentInfosSnapshot);
-        engine.close();
-        store.close();
     }
 
     public void testGetSegmentInfosSnapshot() throws IOException {

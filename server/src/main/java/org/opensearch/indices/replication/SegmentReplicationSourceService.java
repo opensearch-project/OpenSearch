@@ -121,8 +121,15 @@ public class SegmentReplicationSourceService {
             final IndexShard indexShard = indexService.getShard(shardId.id());
             // build the CopyState object and cache it before returning
             final CopyState copyState = new CopyState(indexShard);
-            // TODO This will add with the latest checkpoint, not the one from the request
-            addToCopyStateMap(copyState);
+
+            /**
+             * Use the checkpoint from the request as the key in the map, rather than
+             * the checkpoint from the created CopyState. This maximizes cache hits
+             * if replication targets make a request with an older checkpoint.
+             * Replication targets are expected to fetch the checkpoint in the response
+             * CopyState to bring themselves up to date.
+             */
+            addToCopyStateMap(checkpoint, copyState);
             return copyState;
         }
     }
@@ -131,8 +138,8 @@ public class SegmentReplicationSourceService {
      * Adds the input {@link CopyState} object to {@link #copyStateMap}.
      * The key is the CopyState's {@link ReplicationCheckpoint} object.
      */
-    private void addToCopyStateMap(CopyState copyState) {
-        copyStateMap.putIfAbsent(copyState.getCheckpoint(), copyState);
+    private void addToCopyStateMap(ReplicationCheckpoint checkpoint, CopyState copyState) {
+        copyStateMap.putIfAbsent(checkpoint, copyState);
     }
 
     /**
