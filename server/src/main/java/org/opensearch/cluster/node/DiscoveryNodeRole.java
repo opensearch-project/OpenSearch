@@ -346,7 +346,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
          * @param roleNameAbbreviation the role name abbreviation
          * @param canContainData       whether or not nodes with the role can contain data
          */
-        public DynamicRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
+        DynamicRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
             super(false, true, roleName, roleNameAbbreviation, canContainData);
         }
 

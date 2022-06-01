@@ -10,7 +10,7 @@ package org.opensearch.cluster.node;
 
 public class DiscoveryNodeRoleGenerator {
 
-    public static DiscoveryNodeRole createUnknownRole(String roleName) {
-        return new DiscoveryNodeRole.UnknownRole(roleName, roleName, false);
+    public static DiscoveryNodeRole createDynamicRole(String roleName) {
+        return new DiscoveryNodeRole.DynamicRole(roleName, roleName, false);
     }
 }

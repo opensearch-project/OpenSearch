@@ -95,10 +95,10 @@ public class RestNodesActionTests extends OpenSearchTestCase {
         terminate(threadPool);
     }
 
-    public void testBuildTableWithUnknownRoleOnly() {
+    public void testBuildTableWithDynamicRoleOnly() {
         Set<DiscoveryNodeRole> roles = new HashSet<>();
         String roleName = "test_role";
-        DiscoveryNodeRole testRole = DiscoveryNodeRoleGenerator.createUnknownRole(roleName);
+        DiscoveryNodeRole testRole = DiscoveryNodeRoleGenerator.createDynamicRole(roleName);
         roles.add(testRole);
 
         testBuildTableWithRoles(roles, (table) -> {
@@ -109,11 +109,11 @@ public class RestNodesActionTests extends OpenSearchTestCase {
         });
     }
 
-    public void testBuildTableWithBothBuiltInAndUnknownRoles() {
+    public void testBuildTableWithBothBuiltInAndDynamicRoles() {
         Set<DiscoveryNodeRole> roles = new HashSet<>();
         roles.add(DiscoveryNodeRole.DATA_ROLE);
         String roleName = "test_role";
-        DiscoveryNodeRole testRole = DiscoveryNodeRoleGenerator.createUnknownRole(roleName);
+        DiscoveryNodeRole testRole = DiscoveryNodeRoleGenerator.createDynamicRole(roleName);
         roles.add(testRole);
 
         testBuildTableWithRoles(roles, (table) -> {
