@@ -1138,4 +1138,15 @@ public class StoreTests extends OpenSearchTestCase {
             }
         }
     }
+
+    public void testGetMetadataWithSegmentInfos() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        Store.MetadataSnapshot metadataSnapshot = store.getMetadata(segmentInfos);
+        // loose check for equality
+        assertEquals(segmentInfos.getSegmentsFileName(), metadataSnapshot.getSegmentsFile().name());
+        store.close();
+    }
 }

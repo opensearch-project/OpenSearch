@@ -278,7 +278,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Conveience wrapper around the {@link #getMetadata(IndexCommit)} method for null input.
      */
     public MetadataSnapshot getMetadata() throws IOException {
-        return getMetadata((IndexCommit) null, false);
+        return getMetadata(null, false);
     }
 
     /**
