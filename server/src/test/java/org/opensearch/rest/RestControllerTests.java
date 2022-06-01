@@ -559,10 +559,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         ).build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
-        assertThat(
-            channel.getRestResponse().content().utf8ToString(),
-            containsString("/&#60;script&#62;alert(&#39;xss&#39;);alert(&#34;&#38;#x6A&#38;#x61&#38;#x76&#38;#x61&#34;);&#60;/script&#62;")
-        );
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString("invalid uri has been requested"));
     }
 
     public void testDispatchUnsupportedHttpMethod() {

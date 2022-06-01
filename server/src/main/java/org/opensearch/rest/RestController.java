@@ -56,6 +56,7 @@ import org.opensearch.usage.UsageService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -488,9 +489,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {
-                // Escaping HTML special characters in the error message only aims to satisfy common security scanners.
-                // There is no vulnerability without escaping, because the response MIME type is application/json, no scripts will be run.
-                builder.field("error", "no handler found for uri [" + escapeHtml(uri) + "] and method [" + method + "]");
+                try {
+                    // Validate input URI to filter out HTML special characters in the error message,
+                    // in case false-positive cross site scripting vulnerability is detected by common security scanners.
+                    uri = new URI(uri).getPath();
+                    builder.field("error", "no handler found for uri [" + uri + "] and method [" + method + "]");
+                } catch (Exception e) {
+                    builder.field("error", "invalid uri has been requested");
+                }
             }
             builder.endObject();
             channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder));
@@ -579,25 +585,5 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {
         // We always obtain a fresh breaker to reflect changes to the breaker configuration.
         return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
-    }
-
-    /**
-     * Perform an HTML escape operation on a String input to prevent XSS vulnerability.
-     * @param text the String to be escaped.
-     * @return The escaped result String.
-     */
-    private String escapeHtml(String text) {
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c == '"' || c == '\'' || c == '<' || c == '>' || c == '&') {
-                out.append("&#");
-                out.append((int) c);
-                out.append(';');
-            } else {
-                out.append(c);
-            }
-        }
-        return out.toString();
     }
 }
