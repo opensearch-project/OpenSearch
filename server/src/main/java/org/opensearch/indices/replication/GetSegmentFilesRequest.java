@@ -18,6 +18,12 @@ import org.opensearch.indices.replication.common.SegmentReplicationTransportRequ
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Request object for fetching a list of segment files metadata from a {@link SegmentReplicationSource}.
+ * This object is created by the target node and sent to the source node.
+ *
+ * @opensearch.internal
+ */
 public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest {
 
     private final List<StoreFileMetadata> filesToFetch;

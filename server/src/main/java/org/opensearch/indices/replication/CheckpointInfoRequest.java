@@ -18,7 +18,8 @@ import java.io.IOException;
 
 /**
  * Request object for fetching segment metadata for a {@link ReplicationCheckpoint} from
- * a {@link SegmentReplicationSource}.
+ * a {@link SegmentReplicationSource}. This object is created by the target node and sent
+ * to the source node.
  *
  * @opensearch.internal
  */
