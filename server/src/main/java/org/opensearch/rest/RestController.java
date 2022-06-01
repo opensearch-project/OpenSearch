@@ -448,7 +448,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 msg.append("Incorrect HTTP method for uri [").append(uri);
                 msg.append("] and method [").append(method).append("]");
             } else {
-                msg.append(exception.getMessage());
+                // Not using the error message directly from 'exception.getMessage()' to avoid unescaped HTML special characters,
+                // in case false-positive cross site scripting vulnerability is detected by common security scanners.
+                msg.append("Unexpected http method");
             }
             if (validMethodSet.isEmpty() == false) {
                 msg.append(", allowed: ").append(validMethodSet);
