@@ -450,7 +450,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 // Not using the error message directly from 'exception.getMessage()' to avoid unescaped HTML special characters,
                 // in case false-positive cross site scripting vulnerability is detected by common security scanners.
-                msg.append("Unexpected http method");
+                msg.append("Unexpected HTTP method");
             }
             if (validMethodSet.isEmpty() == false) {
                 msg.append(", allowed: ").append(validMethodSet);
