@@ -328,7 +328,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 }
                 final DiscoveryNodeRole role = roleMap.get(roleName);
                 if (role == null) {
-                    roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
+                    if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
+                        roles.add(new DiscoveryNodeRole.DynamicRole(roleName, roleNameAbbreviation, canContainData));
+                    } else {
+                        roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
+                    }
                 } else {
                     assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                     assert roleNameAbbreviation.equals(role.roleNameAbbreviation()) : "role name abbreviation ["
@@ -570,7 +574,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         if (roleMap.containsKey(roleName)) {
             return roleMap.get(roleName);
         }
-        return new DiscoveryNodeRole.UnknownRole(roleName, roleName, false);
+        return new DiscoveryNodeRole.DynamicRole(roleName, roleName, false);
     }
 
     public static Set<DiscoveryNodeRole> getPossibleRoles() {

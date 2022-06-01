@@ -117,7 +117,7 @@ public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
 
     }
 
-    public void testUnknownRoleIsDistinctFromKnownRoles() {
+    public void testUnknownRoleIsDistinctFromKnownOrDynamicRoles() {
         for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.BUILT_IN_ROLES) {
             final DiscoveryNodeRole.UnknownRole unknownDataRole = new DiscoveryNodeRole.UnknownRole(
                 buildInRole.roleName(),
@@ -126,6 +126,15 @@ public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
             );
             assertNotEquals(buildInRole, unknownDataRole);
             assertNotEquals(buildInRole.toString(), unknownDataRole.toString());
+            final DiscoveryNodeRole.DynamicRole dynamicRole = new DiscoveryNodeRole.DynamicRole(
+                buildInRole.roleName(),
+                buildInRole.roleNameAbbreviation(),
+                buildInRole.canContainData()
+            );
+            assertNotEquals(buildInRole, dynamicRole);
+            assertNotEquals(buildInRole.toString(), dynamicRole.toString());
+            assertNotEquals(unknownDataRole, dynamicRole);
+            assertNotEquals(unknownDataRole.toString(), dynamicRole.toString());
         }
     }
 
