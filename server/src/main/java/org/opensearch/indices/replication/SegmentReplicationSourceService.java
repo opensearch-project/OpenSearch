@@ -20,7 +20,6 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -95,7 +94,8 @@ public class SegmentReplicationSourceService {
             if (isInCopyStateMap(request.getCheckpoint())) {
                 // TODO send files
             } else {
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                // Return an empty list of files
+                channel.sendResponse(new GetSegmentFilesResponse(Collections.emptyList()));
             }
         }
     }

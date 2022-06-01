@@ -29,51 +29,52 @@ import static org.mockito.Mockito.when;
 
 public class CopyStateTests extends IndexShardTestCase {
 
-    public void testCopyStateCreation() throws IOException {
-        // dummy objects setup
-        final long expectedLongValue = 1L;
-        final ShardId testShardId = new ShardId("testIndex", "testUUID", 0);
-        final StoreFileMetadata segmentsFile = new StoreFileMetadata(IndexFileNames.SEGMENTS, 1L, "0", Version.LATEST);
-        final StoreFileMetadata pendingDeleteFile = new StoreFileMetadata("pendingDelete.del", 1L, "1", Version.LATEST);
-        final Store.MetadataSnapshot commitMetadataSnapshot = new Store.MetadataSnapshot(
-            Map.of("segmentsFile", segmentsFile, "pendingDeleteFile", pendingDeleteFile),
-            null,
-            0
-        );
-        final Store.MetadataSnapshot segmentInfosMetadataSnapshot = new Store.MetadataSnapshot(
-            Map.of("segmentsFile", segmentsFile),
-            null,
-            0
-        );
+    private static final long EXPECTED_LONG_VALUE = 1L;
+    private static final ShardId TEST_SHARD_ID = new ShardId("testIndex", "testUUID", 0);
+    private static final StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(IndexFileNames.SEGMENTS, 1L, "0", Version.LATEST);
+    private static final StoreFileMetadata PENDING_DELETE_FILE = new StoreFileMetadata("pendingDelete.del", 1L, "1", Version.LATEST);
 
-        // Mock objects setup
+    private static final Store.MetadataSnapshot COMMIT_SNAPSHOT = new Store.MetadataSnapshot(
+        Map.of(SEGMENTS_FILE.name(), SEGMENTS_FILE, PENDING_DELETE_FILE.name(), PENDING_DELETE_FILE),
+        null,
+        0
+    );
+
+    private static final Store.MetadataSnapshot SI_SNAPSHOT = new Store.MetadataSnapshot(
+        Map.of(SEGMENTS_FILE.name(), SEGMENTS_FILE),
+        null,
+        0
+    );
+
+    public void testCopyStateCreation() throws IOException {
+        CopyState copyState = new CopyState(createMockIndexShard());
+        ReplicationCheckpoint checkpoint = copyState.getCheckpoint();
+        assertEquals(TEST_SHARD_ID, checkpoint.getShardId());
+        // version was never set so this should be zero
+        assertEquals(0, checkpoint.getSegmentInfosVersion());
+        assertEquals(EXPECTED_LONG_VALUE, checkpoint.getPrimaryTerm());
+
+        Set<StoreFileMetadata> pendingDeleteFiles = copyState.getPendingDeleteFiles();
+        assertEquals(1, pendingDeleteFiles.size());
+        assertTrue(pendingDeleteFiles.contains(PENDING_DELETE_FILE));
+    }
+
+    public static IndexShard createMockIndexShard() throws IOException {
         IndexShard mockShard = mock(IndexShard.class);
-        when(mockShard.shardId()).thenReturn(testShardId);
-        when(mockShard.getOperationPrimaryTerm()).thenReturn(expectedLongValue);
-        when(mockShard.getProcessedLocalCheckpoint()).thenReturn(expectedLongValue);
+        when(mockShard.shardId()).thenReturn(TEST_SHARD_ID);
+        when(mockShard.getOperationPrimaryTerm()).thenReturn(EXPECTED_LONG_VALUE);
+        when(mockShard.getProcessedLocalCheckpoint()).thenReturn(EXPECTED_LONG_VALUE);
 
         Store mockStore = mock(Store.class);
         when(mockShard.store()).thenReturn(mockStore);
 
         SegmentInfos testSegmentInfos = new SegmentInfos(Version.LATEST.major);
         when(mockShard.getSegmentInfosSnapshot()).thenReturn(new GatedCloseable<>(testSegmentInfos, () -> {}));
-
-        when(mockStore.getMetadata(testSegmentInfos)).thenReturn(segmentInfosMetadataSnapshot);
+        when(mockStore.getMetadata(testSegmentInfos)).thenReturn(SI_SNAPSHOT);
 
         IndexCommit mockIndexCommit = mock(IndexCommit.class);
         when(mockShard.acquireLastIndexCommit(false)).thenReturn(new GatedCloseable<>(mockIndexCommit, () -> {}));
-        when(mockStore.getMetadata(mockIndexCommit)).thenReturn(commitMetadataSnapshot);
-
-        // unit test
-        CopyState copyState = new CopyState(mockShard);
-        ReplicationCheckpoint checkpoint = copyState.getCheckpoint();
-        assertEquals(testShardId, checkpoint.getShardId());
-        // version was never set so this should be zero
-        assertEquals(0, checkpoint.getSegmentInfosVersion());
-        assertEquals(expectedLongValue, checkpoint.getPrimaryTerm());
-
-        Set<StoreFileMetadata> pendingDeleteFiles = copyState.getPendingDeleteFiles();
-        assertEquals(1, pendingDeleteFiles.size());
-        assertTrue(pendingDeleteFiles.contains(pendingDeleteFile));
+        when(mockStore.getMetadata(mockIndexCommit)).thenReturn(COMMIT_SNAPSHOT);
+        return mockShard;
     }
 }
