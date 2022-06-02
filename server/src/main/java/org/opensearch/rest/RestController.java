@@ -56,6 +56,7 @@ import org.opensearch.usage.UsageService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -447,7 +448,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 msg.append("Incorrect HTTP method for uri [").append(uri);
                 msg.append("] and method [").append(method).append("]");
             } else {
-                msg.append(exception.getMessage());
+                // Not using the error message directly from 'exception.getMessage()' to avoid unescaped HTML special characters,
+                // in case false-positive cross site scripting vulnerability is detected by common security scanners.
+                msg.append("Unexpected HTTP method");
             }
             if (validMethodSet.isEmpty() == false) {
                 msg.append(", allowed: ").append(validMethodSet);
@@ -488,7 +491,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {
-                builder.field("error", "no handler found for uri [" + uri + "] and method [" + method + "]");
+                try {
+                    // Validate input URI to filter out HTML special characters in the error message,
+                    // in case false-positive cross site scripting vulnerability is detected by common security scanners.
+                    uri = new URI(uri).getPath();
+                    builder.field("error", "no handler found for uri [" + uri + "] and method [" + method + "]");
+                } catch (Exception e) {
+                    builder.field("error", "invalid uri has been requested");
+                }
             }
             builder.endObject();
             channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder));
