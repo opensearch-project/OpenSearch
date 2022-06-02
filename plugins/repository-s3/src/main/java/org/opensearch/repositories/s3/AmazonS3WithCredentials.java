@@ -25,14 +25,6 @@ final class AmazonS3WithCredentials {
         this.credentials = credentials;
     }
 
-    AmazonS3 getClient() {
-        return client;
-    }
-
-    AWSCredentialsProvider getCredentials() {
-        return credentials;
-    }
-
     AmazonS3 client() {
         return client;
     }

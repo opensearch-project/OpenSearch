@@ -271,7 +271,7 @@ class S3Service implements Closeable {
 
     // pkg private for tests
     static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
-        final S3BasicCredentials credentials = clientSettings.credentials;
+        final S3BasicCredentials basicCredentials = clientSettings.credentials;
         final IrsaCredentials irsaCredentials = buildFromEnviroment(clientSettings.irsaCredentials);
 
         // If IAM Roles for Service Accounts (IRSA) credentials are configured, start with them first
@@ -280,10 +280,10 @@ class S3Service implements Closeable {
 
             AWSSecurityTokenService securityTokenService = null;
             final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
-            if (region != null || credentials != null) {
+            if (region != null || basicCredentials != null) {
                 securityTokenService = SocketAccess.doPrivileged(
                     () -> AWSSecurityTokenServiceClientBuilder.standard()
-                        .withCredentials((credentials != null) ? new AWSStaticCredentialsProvider(credentials) : null)
+                        .withCredentials((basicCredentials != null) ? new AWSStaticCredentialsProvider(basicCredentials) : null)
                         .withRegion(region)
                         .build()
                 );
@@ -306,9 +306,9 @@ class S3Service implements Closeable {
                     ).withStsClient(securityTokenService).build()
                 );
             }
-        } else if (credentials != null) {
+        } else if (basicCredentials != null) {
             logger.debug("Using basic key/secret credentials");
-            return new AWSStaticCredentialsProvider(credentials);
+            return new AWSStaticCredentialsProvider(basicCredentials);
         } else {
             logger.debug("Using instance profile credentials");
             return new PrivilegedInstanceProfileCredentialsProvider();
