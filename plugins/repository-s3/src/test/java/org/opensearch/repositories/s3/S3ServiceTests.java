@@ -32,15 +32,42 @@
 package org.opensearch.repositories.s3;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.Map;
 
 public class S3ServiceTests extends OpenSearchTestCase {
 
     public void testCachedClientsAreReleased() {
         final S3Service s3Service = new S3Service();
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
+        final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
+        final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
+        final S3ClientSettings clientSettings = s3Service.settings(metadata2);
+        final S3ClientSettings otherClientSettings = s3Service.settings(metadata2);
+        assertSame(clientSettings, otherClientSettings);
+        final AmazonS3Reference reference = s3Service.client(metadata1);
+        reference.close();
+        s3Service.close();
+        final AmazonS3Reference referenceReloaded = s3Service.client(metadata1);
+        assertNotSame(referenceReloaded, reference);
+        referenceReloaded.close();
+        s3Service.close();
+        final S3ClientSettings clientSettingsReloaded = s3Service.settings(metadata1);
+        assertNotSame(clientSettings, clientSettingsReloaded);
+    }
+
+    public void testCachedClientsWithCredentialsAreReleased() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.role_arn", "role");
+        final Map<String, S3ClientSettings> defaults = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).put("s3.client.default.identity_token_file", "file").build()
+        );
+        final S3Service s3Service = new S3Service();
+        s3Service.refreshAndClearCache(defaults);
+        final Settings settings = Settings.builder().put("endpoint", "http://first").put("region", "us-east-2").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
         final S3ClientSettings clientSettings = s3Service.settings(metadata2);
