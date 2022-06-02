@@ -632,7 +632,10 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().getHeaders().containsKey("Allow"), equalTo(true));
         assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(RestRequest.Method.GET.toString())));
-        assertThat(channel.getRestResponse().content().utf8ToString(), containsString("Unexpected http method"));
+        assertThat(
+            channel.getRestResponse().content().utf8ToString(),
+            equalTo("{\"error\":\"Unexpected HTTP method, allowed: [GET]\",\"status\":405}")
+        );
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
