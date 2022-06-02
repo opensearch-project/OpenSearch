@@ -58,6 +58,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -66,13 +67,16 @@ public class TranslogHandler implements TranslogRecoveryRunner {
 
     private final MapperService mapperService;
 
+    private final AtomicReference<Engine> engine;
+
     private final AtomicLong appliedOperations = new AtomicLong();
 
     long appliedOperations() {
         return appliedOperations.get();
     }
 
-    public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
+    public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings, AtomicReference<Engine> engine) {
+        this.engine = engine;
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         analyzers.put(AnalysisRegistry.DEFAULT_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()));
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, emptyMap(), emptyMap());
@@ -117,11 +121,11 @@ public class TranslogHandler implements TranslogRecoveryRunner {
         int opsRecovered = 0;
         Translog.Operation operation;
         while ((operation = snapshot.next()) != null) {
-            // applyOperation(convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
+            applyOperation(engine.get(), convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
             opsRecovered++;
             appliedOperations.incrementAndGet();
         }
-        // engine.syncTranslog();
+        engine.get().translogManager().syncTranslog();
         return opsRecovered;
     }
 

@@ -59,7 +59,6 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
-import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.store.Store;

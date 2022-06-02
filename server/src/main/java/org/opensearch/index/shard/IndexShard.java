@@ -1689,11 +1689,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 };
                 innerOpenEngineAndTranslog(() -> globalCheckpoint);
                 getEngine().translogManager()
-                    .recoverFromTranslog(
-                        translogRecoveryRunner,
-                        getEngine().getProcessedLocalCheckpoint(),
-                        globalCheckpoint
-                    );
+                    .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), globalCheckpoint);
                 logger.trace("shard locally recovered up to {}", getEngine().getSeqNoStats(globalCheckpoint));
             } finally {
                 synchronized (engineMutex) {
@@ -1875,11 +1871,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().translogManager()
-            .recoverFromTranslog(
-                translogRecoveryRunner,
-                getEngine().getProcessedLocalCheckpoint(),
-                Long.MAX_VALUE
-            );
+            .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
     }
 
     /**
@@ -3957,11 +3949,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
         newEngineReference.get()
             .translogManager()
-            .recoverFromTranslog(
-                translogRunner,
-                newEngineReference.get().getProcessedLocalCheckpoint(),
-                globalCheckpoint
-            );
+            .recoverFromTranslog(translogRunner, newEngineReference.get().getProcessedLocalCheckpoint(), globalCheckpoint);
         newEngineReference.get().refresh("reset_engine");
         synchronized (engineMutex) {
             verifyNotClosed();

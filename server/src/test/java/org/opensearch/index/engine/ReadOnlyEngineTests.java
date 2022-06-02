@@ -47,6 +47,7 @@ import org.opensearch.index.translog.TranslogStats;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.opensearch.common.lucene.index.OpenSearchDirectoryReader.getOpenSearchDirectoryReader;
@@ -139,6 +140,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             // Close and reopen the main engine
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
+                TranslogHandler translogHandler = createTranslogHandler(config.getIndexSettings(), new AtomicReference<>(recoveringEngine));
                 recoveringEngine.translogManager()
                     .recoverFromTranslog(translogHandler, recoveringEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
@@ -279,7 +281,11 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 engine.flushAndClose();
             }
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true)) {
-                final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
+                final TranslogHandler translogHandler = new TranslogHandler(
+                    xContentRegistry(),
+                    config.getIndexSettings(),
+                    new AtomicReference<>(readOnlyEngine)
+                );
                 readOnlyEngine.translogManager()
                     .recoverFromTranslog(translogHandler, readOnlyEngine.getProcessedLocalCheckpoint(), randomNonNegativeLong());
 

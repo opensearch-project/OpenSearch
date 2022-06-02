@@ -113,6 +113,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.DummyShardLock;
@@ -135,6 +136,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -221,7 +223,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
         primaryTranslogDir = createTempDir("translog-primary");
-        translogHandler = createTranslogHandler(defaultSettings);
         engine = createEngine(store, primaryTranslogDir);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -524,8 +525,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         );
     }
 
-    protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {
-        return new TranslogHandler(xContentRegistry(), indexSettings);
+    protected TranslogHandler createTranslogHandler(IndexSettings indexSettings, AtomicReference<Engine> engine) {
+        return new TranslogHandler(xContentRegistry(), indexSettings, engine);
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
@@ -662,17 +663,13 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.translogManager()
-            .recoverFromTranslog(
-                translogHandler,
-                internalEngine.getProcessedLocalCheckpoint(),
-                Long.MAX_VALUE
-            );
+        translogHandler = createTranslogHandler(config.getIndexSettings(), new AtomicReference<>(internalEngine));
+        internalEngine.translogManager().recoverFromTranslog(translogHandler, internalEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
         return internalEngine;
     }
 
     public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
-        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
+        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER);
     }
 
     @FunctionalInterface

@@ -14,7 +14,7 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.stream.Stream;
 
-public class NoOpTranslogManager extends TranslogManager {
+public class NoOpTranslogManager implements TranslogManager {
 
     private final Translog.Snapshot emptyTranslogSnapshot;
     private final ReleasableLock readLock;
@@ -40,11 +40,8 @@ public class NoOpTranslogManager extends TranslogManager {
     public void rollTranslogGeneration() throws TranslogException {}
 
     @Override
-    public void recoverFromTranslog(
-        TranslogRecoveryRunner translogRecoveryRunner,
-        long localCheckpoint,
-        long recoverUpToSeqNo
-    ) throws IOException {
+    public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
+        throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen.run();
             try (Translog.Snapshot snapshot = emptyTranslogSnapshot) {

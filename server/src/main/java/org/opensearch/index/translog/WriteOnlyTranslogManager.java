@@ -13,6 +13,7 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -20,7 +21,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /***
- *
+ * The implementation of {@link TranslogManager} that only performs writes to the Translog
  */
 public class WriteOnlyTranslogManager extends InternalTranslogManager {
 
@@ -35,7 +36,17 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
         BiConsumer<String, Exception> failEngine,
         Function<AlreadyClosedException, Boolean> failOnTragicEvent
     ) throws IOException {
-        super(engineConfig, shardId, readLock, localCheckpointTrackerSupplier, translogUUID, translogEventListener, ensureOpen, failEngine, failOnTragicEvent);
+        super(
+            engineConfig,
+            shardId,
+            readLock,
+            localCheckpointTrackerSupplier,
+            translogUUID,
+            translogEventListener,
+            ensureOpen,
+            failEngine,
+            failOnTragicEvent
+        );
     }
 
     @Override
@@ -44,11 +55,8 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
     }
 
     @Override
-    public void recoverFromTranslog(
-        TranslogRecoveryRunner translogRecoveryRunner,
-        long localCheckpoint,
-        long recoverUpToSeqNo
-    ) throws IOException {
+    public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
+        throws IOException {
         throw new UnsupportedOperationException("Read only replicas do not have an IndexWriter and cannot recover from a translog.");
     }
 

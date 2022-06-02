@@ -16,6 +16,7 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,7 +31,7 @@ import java.util.stream.Stream;
  * The {@link TranslogManager} implementation capable of orchestrating all {@link Translog} operations while
  * interfacing with the {@link org.opensearch.index.engine.InternalEngine}
  */
-public class InternalTranslogManager extends TranslogManager {
+public class InternalTranslogManager implements TranslogManager {
 
     private final ReleasableLock readLock;
     private final Runnable ensureOpen;
@@ -39,7 +40,7 @@ public class InternalTranslogManager extends TranslogManager {
     private final BiConsumer<String, Exception> failEngine;
     private final Function<AlreadyClosedException, Boolean> failOnTragicEvent;
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
-    private final TranslogManager.TranslogEventListener translogEventListener;
+    private final TranslogEventListener translogEventListener;
     private static final Logger logger = LogManager.getLogger(InternalTranslogManager.class);
 
     public InternalTranslogManager(
@@ -48,7 +49,7 @@ public class InternalTranslogManager extends TranslogManager {
         ReleasableLock readLock,
         Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier,
         String translogUUID,
-        TranslogManager.TranslogEventListener translogEventListener,
+        TranslogEventListener translogEventListener,
         Runnable ensureOpen,
         BiConsumer<String, Exception> failEngine,
         Function<AlreadyClosedException, Boolean> failOnTragicEvent
@@ -119,11 +120,9 @@ public class InternalTranslogManager extends TranslogManager {
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
     @Override
-    public void recoverFromTranslog(
-        TranslogRecoveryRunner translogRecoveryRunner,
-        long localCheckpoint,
-        long recoverUpToSeqNo
-    ) throws IOException {
+    public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
+        throws IOException {
+        translogEventListener.onBeginTranslogRecovery();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
             if (pendingTranslogRecovery.get() == false) {
@@ -143,11 +142,8 @@ public class InternalTranslogManager extends TranslogManager {
         }
     }
 
-    private void recoverFromTranslogInternal(
-        TranslogRecoveryRunner translogRecoveryRunner,
-        long localCheckpoint,
-        long recoverUpToSeqNo
-    ) throws IOException {
+    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
+        throws IOException {
         final int opsRecovered;
         if (localCheckpoint < recoverUpToSeqNo) {
             try (Translog.Snapshot snapshot = translog.newSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {

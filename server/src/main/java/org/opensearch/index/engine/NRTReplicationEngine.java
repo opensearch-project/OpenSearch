@@ -26,6 +26,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -74,7 +75,7 @@ public class NRTReplicationEngine extends Engine {
                 readLock,
                 this::getLocalCheckpointTracker,
                 translogUUID,
-                TranslogManager.TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> ensureOpen(null),
                 this::failEngine,
                 (ex) -> null

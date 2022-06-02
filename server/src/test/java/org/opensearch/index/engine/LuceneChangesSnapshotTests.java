@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -300,11 +301,12 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             this.leader = leader;
             this.isDone = isDone;
             this.readLatch = readLatch;
+            this.engine = createEngine(createStore(), createTempDir());
             this.translogHandler = new TranslogHandler(
                 xContentRegistry(),
-                IndexSettingsModule.newIndexSettings(shardId.getIndexName(), leader.engineConfig.getIndexSettings().getSettings())
+                IndexSettingsModule.newIndexSettings(shardId.getIndexName(), leader.engineConfig.getIndexSettings().getSettings()),
+                new AtomicReference<>(engine)
             );
-            this.engine = createEngine(createStore(), createTempDir());
         }
 
         void pullOperations(InternalEngine follower) throws IOException {

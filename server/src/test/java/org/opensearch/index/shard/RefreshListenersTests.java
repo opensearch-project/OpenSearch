@@ -173,8 +173,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             EngineTestCase.tombstoneDocSupplier()
         );
         engine = new InternalEngine(config);
-        engine.translogManager()
-            .recoverFromTranslog((s) -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        engine.translogManager().recoverFromTranslog((s) -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine.translogManager()::getTranslogLastWriteLocation);
     }
 

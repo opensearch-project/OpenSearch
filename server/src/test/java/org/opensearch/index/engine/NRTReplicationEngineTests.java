@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -87,8 +88,11 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // recover a new engine from the nrtEngine's xlog.
             nrtEngine.translogManager().syncTranslog();
             try (InternalEngine engine = new InternalEngine(nrtEngine.config())) {
-                engine.translogManager()
-                    .recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+                TranslogHandler translogHandler = createTranslogHandler(
+                    nrtEngine.config().getIndexSettings(),
+                    new AtomicReference<>(engine)
+                );
+                engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                 assertEquals(getDocIds(engine, true), docs);
             }
             assertEngineCleanedUp(nrtEngine, nrtEngine.getTranslog());

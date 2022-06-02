@@ -86,7 +86,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -129,12 +128,10 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.StoreUtils;
-import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogStats;
-import org.opensearch.index.translog.TranslogRecoveryRunner;
-import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -178,7 +175,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -4112,41 +4108,19 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testCloseShardWhileResettingEngine() throws Exception {
         CountDownLatch readyToCloseLatch = new CountDownLatch(1);
         CountDownLatch closeDoneLatch = new CountDownLatch(1);
-        IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
+        IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config, new TranslogEventListener() {
             @Override
-            public TranslogManager translogManager() {
-                try {
-                    return new InternalTranslogManager(
-                        config,
-                        null,
-                        new ReleasableLock(new ReentrantReadWriteLock().readLock()),
-                        null,
-                        null,
-                        null,
-                        () -> {},
-                        (str, ex) -> {},
-                        null
-                    ) {
-                        @Override
-                        public void recoverFromTranslog(
-                            TranslogRecoveryRunner translogRecoveryRunner,
-                            long localCheckpoint,
-                            long recoverUpToSeqNo
-                        ) throws IOException {
-                            readyToCloseLatch.countDown();
-                            try {
-                                closeDoneLatch.await();
-                            } catch (InterruptedException e) {
-                                throw new AssertionError(e);
-                            }
-                            super.recoverFromTranslog(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo);
-                        }
-                    };
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
+            public void onBeginTranslogRecovery() {
+                {
+                    readyToCloseLatch.countDown();
+                    try {
+                        closeDoneLatch.await();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
                 }
             }
-        });
+        }));
 
         Thread closeShardThread = new Thread(() -> {
             try {
@@ -4193,41 +4167,17 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSnapshotWhileResettingEngine() throws Exception {
         CountDownLatch readyToSnapshotLatch = new CountDownLatch(1);
         CountDownLatch snapshotDoneLatch = new CountDownLatch(1);
-        IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
+        IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config, new TranslogEventListener() {
             @Override
-            public TranslogManager translogManager() {
+            public void onTranslogRecovery() {
+                readyToSnapshotLatch.countDown();
                 try {
-                    return new InternalTranslogManager(
-                        config,
-                        null,
-                        new ReleasableLock(new ReentrantReadWriteLock().readLock()),
-                        null,
-                        null,
-                        null,
-                        () -> {},
-                        (str, ex) -> {},
-                        null
-                    ) {
-                        @Override
-                        public void recoverFromTranslog(
-                            TranslogRecoveryRunner translogRecoveryRunner,
-                            long localCheckpoint,
-                            long recoverUpToSeqNo
-                        ) throws IOException {
-                            super.recoverFromTranslog(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo);
-                            readyToSnapshotLatch.countDown();
-                            try {
-                                snapshotDoneLatch.await();
-                            } catch (InterruptedException e) {
-                                throw new AssertionError(e);
-                            }
-                        }
-                    };
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
+                    snapshotDoneLatch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
                 }
             }
-        });
+        }));
 
         indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
         final long globalCheckpoint = randomLongBetween(shard.getLastKnownGlobalCheckpoint(), shard.getLocalCheckpoint());
