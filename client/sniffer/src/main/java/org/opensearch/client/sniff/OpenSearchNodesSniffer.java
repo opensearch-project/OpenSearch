@@ -269,31 +269,6 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
     }
 
     /**
-     * Returns {@code defaultValue} if the attribute didn't come back,
-     * {@code true} or {@code false} if it did come back as
-     * either of those, or throws an IOException if the attribute
-     * came back in a strange way.
-     */
-    private static Boolean v2RoleAttributeValue(Map<String, List<String>> attributes, String name, Boolean defaultValue)
-        throws IOException {
-        List<String> valueList = attributes.remove(name);
-        if (valueList == null) {
-            return defaultValue;
-        }
-        if (valueList.size() != 1) {
-            throw new IOException("expected only a single attribute value for [" + name + "] but got " + valueList);
-        }
-        switch (valueList.get(0)) {
-            case "true":
-                return true;
-            case "false":
-                return false;
-            default:
-                throw new IOException("expected [" + name + "] to be either [true] or [false] but was [" + valueList.get(0) + "]");
-        }
-    }
-
-    /**
      * The supported host schemes.
      */
     public enum Scheme {

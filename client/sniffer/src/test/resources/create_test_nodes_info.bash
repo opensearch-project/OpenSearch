@@ -43,10 +43,12 @@ function do_version() {
         cp -r opensearch-${version}/* ${node}
         local cluster_manager=$([[ "$node" =~ ^m.* ]] && echo 'cluster_manager,' || echo '')
         # 'cluster_manager' role is add in version 2.x and above, use 'master' role in 1.x
-        cluster_manager=$([[ ! "$cluster_manager" == '' && ${version} =~ ^1 ]] && echo 'master,' || echo ${cluster_manager})
+        cluster_manager=$([[ ! "$cluster_manager" == '' && ${version} =~ ^1\. ]] && echo 'master,' || echo ${cluster_manager})
         local data=$([[ "$node" =~ ^d.* ]] && echo 'data,' || echo '')
         # m2 is always cluster_manager and data for these test just so we have a node like that
         data=$([[ "$node" == 'm2' ]] && echo 'data,' || echo ${data})
+        # setting name 'cluster.initial_cluster_manager_nodes' is add in version 2.x and above
+        local initial_cluster_manager_nodes=$([[ ${version} =~ ^1\. ]] && echo 'initial_master_nodes' || echo 'initial_cluster_manager_nodes')
         local transport_port=$((http_port+100))
 
         cat >> ${node}/config/opensearch.yml << __OPENSEARCH_YML
@@ -57,7 +59,7 @@ node.attr.number:   ${node:1}
 node.attr.array:    [${node:0:1}, ${node:1}]
 http.port:          ${http_port}
 transport.tcp.port: ${transport_port}
-cluster.initial_master_nodes: [m1, m2, m3]
+cluster.${initial_cluster_manager_nodes}: [m1, m2, m3]
 discovery.seed_hosts: ['localhost:9300','localhost:9301','localhost:9302']
 __OPENSEARCH_YML
 

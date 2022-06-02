@@ -6,23 +6,22 @@
   },
   "cluster_name": "opensearch",
   "nodes": {
-    "qr-SOrELSaGW8SlU8nflBw": {
+    "ikXK_skVTfWkhONhldnbkw": {
       "name": "m1",
       "transport_address": "127.0.0.1:9300",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "2.0.0",
-      "build_type": "tar",
-      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "version": "7.3.0",
+      "build_hash": "8f0685b",
       "roles": [
-        "cluster_manager",
+        "master",
         "ingest"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "1",
-        "array": "[m, 1]",
-        "shard_indexing_pressure_enabled": "true"
+        "array.0": "m",
+        "array.1": "1"
       },
       "http": {
         "bound_address": [
@@ -33,24 +32,23 @@
         "max_content_length_in_bytes": 104857600
       }
     },
-    "osfiXxUOQzCVIs-eepgSCA": {
+    "TMHa34w4RqeuYoHCfJGXZg": {
       "name": "m2",
       "transport_address": "127.0.0.1:9301",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "2.0.0",
-      "build_type": "tar",
-      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "version": "7.3.0",
+      "build_hash": "8f0685b",
       "roles": [
-        "cluster_manager",
+        "master",
         "data",
         "ingest"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "2",
-        "shard_indexing_pressure_enabled": "true",
-        "array": "[m, 2]"
+        "array.0": "m",
+        "array.1": "2"
       },
       "http": {
         "bound_address": [
@@ -61,23 +59,22 @@
         "max_content_length_in_bytes": 104857600
       }
     },
-    "lazeJFiIQ8eHHV4GeIdMPg": {
+    "lzaMRJTVT166sgVZdQ5thA": {
       "name": "m3",
       "transport_address": "127.0.0.1:9302",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "2.0.0",
-      "build_type": "tar",
-      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "version": "7.3.0",
+      "build_hash": "8f0685b",
       "roles": [
-        "cluster_manager",
+        "master",
         "ingest"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "3",
-        "shard_indexing_pressure_enabled": "true",
-        "array": "[m, 3]"
+        "array.0": "m",
+        "array.1": "3"
       },
       "http": {
         "bound_address": [
@@ -88,23 +85,23 @@
         "max_content_length_in_bytes": 104857600
       }
     },
-    "t9WxK-fNRsqV5G0Mm09KpQ": {
+    "tGP5sUecSd6BLTWk1NWF8Q": {
       "name": "d1",
       "transport_address": "127.0.0.1:9303",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "2.0.0",
-      "build_type": "tar",
-      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "version": "7.3.0",
+      "build_hash": "8f0685b",
       "roles": [
         "data",
-        "ingest"
+        "ingest",
+        "ml"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "1",
-        "shard_indexing_pressure_enabled": "true",
-        "array": "[d, 1]"
+        "array.0": "d",
+        "array.1": "1"
       },
       "http": {
         "bound_address": [
@@ -115,14 +112,13 @@
         "max_content_length_in_bytes": 104857600
       }
     },
-    "wgoDzluvTViwUjEsmVesKw": {
+    "c1UgW5ROTkSa2YnM_T56tw": {
       "name": "d2",
       "transport_address": "127.0.0.1:9304",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "2.0.0",
-      "build_type": "tar",
-      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "version": "7.3.0",
+      "build_hash": "8f0685b",
       "roles": [
         "data",
         "ingest"
@@ -130,8 +126,8 @@
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "2",
-        "shard_indexing_pressure_enabled": "true",
-        "array": "[d, 2]"
+        "array.0": "d",
+        "array.1": "2"
       },
       "http": {
         "bound_address": [
@@ -142,14 +138,13 @@
         "max_content_length_in_bytes": 104857600
       }
     },
-    "6j_t3pPhSm-oRTyypTzu5g": {
+    "QM9yjqjmS72MstpNYV_trg": {
       "name": "d3",
       "transport_address": "127.0.0.1:9305",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "2.0.0",
-      "build_type": "tar",
-      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "version": "7.3.0",
+      "build_hash": "8f0685b",
       "roles": [
         "data",
         "ingest"
@@ -157,8 +152,8 @@
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "3",
-        "shard_indexing_pressure_enabled": "true",
-        "array": "[d, 3]"
+        "array.0": "d",
+        "array.1": "3"
       },
       "http": {
         "bound_address": [
@@ -169,22 +164,21 @@
         "max_content_length_in_bytes": 104857600
       }
     },
-    "PaEkm0z7Ssiuyfkh3aASag": {
+    "wLtzAssoQYeX_4TstgCj0Q": {
       "name": "c1",
       "transport_address": "127.0.0.1:9306",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "2.0.0",
-      "build_type": "tar",
-      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "version": "7.3.0",
+      "build_hash": "8f0685b",
       "roles": [
         "ingest"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "1",
-        "shard_indexing_pressure_enabled": "true",
-        "array": "[c, 1]"
+        "array.0": "c",
+        "array.1": "1"
       },
       "http": {
         "bound_address": [
@@ -195,22 +189,21 @@
         "max_content_length_in_bytes": 104857600
       }
     },
-    "LAFKr2K_QmupqnM_atJqkQ": {
+    "ONOzpst8TH-ZebG7fxGwaA": {
       "name": "c2",
       "transport_address": "127.0.0.1:9307",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "2.0.0",
-      "build_type": "tar",
-      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "version": "7.3.0",
+      "build_hash": "8f0685b",
       "roles": [
         "ingest"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "2",
-        "shard_indexing_pressure_enabled": "true",
-        "array": "[c, 2]"
+        "array.0": "c",
+        "array.1": "2"
       },
       "http": {
         "bound_address": [
