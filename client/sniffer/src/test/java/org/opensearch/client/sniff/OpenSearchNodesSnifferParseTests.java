@@ -91,7 +91,7 @@ public class OpenSearchNodesSnifferParseTests extends RestClientTestCase {
             node(9200, "m1", "1.0.0", "master", "ingest"),
             node(9201, "m2", "1.0.0", "master", "data", "ingest"),
             node(9202, "m3", "1.0.0", "master", "ingest"),
-            node(9203, "d1", "1.0.0", "data", "ingest", "ml"),
+            node(9203, "d1", "1.0.0", "data", "ingest"),
             node(9204, "d2", "1.0.0", "data", "ingest"),
             node(9205, "d3", "1.0.0", "data", "ingest"),
             node(9206, "c1", "1.0.0", "ingest"),
@@ -105,7 +105,7 @@ public class OpenSearchNodesSnifferParseTests extends RestClientTestCase {
             node(9200, "m1", "2.0.0", "cluster_manager", "ingest"),
             node(9201, "m2", "2.0.0", "cluster_manager", "data", "ingest"),
             node(9202, "m3", "2.0.0", "cluster_manager", "ingest"),
-            node(9203, "d1", "2.0.0", "data", "ingest", "ml"),
+            node(9203, "d1", "2.0.0", "data", "ingest"),
             node(9204, "d2", "2.0.0", "data", "ingest"),
             node(9205, "d3", "2.0.0", "data", "ingest"),
             node(9206, "c1", "2.0.0", "ingest"),
@@ -142,12 +142,16 @@ public class OpenSearchNodesSnifferParseTests extends RestClientTestCase {
     private Node node(int port, String name, String version, Set<String> roles) {
         HttpHost host = new HttpHost("127.0.0.1", port);
         Set<HttpHost> boundHosts = new HashSet<>(2);
-        boundHosts.add(host);
         boundHosts.add(new HttpHost("[::1]", port));
+        boundHosts.add(host);
         Map<String, List<String>> attributes = new HashMap<>();
         attributes.put("dummy", singletonList("everyone_has_me"));
         attributes.put("number", singletonList(name.substring(1)));
-        attributes.put("array", Arrays.asList(name.substring(0, 1), name.substring(1)));
+        attributes.put("array", singletonList(Arrays.asList(name.substring(0, 1), name.substring(1)).toString()));
+        if (!version.startsWith("1.0") && !version.startsWith("1.1")) {
+            // Shard Indexing Pressure feature is added in version 1.2.0
+            attributes.put("shard_indexing_pressure_enabled", singletonList(Boolean.TRUE.toString()));
+        }
         return new Node(host, boundHosts, name, version, new Roles(new TreeSet<>(roles)), attributes);
     }
 
