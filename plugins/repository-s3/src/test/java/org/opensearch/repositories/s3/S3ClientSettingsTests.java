@@ -246,7 +246,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
         try (S3Service s3Service = new S3Service()) {
-            AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other"));
+            AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other")).client();
             assertThat(other.getSignerRegionOverride(), is(region));
         }
     }

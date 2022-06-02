@@ -73,8 +73,6 @@ import java.net.Proxy;
 import java.net.Socket;
 import java.security.SecureRandom;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
@@ -85,7 +83,6 @@ class S3Service implements Closeable {
     private static final Logger logger = LogManager.getLogger(S3Service.class);
 
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
-    private Set<Closeable> credentialsCache = ConcurrentHashMap.newKeySet();
 
     /**
      * Client settings calculated from static configuration and settings in the keystore.
@@ -176,14 +173,10 @@ class S3Service implements Closeable {
     }
 
     // proxy for testing
-    AmazonS3 buildClient(final S3ClientSettings clientSettings) {
+    AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
 
         final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
-        if (credentials instanceof Closeable) {
-            credentialsCache.add((Closeable) credentials);
-        }
-
         builder.withCredentials(credentials);
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
@@ -211,7 +204,8 @@ class S3Service implements Closeable {
         if (clientSettings.disableChunkedEncoding) {
             builder.disableChunkedEncoding();
         }
-        return SocketAccess.doPrivileged(builder::build);
+        final AmazonS3 client = SocketAccess.doPrivileged(builder::build);
+        return AmazonS3WithCredentials.create(client, credentials);
     }
 
     // pkg private for tests
@@ -350,18 +344,9 @@ class S3Service implements Closeable {
             clientReference.decRef();
         }
 
-        for (final Closeable closeable : credentialsCache) {
-            try {
-                closeable.close();
-            } catch (IOException e) {
-                /* Ignoring */
-            }
-        }
-
         // clear previously cached clients, they will be build lazily
         clientsCache = emptyMap();
         derivedClientSettings = emptyMap();
-        credentialsCache.clear();
 
         // shutdown IdleConnectionReaper background thread
         // it will be restarted on new client usage
