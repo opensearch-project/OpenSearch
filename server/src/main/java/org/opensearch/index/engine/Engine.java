@@ -176,12 +176,14 @@ public abstract class Engine implements Closeable {
     protected abstract SegmentInfos getLatestSegmentInfos();
 
     /**
-     * Fetch a snapshot of the latest SegmentInfos from the engine. Using this method
-     * ensures that segment files are retained in the directory until the reference is closed.
+     * In contrast to {@link #getLatestSegmentInfos()}, which returns a {@link SegmentInfos}
+     * object directly, this method returns a {@link GatedCloseable} reference to the same object.
+     * This allows the engine to include a clean-up {@link org.opensearch.common.CheckedRunnable}
+     * which is run when the reference is closed. The default implementation of the clean-up
+     * procedure is a no-op.
      *
      * @return {@link GatedCloseable} - A wrapper around a {@link SegmentInfos} instance that
      * must be closed for segment files to be deleted.
-     * @throws EngineException - When segment infos cannot be safely retrieved
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         // default implementation

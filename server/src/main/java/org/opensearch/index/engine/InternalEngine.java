@@ -2305,6 +2305,11 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * Fetch the latest {@link SegmentInfos} object via {@link #getLatestSegmentInfos()}
+     * but also increment the ref-count to ensure that these segment files are retained
+     * until the reference is closed. On close, the ref-count is decremented.
+     */
     @Override
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         final SegmentInfos segmentInfos = getLatestSegmentInfos();
