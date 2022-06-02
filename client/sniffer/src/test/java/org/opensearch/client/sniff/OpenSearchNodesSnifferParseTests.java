@@ -87,18 +87,18 @@ public class OpenSearchNodesSnifferParseTests extends RestClientTestCase {
 
     public void testES7x() throws IOException {
         checkFile(
-                "7.10.2_nodes_http.json",
-                node(9200, "m1", "1.0.0", "master", "ingest"),
-                node(9201, "m2", "1.0.0", "master", "data", "ingest"),
-                node(9202, "m3", "1.0.0", "master", "ingest"),
-                node(9203, "d1", "1.0.0", "data", "ingest", "ml"),
-                node(9204, "d2", "1.0.0", "data", "ingest"),
-                node(9205, "d3", "1.0.0", "data", "ingest"),
-                node(9206, "c1", "1.0.0", "ingest"),
-                node(9207, "c2", "1.0.0", "ingest")
+            "es7.10.2_nodes_http.json",
+            node(9200, "m1", "7.10.2", "master", "ingest"),
+            node(9201, "m2", "7.10.2", "master", "data", "ingest"),
+            node(9202, "m3", "7.10.2", "master", "ingest"),
+            node(9203, "d1", "7.10.2", "data", "ingest"),
+            node(9204, "d2", "7.10.2", "data", "ingest"),
+            node(9205, "d3", "7.10.2", "data", "ingest"),
+            node(9206, "c1", "7.10.2", "ingest"),
+            node(9207, "c2", "7.10.2", "ingest")
         );
     }
-    
+
     public void test1x() throws IOException {
         checkFile(
             "1.0.0_nodes_http.json",

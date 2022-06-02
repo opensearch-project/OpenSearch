@@ -4,24 +4,25 @@
     "successful": 8,
     "failed": 0
   },
-  "cluster_name": "opensearch",
+  "cluster_name": "elasticsearch",
   "nodes": {
     "ikXK_skVTfWkhONhldnbkw": {
       "name": "m1",
       "transport_address": "127.0.0.1:9300",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "7.3.0",
-      "build_hash": "8f0685b",
+      "version": "7.10.2",
+      "build_flavor": "oss",
+      "build_type": "tar",
+      "build_hash": "747e1cc71def077253878a59143c1f785afa92b9",
       "roles": [
-        "master",
-        "ingest"
+        "ingest",
+        "master"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "1",
-        "array.0": "m",
-        "array.1": "1"
+        "array": "[m, 1]"
       },
       "http": {
         "bound_address": [
@@ -37,18 +38,19 @@
       "transport_address": "127.0.0.1:9301",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "7.3.0",
-      "build_hash": "8f0685b",
+      "version": "7.10.2",
+      "build_flavor": "oss",
+      "build_type": "tar",
+      "build_hash": "747e1cc71def077253878a59143c1f785afa92b9",
       "roles": [
-        "master",
         "data",
-        "ingest"
+        "ingest",
+        "master"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "2",
-        "array.0": "m",
-        "array.1": "2"
+        "array": "[m, 2]"
       },
       "http": {
         "bound_address": [
@@ -64,17 +66,18 @@
       "transport_address": "127.0.0.1:9302",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "7.3.0",
-      "build_hash": "8f0685b",
+      "version": "7.10.2",
+      "build_flavor": "oss",
+      "build_type": "tar",
+      "build_hash": "747e1cc71def077253878a59143c1f785afa92b9",
       "roles": [
-        "master",
-        "ingest"
+        "ingest",
+        "master"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "3",
-        "array.0": "m",
-        "array.1": "3"
+        "array": "[m, 3]"
       },
       "http": {
         "bound_address": [
@@ -90,18 +93,18 @@
       "transport_address": "127.0.0.1:9303",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "7.3.0",
-      "build_hash": "8f0685b",
+      "version": "7.10.2",
+      "build_flavor": "oss",
+      "build_type": "tar",
+      "build_hash": "747e1cc71def077253878a59143c1f785afa92b9",
       "roles": [
         "data",
-        "ingest",
-        "ml"
+        "ingest"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "1",
-        "array.0": "d",
-        "array.1": "1"
+        "array": "[d, 1]"
       },
       "http": {
         "bound_address": [
@@ -117,8 +120,10 @@
       "transport_address": "127.0.0.1:9304",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "7.3.0",
-      "build_hash": "8f0685b",
+      "version": "7.10.2",
+      "build_flavor": "oss",
+      "build_type": "tar",
+      "build_hash": "747e1cc71def077253878a59143c1f785afa92b9",
       "roles": [
         "data",
         "ingest"
@@ -126,8 +131,7 @@
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "2",
-        "array.0": "d",
-        "array.1": "2"
+        "array": "[d, 2]"
       },
       "http": {
         "bound_address": [
@@ -143,8 +147,10 @@
       "transport_address": "127.0.0.1:9305",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "7.3.0",
-      "build_hash": "8f0685b",
+      "version": "7.10.2",
+      "build_flavor": "oss",
+      "build_type": "tar",
+      "build_hash": "747e1cc71def077253878a59143c1f785afa92b9",
       "roles": [
         "data",
         "ingest"
@@ -152,8 +158,7 @@
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "3",
-        "array.0": "d",
-        "array.1": "3"
+        "array": "[d, 3]"
       },
       "http": {
         "bound_address": [
@@ -169,16 +174,17 @@
       "transport_address": "127.0.0.1:9306",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "7.3.0",
-      "build_hash": "8f0685b",
+      "version": "7.10.2",
+      "build_flavor": "oss",
+      "build_type": "tar",
+      "build_hash": "747e1cc71def077253878a59143c1f785afa92b9",
       "roles": [
         "ingest"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "1",
-        "array.0": "c",
-        "array.1": "1"
+        "array": "[c, 1]"
       },
       "http": {
         "bound_address": [
@@ -194,16 +200,17 @@
       "transport_address": "127.0.0.1:9307",
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
-      "version": "7.3.0",
-      "build_hash": "8f0685b",
+      "version": "7.10.2",
+      "build_flavor": "oss",
+      "build_type": "tar",
+      "build_hash": "747e1cc71def077253878a59143c1f785afa92b9",
       "roles": [
         "ingest"
       ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "2",
-        "array.0": "c",
-        "array.1": "2"
+        "array": "[c, 2]"
       },
       "http": {
         "bound_address": [
