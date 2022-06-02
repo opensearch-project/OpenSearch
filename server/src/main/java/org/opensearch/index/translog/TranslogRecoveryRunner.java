@@ -10,6 +10,9 @@ package org.opensearch.index.translog;
 
 import java.io.IOException;
 
+/**
+ * The interface that defines how translog operations will get replayed from a {@link Translog.Snapshot}
+ */
 @FunctionalInterface
 public interface TranslogRecoveryRunner {
     int run(Translog.Snapshot snapshot) throws IOException;

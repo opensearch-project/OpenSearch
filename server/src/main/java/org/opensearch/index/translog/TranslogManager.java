@@ -43,13 +43,13 @@ public interface TranslogManager {
 
     /**
      * Syncs translog to disk
-     * @throws IOException
+     * @throws IOException the exception while performing the sync operation
      */
     void syncTranslog() throws IOException;
 
     /**
      * Translog operation stats
-     * @return
+     * @return the translog stats
      */
     TranslogStats getTranslogStats();
 
@@ -94,8 +94,8 @@ public interface TranslogManager {
 
     /**
      * Returns the instance of the translog with a precondition
-     * @param ensureOpen
-     * @return
+     * @param ensureOpen check if the engine is open
+     * @return the translog instance
      */
     Translog getTranslog(boolean ensureOpen);
 

@@ -142,8 +142,7 @@ public class InternalTranslogManager implements TranslogManager {
         }
     }
 
-    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
-        throws IOException {
+    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo) {
         final int opsRecovered;
         if (localCheckpoint < recoverUpToSeqNo) {
             try (Translog.Snapshot snapshot = translog.newSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {

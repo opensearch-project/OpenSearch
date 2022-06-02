@@ -14,6 +14,9 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.stream.Stream;
 
+/**
+ * The no-op implementation of {@link TranslogManager} that doesn't perform any action
+ */
 public class NoOpTranslogManager implements TranslogManager {
 
     private final Translog.Snapshot emptyTranslogSnapshot;
