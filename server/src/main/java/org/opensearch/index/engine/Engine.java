@@ -863,10 +863,7 @@ public abstract class Engine implements Closeable {
      * @return the latest checkpoint that has been processed but not necessarily persisted.
      * Also see {@link #getPersistedLocalCheckpoint()}
      */
-    public long getProcessedLocalCheckpoint() {
-        // default implementation
-        return 0L;
-    }
+    public abstract long getProcessedLocalCheckpoint();
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
