@@ -31,8 +31,6 @@
 
 package org.opensearch.index.engine;
 
-import java.io.IOException;
-
 /**
  * Simple Engine Factory
  *
@@ -41,6 +39,6 @@ import java.io.IOException;
 @FunctionalInterface
 public interface EngineFactory {
 
-    Engine newReadWriteEngine(EngineConfig config) throws IOException;
+    Engine newReadWriteEngine(EngineConfig config);
 
 }
