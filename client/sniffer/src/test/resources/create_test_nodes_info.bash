@@ -60,7 +60,7 @@ transport.tcp.port: ${transport_port}
 cluster.initial_master_nodes: [m1, m2, m3]
 discovery.seed_hosts: ['localhost:9300','localhost:9301','localhost:9302']
 __OPENSEARCH_YML
-	
+
         # configure the JVM heap size
         perl -pi -e 's/-Xm([sx]).+/-Xm${1}512m/g' ${node}/config/jvm.options
 
