@@ -275,7 +275,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Conveience wrapper around the {@link #getMetadata(IndexCommit)} method for null input.
+     * Convenience wrapper around the {@link #getMetadata(IndexCommit)} method for null input.
      */
     public MetadataSnapshot getMetadata() throws IOException {
         return getMetadata(null, false);
@@ -322,6 +322,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    /**
+     * Returns a new {@link MetadataSnapshot} for the given {@link SegmentInfos} object.
+     * In contrast to {@link #getMetadata(IndexCommit)}, this method is useful for scenarios
+     * where we need to construct a MetadataSnapshot from an in-memory SegmentInfos object that
+     * may not have a IndexCommit associated with it, such as with segment replication.
+     */
     public MetadataSnapshot getMetadata(SegmentInfos segmentInfos) throws IOException {
         return new MetadataSnapshot(segmentInfos, directory, logger);
     }
