@@ -275,6 +275,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * Convenience wrapper around the {@link #getMetadata(IndexCommit)} method for null input.
+     */
+    public MetadataSnapshot getMetadata() throws IOException {
+        return getMetadata(null, false);
+    }
+
+    /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
      *
@@ -313,6 +320,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } finally {
             lock.unlock();
         }
+    }
+
+    /**
+     * Returns a new {@link MetadataSnapshot} for the given {@link SegmentInfos} object.
+     * In contrast to {@link #getMetadata(IndexCommit)}, this method is useful for scenarios
+     * where we need to construct a MetadataSnapshot from an in-memory SegmentInfos object that
+     * may not have a IndexCommit associated with it, such as with segment replication.
+     */
+    public MetadataSnapshot getMetadata(SegmentInfos segmentInfos) throws IOException {
+        return new MetadataSnapshot(segmentInfos, directory, logger);
     }
 
     /**
@@ -477,7 +494,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Directory dir = new NIOFSDirectory(indexLocation)
         ) {
             failIfCorrupted(dir);
-            return new MetadataSnapshot(null, dir, logger);
+            return new MetadataSnapshot((IndexCommit) null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
@@ -682,7 +699,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
             }
             directory.syncMetaData();
-            final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
+            final Store.MetadataSnapshot metadataOrEmpty = getMetadata();
             verifyAfterCleanup(sourceMetadata, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();
@@ -822,7 +839,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         MetadataSnapshot(IndexCommit commit, Directory directory, Logger logger) throws IOException {
-            LoadedMetadata loadedMetadata = loadMetadata(commit, directory, logger);
+            this(loadMetadata(commit, directory, logger));
+        }
+
+        MetadataSnapshot(SegmentInfos segmentInfos, Directory directory, Logger logger) throws IOException {
+            this(loadMetadata(segmentInfos, directory, logger));
+        }
+
+        private MetadataSnapshot(LoadedMetadata loadedMetadata) {
             metadata = loadedMetadata.fileMetadata;
             commitUserData = loadedMetadata.userData;
             numDocs = loadedMetadata.numDocs;
@@ -890,40 +914,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
-            long numDocs;
-            Map<String, StoreFileMetadata> builder = new HashMap<>();
-            Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                numDocs = Lucene.getNumDocs(segmentCommitInfos);
-                commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
-                // we don't know which version was used to write so we take the max version.
-                Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion();
-                for (SegmentCommitInfo info : segmentCommitInfos) {
-                    final Version version = info.info.getVersion();
-                    if (version == null) {
-                        // version is written since 3.1+: we should have already hit IndexFormatTooOld.
-                        throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
-                    }
-                    if (version.onOrAfter(maxVersion)) {
-                        maxVersion = version;
-                    }
-                    for (String file : info.files()) {
-                        checksumFromLuceneFile(
-                            directory,
-                            file,
-                            builder,
-                            logger,
-                            version,
-                            SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file))
-                        );
-                    }
-                }
-                if (maxVersion == null) {
-                    maxVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
-                }
-                final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
-                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
+                return loadMetadata(segmentCommitInfos, directory, logger);
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
                 throw ex;
@@ -949,6 +942,40 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
                 throw ex;
             }
+        }
+
+        static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger) throws IOException {
+            long numDocs = Lucene.getNumDocs(segmentInfos);
+            Map<String, String> commitUserDataBuilder = new HashMap<>();
+            commitUserDataBuilder.putAll(segmentInfos.getUserData());
+            Map<String, StoreFileMetadata> builder = new HashMap<>();
+            // we don't know which version was used to write so we take the max version.
+            Version maxVersion = segmentInfos.getMinSegmentLuceneVersion();
+            for (SegmentCommitInfo info : segmentInfos) {
+                final Version version = info.info.getVersion();
+                if (version == null) {
+                    // version is written since 3.1+: we should have already hit IndexFormatTooOld.
+                    throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
+                }
+                if (version.onOrAfter(maxVersion)) {
+                    maxVersion = version;
+                }
+                for (String file : info.files()) {
+                    checksumFromLuceneFile(
+                        directory,
+                        file,
+                        builder,
+                        logger,
+                        version,
+                        SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file))
+                    );
+                }
+            }
+            if (maxVersion == null) {
+                maxVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+            }
+            final String segmentsFile = segmentInfos.getSegmentsFileName();
+            checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }
 
