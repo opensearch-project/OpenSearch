@@ -213,7 +213,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
@@ -7549,5 +7551,34 @@ public class InternalEngineTests extends EngineTestCase {
         } finally {
             restoreIndexWriterMaxDocs();
         }
+    }
+
+    public void testGetSegmentInfosSnapshot() throws IOException {
+        IOUtils.close(store, engine);
+        Store store = createStore();
+        InternalEngine engine = spy(createEngine(store, createTempDir()));
+        GatedCloseable<SegmentInfos> segmentInfosSnapshot = engine.getSegmentInfosSnapshot();
+        assertNotNull(segmentInfosSnapshot);
+        assertNotNull(segmentInfosSnapshot.get());
+        verify(engine, times(1)).getLatestSegmentInfos();
+        store.close();
+        engine.close();
+    }
+
+    public void testGetProcessedLocalCheckpoint() throws IOException {
+        final long expectedLocalCheckpoint = 1L;
+        IOUtils.close(store, engine);
+        // set up mock
+        final LocalCheckpointTracker mockCheckpointTracker = mock(LocalCheckpointTracker.class);
+        when(mockCheckpointTracker.getProcessedCheckpoint()).thenReturn(expectedLocalCheckpoint);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(store, createTempDir(), (a, b) -> mockCheckpointTracker);
+
+        long actualLocalCheckpoint = engine.getProcessedLocalCheckpoint();
+        assertEquals(expectedLocalCheckpoint, actualLocalCheckpoint);
+        verify(mockCheckpointTracker, atLeastOnce()).getProcessedCheckpoint();
+        store.close();
+        engine.close();
     }
 }
