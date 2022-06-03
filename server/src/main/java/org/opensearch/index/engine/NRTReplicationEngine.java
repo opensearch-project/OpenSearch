@@ -291,6 +291,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
         return localCheckpointTracker.getPersistedCheckpoint();
     }
 
+    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }

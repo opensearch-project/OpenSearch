@@ -2333,6 +2333,22 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * Fetch the latest {@link SegmentInfos} object via {@link #getLatestSegmentInfos()}
+     * but also increment the ref-count to ensure that these segment files are retained
+     * until the reference is closed. On close, the ref-count is decremented.
+     */
+    @Override
+    public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        final SegmentInfos segmentInfos = getLatestSegmentInfos();
+        try {
+            indexWriter.incRefDeleter(segmentInfos);
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        }
+        return new GatedCloseable<>(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
+    }
+
     @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
@@ -2742,6 +2758,7 @@ public class InternalEngine extends Engine {
         return translogManager.getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
+    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }
