@@ -8,8 +8,11 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.transport.TransportService;
 
@@ -35,7 +38,17 @@ public class SegmentReplicationSourceFactory {
     }
 
     public SegmentReplicationSource get(IndexShard shard) {
-        // TODO: Default to an implementation that uses the primary shard.
-        return null;
+        return new PrimaryShardReplicationSource(
+            clusterService.localNode(),
+            shard.routingEntry().allocationId().getId(),
+            transportService,
+            recoverySettings,
+            getPrimaryNode(shard.shardId())
+        );
+    }
+
+    private DiscoveryNode getPrimaryNode(ShardId shardId) {
+        ShardRouting primaryShard = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
+        return clusterService.state().nodes().get(primaryShard.currentNodeId());
     }
 }
