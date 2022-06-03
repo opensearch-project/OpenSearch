@@ -317,9 +317,10 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
             @Override
-            AmazonS3 buildClient(final S3ClientSettings clientSettings) {
-                final AmazonS3 client = super.buildClient(clientSettings);
-                return new ClientAndCredentials(client, buildCredentials(logger, clientSettings));
+            AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
+                final AmazonS3WithCredentials client = super.buildClient(clientSettings);
+                final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+                return AmazonS3WithCredentials.create(new ClientAndCredentials(client.client(), credentials), credentials);
             }
 
         }
