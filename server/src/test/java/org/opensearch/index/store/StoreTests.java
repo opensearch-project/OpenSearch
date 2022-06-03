@@ -364,14 +364,14 @@ public class StoreTests extends OpenSearchTestCase {
         Store.MetadataSnapshot metadata;
         // check before we committed
         try {
-            store.getMetadata(null);
+            store.getMetadata();
             fail("no index present - expected exception");
         } catch (IndexNotFoundException ex) {
             // expected
         }
         writer.commit();
         writer.close();
-        metadata = store.getMetadata(null);
+        metadata = store.getMetadata();
         assertThat(metadata.asMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
@@ -552,7 +552,7 @@ public class StoreTests extends OpenSearchTestCase {
             }
             writer.commit();
             writer.close();
-            first = store.getMetadata(null);
+            first = store.getMetadata();
             assertDeleteContent(store, store.directory());
             store.close();
         }
@@ -581,7 +581,7 @@ public class StoreTests extends OpenSearchTestCase {
             }
             writer.commit();
             writer.close();
-            second = store.getMetadata(null);
+            second = store.getMetadata();
         }
         Store.RecoveryDiff diff = first.recoveryDiff(second);
         assertThat(first.size(), equalTo(second.size()));
@@ -610,7 +610,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(numDocs))));
         writer.commit();
         writer.close();
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = store.getMetadata();
         StoreFileMetadata delFile = null;
         for (StoreFileMetadata md : metadata) {
             if (md.name().endsWith(".liv")) {
@@ -645,7 +645,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.addDocument(docs.get(0));
         writer.close();
 
-        Store.MetadataSnapshot newCommitMetadata = store.getMetadata(null);
+        Store.MetadataSnapshot newCommitMetadata = store.getMetadata();
         Store.RecoveryDiff newCommitDiff = newCommitMetadata.recoveryDiff(metadata);
         if (delFile != null) {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetadata.size() - 5)); // segments_N, del file, cfs, cfe, si for the
@@ -710,7 +710,7 @@ public class StoreTests extends OpenSearchTestCase {
             writer.addDocument(doc);
         }
 
-        Store.MetadataSnapshot firstMeta = store.getMetadata(null);
+        Store.MetadataSnapshot firstMeta = store.getMetadata();
 
         if (random().nextBoolean()) {
             for (int i = 0; i < docs; i++) {
@@ -731,7 +731,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot secondMeta = store.getMetadata(null);
+        Store.MetadataSnapshot secondMeta = store.getMetadata();
 
         if (randomBoolean()) {
             store.cleanupAndVerify("test", firstMeta);
@@ -1000,7 +1000,7 @@ public class StoreTests extends OpenSearchTestCase {
 
         try {
             if (randomBoolean()) {
-                store.getMetadata(null);
+                store.getMetadata();
             } else {
                 store.readLastCommittedSegmentsInfo();
             }
@@ -1137,5 +1137,16 @@ public class StoreTests extends OpenSearchTestCase {
                 assertEquals(FilterDirectory.unwrap(store.directory()).getPendingDeletions(), store.directory().getPendingDeletions());
             }
         }
+    }
+
+    public void testGetMetadataWithSegmentInfos() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        Store.MetadataSnapshot metadataSnapshot = store.getMetadata(segmentInfos);
+        // loose check for equality
+        assertEquals(segmentInfos.getSegmentsFileName(), metadataSnapshot.getSegmentsFile().name());
+        store.close();
     }
 }

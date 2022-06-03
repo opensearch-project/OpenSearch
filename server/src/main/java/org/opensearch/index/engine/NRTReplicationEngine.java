@@ -213,6 +213,7 @@ public class NRTReplicationEngine extends Engine {
         return localCheckpointTracker.getPersistedCheckpoint();
     }
 
+    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }

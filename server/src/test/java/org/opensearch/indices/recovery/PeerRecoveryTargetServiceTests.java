@@ -85,7 +85,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             indexDoc(sourceShard, "_doc", Integer.toString(i));
         }
         sourceShard.flush(new FlushRequest());
-        Store.MetadataSnapshot sourceSnapshot = sourceShard.store().getMetadata(null);
+        Store.MetadataSnapshot sourceSnapshot = sourceShard.store().getMetadata();
         List<StoreFileMetadata> mdFiles = new ArrayList<>();
         for (StoreFileMetadata md : sourceSnapshot) {
             mdFiles.add(md);
