@@ -109,6 +109,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -1361,6 +1362,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
+    }
+
+    public void finalizeReplication(SegmentInfos infos, MetadataSnapshot expectedMetadata, long seqNo) throws IOException {
+        if (getEngine() instanceof NRTReplicationEngine) {
+            getEngine().finalizeReplication(infos, expectedMetadata, seqNo);
+        }
+    }
+
+    /**
+     * Fetch a snapshot of the latest SegmentInfos held by the engine.
+     * @return {@link SegmentInfos}
+     */
+    public SegmentInfos getLatestSegmentInfos() {
+        // TODO: implement
+        return null;
     }
 
     /**

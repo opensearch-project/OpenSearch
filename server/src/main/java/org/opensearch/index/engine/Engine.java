@@ -271,6 +271,8 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    public void finalizeReplication(SegmentInfos infos, Store.MetadataSnapshot expectedMetadata, long seqNo) throws IOException {}
+
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
