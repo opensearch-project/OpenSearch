@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -241,25 +242,15 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
         }
 
         Map<String, List<String>> realAttributes = new HashMap<>(protoAttributes.size());
-        List<String> keys = new ArrayList<>(protoAttributes.keySet());
-        for (String key : keys) {
-            if (key.endsWith(".0")) {
-                String realKey = key.substring(0, key.length() - 2);
-                List<String> values = new ArrayList<>();
-                int i = 0;
-                while (true) {
-                    String value = protoAttributes.remove(realKey + "." + i);
-                    if (value == null) {
-                        break;
-                    }
-                    values.add(value);
-                    i++;
-                }
-                realAttributes.put(realKey, unmodifiableList(values));
-            }
-        }
         for (Map.Entry<String, String> entry : protoAttributes.entrySet()) {
-            realAttributes.put(entry.getKey(), singletonList(entry.getValue()));
+            if (entry.getValue().startsWith("[")) {
+                // Convert string array to list
+                String value = entry.getValue();
+                String[] values = value.substring(1, value.length() - 1).replaceAll("\\s+", "").split(",");
+                realAttributes.put(entry.getKey(), unmodifiableList(Arrays.asList(values)));
+            } else {
+                realAttributes.put(entry.getKey(), singletonList(entry.getValue()));
+            }
         }
 
         assert sawRoles : "didn't see roles for [" + nodeId + "]";

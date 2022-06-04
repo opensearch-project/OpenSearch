@@ -45,8 +45,8 @@ import org.opensearch.client.sniff.OpenSearchNodesSniffer.Scheme;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -144,14 +144,14 @@ public class OpenSearchNodesSnifferParseTests extends RestClientTestCase {
         Set<HttpHost> boundHosts = new HashSet<>(2);
         boundHosts.add(new HttpHost("[::1]", port));
         boundHosts.add(host);
-        Map<String, List<String>> attributes = new HashMap<>();
+        Map<String, List<String>> attributes = new LinkedHashMap<>(); // LinkedHashMap to preserve insertion order
         attributes.put("dummy", singletonList("everyone_has_me"));
         attributes.put("number", singletonList(name.substring(1)));
-        attributes.put("array", singletonList(Arrays.asList(name.substring(0, 1), name.substring(1)).toString()));
         if (!version.startsWith("1.0") && !version.startsWith("1.1")) {
             // Shard Indexing Pressure feature is added in version 1.2.0
             attributes.put("shard_indexing_pressure_enabled", singletonList(Boolean.TRUE.toString()));
         }
+        attributes.put("array", Arrays.asList(name.substring(0, 1), name.substring(1)));
         return new Node(host, boundHosts, name, version, new Roles(new TreeSet<>(roles)), attributes);
     }
 
