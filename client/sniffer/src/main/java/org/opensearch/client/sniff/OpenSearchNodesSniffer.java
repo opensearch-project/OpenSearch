@@ -246,7 +246,7 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
             if (entry.getValue().startsWith("[")) {
                 // Convert string array to list
                 String value = entry.getValue();
-                String[] values = value.substring(1, value.length() - 1).replaceAll("\\s+", "").split(",");
+                String[] values = value.substring(1, value.length() - 1).split(", ");
                 realAttributes.put(entry.getKey(), unmodifiableList(Arrays.asList(values)));
             } else {
                 realAttributes.put(entry.getKey(), singletonList(entry.getValue()));
