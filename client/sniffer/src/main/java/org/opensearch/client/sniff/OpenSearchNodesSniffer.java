@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -241,72 +242,21 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
         }
 
         Map<String, List<String>> realAttributes = new HashMap<>(protoAttributes.size());
-        List<String> keys = new ArrayList<>(protoAttributes.keySet());
-        for (String key : keys) {
-            if (key.endsWith(".0")) {
-                String realKey = key.substring(0, key.length() - 2);
-                List<String> values = new ArrayList<>();
-                int i = 0;
-                while (true) {
-                    String value = protoAttributes.remove(realKey + "." + i);
-                    if (value == null) {
-                        break;
-                    }
-                    values.add(value);
-                    i++;
-                }
-                realAttributes.put(realKey, unmodifiableList(values));
-            }
-        }
         for (Map.Entry<String, String> entry : protoAttributes.entrySet()) {
-            realAttributes.put(entry.getKey(), singletonList(entry.getValue()));
+            if (entry.getValue().startsWith("[")) {
+                // Convert string array to list
+                String value = entry.getValue();
+                String[] values = value.substring(1, value.length() - 1).split(", ");
+                realAttributes.put(entry.getKey(), unmodifiableList(Arrays.asList(values)));
+            } else {
+                realAttributes.put(entry.getKey(), singletonList(entry.getValue()));
+            }
         }
 
-        if (version.startsWith("2.")) {
-            /*
-             * 2.x doesn't send roles, instead we try to read them from
-             * attributes.
-             */
-            boolean clientAttribute = v2RoleAttributeValue(realAttributes, "client", false);
-            Boolean masterAttribute = v2RoleAttributeValue(realAttributes, "master", null);
-            Boolean dataAttribute = v2RoleAttributeValue(realAttributes, "data", null);
-            if ((masterAttribute == null && false == clientAttribute) || masterAttribute) {
-                roles.add("master");
-            }
-            if ((dataAttribute == null && false == clientAttribute) || dataAttribute) {
-                roles.add("data");
-            }
-        } else {
-            assert sawRoles : "didn't see roles for [" + nodeId + "]";
-        }
+        assert sawRoles : "didn't see roles for [" + nodeId + "]";
         assert boundHosts.contains(publishedHost) : "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
         logger.trace("adding node [" + nodeId + "]");
         return new Node(publishedHost, boundHosts, name, version, new Roles(roles), unmodifiableMap(realAttributes));
-    }
-
-    /**
-     * Returns {@code defaultValue} if the attribute didn't come back,
-     * {@code true} or {@code false} if it did come back as
-     * either of those, or throws an IOException if the attribute
-     * came back in a strange way.
-     */
-    private static Boolean v2RoleAttributeValue(Map<String, List<String>> attributes, String name, Boolean defaultValue)
-        throws IOException {
-        List<String> valueList = attributes.remove(name);
-        if (valueList == null) {
-            return defaultValue;
-        }
-        if (valueList.size() != 1) {
-            throw new IOException("expected only a single attribute value for [" + name + "] but got " + valueList);
-        }
-        switch (valueList.get(0)) {
-            case "true":
-                return true;
-            case "false":
-                return false;
-            default:
-                throw new IOException("expected [" + name + "] to be either [true] or [false] but was [" + valueList.get(0) + "]");
-        }
     }
 
     /**
