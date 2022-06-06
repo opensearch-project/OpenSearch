@@ -50,6 +50,7 @@ import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
@@ -215,6 +216,15 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                 return e instanceof ClusterManagerThrottlingException;
             }
             return false;
+        }
+
+        /**
+         * If tasks gets timed out in retrying on throttling,
+         * it should send cluster event timeout exception.
+         */
+        @Override
+        public Exception getTimeoutException(Exception e) {
+            return new ProcessClusterEventTimeoutException(request.masterNodeTimeout, actionName);
         }
 
         protected void doStart(ClusterState clusterState) {
