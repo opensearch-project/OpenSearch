@@ -21,15 +21,11 @@ work=$(mktemp -d)
 pushd ${work} >> /dev/null
 echo Working in ${work}
 
-wget https://download.elasticsearch.org/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/2.0.0/elasticsearch-2.0.0.tar.gz
-wget https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-5.0.0.tar.gz
-wget https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-6.0.0.tar.gz
-sha1sum -c - << __SHAs
-e369d8579bd3a2e8b5344278d5043f19f14cac88 elasticsearch-2.0.0.tar.gz
-d25f6547bccec9f0b5ea7583815f96a6f50849e0 elasticsearch-5.0.0.tar.gz
-__SHAs
+wget https://artifacts.opensearch.org/releases/core/opensearch/1.0.0/opensearch-min-1.0.0-linux-x64.tar.gz
+wget https://artifacts.opensearch.org/releases/core/opensearch/2.0.0/opensearch-min-2.0.0-linux-x64.tar.gz
 sha512sum -c - << __SHAs
-25bb622d2fc557d8b8eded634a9b333766f7b58e701359e1bcfafee390776eb323cb7ea7a5e02e8803e25d8b1d3aabec0ec1b0cf492d0bab5689686fe440181c elasticsearch-6.0.0.tar.gz
+96595cd3b173188d8a3f0f18d7bfa2457782839d06b519f01a99b4dc0280f81b08ba1d01bd1aef454feaa574cbbd04d3ad9a1f6a829182627e914f3e58f2899f opensearch-min-1.0.0-linux-x64.tar.gz
+5b91456a2eb517bc48f13bec0a3f9c220494bd5fe979946dce6cfc3fa7ca00b003927157194d62f2a1c36c850eda74c70b93fbffa91bb082b2e1a17985d50976 opensearch-min-2.0.0-linux-x64.tar.gz
 __SHAs
 
 
@@ -40,37 +36,38 @@ function do_version() {
     mkdir -p ${version}
     pushd ${version} >> /dev/null
 
-    tar xf ../opensearch-${version}.tar.gz
+    tar xf ../opensearch-min-${version}-linux-x64.tar.gz
     local http_port=9200
     for node in ${nodes}; do
         mkdir ${node}
         cp -r opensearch-${version}/* ${node}
-        local master=$([[ "$node" =~ ^m.* ]] && echo true || echo false)
-        local data=$([[ "$node" =~ ^d.* ]] && echo true || echo false)
-        # m2 is always master and data for these test just so we have a node like that
-        data=$([[ "$node" == 'm2' ]] && echo true || echo ${data})
-        local attr=$([ ${version} == '2.0.0' ] && echo '' || echo '.attr')
+        local cluster_manager=$([[ "$node" =~ ^m.* ]] && echo 'cluster_manager,' || echo '')
+        # 'cluster_manager' role is add in version 2.x and above, use 'master' role in 1.x
+        cluster_manager=$([[ ! "$cluster_manager" == '' && ${version} =~ ^1\. ]] && echo 'master,' || echo ${cluster_manager})
+        local data=$([[ "$node" =~ ^d.* ]] && echo 'data,' || echo '')
+        # m2 is always cluster_manager and data for these test just so we have a node like that
+        data=$([[ "$node" == 'm2' ]] && echo 'data,' || echo ${data})
+        # setting name 'cluster.initial_cluster_manager_nodes' is add in version 2.x and above
+        local initial_cluster_manager_nodes=$([[ ${version} =~ ^1\. ]] && echo 'initial_master_nodes' || echo 'initial_cluster_manager_nodes')
         local transport_port=$((http_port+100))
 
-        cat >> ${node}/config/opensearch.yml << __ES_YML
+        cat >> ${node}/config/opensearch.yml << __OPENSEARCH_YML
 node.name:          ${node}
-node.master:        ${master}
-node.data:          ${data}
-node${attr}.dummy:  everyone_has_me
-node${attr}.number: ${node:1}
-node${attr}.array:  [${node:0:1}, ${node:1}]
+node.roles:         [${cluster_manager} ${data} ingest]
+node.attr.dummy:    everyone_has_me
+node.attr.number:   ${node:1}
+node.attr.array:    [${node:0:1}, ${node:1}]
 http.port:          ${http_port}
 transport.tcp.port: ${transport_port}
-discovery.zen.minimum_master_nodes: 3
-discovery.zen.ping.unicast.hosts: ['localhost:9300','localhost:9301','localhost:9302']
-__ES_YML
+cluster.${initial_cluster_manager_nodes}: [m1, m2, m3]
+discovery.seed_hosts: ['localhost:9300','localhost:9301','localhost:9302']
+__OPENSEARCH_YML
 
-        if [ ${version} != '2.0.0' ]; then
-            perl -pi -e 's/-Xm([sx]).+/-Xm${1}512m/g' ${node}/config/jvm.options
-        fi
+        # configure the JVM heap size
+        perl -pi -e 's/-Xm([sx]).+/-Xm${1}512m/g' ${node}/config/jvm.options
 
         echo "starting ${version}/${node}..."
-        ${node}/bin/opensearch -d -p ${node}/pidfile
+        ${node}/bin/opensearch -d -p pidfile
 
         ((http_port++))
     done
@@ -99,9 +96,8 @@ __ES_YML
     popd >> /dev/null
 }
 
-JAVA_HOME=$JAVA8_HOME do_version 2.0.0
-JAVA_HOME=$JAVA8_HOME do_version 5.0.0
-JAVA_HOME=$JAVA8_HOME do_version 6.0.0
+JAVA_HOME=$JAVA11_HOME do_version 1.0.0
+JAVA_HOME=$JAVA11_HOME do_version 2.0.0
 
 popd >> /dev/null
 rm -rf ${work}
