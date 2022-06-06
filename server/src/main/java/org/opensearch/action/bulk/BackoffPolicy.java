@@ -31,6 +31,7 @@
 
 package org.opensearch.action.bulk;
 
+import org.opensearch.common.Randomness;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Iterator;
@@ -103,6 +104,19 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
      */
     public static BackoffPolicy exponentialBackoff(TimeValue initialDelay, int maxNumberOfRetries) {
         return new ExponentialBackoff((int) checkDelay(initialDelay).millis(), maxNumberOfRetries);
+    }
+
+    /**
+     *  It provides exponential backoff between retries until it reaches maxDelay.
+     *  It uses equal jitter scheme as it is being used for throttled exceptions.
+     *  It will make random distribution and also guarantees a minimum delay.
+     *
+     * @param baseDelay BaseDelay for exponential Backoff
+     * @param maxDelay MaxDelay that can be returned from backoff policy
+     * @return A backoff policy with exponential backoff with equal jitter which can't return delay more than given max delay
+     */
+    public static BackoffPolicy exponentialEqualJitterBackoff(int baseDelay, int maxDelay) {
+        return new ExponentialEqualJitterBackoff(baseDelay, maxDelay);
     }
 
     /**
@@ -194,6 +208,60 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
             int result = start + 10 * ((int) Math.exp(0.8d * (currentlyConsumed)) - 1);
             currentlyConsumed++;
             return TimeValue.timeValueMillis(result);
+        }
+    }
+
+    private static class ExponentialEqualJitterBackoff extends BackoffPolicy {
+        private final int maxDelay;
+        private final int baseDelay;
+
+        private ExponentialEqualJitterBackoff(int baseDelay, int maxDelay) {
+            this.maxDelay = maxDelay;
+            this.baseDelay = baseDelay;
+        }
+
+        @Override
+        public Iterator<TimeValue> iterator() {
+            return new ExponentialEqualJitterBackoffIterator(baseDelay, maxDelay);
+        }
+    }
+
+    private static class ExponentialEqualJitterBackoffIterator implements Iterator<TimeValue> {
+        /**
+         * Maximum retry limit. Avoids integer overflow issues.
+         * Post Max Retries, max delay will be returned with Equal Jitter.
+         *
+         * NOTE: If the value is greater than 30, there can be integer overflow
+         * issues during delay calculation.
+         **/
+        private final int MAX_RETRIES = 30;
+
+        private final int maxDelay;
+        private final int baseDelay;
+        private int retriesAttempted;
+
+        private ExponentialEqualJitterBackoffIterator(int baseDelay, int maxDelay) {
+            this.baseDelay = baseDelay;
+            this.maxDelay = maxDelay;
+        }
+
+        /**
+         * There is not any limit for this BackOff.
+         * This Iterator will always return back off delay.
+         *
+         * @return true
+         */
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public TimeValue next() {
+            int retries = Math.min(retriesAttempted, MAX_RETRIES);
+            int exponentialDelay = (int) Math.min((1L << retries) * baseDelay, maxDelay);
+            retriesAttempted++;
+            return TimeValue.timeValueMillis((exponentialDelay / 2) + Randomness.get().nextInt(exponentialDelay / 2 + 1));
         }
     }
 

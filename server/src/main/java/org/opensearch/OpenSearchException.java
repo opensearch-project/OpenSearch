@@ -1594,6 +1594,15 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.transport.NoSeedNodeLeftException::new,
             160,
             LegacyESVersion.V_7_10_0
+        ),
+        /**
+         * TODO: Change the version number of check as per version in which this change will be merged.
+         */
+        MASTER_TASK_THROTTLED_EXCEPTION(
+            org.opensearch.cluster.service.MasterTaskThrottlingException.class,
+            org.opensearch.cluster.service.MasterTaskThrottlingException::new,
+            161,
+            Version.V_1_3_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;
