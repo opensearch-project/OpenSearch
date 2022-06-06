@@ -82,6 +82,7 @@ import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDec
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.MasterTaskThrottler;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
@@ -569,7 +570,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS,
                 ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT,
                 ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS,
-                IndexingPressure.MAX_INDEXING_BYTES
+                IndexingPressure.MAX_INDEXING_BYTES,
+                MasterTaskThrottler.THRESHOLD_SETTINGS
             )
         )
     );

@@ -75,6 +75,8 @@ public abstract class TaskBatcher {
         final BatchedTask firstTask = tasks.get(0);
         assert tasks.stream().allMatch(t -> t.batchingKey == firstTask.batchingKey)
             : "tasks submitted in a batch should share the same batching key: " + tasks;
+        assert tasks.stream().allMatch(t -> t.getTask().getClass() == firstTask.getTask().getClass())
+            : "tasks submitted in a batch should be of same class: " + tasks;
         // convert to an identity map to check for dups based on task identity
         final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
             .collect(
