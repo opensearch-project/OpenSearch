@@ -92,3 +92,20 @@ services:
           - ./testfixtures_shared/shared:/fixture/shared
       ports:
           - "80"
+
+  s3-fixture-with-eks:
+      build:
+          context: .
+          args:
+              fixtureClass: fixture.s3.S3HttpFixtureWithEKS
+              port: 80
+              bucket: "eks_bucket"
+              basePath: "eks_base_path"
+              accessKey: "eks_access_key"
+              roleArn: "eks_role_arn"
+              roleSessionName: "eks_role_session_name"
+          dockerfile: Dockerfile.eks
+      volumes:
+          - ./testfixtures_shared/shared:/fixture/shared
+      ports:
+          - "80"
