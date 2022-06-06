@@ -131,6 +131,9 @@ String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
 String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 
+String s3EKSBucket = System.getenv("amazon_s3_bucket_eks")
+String s3EKSBasePath = System.getenv("amazon_s3_base_path_eks")
+
 boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
@@ -160,13 +163,15 @@ if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3T
   throw new IllegalArgumentException("not all options specified to run against external S3 service as temporary credentials are present")
 }
 
-if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
+if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath && !s3EKSBucket && !s3EKSBasePath) {
   s3EC2Bucket = 'ec2_bucket'
   s3EC2BasePath = 'ec2_base_path'
   s3ECSBucket = 'ecs_bucket'
   s3ECSBasePath = 'ecs_base_path'
-} else if (!s3EC2Bucket || !s3EC2BasePath || !s3ECSBucket || !s3ECSBasePath) {
-  throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
+  s3EKSBucket = 'eks_bucket'
+  s3EKSBasePath = 'eks_base_path'
+} else if (!s3EC2Bucket || !s3EC2BasePath || !s3ECSBucket || !s3ECSBasePath || !s3EKSBucket || !s3EKSBasePath) {
+  throw new IllegalArgumentException("not all options specified to run EC2/ECS/EKS tests are present")
 }
 
 processYamlRestTestResources {
@@ -179,7 +184,9 @@ processYamlRestTestResources {
     'ec2_base_path': s3EC2BasePath,
     'ecs_bucket': s3ECSBucket,
     'ecs_base_path': s3ECSBasePath,
-    'disable_chunked_encoding': s3DisableChunkedEncoding,
+    'eks_bucket': s3EKSBucket,
+    'eks_base_path': s3EKSBasePath,
+    'disable_chunked_encoding': s3DisableChunkedEncoding
   ]
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
@@ -198,7 +205,8 @@ yamlRestTest {
         [
           'repository_s3/30_repository_temporary_credentials/*',
           'repository_s3/40_repository_ec2_credentials/*',
-          'repository_s3/50_repository_ecs_credentials/*'
+          'repository_s3/50_repository_ecs_credentials/*',
+          'repository_s3/60_repository_eks_credentials/*'
         ]
     ).join(",")
 }
@@ -215,6 +223,7 @@ testClusters.yamlRestTest {
     testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture')
     testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-session-token')
     testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ec2')
+    testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-eks')
 
     normalization {
       runtimeClasspath {
@@ -223,12 +232,21 @@ testClusters.yamlRestTest {
       }
     }
 
+    keystore 's3.client.integration_test_eks.role_arn', "arn:aws:iam::000000000000:role/test"
+    keystore 's3.client.integration_test_eks.role_session_name', "s3-test"
+    keystore 's3.client.integration_test_eks.access_key', "access_key"
+    keystore 's3.client.integration_test_eks.secret_key', "secret_key"
+
     setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture', '80')}" }, IGNORE_VALUE
     setting 's3.client.integration_test_temporary.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-session-token', '80')}" }, IGNORE_VALUE
     setting 's3.client.integration_test_ec2.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_eks.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}" }, IGNORE_VALUE    
+    setting 's3.client.integration_test_eks.region', { "us-east-2" }, IGNORE_VALUE
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
     systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
+    // to redirect AWSSecurityTokenServiceClient to custom auth point
+    systemProperty "com.amazonaws.sdk.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
@@ -250,7 +268,8 @@ if (useFixture) {
     systemProperty 'tests.rest.denylist', [
       'repository_s3/30_repository_temporary_credentials/*',
       'repository_s3/40_repository_ec2_credentials/*',
-      'repository_s3/50_repository_ecs_credentials/*'
+      'repository_s3/50_repository_ecs_credentials/*',
+      'repository_s3/60_repository_eks_credentials/*'
     ].join(",")
   }
   check.dependsOn(yamlRestTestMinio)
@@ -277,7 +296,8 @@ if (useFixture) {
       'repository_s3/10_basic/*',
       'repository_s3/20_repository_permanent_credentials/*',
       'repository_s3/30_repository_temporary_credentials/*',
-      'repository_s3/40_repository_ec2_credentials/*'
+      'repository_s3/40_repository_ec2_credentials/*',
+      'repository_s3/60_repository_eks_credentials/*'
     ].join(",")
   }
   check.dependsOn(yamlRestTestECS)
@@ -286,6 +306,41 @@ if (useFixture) {
     setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}" }, IGNORE_VALUE
     plugin tasks.bundlePlugin.archiveFile
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}/ecs_credentials_endpoint" }, IGNORE_VALUE
+  }
+}
+
+// EKS
+if (useFixture) {
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-eks')
+  task yamlRestTestEKS(type: RestIntegTestTask.class) {
+    description = "Runs tests using the EKS repository."
+    dependsOn('bundlePlugin')
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    systemProperty 'tests.rest.denylist', [
+      'repository_s3/10_basic/*',
+      'repository_s3/20_repository_permanent_credentials/*',
+      'repository_s3/30_repository_temporary_credentials/*',
+      'repository_s3/40_repository_ec2_credentials/*',
+      'repository_s3/50_repository_ecs_credentials/*'
+    ].join(",")
+  }
+  check.dependsOn(yamlRestTestEKS)
+
+  testClusters.yamlRestTestEKS {
+    keystore 's3.client.integration_test_eks.role_arn', "arn:aws:iam::000000000000:role/test"
+    keystore 's3.client.integration_test_eks.role_session_name', "s3-test"
+    keystore 's3.client.integration_test_eks.access_key', "access_key"
+    keystore 's3.client.integration_test_eks.secret_key', "secret_key"
+
+    setting 's3.client.integration_test_eks.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_eks.region', { "us-east-2" }, IGNORE_VALUE
+    plugin tasks.bundlePlugin.archiveFile
+
+    // to redirect AWSSecurityTokenServiceClient to custom auth point
+    systemProperty "com.amazonaws.sdk.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
   }
 }
 
