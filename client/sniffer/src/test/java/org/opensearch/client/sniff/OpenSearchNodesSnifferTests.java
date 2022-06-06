@@ -234,7 +234,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
 
             final Set<String> nodeRoles = new TreeSet<>();
             if (randomBoolean()) {
-                nodeRoles.add("master");
+                nodeRoles.add("cluster_manager");
             }
             if (randomBoolean()) {
                 nodeRoles.add("data");
@@ -283,12 +283,12 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
                 generator.writeEndObject();
             }
 
-            List<String> roles = Arrays.asList(new String[] { "master", "data", "ingest" });
+            List<String> roles = Arrays.asList(new String[] { "cluster_manager", "data", "ingest" });
             Collections.shuffle(roles, getRandom());
             generator.writeArrayFieldStart("roles");
             for (String role : roles) {
-                if ("master".equals(role) && node.getRoles().isMasterEligible()) {
-                    generator.writeString("master");
+                if ("cluster_manager".equals(role) && node.getRoles().isMasterEligible()) {
+                    generator.writeString("cluster_manager");
                 }
                 if ("data".equals(role) && node.getRoles().isData()) {
                     generator.writeString("data");
@@ -307,13 +307,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
             if (numAttributes > 0) {
                 generator.writeObjectFieldStart("attributes");
                 for (Map.Entry<String, List<String>> entry : attributes.entrySet()) {
-                    if (entry.getValue().size() == 1) {
-                        generator.writeStringField(entry.getKey(), entry.getValue().get(0));
-                    } else {
-                        for (int v = 0; v < entry.getValue().size(); v++) {
-                            generator.writeStringField(entry.getKey() + "." + v, entry.getValue().get(v));
-                        }
-                    }
+                    generator.writeStringField(entry.getKey(), entry.getValue().toString());
                 }
                 generator.writeEndObject();
             }
