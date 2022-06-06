@@ -53,6 +53,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.MasterTaskThrottlingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -66,6 +67,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.Scheduler;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
@@ -80,6 +82,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
@@ -95,6 +101,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     private DiscoveryNode localNode;
     private DiscoveryNode remoteNode;
     private DiscoveryNode[] allNodes;
+    private static ScheduledThreadPoolExecutor throttlingRetryScheduler = Scheduler.initScheduler(Settings.EMPTY);
 
     @BeforeClass
     public static void beforeClass() {
@@ -132,6 +139,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             Version.CURRENT
         );
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
+        MasterThrottlingRetryListener.setThrottlingRetryScheduler(throttlingRetryScheduler);
     }
 
     @After
@@ -144,6 +152,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     @AfterClass
     public static void afterClass() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        Scheduler.terminate(throttlingRetryScheduler, 30, TimeUnit.SECONDS);
         threadPool = null;
     }
 
@@ -567,5 +576,76 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         transport.handleResponse(capturedRequest.requestId, response);
         assertTrue(listener.isDone());
         assertThat(listener.get(), equalTo(response));
+    }
+
+    public void testThrottlingRetryLocalMaster() throws InterruptedException, BrokenBarrierException {
+        Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        AtomicBoolean exception = new AtomicBoolean(true);
+        AtomicBoolean retried = new AtomicBoolean(false);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, new DiscoveryNode[] { localNode }));
+
+        TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+                if (exception.getAndSet(false)) {
+                    throw new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for test");
+                } else {
+                    try {
+                        retried.set(true);
+                        barrier.await();
+                    } catch (Exception e) {
+                        throw new AssertionError();
+                    }
+                }
+            }
+        };
+        action.execute(request, listener);
+
+        barrier.await();
+        assertTrue(retried.get());
+        assertFalse(exception.get());
+    }
+
+    public void testThrottlingRetryRemoteMaster() throws ExecutionException, InterruptedException {
+        Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(60));
+        DiscoveryNode masterNode = this.remoteNode;
+        setState(
+            clusterService,
+            // use a random base version so it can go down when simulating a restart.
+            ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, new DiscoveryNode[] { localNode, masterNode }))
+                .version(randomIntBetween(0, 10))
+        );
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool);
+        action.execute(request, listener);
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests.length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
+        assertTrue(capturedRequest.node.isMasterNode());
+        assertThat(capturedRequest.request, equalTo(request));
+        assertThat(capturedRequest.action, equalTo("internal:testAction"));
+        transport.handleRemoteError(
+            capturedRequest.requestId,
+            new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for test")
+        );
+
+        assertFalse(listener.isDone());
+
+        // waiting for retry to trigger
+        Thread.sleep(100);
+
+        // Retry for above throttling exception
+        capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests.length, equalTo(1));
+        capturedRequest = capturedRequests[0];
+        Response response = new Response();
+        transport.handleResponse(capturedRequest.requestId, response);
+
+        assertTrue(listener.isDone());
+        listener.get();
     }
 }
