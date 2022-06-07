@@ -32,7 +32,7 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -47,7 +47,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class UpdateIndexShardSnapshotStatusRequest extends MasterNodeRequest<UpdateIndexShardSnapshotStatusRequest> {
+public class UpdateIndexShardSnapshotStatusRequest extends ClusterManagerNodeRequest<UpdateIndexShardSnapshotStatusRequest> {
     private final Snapshot snapshot;
     private final ShardId shardId;
     private final SnapshotsInProgress.ShardSnapshotStatus status;

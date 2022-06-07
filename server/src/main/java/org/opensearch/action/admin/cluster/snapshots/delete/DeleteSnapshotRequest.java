@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.snapshots.delete;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.snapshots.SnapshotsService;
@@ -50,7 +50,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.internal
  */
-public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotRequest> {
+public class DeleteSnapshotRequest extends ClusterManagerNodeRequest<DeleteSnapshotRequest> {
 
     private String repository;
 

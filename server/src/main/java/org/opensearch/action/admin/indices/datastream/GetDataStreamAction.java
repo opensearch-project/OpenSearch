@@ -40,8 +40,8 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.clustermanager.MasterNodeReadRequest;
-import org.opensearch.action.support.clustermanager.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -92,7 +92,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
      *
      * @opensearch.internal
      */
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends ClusterManagerNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
 
@@ -287,7 +287,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
      *
      * @opensearch.internal
      */
-    public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
+    public static class TransportAction extends TransportClusterManagerNodeReadAction<Request, Response> {
 
         private static final Logger logger = LogManager.getLogger(TransportAction.class);
 

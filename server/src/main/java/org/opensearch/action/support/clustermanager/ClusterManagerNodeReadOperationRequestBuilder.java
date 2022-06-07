@@ -41,13 +41,13 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public abstract class MasterNodeReadOperationRequestBuilder<
-    Request extends MasterNodeReadRequest<Request>,
+public abstract class ClusterManagerNodeReadOperationRequestBuilder<
+    Request extends ClusterManagerNodeReadRequest<Request>,
     Response extends ActionResponse,
-    RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>> extends
-    MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    RequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>> extends
+    ClusterManagerNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected MasterNodeReadOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
+    protected ClusterManagerNodeReadOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

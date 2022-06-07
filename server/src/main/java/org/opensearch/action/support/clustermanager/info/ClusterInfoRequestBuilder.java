@@ -34,7 +34,7 @@ package org.opensearch.action.support.clustermanager.info;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.clustermanager.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
@@ -46,7 +46,7 @@ import org.opensearch.common.util.ArrayUtils;
 public abstract class ClusterInfoRequestBuilder<
     Request extends ClusterInfoRequest<Request>,
     Response extends ActionResponse,
-    Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends MasterNodeReadOperationRequestBuilder<
+    Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends ClusterManagerNodeReadOperationRequestBuilder<
         Request,
         Response,
         Builder> {

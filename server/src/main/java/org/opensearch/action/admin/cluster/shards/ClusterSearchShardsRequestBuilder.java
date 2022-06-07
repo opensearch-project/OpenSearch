@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.clustermanager.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -41,7 +41,7 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+public class ClusterSearchShardsRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     ClusterSearchShardsRequest,
     ClusterSearchShardsResponse,
     ClusterSearchShardsRequestBuilder> {

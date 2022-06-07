@@ -32,7 +32,7 @@
 package org.opensearch.action.admin.indices.template.get;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -46,7 +46,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.internal
  */
-public class GetIndexTemplatesRequest extends MasterNodeReadRequest<GetIndexTemplatesRequest> {
+public class GetIndexTemplatesRequest extends ClusterManagerNodeReadRequest<GetIndexTemplatesRequest> {
 
     private String[] names;
 

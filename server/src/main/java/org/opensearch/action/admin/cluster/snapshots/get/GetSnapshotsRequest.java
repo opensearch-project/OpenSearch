@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.snapshots.get;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -47,7 +47,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.internal
  */
-public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> {
+public class GetSnapshotsRequest extends ClusterManagerNodeRequest<GetSnapshotsRequest> {
 
     public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";

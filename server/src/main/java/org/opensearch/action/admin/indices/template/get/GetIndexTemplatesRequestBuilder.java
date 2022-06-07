@@ -31,7 +31,7 @@
 
 package org.opensearch.action.admin.indices.template.get;
 
-import org.opensearch.action.support.clustermanager.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -39,7 +39,7 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+public class GetIndexTemplatesRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     GetIndexTemplatesRequest,
     GetIndexTemplatesResponse,
     GetIndexTemplatesRequestBuilder> {

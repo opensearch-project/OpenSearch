@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.get;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -57,7 +57,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class TransportGetComponentTemplateAction extends TransportMasterNodeReadAction<
+public class TransportGetComponentTemplateAction extends TransportClusterManagerNodeReadAction<
     GetComponentTemplateAction.Request,
     GetComponentTemplateAction.Response> {
 

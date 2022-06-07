@@ -43,14 +43,14 @@ import org.opensearch.common.unit.TimeValue;
  *
  * @opensearch.internal
  */
-public abstract class MasterNodeOperationRequestBuilder<
-    Request extends MasterNodeRequest<Request>,
+public abstract class ClusterManagerNodeOperationRequestBuilder<
+    Request extends ClusterManagerNodeRequest<Request>,
     Response extends ActionResponse,
-    RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
+    RequestBuilder extends ClusterManagerNodeOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
         Request,
         Response> {
 
-    protected MasterNodeOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
+    protected ClusterManagerNodeOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

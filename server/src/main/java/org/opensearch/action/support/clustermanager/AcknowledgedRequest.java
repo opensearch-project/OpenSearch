@@ -46,7 +46,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
  *
  * @opensearch.internal
  */
-public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
+public abstract class AcknowledgedRequest<Request extends ClusterManagerNodeRequest<Request>> extends ClusterManagerNodeRequest<Request>
     implements
         AckedRequest {
 

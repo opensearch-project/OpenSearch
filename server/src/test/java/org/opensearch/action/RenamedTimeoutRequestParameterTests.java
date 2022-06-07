@@ -10,7 +10,7 @@ package org.opensearch.action;
 
 import org.junit.After;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.support.clustermanager.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -671,8 +671,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE, "empty templates should no longer be used");
     }
 
-    private MasterNodeRequest getMasterNodeRequest() {
-        return new MasterNodeRequest() {
+    private ClusterManagerNodeRequest getMasterNodeRequest() {
+        return new ClusterManagerNodeRequest() {
             @Override
             public ActionRequestValidationException validate() {
                 return null;

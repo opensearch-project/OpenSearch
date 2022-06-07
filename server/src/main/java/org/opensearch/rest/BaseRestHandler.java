@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.support.clustermanager.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
@@ -215,7 +215,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * @param logMsgKeyPrefix the key prefix of a deprecation message to avoid duplicate messages.
      */
     public static void parseDeprecatedMasterTimeoutParameter(
-        MasterNodeRequest mnr,
+        ClusterManagerNodeRequest mnr,
         RestRequest request,
         DeprecationLogger logger,
         String logMsgKeyPrefix

@@ -42,13 +42,14 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public abstract class MasterNodeReadRequest<Request extends MasterNodeReadRequest<Request>> extends MasterNodeRequest<Request> {
+public abstract class ClusterManagerNodeReadRequest<Request extends ClusterManagerNodeReadRequest<Request>> extends
+    ClusterManagerNodeRequest<Request> {
 
     protected boolean local = false;
 
-    protected MasterNodeReadRequest() {}
+    protected ClusterManagerNodeReadRequest() {}
 
-    protected MasterNodeReadRequest(StreamInput in) throws IOException {
+    protected ClusterManagerNodeReadRequest(StreamInput in) throws IOException {
         super(in);
         local = in.readBoolean();
     }

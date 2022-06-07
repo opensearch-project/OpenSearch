@@ -37,7 +37,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateObserver.Listener;
@@ -65,7 +65,7 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public class TransportClearVotingConfigExclusionsAction extends TransportMasterNodeAction<
+public class TransportClearVotingConfigExclusionsAction extends TransportClusterManagerNodeAction<
     ClearVotingConfigExclusionsRequest,
     ClearVotingConfigExclusionsResponse> {
 

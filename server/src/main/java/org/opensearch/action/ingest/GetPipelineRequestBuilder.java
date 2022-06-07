@@ -32,7 +32,7 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.action.support.clustermanager.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -40,7 +40,7 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class GetPipelineRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+public class GetPipelineRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     GetPipelineRequest,
     GetPipelineResponse,
     GetPipelineRequestBuilder> {

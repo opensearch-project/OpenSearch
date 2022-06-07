@@ -35,7 +35,7 @@ package org.opensearch.action.support.clustermanager.info;
 import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.clustermanager.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -47,7 +47,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Request>> extends MasterNodeReadRequest<Request>
+public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Request>> extends ClusterManagerNodeReadRequest<Request>
     implements
         IndicesRequest.Replaceable {
 

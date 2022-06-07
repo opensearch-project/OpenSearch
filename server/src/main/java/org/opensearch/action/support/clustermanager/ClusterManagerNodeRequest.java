@@ -44,15 +44,15 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ActionRequest {
+public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNodeRequest<Request>> extends ActionRequest {
 
     public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
-    protected MasterNodeRequest() {}
+    protected ClusterManagerNodeRequest() {}
 
-    protected MasterNodeRequest(StreamInput in) throws IOException {
+    protected ClusterManagerNodeRequest(StreamInput in) throws IOException {
         super(in);
         masterNodeTimeout = in.readTimeValue();
     }

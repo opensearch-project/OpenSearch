@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.tasks;
 
-import org.opensearch.action.support.clustermanager.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -40,7 +40,7 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+public class PendingClusterTasksRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     PendingClusterTasksRequest,
     PendingClusterTasksResponse,
     PendingClusterTasksRequestBuilder> {

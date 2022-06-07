@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.get;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.clustermanager.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -67,7 +67,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
      *
      * @opensearch.internal
      */
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends ClusterManagerNodeReadRequest<Request> {
 
         @Nullable
         private String name;

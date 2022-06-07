@@ -37,7 +37,7 @@ import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.clustermanager.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -78,7 +78,7 @@ import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
  *
  * @opensearch.internal
  */
-public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest>
+public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnapshotRequest>
     implements
         IndicesRequest.Replaceable,
         ToXContentObject {

@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.snapshots.delete;
 
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.action.support.clustermanager.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -41,7 +41,7 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
+public class DeleteSnapshotRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     DeleteSnapshotRequest,
     AcknowledgedResponse,
     DeleteSnapshotRequestBuilder> {

@@ -42,7 +42,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.action.support.clustermanager.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
@@ -1526,7 +1526,7 @@ public class MetadataIndexTemplateService {
         String mappings = null;
         List<Alias> aliases = new ArrayList<>();
 
-        TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+        TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public PutRequest(String cause, String name) {
             this.cause = cause;
@@ -1598,7 +1598,7 @@ public class MetadataIndexTemplateService {
      */
     public static class RemoveRequest {
         final String name;
-        TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+        TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public RemoveRequest(String name) {
             this.name = name;

@@ -39,7 +39,7 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.clustermanager.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
@@ -80,7 +80,10 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
  *
  * @opensearch.internal
  */
-public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContentObject {
+public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexTemplateRequest>
+    implements
+        IndicesRequest,
+        ToXContentObject {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PutIndexTemplateRequest.class);
 

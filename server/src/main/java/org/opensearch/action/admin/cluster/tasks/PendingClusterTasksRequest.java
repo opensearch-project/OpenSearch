@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.tasks;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class PendingClusterTasksRequest extends MasterNodeReadRequest<PendingClusterTasksRequest> {
+public class PendingClusterTasksRequest extends ClusterManagerNodeReadRequest<PendingClusterTasksRequest> {
 
     public PendingClusterTasksRequest() {}
 
