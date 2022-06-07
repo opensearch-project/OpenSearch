@@ -19,17 +19,15 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
-import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.recovery.MultiFileWriter;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
@@ -90,7 +88,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     public void onCancel(String reason) {
-        state.setStage(SegmentReplicationState.Stage.DONE);
         cancellableThreads.cancel(reason);
     }
 
@@ -101,8 +98,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     public ReplicationTarget retryCopy() {
-        // TODO
         return null;
+        // return new SegmentReplicationTarget(checkpoint, indexShard, source, listener);
     }
 
     @Override
@@ -142,7 +139,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
      * Start the Replication event.
      * @param listener {@link ActionListener} listener.
      */
-    public void startReplication(ActionListener<ReplicationResponse> listener) {
+    public void startReplication(ActionListener<Void> listener) {
+        state.setStage(SegmentReplicationState.Stage.REPLICATING);
         final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
         final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
         final StepListener<Void> finalizeListener = new StepListener<>();
@@ -155,7 +153,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             response -> finalizeReplication(checkpointInfoListener.result(), finalizeListener),
             listener::onFailure
         );
-        finalizeListener.whenComplete(r -> listener.onResponse(new ReplicationResponse()), listener::onFailure);
+        finalizeListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
     }
 
     private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener)
@@ -242,7 +240,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     private Store.MetadataSnapshot getMetadataSnapshot() throws IOException {
-        if (indexShard.state().equals(IndexShardState.STARTED) == false) {
+        if (indexShard.getLatestSegmentInfos() == null) {
             return Store.MetadataSnapshot.EMPTY;
         }
         return store.getMetadata(indexShard.getLatestSegmentInfos());

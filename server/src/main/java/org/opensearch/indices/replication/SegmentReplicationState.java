@@ -63,7 +63,7 @@ public class SegmentReplicationState implements ReplicationState {
     private final ReplicationTimer timer;
 
     public SegmentReplicationState(ReplicationLuceneIndex index) {
-        stage = Stage.DONE;
+        stage = Stage.INIT;
         this.index = index;
         timer = new ReplicationTimer();
         timer.start();

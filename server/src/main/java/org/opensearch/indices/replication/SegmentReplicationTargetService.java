@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
@@ -94,7 +93,6 @@ public final class SegmentReplicationTargetService implements IndexEventListener
     }
 
     public void startReplication(final SegmentReplicationTarget target) {
-        target.state().setStage(SegmentReplicationState.Stage.REPLICATING);
         final long replicationId = onGoingReplications.start(target, recoverySettings.activityTimeout());
         logger.trace(() -> new ParameterizedMessage("Starting replication {}", replicationId));
         threadPool.generic().execute(new ReplicationRunner(replicationId));
@@ -143,7 +141,7 @@ public final class SegmentReplicationTargetService implements IndexEventListener
         try (ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)) {
             replicationRef.get().startReplication(new ActionListener<>() {
                 @Override
-                public void onResponse(ReplicationResponse o) {
+                public void onResponse(Void o) {
                     onGoingReplications.markAsDone(replicationId);
                 }
 

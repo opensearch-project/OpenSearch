@@ -78,7 +78,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     private final DiscoveryNode sourceNode;
     protected final MultiFileWriter multiFileWriter;
-    protected final Store store;
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
@@ -94,10 +93,8 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         super("recovery_status", indexShard, indexShard.recoveryState().getIndex(), listener);
         this.sourceNode = sourceNode;
         indexShard.recoveryStats().incCurrentAsTarget();
-        this.store = indexShard.store();
         final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, tempFilePrefix, logger, this::ensureRefCount);
-        store.incRef();
     }
 
     /**
@@ -128,11 +125,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     public CancellableThreads cancellableThreads() {
         return cancellableThreads;
-    }
-
-    public Store store() {
-        ensureRefCount();
-        return store;
     }
 
     public String description() {
