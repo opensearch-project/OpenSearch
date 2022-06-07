@@ -45,6 +45,7 @@ import java.net.InetSocketAddress;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
@@ -116,6 +117,52 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
             () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build())
         );
         assertThat(e.getMessage(), is("Missing access key and secret key for s3 client [default]"));
+    }
+
+    public void testIrsaCredentialsTypeWithIdentityTokenFile() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.identity_token_file", "file").build()
+        );
+        final S3ClientSettings defaultSettings = settings.get("default");
+        final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
+        assertThat(credentials.getIdentityTokenFile(), is("file"));
+        assertThat(credentials.getRoleArn(), is(nullValue()));
+        assertThat(credentials.getRoleSessionName(), startsWith("s3-sdk-java-"));
+    }
+
+    public void testIrsaCredentialsTypeRoleArn() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.role_arn", "role");
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
+        final S3ClientSettings defaultSettings = settings.get("default");
+        final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
+        assertThat(credentials.getRoleArn(), is("role"));
+        assertThat(credentials.getRoleSessionName(), startsWith("s3-sdk-java-"));
+    }
+
+    public void testIrsaCredentialsTypeWithRoleArnAndRoleSessionName() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.role_arn", "role");
+        secureSettings.setString("s3.client.default.role_session_name", "session");
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
+        final S3ClientSettings defaultSettings = settings.get("default");
+        final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
+        assertThat(credentials.getRoleArn(), is("role"));
+        assertThat(credentials.getRoleSessionName(), is("session"));
+    }
+
+    public void testIrsaCredentialsTypeWithRoleArnAndRoleSessionNameAndIdentityTokeFile() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.role_arn", "role");
+        secureSettings.setString("s3.client.default.role_session_name", "session");
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).put("s3.client.default.identity_token_file", "file").build()
+        );
+        final S3ClientSettings defaultSettings = settings.get("default");
+        final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
+        assertThat(credentials.getIdentityTokenFile(), is("file"));
+        assertThat(credentials.getRoleArn(), is("role"));
+        assertThat(credentials.getRoleSessionName(), is("session"));
     }
 
     public void testCredentialsTypeWithAccessKeyAndSecretKey() {
@@ -199,7 +246,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
         try (S3Service s3Service = new S3Service()) {
-            AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other"));
+            AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other")).client();
             assertThat(other.getSignerRegionOverride(), is(region));
         }
     }

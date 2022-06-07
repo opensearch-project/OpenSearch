@@ -63,7 +63,14 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(POST, "/{index}/_doc/{id}"), new Route(PUT, "/{index}/_doc/{id}")));
+        return unmodifiableList(
+            asList(
+                new Route(POST, "/{index}/_doc/{id}"),
+                new Route(PUT, "/{index}/_doc/{id}"),
+                new Route(POST, "/{index}/{type}/{id}"),
+                new Route(PUT, "/{index}/{type}/{id}")
+            )
+        );
     }
 
     @Override
@@ -85,7 +92,14 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(new Route(POST, "/{index}/_create/{id}"), new Route(PUT, "/{index}/_create/{id}")));
+            return unmodifiableList(
+                asList(
+                    new Route(POST, "/{index}/_create/{id}"),
+                    new Route(PUT, "/{index}/_create/{id}"),
+                    new Route(POST, "/{index}/{type}/{id}/_create"),
+                    new Route(PUT, "/{index}/{type}/{id}/_create")
+                )
+            );
         }
 
         @Override
@@ -122,7 +136,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(new Route(POST, "/{index}/_doc")));
+            return unmodifiableList(asList(new Route(POST, "/{index}/_doc"), new Route(POST, "/{index}/{type}")));
         }
 
         @Override
@@ -139,6 +153,9 @@ public class RestIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
+        if (request.hasParam("type")) {
+            request.param("type");
+        }
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
