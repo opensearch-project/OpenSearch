@@ -105,7 +105,10 @@ public class RestSearchAction extends BaseRestHandler {
                 new Route(GET, "/_search"),
                 new Route(POST, "/_search"),
                 new Route(GET, "/{index}/_search"),
-                new Route(POST, "/{index}/_search")
+                new Route(POST, "/{index}/_search"),
+                // Deprecated typed endpoints.
+                new Route(GET, "/{index}/{type}/_search"),
+                new Route(POST, "/{index}/{type}/_search")
             )
         );
     }
@@ -195,6 +198,10 @@ public class RestSearchAction extends BaseRestHandler {
         String scroll = request.param("scroll");
         if (scroll != null) {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
+        }
+
+        if (request.hasParam("type")) {
+            request.param("type");
         }
 
         searchRequest.routing(request.param("routing"));
