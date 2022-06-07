@@ -33,6 +33,7 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Service class that handles segment replication requests from replica shards.
@@ -101,6 +102,7 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
                 ),
                 request.getCheckpoint().getShardId(),
                 SegmentReplicationTargetService.Actions.FILE_CHUNK,
+                new AtomicLong(0),
                 (throttleTime) -> {}
             );
             final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);

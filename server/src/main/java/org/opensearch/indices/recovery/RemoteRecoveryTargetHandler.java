@@ -107,6 +107,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             retryableTransportClient,
             shardId,
             PeerRecoveryTargetService.Actions.FILE_CHUNK,
+            requestSeqNoGenerator,
             onSourceThrottle
         );
     }

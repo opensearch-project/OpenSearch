@@ -33,7 +33,7 @@ import java.util.function.Consumer;
  */
 public class RemoteSegmentFileChunkWriter implements FileChunkWriter {
 
-    protected final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
+    protected final AtomicLong requestSeqNoGenerator;
     protected final RetryableTransportClient retryableTransportClient;
     protected final ShardId shardId;
     protected final RecoverySettings recoverySettings;
@@ -49,12 +49,14 @@ public class RemoteSegmentFileChunkWriter implements FileChunkWriter {
         RetryableTransportClient retryableTransportClient,
         ShardId shardId,
         String action,
+        AtomicLong requestSeqNoGenerator,
         Consumer<Long> onSourceThrottle
     ) {
         this.replicationId = replicationId;
         this.recoverySettings = recoverySettings;
         this.retryableTransportClient = retryableTransportClient;
         this.shardId = shardId;
+        this.requestSeqNoGenerator = requestSeqNoGenerator;
         this.onSourceThrottle = onSourceThrottle;
         this.fileChunkRequestOptions = TransportRequestOptions.builder()
             .withType(TransportRequestOptions.Type.RECOVERY)
