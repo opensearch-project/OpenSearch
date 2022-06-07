@@ -620,8 +620,10 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 }
             }
         };
+        IndexShard mockShard = mock(IndexShard.class);
+        when(mockShard.shardId()).thenReturn(new ShardId("testIndex", "testUUID", 0));
         RecoverySourceHandler handler = new RecoverySourceHandler(
-            null,
+            mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
             request,
