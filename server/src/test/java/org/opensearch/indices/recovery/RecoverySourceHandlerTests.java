@@ -94,6 +94,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.DummyShardLock;
@@ -544,8 +545,10 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 });
             }
         };
+        IndexShard mockShard = mock(IndexShard.class);
+        when(mockShard.shardId()).thenReturn(new ShardId("testIndex", "testUUID", 0));
         RecoverySourceHandler handler = new RecoverySourceHandler(
-            null,
+            mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
             request,
@@ -747,7 +750,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
         try {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads, logger);
+            RunUnderPrimaryPermit.run(() -> {}, "test", shard, cancellableThreads, logger);
         } catch (CancellableThreads.ExecutionCancelledException e) {
             // expected.
         }
