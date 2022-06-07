@@ -131,6 +131,9 @@ dependencies {
     runtimeOnly("org.apache.logging.log4j:log4j-core:${props.getProperty('log4j')}") {
       because 'log4j CVE'
     }
+    runtimeOnly("org.jdom:jdom2:${props.getProperty('jdom2')}") {
+      because 'CVE-2021-33813 violation'
+    }
   }
 }
 
