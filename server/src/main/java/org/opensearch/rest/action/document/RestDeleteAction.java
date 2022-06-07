@@ -57,7 +57,13 @@ public class RestDeleteAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(DELETE, "/{index}/_doc/{id}")));
+        return unmodifiableList(
+            asList(
+                new Route(DELETE, "/{index}/_doc/{id}"),
+                // Deprecated typed endpoint.
+                new Route(DELETE, "/{index}/{type}/{id}")
+            )
+        );
     }
 
     @Override
@@ -67,6 +73,9 @@ public class RestDeleteAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.hasParam("type")) {
+            request.param("type");
+        }
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("id"));
         deleteRequest.routing(request.param("routing"));
         deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
