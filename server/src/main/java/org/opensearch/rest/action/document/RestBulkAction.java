@@ -74,7 +74,15 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return unmodifiableList(
-            asList(new Route(POST, "/_bulk"), new Route(PUT, "/_bulk"), new Route(POST, "/{index}/_bulk"), new Route(PUT, "/{index}/_bulk"))
+            asList(
+                new Route(POST, "/_bulk"),
+                new Route(PUT, "/_bulk"),
+                new Route(POST, "/{index}/_bulk"),
+                new Route(PUT, "/{index}/_bulk"),
+                // Deprecated typed endpoints.
+                new Route(POST, "/{index}/{type}/_bulk"),
+                new Route(PUT, "/{index}/{type}/_bulk")
+            )
         );
     }
 
@@ -87,6 +95,9 @@ public class RestBulkAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
+        if (request.hasParam("type")) {
+            request.param("type");
+        }
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String defaultPipeline = request.param("pipeline");
