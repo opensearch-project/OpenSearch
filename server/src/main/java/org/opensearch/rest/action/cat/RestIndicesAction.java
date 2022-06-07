@@ -78,7 +78,7 @@ import java.util.stream.StreamSupport;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.opensearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+import static org.opensearch.action.support.clustermanager.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**

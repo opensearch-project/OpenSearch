@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.allocation;
 
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**

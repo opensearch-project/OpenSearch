@@ -24,52 +24,50 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
 /**
- * Base request builder for cluster-manager node operations
+ * Base request builder for cluster-manager node operations that support acknowledgements
  *
  * @opensearch.internal
  */
-public abstract class MasterNodeOperationRequestBuilder<
-    Request extends MasterNodeRequest<Request>,
-    Response extends ActionResponse,
-    RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
+public abstract class AcknowledgedRequestBuilder<
+    Request extends AcknowledgedRequest<Request>,
+    Response extends AcknowledgedResponse,
+    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends MasterNodeOperationRequestBuilder<
         Request,
-        Response> {
+        Response,
+        RequestBuilder> {
 
-    protected MasterNodeOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
+    protected AcknowledgedRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 
     /**
-     * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
+     * Sets the maximum wait for acknowledgement from other nodes
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
+    public RequestBuilder setTimeout(TimeValue timeout) {
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
 
     /**
-     * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
+     * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
+     * to {@code 10s}.
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
+    public RequestBuilder setTimeout(String timeout) {
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
-
 }

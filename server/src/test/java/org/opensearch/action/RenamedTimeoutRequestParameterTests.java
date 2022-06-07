@@ -10,7 +10,7 @@ package org.opensearch.action;
 
 import org.junit.After;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.MasterNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.logging.DeprecationLogger;
