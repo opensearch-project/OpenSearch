@@ -15,6 +15,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.internal.io.IOUtils;
@@ -23,11 +24,13 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.FileChunkWriter;
+import org.opensearch.indices.recovery.MultiChunkTransfer;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -42,11 +45,12 @@ import java.util.function.Consumer;
  */
 class SegmentReplicationSourceHandler {
 
-    protected final IndexShard shard;
+    private final IndexShard shard;
     private final CopyState copyState;
     private final SegmentFileTransferHandler segmentFileTransferHandler;
-    protected final ListenableFuture<GetSegmentFilesResponse> future = new ListenableFuture<>();
-    protected final List<Closeable> resources = new CopyOnWriteArrayList<>();
+    private final CancellableThreads cancellableThreads = new CancellableThreads();
+    private final ListenableFuture<GetSegmentFilesResponse> future = new ListenableFuture<>();
+    private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final Logger logger;
 
     /**
@@ -79,6 +83,8 @@ class SegmentReplicationSourceHandler {
             writer,
             logger,
             threadPool,
+            cancellableThreads,
+            this::failEngine,
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
@@ -115,7 +121,7 @@ class SegmentReplicationSourceHandler {
             },
                 shard.shardId() + " validating recovery target [" + request.getTargetAllocationId() + "] registered ",
                 shard,
-                segmentFileTransferHandler.cancellableThreads,
+                cancellableThreads,
                 logger
             );
 
@@ -126,8 +132,10 @@ class SegmentReplicationSourceHandler {
                 .filter(file -> storeFiles.contains(file.name()))
                 .toArray(StoreFileMetadata[]::new);
 
-            segmentFileTransferHandler.sendFiles(shard.store(), storeFileMetadata, () -> 0, sendFileStep);
-            resources.addAll(segmentFileTransferHandler.resources);
+            final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = segmentFileTransferHandler
+                .sendFiles(shard.store(), storeFileMetadata, () -> 0, sendFileStep);
+            resources.add(transfer);
+            transfer.start();
 
             sendFileStep.whenComplete(r -> {
                 try {
@@ -145,7 +153,11 @@ class SegmentReplicationSourceHandler {
      * Cancels the recovery and interrupts all eligible threads.
      */
     public void cancel(String reason) {
-        segmentFileTransferHandler.cancellableThreads.cancel(reason);
+        cancellableThreads.cancel(reason);
+    }
+
+    private void failEngine(IOException e) {
+        shard.failShard("Failed Replication", e);
     }
 
     CopyState getCopyState() {

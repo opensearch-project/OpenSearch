@@ -32,6 +32,7 @@
 
 package org.opensearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -85,6 +86,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -105,8 +107,9 @@ import java.util.stream.StreamSupport;
  *
  * @opensearch.internal
  */
-public class RecoverySourceHandler extends SegmentFileTransferHandler {
+public class RecoverySourceHandler {
 
+    protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
     private final int shardId;
@@ -116,8 +119,11 @@ public class RecoverySourceHandler extends SegmentFileTransferHandler {
     private final RecoveryTargetHandler recoveryTarget;
     private final int maxConcurrentOperations;
     private final ThreadPool threadPool;
+    private final CancellableThreads cancellableThreads = new CancellableThreads();
+    private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
     public static final String PEER_RECOVERY_NAME = "peer-recovery";
+    private final SegmentFileTransferHandler transferHandler;
 
     public RecoverySourceHandler(
         IndexShard shard,
@@ -128,12 +134,15 @@ public class RecoverySourceHandler extends SegmentFileTransferHandler {
         int maxConcurrentFileChunks,
         int maxConcurrentOperations
     ) {
-        super(
+        this.logger = Loggers.getLogger(RecoverySourceHandler.class, request.shardId(), "recover to " + request.targetNode().getName());
+        this.transferHandler = new SegmentFileTransferHandler(
             shard,
             request.targetNode(),
             recoveryTarget,
-            Loggers.getLogger(RecoverySourceHandler.class, request.shardId(), "recover to " + request.targetNode().getName()),
+            logger,
             threadPool,
+            cancellableThreads,
+            this::failEngine,
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
@@ -654,6 +663,17 @@ public class RecoverySourceHandler extends SegmentFileTransferHandler {
         }
     }
 
+    void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
+        final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = transferHandler.sendFiles(
+            store,
+            files,
+            translogOps,
+            listener
+        );
+        resources.add(transfer);
+        transfer.start();
+    }
+
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
         RunUnderPrimaryPermit.run(() -> {
             // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
@@ -1025,9 +1045,13 @@ public class RecoverySourceHandler extends SegmentFileTransferHandler {
             ActionListener.delegateResponse(listener, (l, e) -> ActionListener.completeWith(l, () -> {
                 StoreFileMetadata[] mds = StreamSupport.stream(sourceMetadata.spliterator(), false).toArray(StoreFileMetadata[]::new);
                 ArrayUtil.timSort(mds, Comparator.comparingLong(StoreFileMetadata::length)); // check small files first
-                handleErrorOnSendFiles(store, e, mds);
+                transferHandler.handleErrorOnSendFiles(store, e, mds);
                 throw e;
             }))
         );
+    }
+
+    protected void failEngine(IOException cause) {
+        shard.failShard("recovery", cause);
     }
 }

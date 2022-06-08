@@ -573,6 +573,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         latch.await();
         assertThat(sendFilesError.get(), instanceOf(IOException.class));
         assertNotNull(ExceptionsHelper.unwrapCorruption(sendFilesError.get()));
+        failedEngine.get();
         assertTrue(failedEngine.get());
         // ensure all chunk requests have been completed; otherwise some files on the target are left open.
         IOUtils.close(() -> terminate(threadPool), () -> threadPool = null);

@@ -26,20 +26,18 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.recovery.MultiChunkTransfer;
 import org.opensearch.indices.recovery.FileChunkWriter;
+import org.opensearch.indices.recovery.MultiChunkTransfer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.Transports;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
-import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 /**
@@ -49,17 +47,17 @@ import java.util.function.IntSupplier;
  * @opensearch.internal
  * // TODO: make this package-private after combining recovery and replication into single package.
  */
-public class SegmentFileTransferHandler {
+public final class SegmentFileTransferHandler {
 
-    protected final Logger logger;
-    protected final CancellableThreads cancellableThreads = new CancellableThreads();
-    protected final List<Closeable> resources = new CopyOnWriteArrayList<>();
+    private final Logger logger;
     private final IndexShard shard;
     private final FileChunkWriter chunkWriter;
     private final ThreadPool threadPool;
     private final int chunkSizeInBytes;
     private final int maxConcurrentFileChunks;
     private final DiscoveryNode targetNode;
+    private final CancellableThreads cancellableThreads;
+    private final Consumer<IOException> onCorruptException;
 
     public SegmentFileTransferHandler(
         IndexShard shard,
@@ -67,6 +65,8 @@ public class SegmentFileTransferHandler {
         FileChunkWriter chunkWriter,
         Logger logger,
         ThreadPool threadPool,
+        CancellableThreads cancellableThreads,
+        Consumer<IOException> onCorruptException,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks
     ) {
@@ -75,21 +75,30 @@ public class SegmentFileTransferHandler {
         this.chunkWriter = chunkWriter;
         this.logger = logger;
         this.threadPool = threadPool;
+        this.cancellableThreads = cancellableThreads;
+        this.onCorruptException = onCorruptException;
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
     }
 
-    public final void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
+    /**
+     * Returns a closeable {@link MultiChunkTransfer} to initiate sending a list of files.
+     * Callers are responsible for starting the transfer and closing the resource.
+     * @param store {@link Store}
+     * @param files {@link StoreFileMetadata[]}
+     * @param translogOps {@link IntSupplier}
+     * @param listener {@link ActionListener}
+     * @return {@link MultiChunkTransfer}
+     */
+    public MultiChunkTransfer<StoreFileMetadata, FileChunk> sendFiles(
+        Store store,
+        StoreFileMetadata[] files,
+        IntSupplier translogOps,
+        ActionListener<Void> listener
+    ) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetadata::length)); // send smallest first
-
-        final MultiChunkTransfer<StoreFileMetadata, FileChunk> multiFileSender = new MultiChunkTransfer<>(
-            logger,
-            threadPool.getThreadContext(),
-            listener,
-            maxConcurrentFileChunks,
-            Arrays.asList(files)
-        ) {
+        return new MultiChunkTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
             final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
             InputStreamIndexInput currentInput = null;
@@ -138,7 +147,7 @@ public class SegmentFileTransferHandler {
             }
 
             @Override
-            protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
+            protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener1) {
                 cancellableThreads.checkForCancel();
                 chunkWriter.writeFileChunk(
                     request.md,
@@ -146,7 +155,7 @@ public class SegmentFileTransferHandler {
                     request.content,
                     request.lastChunk,
                     translogOps.getAsInt(),
-                    ActionListener.runBefore(listener, request::close)
+                    ActionListener.runBefore(listener1, request::close)
                 );
             }
 
@@ -160,11 +169,9 @@ public class SegmentFileTransferHandler {
                 IOUtils.close(currentInput, () -> currentInput = null);
             }
         };
-        resources.add(multiFileSender);
-        multiFileSender.start();
     }
 
-    public final void handleErrorOnSendFiles(Store store, Exception e, StoreFileMetadata[] mds) throws Exception {
+    public void handleErrorOnSendFiles(Store store, Exception e, StoreFileMetadata[] mds) throws Exception {
         final IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(e);
         assert Transports.assertNotTransportThread(this + "[handle error on send/clean files]");
         if (corruptIndexException != null) {
@@ -177,7 +184,7 @@ public class SegmentFileTransferHandler {
                     if (localException == null) {
                         localException = corruptIndexException;
                     }
-                    failEngine(corruptIndexException);
+                    onCorruptException.accept(corruptIndexException);
                 }
             }
             if (localException != null) {
@@ -201,10 +208,6 @@ public class SegmentFileTransferHandler {
             }
         }
         throw e;
-    }
-
-    protected void failEngine(IOException cause) {
-        shard.failShard("recovery", cause);
     }
 
     /**
