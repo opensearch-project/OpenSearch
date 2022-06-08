@@ -160,7 +160,6 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.repositories.RepositoriesService;
@@ -1374,18 +1373,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the lastest Replication Checkpoint that shard received
+     * Returns the IndexShardSate of current shard
      */
-    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        return new ReplicationCheckpoint(shardId, 0, 0, 0, 0);
+    public IndexShardState getState() {
+        return this.state;
     }
 
     /**
-     * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
+     * Returns the lastest segmentInfos
      */
-    public synchronized void onNewCheckpoint(final PublishCheckpointRequest request) {
-        assert shardRouting.primary() == false;
-        // TODO
+    public SegmentInfos getLatestSegmentInfos() {
+        return getEngine().getLatestSegmentInfos();
+    }
+
+    /**
+     * Returns the lastest Replication Checkpoint that shard received
+     */
+    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+        return new ReplicationCheckpoint(
+            this.shardId,
+            getOperationPrimaryTerm(),
+            latestSegmentInfos.getGeneration(),
+            getProcessedLocalCheckpoint(),
+            latestSegmentInfos.getVersion()
+        );
     }
 
     /**

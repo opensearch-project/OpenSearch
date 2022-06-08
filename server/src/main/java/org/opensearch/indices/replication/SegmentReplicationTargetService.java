@@ -14,9 +14,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -38,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @opensearch.internal
  */
-public final class SegmentReplicationTargetService implements IndexEventListener {
+public class SegmentReplicationTargetService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(SegmentReplicationTargetService.class);
 
@@ -58,6 +60,7 @@ public final class SegmentReplicationTargetService implements IndexEventListener
         public static final String FILE_CHUNK = "internal:index/shard/replication/file_chunk";
     }
 
+    @Inject
     public SegmentReplicationTargetService(
         final ThreadPool threadPool,
         final RecoverySettings recoverySettings,
@@ -84,6 +87,31 @@ public final class SegmentReplicationTargetService implements IndexEventListener
         }
     }
 
+    /**
+     * Invoked when a new checkpoint is received from a primary shard.
+     * It checks if a new checkpoint should be processed or not and starts replication if needed.
+     */
+    public synchronized void onNewCheckpoint(final ReplicationCheckpoint requestCheckpoint, final IndexShard indexShard) {
+        logger.trace("Checkpoint received {}", () -> requestCheckpoint);
+        if (shouldProcessCheckpoint(requestCheckpoint, indexShard)) {
+            logger.trace("Processing new checkpoint {}", requestCheckpoint);
+            startReplication(requestCheckpoint, indexShard, new SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {
+                    logger.trace("Replication complete to {}", indexShard.getLatestReplicationCheckpoint());
+                }
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    if (sendShardFailure == true) {
+                        indexShard.failShard("replication failure", e);
+                    }
+                }
+            });
+
+        }
+    }
+
     public void startReplication(
         final ReplicationCheckpoint checkpoint,
         final IndexShard indexShard,
@@ -96,6 +124,35 @@ public final class SegmentReplicationTargetService implements IndexEventListener
         final long replicationId = onGoingReplications.start(target, recoverySettings.activityTimeout());
         logger.trace(() -> new ParameterizedMessage("Starting replication {}", replicationId));
         threadPool.generic().execute(new ReplicationRunner(replicationId));
+    }
+
+    /**
+     * Checks if checkpoint should be processed
+     *
+     * @param requestCheckpoint       received checkpoint that is checked for processing
+     * @param indexshard      replica shard on which checkpoint is received
+     * @return true if checkpoint should be processed
+     */
+    private boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint, IndexShard indexshard) {
+        if (indexshard.getState().equals(IndexShardState.STARTED) == false) {
+            logger.debug("Ignore - shard is not started {}", indexshard.getState());
+            return false;
+        }
+        ReplicationCheckpoint localCheckpoint = indexshard.getLatestReplicationCheckpoint();
+        logger.debug("Local Checkpoint {}", indexshard.getLatestReplicationCheckpoint());
+        if (onGoingReplications.isShardReplicating(indexshard.shardId())) {
+            logger.debug("Ignore - shard is currently replicating to a checkpoint");
+            return false;
+        }
+        if (localCheckpoint.isAheadOf(requestCheckpoint)) {
+            logger.debug("Ignore - Shard is already on checkpoint {} that is ahead of {}", localCheckpoint, requestCheckpoint);
+            return false;
+        }
+        if (localCheckpoint.equals(requestCheckpoint)) {
+            logger.debug("Ignore - Shard is already on checkpoint {}", requestCheckpoint);
+            return false;
+        }
+        return true;
     }
 
     /**

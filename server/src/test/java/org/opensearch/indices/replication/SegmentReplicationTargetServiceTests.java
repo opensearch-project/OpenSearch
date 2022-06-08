@@ -9,6 +9,7 @@
 package org.opensearch.indices.replication;
 
 import org.junit.Assert;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
@@ -39,19 +40,13 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
         final TransportService transportService = mock(TransportService.class);
-        indexShard = newShard(false, settings);
+        indexShard = newStartedShard(false, settings);
         checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 0L, 0L, 0L, 0L);
         SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
         replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(indexShard)).thenReturn(replicationSource);
 
         sut = new SegmentReplicationTargetService(threadPool, recoverySettings, transportService, replicationSourceFactory);
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        closeShards(indexShard);
-        super.tearDown();
     }
 
     public void testTargetReturnsSuccess_listenerCompletes() throws IOException {
@@ -109,6 +104,68 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         }).when(spy).startReplication(any());
         sut.startReplication(spy);
         closeShards(indexShard);
+    }
+
+    public void testAlreadyOnNewCheckpoint() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+        spy.onNewCheckpoint(indexShard.getLatestReplicationCheckpoint(), indexShard);
+        verify(spy, times(0)).startReplication(any(), any(), any());
+        closeShards(indexShard);
+    }
+
+    public void testShardAlreadyReplicating() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+        final SegmentReplicationTarget target = new SegmentReplicationTarget(
+            checkpoint,
+            indexShard,
+            replicationSource,
+            mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
+        );
+        final SegmentReplicationTarget spyTarget = Mockito.spy(target);
+        spy.startReplication(spyTarget);
+        spy.onNewCheckpoint(checkpoint, indexShard);
+        verify(spy, times(0)).startReplication(any(), any(), any());
+        closeShards(indexShard);
+    }
+
+    public void testNewCheckpointBehindCurrentCheckpoint() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+        spy.onNewCheckpoint(checkpoint, indexShard);
+        verify(spy, times(0)).startReplication(any(), any(), any());
+        closeShards(indexShard);
+    }
+
+    public void testShardNotStarted() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+        IndexShard shard = newShard(false);
+        spy.onNewCheckpoint(checkpoint, shard);
+        verify(spy, times(0)).startReplication(any(), any(), any());
+        closeShards(shard);
+        closeShards(indexShard);
+    }
+
+    public void testShouldProcessCheckpoint() throws IOException {
+        allowShardFailures();
+        SegmentReplicationTargetService spy = spy(sut);
+        IndexShard spyShard = spy(indexShard);
+        ReplicationCheckpoint cp = indexShard.getLatestReplicationCheckpoint();
+        ReplicationCheckpoint newCheckpoint = new ReplicationCheckpoint(
+            cp.getShardId(),
+            cp.getPrimaryTerm(),
+            cp.getSegmentsGen(),
+            cp.getSeqNo(),
+            cp.getSegmentInfosVersion() + 1
+        );
+        spy.onNewCheckpoint(newCheckpoint, spyShard);
+        ArgumentCaptor<SegmentReplicationTargetService.SegmentReplicationListener> captor = ArgumentCaptor.forClass(
+            SegmentReplicationTargetService.SegmentReplicationListener.class
+        );
+        verify(spy, times(1)).startReplication(any(), any(), captor.capture());
+        SegmentReplicationTargetService.SegmentReplicationListener listener = captor.getValue();
+        listener.onFailure(new SegmentReplicationState(), new OpenSearchException("testing"), true);
+        verify(spyShard).failShard(any(), any());
+        closeShard(indexShard, false);
+
     }
 
     public void testBeforeIndexShardClosed_CancelsOngoingReplications() throws IOException {

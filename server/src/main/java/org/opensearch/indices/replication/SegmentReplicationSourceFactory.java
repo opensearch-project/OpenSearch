@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -27,6 +28,7 @@ public class SegmentReplicationSourceFactory {
     private RecoverySettings recoverySettings;
     private ClusterService clusterService;
 
+    @Inject
     public SegmentReplicationSourceFactory(
         TransportService transportService,
         RecoverySettings recoverySettings,
