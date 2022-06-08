@@ -31,12 +31,12 @@ import java.util.function.Consumer;
  *
  * @opensearch.internal
  */
-public class RemoteSegmentFileChunkWriter implements FileChunkWriter {
+public final class RemoteSegmentFileChunkWriter implements FileChunkWriter {
 
-    protected final AtomicLong requestSeqNoGenerator;
-    protected final RetryableTransportClient retryableTransportClient;
-    protected final ShardId shardId;
-    protected final RecoverySettings recoverySettings;
+    private final AtomicLong requestSeqNoGenerator;
+    private final RetryableTransportClient retryableTransportClient;
+    private final ShardId shardId;
+    private final RecoverySettings recoverySettings;
     private final long replicationId;
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
     private final TransportRequestOptions fileChunkRequestOptions;

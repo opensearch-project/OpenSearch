@@ -19,6 +19,7 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
@@ -31,10 +32,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -97,17 +94,13 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             replicaDiscoveryNode,
             testCheckpoint
         );
-        final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = mock(RemoteSegmentFileChunkWriter.class);
+        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
+            listener.onResponse(null);
+        };
         final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
         assertTrue(replications.isInCopyStateMap(request.getCheckpoint()));
         assertEquals(1, replications.size());
         assertEquals(1, copyState.refCount());
-
-        doAnswer((invocation -> {
-            final ActionListener<Void> listener = invocation.getArgument(5);
-            listener.onResponse(null);
-            return null;
-        })).when(segmentSegmentFileChunkWriter).writeFileChunk(any(), anyLong(), any(), anyBoolean(), anyInt(), any());
 
         getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
@@ -145,7 +138,10 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             primaryDiscoveryNode,
             testCheckpoint
         );
-        final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = mock(RemoteSegmentFileChunkWriter.class);
+        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
+            // this shouldn't be called in this test.
+            Assert.fail();
+        };
         final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
         assertEquals(1, replications.size());
         assertEquals(1, replications.cachedCopyStateSize());
@@ -164,7 +160,10 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             primaryDiscoveryNode,
             testCheckpoint
         );
-        final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = mock(RemoteSegmentFileChunkWriter.class);
+        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
+            // this shouldn't be called in this test.
+            Assert.fail();
+        };
 
         final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
         assertEquals(1, copyState.refCount());

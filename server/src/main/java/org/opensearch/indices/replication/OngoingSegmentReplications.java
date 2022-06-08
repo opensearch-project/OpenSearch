@@ -14,6 +14,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
@@ -91,14 +92,10 @@ class OngoingSegmentReplications {
         }
     }
 
-    SegmentReplicationSourceHandler createTargetHandler(
-        DiscoveryNode node,
-        CopyState copyState,
-        RemoteSegmentFileChunkWriter segmentFileChunkWriter
-    ) {
+    SegmentReplicationSourceHandler createTargetHandler(DiscoveryNode node, CopyState copyState, FileChunkWriter fileChunkWriter) {
         return new SegmentReplicationSourceHandler(
             node,
-            segmentFileChunkWriter,
+            fileChunkWriter,
             copyState.getShard().getThreadPool(),
             copyState,
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
@@ -163,18 +160,13 @@ class OngoingSegmentReplications {
      * local store.  It will then build a handler to orchestrate the segment copy that will be stored locally and started on a subsequent request from replicas
      * with the list of required files.
      * @param request {@link CheckpointInfoRequest}
-     * @param segmentSegmentFileChunkWriter {@link RemoteSegmentFileChunkWriter} writer to handle sending files over the transport layer.
+     * @param fileChunkWriter {@link FileChunkWriter} writer to handle sending files over the transport layer.
      * @return {@link CopyState} the built CopyState for this replication event.
      * @throws IOException - When there is an IO error building CopyState.
      */
-    CopyState prepareForReplication(CheckpointInfoRequest request, RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter)
-        throws IOException {
+    CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
-        final SegmentReplicationSourceHandler handler = createTargetHandler(
-            request.getTargetNode(),
-            copyState,
-            segmentSegmentFileChunkWriter
-        );
+        final SegmentReplicationSourceHandler handler = createTargetHandler(request.getTargetNode(), copyState, fileChunkWriter);
         nodesToHandlers.putIfAbsent(request.getTargetNode(), handler);
         return copyState;
     }
