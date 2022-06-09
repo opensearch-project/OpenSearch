@@ -48,7 +48,12 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     private ByteBuffersDataOutput buffer;
 
     private static final StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(IndexFileNames.SEGMENTS, 1L, "0", Version.LATEST);
-    private static final StoreFileMetadata SEGMENTS_FILE_DIFF = new StoreFileMetadata(IndexFileNames.SEGMENTS, 5L, "different", Version.LATEST);
+    private static final StoreFileMetadata SEGMENTS_FILE_DIFF = new StoreFileMetadata(
+        IndexFileNames.SEGMENTS,
+        5L,
+        "different",
+        Version.LATEST
+    );
     private static final StoreFileMetadata PENDING_DELETE_FILE = new StoreFileMetadata("pendingDelete.del", 1L, "1", Version.LATEST);
 
     private static final Store.MetadataSnapshot SI_SNAPSHOT = new Store.MetadataSnapshot(
@@ -78,13 +83,18 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         spyIndexShard = spy(indexShard);
 
         Mockito.doNothing().when(spyIndexShard).finalizeReplication(any(SegmentInfos.class), anyLong());
-        testSegmentInfos =  spyIndexShard.store().readLastCommittedSegmentsInfo();
+        testSegmentInfos = spyIndexShard.store().readLastCommittedSegmentsInfo();
         buffer = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput indexOutput = new ByteBuffersIndexOutput(buffer, "", null)) {
             testSegmentInfos.write(indexOutput);
         }
-        repCheckpoint = new ReplicationCheckpoint(spyIndexShard.shardId(), spyIndexShard.getPendingPrimaryTerm(), testSegmentInfos.getGeneration(),
-            spyIndexShard.seqNoStats().getLocalCheckpoint(), testSegmentInfos.version);
+        repCheckpoint = new ReplicationCheckpoint(
+            spyIndexShard.shardId(),
+            spyIndexShard.getPendingPrimaryTerm(),
+            testSegmentInfos.getGeneration(),
+            spyIndexShard.seqNoStats().getLocalCheckpoint(),
+            testSegmentInfos.version
+        );
     }
 
     public void testSuccessfulResponse_startReplication() {
@@ -107,9 +117,9 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 Store store,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
-                assertEquals(filesToFetch.size(),2);
-                assert(filesToFetch.contains(SEGMENTS_FILE));
-                assert(filesToFetch.contains(PENDING_DELETE_FILE));
+                assertEquals(filesToFetch.size(), 2);
+                assert (filesToFetch.contains(SEGMENTS_FILE));
+                assert (filesToFetch.contains(PENDING_DELETE_FILE));
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
         };
@@ -302,7 +312,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 logger.error(e);
-                assert(e instanceof IllegalStateException);
+                assert (e instanceof IllegalStateException);
             }
         });
     }

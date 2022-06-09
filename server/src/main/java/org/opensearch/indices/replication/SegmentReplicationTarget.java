@@ -158,7 +158,12 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         final Store.RecoveryDiff diff = snapshot.recoveryDiff(localMetadata);
         logger.debug("Replication diff {}", diff);
         if (diff.different.isEmpty() == false) {
-            getFilesListener.onFailure(new IllegalStateException(new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId()).getFormattedMessage()));
+            getFilesListener.onFailure(
+                new IllegalStateException(
+                    new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId())
+                        .getFormattedMessage()
+                )
+            );
         }
         final List<StoreFileMetadata> filesToFetch = Stream.concat(diff.missing.stream(), diff.different.stream())
             .collect(Collectors.toList());
@@ -188,18 +193,14 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             try {
                 // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
-                System.out.println(responseCheckpoint.getSegmentsGen());
                 SegmentInfos infos = SegmentInfos.readCommit(
                     store.directory(),
                     toIndexInput(checkpointInfoResponse.getInfosBytes()),
                     responseCheckpoint.getSegmentsGen()
                 );
                 indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
-                store.cleanupAndPreserveLatestCommitPoint(
-                    "finalize - clean with in memory infos",
-                    store.getMetadata(infos)
-                );
-                //method/function that checks if some segment doesn't match with that of primary we
+                store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", store.getMetadata(infos));
+                // method/function that checks if some segment doesn't match with that of primary we
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are
@@ -216,11 +217,19 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     logger.debug("Failed to clean lucene index", e);
                     ex.addSuppressed(e);
                 }
-                ReplicationFailedException rfe = new ReplicationFailedException(indexShard.shardId(), "failed to clean after replication", ex);
+                ReplicationFailedException rfe = new ReplicationFailedException(
+                    indexShard.shardId(),
+                    "failed to clean after replication",
+                    ex
+                );
                 fail(rfe, true);
                 throw rfe;
             } catch (Exception ex) {
-                ReplicationFailedException rfe = new ReplicationFailedException(indexShard.shardId(), "failed to clean after replication", ex);
+                ReplicationFailedException rfe = new ReplicationFailedException(
+                    indexShard.shardId(),
+                    "failed to clean after replication",
+                    ex
+                );
                 fail(rfe, true);
                 throw rfe;
             } finally {
