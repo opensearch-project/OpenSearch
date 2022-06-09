@@ -1364,9 +1364,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public Optional<NRTReplicationEngine> getReplicationEngine() {
+        if (getEngine() instanceof NRTReplicationEngine) {
+            return Optional.of((NRTReplicationEngine) getEngine());
+        } else {
+            return Optional.empty();
+        }
+    }
+
     public void finalizeReplication(SegmentInfos infos, long seqNo) throws IOException {
-        assert getEngine() instanceof NRTReplicationEngine;
-        ((NRTReplicationEngine) getEngine()).updateSegments(infos, seqNo);
+        if (getReplicationEngine().isPresent()) {
+            getReplicationEngine().get().updateSegments(infos, seqNo);
+        }
     }
 
     /**

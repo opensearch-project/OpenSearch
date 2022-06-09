@@ -157,6 +157,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
         final Store.RecoveryDiff diff = snapshot.recoveryDiff(localMetadata);
         logger.debug("Replication diff {}", diff);
+        // Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming snapshot
+        // from
+        // source that means the local copy of the segment has been corrupted/changed in some way and we throw an IllegalStateException to
+        // fail the shard
         if (diff.different.isEmpty() == false) {
             getFilesListener.onFailure(
                 new IllegalStateException(

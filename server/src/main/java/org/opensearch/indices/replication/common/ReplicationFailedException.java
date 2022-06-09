@@ -40,6 +40,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if replication fails
+ *
+ * @opensearch.internal
+ */
 public class ReplicationFailedException extends OpenSearchException {
 
     public ReplicationFailedException(IndexShard shard, Throwable cause) {

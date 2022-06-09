@@ -85,7 +85,6 @@ public class NRTReplicationEngine extends Engine {
 
     public synchronized void updateSegments(final SegmentInfos infos, long seqNo) throws IOException {
         // Update the current infos reference on the Engine's reader.
-        assert engineConfig.isReadOnlyReplica() : "Only replicas should update Infos";
         readerManager.updateSegments(infos);
 
         // only update the persistedSeqNo and "lastCommitted" infos reference if the incoming segments have a higher
@@ -95,7 +94,6 @@ public class NRTReplicationEngine extends Engine {
             rollTranslogGeneration();
         }
         localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
-        readerManager.maybeRefresh();
     }
 
     @Override
