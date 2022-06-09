@@ -146,7 +146,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             return false;
         }
         if (localCheckpoint.isAheadOf(requestCheckpoint)) {
-            logger.trace("Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}", localCheckpoint, requestCheckpoint);
+            logger.trace(
+                "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
+                localCheckpoint,
+                requestCheckpoint
+            );
             return false;
         }
         if (localCheckpoint.equals(requestCheckpoint)) {

@@ -935,7 +935,14 @@ public class Node implements Closeable {
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService));
                     b.bind(SegmentReplicationTargetService.class)
-                        .toInstance(new SegmentReplicationTargetService(threadPool, recoverySettings, transportService, new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)));
+                        .toInstance(
+                            new SegmentReplicationTargetService(
+                                threadPool,
+                                recoverySettings,
+                                transportService,
+                                new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                            )
+                        );
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
