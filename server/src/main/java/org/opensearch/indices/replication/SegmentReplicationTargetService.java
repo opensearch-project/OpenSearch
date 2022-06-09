@@ -90,6 +90,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     /**
      * Invoked when a new checkpoint is received from a primary shard.
      * It checks if a new checkpoint should be processed or not and starts replication if needed.
+     * @param requestCheckpoint       received checkpoint that is checked for processing
+     * @param indexShard      replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint requestCheckpoint, final IndexShard indexShard) {
         logger.trace("Checkpoint received {}", () -> requestCheckpoint);
@@ -130,26 +132,25 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * Checks if checkpoint should be processed
      *
      * @param requestCheckpoint       received checkpoint that is checked for processing
-     * @param indexshard      replica shard on which checkpoint is received
+     * @param indexShard      replica shard on which checkpoint is received
      * @return true if checkpoint should be processed
      */
-    private boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint, IndexShard indexshard) {
-        if (indexshard.getState().equals(IndexShardState.STARTED) == false) {
-            logger.debug("Ignore - shard is not started {}", indexshard.getState());
+    private boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint, IndexShard indexShard) {
+        if (indexShard.state().equals(IndexShardState.STARTED) == false) {
+            logger.trace("Ignoring new replication checkpoint - shard is not started {}", indexShard.state());
             return false;
         }
-        ReplicationCheckpoint localCheckpoint = indexshard.getLatestReplicationCheckpoint();
-        logger.debug("Local Checkpoint {}", indexshard.getLatestReplicationCheckpoint());
-        if (onGoingReplications.isShardReplicating(indexshard.shardId())) {
-            logger.debug("Ignore - shard is currently replicating to a checkpoint");
+        ReplicationCheckpoint localCheckpoint = indexShard.getLatestReplicationCheckpoint();
+        if (onGoingReplications.isShardReplicating(indexShard.shardId())) {
+            logger.trace("Ignoring new replication checkpoint - shard is currently replicating to a checkpoint");
             return false;
         }
         if (localCheckpoint.isAheadOf(requestCheckpoint)) {
-            logger.debug("Ignore - Shard is already on checkpoint {} that is ahead of {}", localCheckpoint, requestCheckpoint);
+            logger.trace("Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}", localCheckpoint, requestCheckpoint);
             return false;
         }
         if (localCheckpoint.equals(requestCheckpoint)) {
-            logger.debug("Ignore - Shard is already on checkpoint {}", requestCheckpoint);
+            logger.trace("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint);
             return false;
         }
         return true;

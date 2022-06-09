@@ -28,7 +28,6 @@ public class SegmentReplicationSourceFactory {
     private RecoverySettings recoverySettings;
     private ClusterService clusterService;
 
-    @Inject
     public SegmentReplicationSourceFactory(
         TransportService transportService,
         RecoverySettings recoverySettings,

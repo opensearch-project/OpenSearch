@@ -1373,17 +1373,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the IndexShardSate of current shard
-     */
-    public IndexShardState getState() {
-        return this.state;
-    }
-
-    /**
      * Returns the lastest segmentInfos
      */
     public SegmentInfos getLatestSegmentInfos() {
-        return getEngine().getLatestSegmentInfos();
+        return getEngine().getSegmentInfosSnapshot().get();
     }
 
     /**

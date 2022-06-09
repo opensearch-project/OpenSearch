@@ -431,7 +431,7 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public SegmentInfos getLatestSegmentInfos() {
+    protected SegmentInfos getLatestSegmentInfos() {
         return readerManager.getSegmentInfos();
     }
 

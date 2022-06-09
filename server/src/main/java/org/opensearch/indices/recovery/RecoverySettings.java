@@ -160,7 +160,6 @@ public class RecoverySettings {
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
-    @Inject
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);

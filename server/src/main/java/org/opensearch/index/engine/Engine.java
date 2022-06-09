@@ -173,7 +173,7 @@ public abstract class Engine implements Closeable {
      * Return the latest active SegmentInfos from the engine.
      * @return {@link SegmentInfos}
      */
-    public abstract SegmentInfos getLatestSegmentInfos();
+    protected abstract SegmentInfos getLatestSegmentInfos();
 
     /**
      * In contrast to {@link #getLatestSegmentInfos()}, which returns a {@link SegmentInfos}

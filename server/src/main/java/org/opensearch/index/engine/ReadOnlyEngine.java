@@ -271,7 +271,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public SegmentInfos getLatestSegmentInfos() {
+    protected SegmentInfos getLatestSegmentInfos() {
         return lastCommittedSegmentInfos;
     }
 
