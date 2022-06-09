@@ -38,15 +38,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
-    SegmentReplicationTarget segrepTarget;
-    IndexShard indexShard, spyIndexShard;
-    ReplicationCheckpoint repCheckpoint;
-    ByteBuffersDataOutput buffer;
+    private SegmentReplicationTarget segrepTarget;
+    private IndexShard indexShard, spyIndexShard;
+    private ReplicationCheckpoint repCheckpoint;
+    private ByteBuffersDataOutput buffer;
 
     private static final StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(IndexFileNames.SEGMENTS, 1L, "0", Version.LATEST);
+    private static final StoreFileMetadata SEGMENTS_FILE_DIFF = new StoreFileMetadata(IndexFileNames.SEGMENTS, 5L, "different", Version.LATEST);
     private static final StoreFileMetadata PENDING_DELETE_FILE = new StoreFileMetadata("pendingDelete.del", 1L, "1", Version.LATEST);
 
     private static final Store.MetadataSnapshot SI_SNAPSHOT = new Store.MetadataSnapshot(
@@ -55,25 +57,34 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         0
     );
 
-    SegmentInfos testSegmentInfos = new SegmentInfos(Version.LATEST.major);
+    private static final Store.MetadataSnapshot SI_SNAPSHOT_DIFFERENT = new Store.MetadataSnapshot(
+        Map.of(SEGMENTS_FILE_DIFF.name(), SEGMENTS_FILE_DIFF),
+        null,
+        0
+    );
+
+    SegmentInfos testSegmentInfos;
 
     @Override
     public void setUp() throws Exception {
 
         super.setUp();
-        buffer = new ByteBuffersDataOutput();
-        try (ByteBuffersIndexOutput indexOutput = new ByteBuffersIndexOutput(buffer, "", null)) {
-            testSegmentInfos.write(indexOutput);
-        }
-
-        repCheckpoint = mock(ReplicationCheckpoint.class);
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
+
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
         spyIndexShard = spy(indexShard);
-        Mockito.doNothing().when(spyIndexShard).finalizeReplication(any(SegmentInfos.class), any(), anyLong());
+
+        Mockito.doNothing().when(spyIndexShard).finalizeReplication(any(SegmentInfos.class), anyLong());
+        testSegmentInfos =  spyIndexShard.store().readLastCommittedSegmentsInfo();
+        buffer = new ByteBuffersDataOutput();
+        try (ByteBuffersIndexOutput indexOutput = new ByteBuffersIndexOutput(buffer, "", null)) {
+            testSegmentInfos.write(indexOutput);
+        }
+        repCheckpoint = new ReplicationCheckpoint(spyIndexShard.shardId(), spyIndexShard.getPendingPrimaryTerm(), testSegmentInfos.getGeneration(),
+            spyIndexShard.seqNoStats().getLocalCheckpoint(), testSegmentInfos.version);
     }
 
     public void testSuccessfulResponse_startReplication() {
@@ -96,9 +107,13 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 Store store,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
+                assertEquals(filesToFetch.size(),2);
+                assert(filesToFetch.contains(SEGMENTS_FILE));
+                assert(filesToFetch.contains(PENDING_DELETE_FILE));
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
         };
+
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
@@ -108,7 +123,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onResponse(Void replicationResponse) {
                 try {
-                    verify(spyIndexShard, times(1)).finalizeReplication(any(), any(), anyLong());
+                    verify(spyIndexShard, times(1)).finalizeReplication(any(), anyLong());
                 } catch (IOException ex) {
                     Assert.fail();
                 }
@@ -116,12 +131,14 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
             @Override
             public void onFailure(Exception e) {
+                logger.error("Unexpected test error", e);
                 Assert.fail();
             }
         });
     }
 
     public void testFailureResponse_getCheckpointMetadata() {
+
         Exception exception = new Exception("dummy failure");
         SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
             @Override
@@ -163,6 +180,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     }
 
     public void testFailureResponse_getSegmentFiles() {
+
         Exception exception = new Exception("dummy failure");
         SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
             @Override
@@ -203,7 +221,8 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         });
     }
 
-    public void testFailure_finalizeReplication() throws IOException {
+    public void testFailure_finalizeReplicationThrows() throws IOException {
+
         IOException exception = new IOException("dummy failure");
         SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
             @Override
@@ -231,7 +250,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         );
         segrepTarget = new SegmentReplicationTarget(repCheckpoint, spyIndexShard, segrepSource, segRepListener);
 
-        doThrow(exception).when(spyIndexShard).finalizeReplication(any(), any(), anyLong());
+        doThrow(exception).when(spyIndexShard).finalizeReplication(any(), anyLong());
 
         segrepTarget.startReplication(new ActionListener<Void>() {
             @Override
@@ -246,9 +265,50 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         });
     }
 
+    public void testFailure_differentSegmentFiles() throws IOException {
+
+        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+            }
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                Store store,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+        };
+        SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
+            SegmentReplicationTargetService.SegmentReplicationListener.class
+        );
+        segrepTarget = spy(new SegmentReplicationTarget(repCheckpoint, indexShard, segrepSource, segRepListener));
+        when(segrepTarget.getMetadataSnapshot()).thenReturn(SI_SNAPSHOT_DIFFERENT);
+        segrepTarget.startReplication(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void replicationResponse) {
+                Assert.fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(e);
+                assert(e instanceof IllegalStateException);
+            }
+        });
+    }
+
     @Override
     public void tearDown() throws Exception {
-        logger.info(indexShard.store());
         super.tearDown();
         segrepTarget.markAsDone();
         closeShards(spyIndexShard, indexShard);

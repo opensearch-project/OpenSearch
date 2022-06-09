@@ -277,4 +277,8 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         int totalTranslogOps,
         ActionListener<Void> listener
     );
+
+    protected void closeInternal() {
+        store.decRef();
+    }
 }

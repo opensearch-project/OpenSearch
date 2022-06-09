@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -29,6 +30,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.MultiFileWriter;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
+import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
@@ -57,7 +59,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         ReplicationCheckpoint checkpoint,
         IndexShard indexShard,
         SegmentReplicationSource source,
-        SegmentReplicationTargetService.SegmentReplicationListener listener
+        ReplicationListener listener
     ) {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = checkpoint;
@@ -72,7 +74,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             multiFileWriter.close();
         } finally {
             // free store. increment happens in constructor
-            store.decRef();
+            super.closeInternal();
         }
     }
 
@@ -87,19 +89,12 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     @Override
-    public void onCancel(String reason) {
-        cancellableThreads.cancel(reason);
-    }
-
-    @Override
     public SegmentReplicationState state() {
         return state;
     }
 
-    @Override
-    public ReplicationTarget retryCopy() {
-        return null;
-        // return new SegmentReplicationTarget(checkpoint, indexShard, source, listener);
+    public SegmentReplicationTarget retryCopy() {
+        return new SegmentReplicationTarget(checkpoint, indexShard, source, listener);
     }
 
     @Override
@@ -161,7 +156,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
         final Store.RecoveryDiff diff = snapshot.recoveryDiff(localMetadata);
-        logger.debug("Recovery diff {}", diff);
+        logger.debug("Replication diff {}", diff);
+        if (diff.different.isEmpty() == false) {
+            getFilesListener.onFailure(new IllegalStateException(new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId()).getFormattedMessage()));
+        }
         final List<StoreFileMetadata> filesToFetch = Stream.concat(diff.missing.stream(), diff.different.stream())
             .collect(Collectors.toList());
 
@@ -184,21 +182,24 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            // first, we go and move files that were created with the recovery id suffix to
-            // the actual names, its ok if we have a corrupted index here, since we have replicas
-            // to recover from in case of a full cluster shutdown just when this code executes...
             multiFileWriter.renameAllTempFiles();
             final Store store = store();
             store.incRef();
             try {
                 // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
+                System.out.println(responseCheckpoint.getSegmentsGen());
                 SegmentInfos infos = SegmentInfos.readCommit(
                     store.directory(),
                     toIndexInput(checkpointInfoResponse.getInfosBytes()),
                     responseCheckpoint.getSegmentsGen()
                 );
-                indexShard.finalizeReplication(infos, checkpointInfoResponse.getSnapshot(), responseCheckpoint.getSeqNo());
+                indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
+                store.cleanupAndPreserveLatestCommitPoint(
+                    "finalize - clean with in memory infos",
+                    store.getMetadata(infos)
+                );
+                //method/function that checks if some segment doesn't match with that of primary we
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are
@@ -215,11 +216,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     logger.debug("Failed to clean lucene index", e);
                     ex.addSuppressed(e);
                 }
-                ReplicationFailedException rfe = new ReplicationFailedException(indexShard.shardId(), "failed to clean after recovery", ex);
+                ReplicationFailedException rfe = new ReplicationFailedException(indexShard.shardId(), "failed to clean after replication", ex);
                 fail(rfe, true);
                 throw rfe;
             } catch (Exception ex) {
-                ReplicationFailedException rfe = new ReplicationFailedException(indexShard.shardId(), "failed to clean after recovery", ex);
+                ReplicationFailedException rfe = new ReplicationFailedException(indexShard.shardId(), "failed to clean after replication", ex);
                 fail(rfe, true);
                 throw rfe;
             } finally {
@@ -239,10 +240,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         );
     }
 
-    private Store.MetadataSnapshot getMetadataSnapshot() throws IOException {
-        if (indexShard.getLatestSegmentInfos() == null) {
+    Store.MetadataSnapshot getMetadataSnapshot() throws IOException {
+        if (indexShard.getSegmentInfosSnapshot() == null) {
             return Store.MetadataSnapshot.EMPTY;
         }
-        return store.getMetadata(indexShard.getLatestSegmentInfos());
+        return store.getMetadata(indexShard.getSegmentInfosSnapshot().get());
     }
 }

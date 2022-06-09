@@ -710,24 +710,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * This method deletes every file in this store that is not contained in either the remote or local metadata snapshots.
      * This method is used for segment replication when the in memory SegmentInfos can be ahead of the on disk segment file.
-     * In this case files from both snapshots must be preserved.
+     * In this case files from both snapshots must be preserved. Verification has been done that all files are present on disk.
      * @param reason         the reason for this cleanup operation logged for each deleted file
-     * @param remoteSnapshot The remote snapshot sent from primary shards.
      * @param localSnapshot  The local snapshot from in memory SegmentInfos.
      * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
-    public void cleanupAndVerify(
+    public void cleanupAndPreserveLatestCommitPoint(
         String reason,
-        MetadataSnapshot remoteSnapshot,
-        MetadataSnapshot localSnapshot,
-        MetadataSnapshot latestCommitPointMetadata
+        MetadataSnapshot localSnapshot
     ) throws IOException {
         // fetch a snapshot from the latest on disk Segments_N file. This can be behind
         // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(reason, remoteSnapshot, latestCommitPointMetadata);
-            verifyAfterCleanup(remoteSnapshot, localSnapshot);
+            cleanupFiles(reason, localSnapshot, getMetadata(readLastCommittedSegmentsInfo()));
         } finally {
             metadataLock.writeLock().unlock();
         }

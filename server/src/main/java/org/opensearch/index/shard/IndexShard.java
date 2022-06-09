@@ -1364,19 +1364,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void finalizeReplication(SegmentInfos infos, MetadataSnapshot expectedMetadata, long seqNo) throws IOException {
-        if (getEngine() instanceof NRTReplicationEngine) {
-            getEngine().finalizeReplication(infos, expectedMetadata, seqNo);
-        }
-    }
-
-    /**
-     * Fetch a snapshot of the latest SegmentInfos held by the engine.
-     * @return {@link SegmentInfos}
-     */
-    public SegmentInfos getLatestSegmentInfos() {
-        // TODO: implement
-        return null;
+    public void finalizeReplication(SegmentInfos infos, long seqNo) throws IOException {
+        assert getEngine() instanceof NRTReplicationEngine;
+        ((NRTReplicationEngine) getEngine()).updateSegments(infos, seqNo);
     }
 
     /**

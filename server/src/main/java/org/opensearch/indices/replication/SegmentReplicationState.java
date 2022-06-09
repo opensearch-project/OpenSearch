@@ -25,11 +25,11 @@ public class SegmentReplicationState implements ReplicationState {
      * @opensearch.internal
      */
     public enum Stage {
+        DONE((byte) 0),
+
         INIT((byte) 1),
 
-        REPLICATING((byte) 1),
-
-        DONE((byte) 2);
+        REPLICATING((byte) 2);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
 
@@ -85,9 +85,9 @@ public class SegmentReplicationState implements ReplicationState {
 
     protected void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {
-            assert false : "can't move recovery to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])";
+            assert false : "can't move replication to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])";
             throw new IllegalStateException(
-                "can't move recovery to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])"
+                "can't move replication to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])"
             );
         }
         stage = next;
