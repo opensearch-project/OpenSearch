@@ -287,9 +287,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
-        // https://github.com/opensearch-project/OpenSearch/issues/3484
-        // Undo error on types which breaks compatibility with some external clients
-        new BulkRequestParser(false).parse(
+        new BulkRequestParser().parse(
             data,
             defaultIndex,
             routing,
@@ -298,7 +296,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             requireAlias,
             allowExplicitIndex,
             xContentType,
-            (indexRequest, type) -> internalAdd(indexRequest),
+            this::internalAdd,
             this::internalAdd,
             this::add
         );
