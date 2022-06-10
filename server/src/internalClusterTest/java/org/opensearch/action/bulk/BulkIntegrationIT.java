@@ -170,18 +170,6 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
         }
     }
 
-    // Todo: This test is added to verify type support in bulk action. This should be removed once all clients
-    // avoid sending this param.
-    // https://github.com/opensearch-project/OpenSearch/issues/3484
-    public void testBulkWithTypes() throws Exception {
-        String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/bulk-with-deprecated-types.json");
-        {
-            BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-            assertThat(bulkRequest.numberOfActions(), equalTo(5));
-        }
-    }
-
     private void createSamplePipeline(String pipelineId) throws IOException, ExecutionException, InterruptedException {
         XContentBuilder pipeline = jsonBuilder().startObject()
             .startArray("processors")
