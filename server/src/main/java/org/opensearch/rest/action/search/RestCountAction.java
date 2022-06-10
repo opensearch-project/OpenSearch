@@ -71,10 +71,7 @@ public class RestCountAction extends BaseRestHandler {
                 new Route(GET, "/_count"),
                 new Route(POST, "/_count"),
                 new Route(GET, "/{index}/_count"),
-                new Route(POST, "/{index}/_count"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_count"),
-                new Route(POST, "/{index}/{type}/_count")
+                new Route(POST, "/{index}/_count")
             )
         );
     }
@@ -86,9 +83,6 @@ public class RestCountAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.hasParam("type")) {
-            request.param("type");
-        }
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
