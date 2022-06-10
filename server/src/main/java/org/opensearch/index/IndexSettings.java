@@ -32,11 +32,12 @@
 package org.opensearch.index;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Strings;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
@@ -53,6 +54,7 @@ import org.opensearch.node.Node;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -526,14 +528,21 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME = Setting.timeSetting(
         "index.merge_on_flush.max_full_flush_merge_wait_time",
         new TimeValue(10, TimeUnit.SECONDS),
-        new TimeValue(0, TimeUnit.MILLISECONDS),
+        new TimeValue(1, TimeUnit.MILLISECONDS),
         Property.Dynamic,
         Property.IndexScope
     );
 
     public static final Setting<Boolean> INDEX_MERGE_ON_FLUSH_ENABLED = Setting.boolSetting(
         "index.merge_on_flush.enabled",
-        false,
+        true, /* https://issues.apache.org/jira/browse/LUCENE-10078 */
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<String> INDEX_MERGE_ON_FLUSH_POLICY = Setting.simpleString(
+        "index.merge_on_flush.policy",
+        "default",
         Property.IndexScope,
         Property.Dynamic
     );
@@ -632,6 +641,10 @@ public final class IndexSettings {
      * Is merge of flush enabled or not
      */
     private volatile boolean mergeOnFlushEnabled;
+    /**
+     * Specialized merge-on-flush policy if provided
+     */
+    private volatile Function<MergePolicy, MergePolicy> mergeOnFlushPolicy;
 
     /**
      * Returns the default search fields for this index.
@@ -750,6 +763,7 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
+        setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -822,6 +836,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME, this::setMaxFullFlushMergeWaitTime);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -892,7 +907,7 @@ public final class IndexSettings {
      * Returns <code>true</code> if the index has a custom data path
      */
     public boolean hasCustomDataPath() {
-        return Strings.isNotEmpty(customDataPath());
+        return !Strings.isEmpty(customDataPath());
     }
 
     /**
@@ -1425,5 +1440,25 @@ public final class IndexSettings {
 
     public boolean isMergeOnFlushEnabled() {
         return mergeOnFlushEnabled;
+    }
+
+    private void setMergeOnFlushPolicy(String policy) {
+        if (Strings.isEmpty(policy) || "default".equalsIgnoreCase(policy)) {
+            mergeOnFlushPolicy = null;
+        } else if ("merge-on-flush".equalsIgnoreCase(policy)) {
+            this.mergeOnFlushPolicy = MergeOnFlushMergePolicy::new;
+        } else {
+            throw new IllegalArgumentException(
+                "The "
+                    + IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY.getKey()
+                    + " has unsupported policy specified: "
+                    + policy
+                    + ". Please use one of: default, merge-on-flush"
+            );
+        }
+    }
+
+    public Optional<Function<MergePolicy, MergePolicy>> getMergeOnFlushPolicy() {
+        return Optional.ofNullable(mergeOnFlushPolicy);
     }
 }
