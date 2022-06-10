@@ -29,8 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.opensearch.cluster.ClusterServiceRequest;
-import org.opensearch.cluster.CreateComponentResponse;
+import org.opensearch.cluster.*;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
@@ -52,6 +51,7 @@ import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -64,7 +64,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
-    public static final String REQUEST_EXTENSION_CREATE_COMPONENT = "internal:discovery/createcomponent";
+    public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
+    public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
+    public static final String REQUEST_EXTENSION_PLUGIN_SETTINGS = "internal:discovery/pluginsettings";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
     private final Path extensionsPath;
@@ -94,13 +96,30 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
         transportService.registerRequestHandler(
-            REQUEST_EXTENSION_CREATE_COMPONENT,
+            REQUEST_EXTENSION_CLUSTER_STATE,
             ThreadPool.Names.GENERIC,
             false,
             false,
             ClusterServiceRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleCreateComponentRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(handleExtensiontRequest(request)))
         );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_LOCAL_NODE,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ClusterServiceRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleExtensiontRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_PLUGIN_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ClusterServiceRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleExtensiontRequest(request)))
+        );
+    }
     }
 
     @Override
@@ -216,11 +235,19 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    CreateComponentResponse handleCreateComponentRequest(ClusterServiceRequest clusterServiceRequest) {
+    TransportResponse handleExtensiontRequest(ClusterServiceRequest clusterServiceRequest) {
         // Read enum
-        logger.info("Create Component State Request");
-        CreateComponentResponse createComponentResponse = new CreateComponentResponse(clusterService);
-        return createComponentResponse;
+        if (clusterServiceRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
+            ExtensionClusterStateResponse clusterStateResponse = new ExtensionClusterStateResponse(clusterService);
+            return clusterStateResponse;
+        } else if (clusterServiceRequest.getRequestType() == RequestType.REQUEST_EXTENSION_LOCAL_NODE) {
+            LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
+            return localNodeResponse;
+        } else if (clusterServiceRequest.getRequestType() == RequestType.REQUEST_EXTENSION_PLUGIN_SETTINGS) {
+            ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
+            return clusterSettingsResponse;
+        }
+        return null;
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
