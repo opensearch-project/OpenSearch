@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -41,10 +40,7 @@ public class ExtensionClusterStateResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "ClusterStateResponse{"
-            + "clusterState="
-            + clusterState
-            + '}';
+        return "ClusterStateResponse{" + "clusterState=" + clusterState + '}';
     }
 
     @Override

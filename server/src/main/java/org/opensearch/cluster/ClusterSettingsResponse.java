@@ -31,7 +31,7 @@ public class ClusterSettingsResponse extends TransportResponse {
 
     public ClusterSettingsResponse(StreamInput in) throws IOException {
         super(in);
-        this.clusterSettings =  Settings.readSettingsFromStream(in);
+        this.clusterSettings = Settings.readSettingsFromStream(in);
     }
 
     @Override
@@ -41,10 +41,7 @@ public class ClusterSettingsResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "ClusterSettingsResponse{"
-            + "clusterSettings="
-            + clusterSettings
-            + '}';
+        return "ClusterSettingsResponse{" + "clusterSettings=" + clusterSettings + '}';
     }
 
     @Override

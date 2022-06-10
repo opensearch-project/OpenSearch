@@ -66,9 +66,24 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
-    public static final String REQUEST_EXTENSION_PLUGIN_SETTINGS = "internal:discovery/pluginsettings";
+    public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
+
+    /**
+     * Enum for Extension Requests
+     *
+     * @opensearch.internal
+     */
+    public static enum RequestType {
+        REQUEST_EXTENSION_CLUSTER_STATE,
+        REQUEST_EXTENSION_LOCAL_NODE,
+        REQUEST_EXTENSION_CLUSTER_SETTINGS,
+        CREATE_COMPONENT,
+        ON_INDEX_MODULE,
+        GET_SETTINGS
+    };
+
     private final Path extensionsPath;
     final Set<DiscoveryExtension> extensionsSet;
     Set<DiscoveryExtension> extensionsInitializedSet;
@@ -100,7 +115,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ThreadPool.Names.GENERIC,
             false,
             false,
-            ClusterServiceRequest::new,
+            ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensiontRequest(request)))
         );
         transportService.registerRequestHandler(
@@ -108,18 +123,17 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ThreadPool.Names.GENERIC,
             false,
             false,
-            ClusterServiceRequest::new,
+            ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensiontRequest(request)))
         );
         transportService.registerRequestHandler(
-            REQUEST_EXTENSION_PLUGIN_SETTINGS,
+            REQUEST_EXTENSION_CLUSTER_SETTINGS,
             ThreadPool.Names.GENERIC,
             false,
             false,
-            ClusterServiceRequest::new,
+            ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensiontRequest(request)))
         );
-    }
     }
 
     @Override
@@ -235,15 +249,15 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    TransportResponse handleExtensiontRequest(ClusterServiceRequest clusterServiceRequest) {
+    TransportResponse handleExtensiontRequest(ExtensionRequest extensionRequest) {
         // Read enum
-        if (clusterServiceRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
+        if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
             ExtensionClusterStateResponse clusterStateResponse = new ExtensionClusterStateResponse(clusterService);
             return clusterStateResponse;
-        } else if (clusterServiceRequest.getRequestType() == RequestType.REQUEST_EXTENSION_LOCAL_NODE) {
+        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_LOCAL_NODE) {
             LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
             return localNodeResponse;
-        } else if (clusterServiceRequest.getRequestType() == RequestType.REQUEST_EXTENSION_PLUGIN_SETTINGS) {
+        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS) {
             ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
             return clusterSettingsResponse;
         }

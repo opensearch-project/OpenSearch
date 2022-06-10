@@ -41,10 +41,7 @@ public class LocalNodeResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "LocalNodeResponse{"
-            + "localNode="
-            + localNode
-            + '}';
+        return "LocalNodeResponse{" + "localNode=" + localNode + '}';
     }
 
     @Override
