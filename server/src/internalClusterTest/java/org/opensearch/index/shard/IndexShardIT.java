@@ -675,7 +675,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             cbs,
-            SegmentReplicationCheckpointPublisher.EMPTY
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            null
         );
     }
 
