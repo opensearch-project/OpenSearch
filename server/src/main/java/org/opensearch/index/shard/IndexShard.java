@@ -304,6 +304,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final ReferenceManager.RefreshListener checkpointRefreshListener;
 
+    private final RemoteStoreRefreshListener remoteStoreRefreshListener;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -325,7 +327,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
-        @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher
+        @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        @Nullable final RemoteStoreRefreshListener remoteStoreRefreshListener
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -413,6 +416,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             this.checkpointRefreshListener = null;
         }
+        this.remoteStoreRefreshListener = remoteStoreRefreshListener;
     }
 
     public ThreadPool getThreadPool() {
@@ -3139,11 +3143,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
 
-        final List<ReferenceManager.RefreshListener> internalRefreshListener;
+        final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
+        internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
+        if (remoteStoreRefreshListener != null && shardRouting.primary()) {
+            internalRefreshListener.add(remoteStoreRefreshListener);
+        }
         if (this.checkpointRefreshListener != null) {
-            internalRefreshListener = Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener);
-        } else {
-            internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));
+            internalRefreshListener.add(checkpointRefreshListener);
         }
 
         return this.engineConfigFactory.newEngineConfig(
