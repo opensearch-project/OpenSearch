@@ -33,11 +33,13 @@ import java.util.function.BiPredicate;
  * </pre>
  * <p>
  * and prevent allocation on the surviving nodes of the under capacity cluster
- * based on overload factor defined as a percentage by
+ * based on overload factor defined as a percentage and flat skew as absolute allowed skewness by
+ * </p>
  * <pre>
  * cluster.routing.allocation.load_awareness.skew_factor: X
+ * cluster.routing.allocation.load_awareness.flat_skew: N
  * </pre>
- * The total limit per node based on skew_factor doesn't limit primaries that previously
+ * The total limit per node based on skew_factor and flat_skew doesn't limit primaries that previously
  * existed on the disk as those shards are force allocated by
  * {@link AllocationDeciders#canForceAllocatePrimary(ShardRouting, RoutingNode, RoutingAllocation)}
  * however new primaries due to index creation, snapshot restore etc can be controlled via the below settings.
@@ -74,6 +76,13 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
         Setting.Property.Dynamic,
         Property.NodeScope
     );
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FLAT_SKEW_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.load_awareness.flat_skew",
+        2,
+        2,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile int provisionedCapacity;
 
@@ -81,12 +90,15 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
 
     private volatile boolean allowUnassignedPrimaries;
 
+    private volatile int flatSkew;
+
     private static final Logger logger = LogManager.getLogger(NodeLoadAwareAllocationDecider.class);
 
     public NodeLoadAwareAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.skewFactor = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.get(settings);
         this.provisionedCapacity = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.get(settings);
         this.allowUnassignedPrimaries = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING.get(settings);
+        this.flatSkew = CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FLAT_SKEW_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING, this::setSkewFactor);
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
@@ -95,6 +107,10 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
             this::setAllowUnassignedPrimaries
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FLAT_SKEW_SETTING,
+            this::setFlatSkew
         );
     }
 
@@ -108,6 +124,10 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
 
     private void setProvisionedCapacity(int provisionedCapacity) {
         this.provisionedCapacity = provisionedCapacity;
+    }
+
+    private void setFlatSkew(int flatSkew){
+        this.flatSkew = flatSkew;
     }
 
     @Override
@@ -146,7 +166,7 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
         Metadata metadata = allocation.metadata();
         float expectedAvgShardsPerNode = (float) metadata.getTotalNumberOfShards() / provisionedCapacity;
         int nodeShardCount = node.numberOfOwningShards();
-        int limit = (int) Math.ceil(expectedAvgShardsPerNode * (1 + skewFactor / 100.0));
+        int limit = flatSkew + (int) Math.ceil(expectedAvgShardsPerNode * (1 + skewFactor / 100.0));
         if (decider.test(nodeShardCount, limit)) {
             logger.debug(
                 () -> new ParameterizedMessage(
