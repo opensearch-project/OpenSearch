@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 /**
@@ -57,7 +56,6 @@ public final class SegmentFileTransferHandler {
     private final int maxConcurrentFileChunks;
     private final DiscoveryNode targetNode;
     private final CancellableThreads cancellableThreads;
-    private final Consumer<IOException> onCorruptException;
 
     public SegmentFileTransferHandler(
         IndexShard shard,
@@ -66,7 +64,6 @@ public final class SegmentFileTransferHandler {
         Logger logger,
         ThreadPool threadPool,
         CancellableThreads cancellableThreads,
-        Consumer<IOException> onCorruptException,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks
     ) {
@@ -76,7 +73,6 @@ public final class SegmentFileTransferHandler {
         this.logger = logger;
         this.threadPool = threadPool;
         this.cancellableThreads = cancellableThreads;
-        this.onCorruptException = onCorruptException;
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
@@ -184,7 +180,7 @@ public final class SegmentFileTransferHandler {
                     if (localException == null) {
                         localException = corruptIndexException;
                     }
-                    onCorruptException.accept(corruptIndexException);
+                    shard.failShard("error sending files", corruptIndexException);
                 }
             }
             if (localException != null) {

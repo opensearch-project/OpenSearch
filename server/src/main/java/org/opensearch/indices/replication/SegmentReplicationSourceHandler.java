@@ -30,7 +30,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -84,7 +83,6 @@ class SegmentReplicationSourceHandler {
             logger,
             threadPool,
             cancellableThreads,
-            this::failEngine,
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
@@ -154,10 +152,6 @@ class SegmentReplicationSourceHandler {
      */
     public void cancel(String reason) {
         cancellableThreads.cancel(reason);
-    }
-
-    private void failEngine(IOException e) {
-        shard.failShard("Failed Replication", e);
     }
 
     CopyState getCopyState() {

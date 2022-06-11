@@ -547,6 +547,11 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         };
         IndexShard mockShard = mock(IndexShard.class);
         when(mockShard.shardId()).thenReturn(new ShardId("testIndex", "testUUID", 0));
+        doAnswer(invocation -> {
+            assertFalse(failedEngine.get());
+            failedEngine.set(true);
+            return null;
+        }).when(mockShard).failShard(any(), any());
         RecoverySourceHandler handler = new RecoverySourceHandler(
             mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
@@ -555,13 +560,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
             between(1, 8),
             between(1, 8)
-        ) {
-            @Override
-            protected void failEngine(IOException cause) {
-                assertFalse(failedEngine.get());
-                failedEngine.set(true);
-            }
-        };
+        );
         SetOnce<Exception> sendFilesError = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
         handler.sendFiles(
@@ -623,6 +622,11 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         };
         IndexShard mockShard = mock(IndexShard.class);
         when(mockShard.shardId()).thenReturn(new ShardId("testIndex", "testUUID", 0));
+        doAnswer(invocation -> {
+            assertFalse(failedEngine.get());
+            failedEngine.set(true);
+            return null;
+        }).when(mockShard).failShard(any(), any());
         RecoverySourceHandler handler = new RecoverySourceHandler(
             mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
@@ -631,13 +635,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
             between(1, 10),
             between(1, 4)
-        ) {
-            @Override
-            protected void failEngine(IOException cause) {
-                assertFalse(failedEngine.get());
-                failedEngine.set(true);
-            }
-        };
+        );
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
         handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
         Exception ex = expectThrows(Exception.class, sendFilesFuture::actionGet);

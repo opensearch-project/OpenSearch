@@ -142,7 +142,6 @@ public class RecoverySourceHandler {
             logger,
             threadPool,
             cancellableThreads,
-            this::failEngine,
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
@@ -1049,9 +1048,5 @@ public class RecoverySourceHandler {
                 throw e;
             }))
         );
-    }
-
-    protected void failEngine(IOException cause) {
-        shard.failShard("recovery", cause);
     }
 }
