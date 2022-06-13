@@ -180,10 +180,11 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
                 Decision.NO,
                 NAME,
                 "too many shards [%d] allocated to this node, limit per node [%d] considering"
-                    + " overload factor [%.2f] based on capacity [%d]",
+                    + " overload factor [%.2f] and flat skew [%d] based on capacity [%d]",
                 nodeShardCount,
                 limit,
                 skewFactor,
+                flatSkew,
                 provisionedCapacity
             );
         }
