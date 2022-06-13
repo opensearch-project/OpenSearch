@@ -108,10 +108,7 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
             CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
             this::setAllowUnassignedPrimaries
         );
-        clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FLAT_SKEW_SETTING,
-            this::setFlatSkew
-        );
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FLAT_SKEW_SETTING, this::setFlatSkew);
     }
 
     private void setAllowUnassignedPrimaries(boolean allowUnassignedPrimaries) {
@@ -126,7 +123,7 @@ public class NodeLoadAwareAllocationDecider extends AllocationDecider {
         this.provisionedCapacity = provisionedCapacity;
     }
 
-    private void setFlatSkew(int flatSkew){
+    private void setFlatSkew(int flatSkew) {
         this.flatSkew = flatSkew;
     }
 

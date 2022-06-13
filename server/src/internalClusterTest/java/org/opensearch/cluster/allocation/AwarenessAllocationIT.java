@@ -367,24 +367,39 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .build();
 
         logger.info("--> starting 15 nodes on zones 'a' & 'b' & 'c'");
-        List<String> nodes_in_zone_a = internalCluster().startNodes(nodeCountPerAZ, Settings.builder().put(commonSettings).put("node.attr.zone", "a").build());
-        List<String> nodes_in_zone_b = internalCluster().startNodes(nodeCountPerAZ, Settings.builder().put(commonSettings).put("node.attr.zone", "b").build());
-        List<String> nodes_in_zone_c = internalCluster().startNodes(nodeCountPerAZ, Settings.builder().put(commonSettings).put("node.attr.zone", "c").build());
+        List<String> nodes_in_zone_a = internalCluster().startNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+        );
+        List<String> nodes_in_zone_b = internalCluster().startNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
+        );
+        List<String> nodes_in_zone_c = internalCluster().startNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+        );
 
         // Creating index with 30 primary and 1 replica
-        createIndex("test-1", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplica)
-            .build());
+        createIndex(
+            "test-1",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplica)
+                .build()
+        );
 
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth()
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .prepareHealth()
             .setIndices("test-1")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3))
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
-            .execute().actionGet();
+            .execute()
+            .actionGet();
         assertFalse(health.isTimedOut());
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -411,37 +426,55 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         }
 
         client().admin().cluster().prepareReroute().setRetryFailed(true).get();
-        health = client().admin().cluster().prepareHealth()
+        health = client().admin()
+            .cluster()
+            .prepareHealth()
             .setIndices("test-1")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 - nodesToStop))
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
-            .execute().actionGet();
+            .execute()
+            .actionGet();
         assertFalse(health.isTimedOut());
 
         // Creating another index with 30 primary and 1 replica
-        createIndex("test-2", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplica)
-            .build());
+        createIndex(
+            "test-2",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplica)
+                .build()
+        );
 
-        health = client().admin().cluster().prepareHealth()
+        health = client().admin()
+            .cluster()
+            .prepareHealth()
             .setIndices("test-1", "test-2")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 - nodesToStop))
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
-            .execute().actionGet();
+            .execute()
+            .actionGet();
         assertFalse(health.isTimedOut());
 
         // Restarting the nodes back
         for (int i = 0; i < nodesToStop; i++) {
-            internalCluster().startNode(Settings.builder().put("node.name", nodes_in_zone_a.get(i)).put(nodeDataPathSettings.get(i)).put(commonSettings).put("node.attr.zone", "a").build());
+            internalCluster().startNode(
+                Settings.builder()
+                    .put("node.name", nodes_in_zone_a.get(i))
+                    .put(nodeDataPathSettings.get(i))
+                    .put(commonSettings)
+                    .put("node.attr.zone", "a")
+                    .build()
+            );
         }
         client().admin().cluster().prepareReroute().setRetryFailed(true).get();
 
-        health = client().admin().cluster().prepareHealth()
+        health = client().admin()
+            .cluster()
+            .prepareHealth()
             .setIndices("test-1", "test-2")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3))
@@ -449,7 +482,8 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .setWaitForActiveShards(2 * numOfShards * (numOfReplica + 1))
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
-            .execute().actionGet();
+            .execute()
+            .actionGet();
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
 
         // All shards should be started now and cluster health should be green

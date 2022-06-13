@@ -519,11 +519,9 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
                     )
             )
             .build();
-        updatedRoutingTable = RoutingTable.builder(newState.routingTable())
-            .addAsNew(metadata.index("test3"))
-            .build();
-        //increases avg shard per node to 145/5 = 29, overload factor 1.2, total allowed 35+2=37 per node and NO primaries get assigned
-        //since total owning shards are 42 per node already
+        updatedRoutingTable = RoutingTable.builder(newState.routingTable()).addAsNew(metadata.index("test3")).build();
+        // increases avg shard per node to 145/5 = 29, overload factor 1.2, total allowed 35+2=37 per node and NO primaries get assigned
+        // since total owning shards are 42 per node already
         newState = ClusterState.builder(newState).metadata(metadata).routingTable(updatedRoutingTable).build();
         newState = strategy.reroute(newState, "reroute");
 
@@ -612,7 +610,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(newState.getRoutingNodes().node("node14").size(), equalTo(7));
         assertThat(newState.getRoutingNodes().node("node15").size(), equalTo(7));
 
-        //add the removed node
+        // add the removed node
         newState = addNodes(newState, strategy, "zone3", "node11");
 
         assertThat(newState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(6));
@@ -927,7 +925,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(20));
-        //Each node can take 11 shards each (2 + ceil(8*1.1)), hence 2 replicas will also start
+        // Each node can take 11 shards each (2 + ceil(8*1.1)), hence 2 replicas will also start
         logger.info("--> 2 replicas are initializing");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 
@@ -1087,11 +1085,17 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(newState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
     }
 
-    public void testThreeZoneOneReplicaWithSkewFactorZeroAllShardsAssignedAfterRecovery(){
-        AllocationService strategy = createAllocationServiceWithAdditionalSettings(org.opensearch.common.collect.Map.of(
-            NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(), 15,
-            NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(), 0,
-            "cluster.routing.allocation.awareness.force.zone.values", "zone1,zone2,zone3"));
+    public void testThreeZoneOneReplicaWithSkewFactorZeroAllShardsAssignedAfterRecovery() {
+        AllocationService strategy = createAllocationServiceWithAdditionalSettings(
+            org.opensearch.common.collect.Map.of(
+                NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
+                15,
+                NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
+                0,
+                "cluster.routing.allocation.awareness.force.zone.values",
+                "zone1,zone2,zone3"
+            )
+        );
 
         logger.info("Building initial routing table for 'testThreeZoneOneReplicaWithSkewFactorZeroAllShardsAssignedAfterRecovery'");
 
@@ -1099,12 +1103,12 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(30).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder()
-            .addAsNew(metadata.index("test"))
-            .build();
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(initialRoutingTable)
+            .build();
 
         logger.info("--> adding five nodes on same zone and do rerouting");
         clusterState = addNodes(clusterState, strategy, "zone1", "node1", "node2", "node3", "node4", "node5");
@@ -1147,39 +1151,40 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
         logger.info("add another index with 30 primary 1 replica");
         metadata = Metadata.builder(newState.metadata())
-            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 30)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            ))
+            .put(
+                IndexMetadata.builder("test1")
+                    .settings(
+                        settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 30)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    )
+            )
             .build();
-        RoutingTable updatedRoutingTable = RoutingTable.builder(newState.routingTable())
-            .addAsNew(metadata.index("test1"))
-            .build();
+        RoutingTable updatedRoutingTable = RoutingTable.builder(newState.routingTable()).addAsNew(metadata.index("test1")).build();
 
         newState = ClusterState.builder(newState).metadata(metadata).routingTable(updatedRoutingTable).build();
         newState = strategy.reroute(newState, "reroute");
 
         newState = startInitializingShardsAndReroute(strategy, newState);
 
-        //add the removed node
-        newState = ClusterState.builder(newState).nodes(DiscoveryNodes.builder(newState.nodes())
-            .add(newNode("node11", singletonMap("zone", "zone3"))))
+        // add the removed node
+        newState = ClusterState.builder(newState)
+            .nodes(DiscoveryNodes.builder(newState.nodes()).add(newNode("node11", singletonMap("zone", "zone3"))))
             .build();
         newState = strategy.reroute(newState, "reroute");
 
         newState = startInitializingShardsAndReroute(strategy, newState);
 
-        //add the removed node
-        newState = ClusterState.builder(newState).nodes(DiscoveryNodes.builder(newState.nodes())
-            .add(newNode("node12", singletonMap("zone", "zone3"))))
+        // add the removed node
+        newState = ClusterState.builder(newState)
+            .nodes(DiscoveryNodes.builder(newState.nodes()).add(newNode("node12", singletonMap("zone", "zone3"))))
             .build();
         newState = strategy.reroute(newState, "reroute");
 
         newState = startInitializingShardsAndReroute(strategy, newState);
 
-        //add the removed node
-        newState = ClusterState.builder(newState).nodes(DiscoveryNodes.builder(newState.nodes())
-            .add(newNode("node13", singletonMap("zone", "zone3"))))
+        // add the removed node
+        newState = ClusterState.builder(newState)
+            .nodes(DiscoveryNodes.builder(newState.nodes()).add(newNode("node13", singletonMap("zone", "zone3"))))
             .build();
         newState = strategy.reroute(newState, "reroute");
 
@@ -1189,7 +1194,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(newState.getRoutingNodes().node("node13").size(), equalTo(8));
         assertThat(newState.getRoutingNodes().node("node12").size(), equalTo(8));
         assertThat(newState.getRoutingNodes().node("node11").size(), equalTo(8));
-        //ensure all shards are assigned
+        // ensure all shards are assigned
         assertThat(newState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(120));
         assertThat(newState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
     }
