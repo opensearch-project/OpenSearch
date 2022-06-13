@@ -122,8 +122,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                         extensionsSet.add(
                             new DiscoveryExtension(
                                 extension.getName(),
-                                extension.getName(),
-                                extension.getEphemeralId(),
+                                extension.getUniqueId(),
+                                // placeholder for ephemeral id, will change with POC discovery
+                                extension.getUniqueId(),
                                 extension.getHostName(),
                                 extension.getHostAddress(),
                                 new TransportAddress(TransportAddress.META_ADDRESS, Integer.parseInt(extension.getPort())),

@@ -54,9 +54,9 @@ import org.opensearch.transport.nio.MockNioTransport;
 public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     public void testExtensionsDiscovery() throws Exception {
-        Path extensionsDir = createTempDir();
-        Path pluginDir1 = extensionsDir.resolve("fake-extension-1");
-        Path pluginDir2 = extensionsDir.resolve("fake-extension-2");
+        Path extensionDir = createTempDir();
+        Path pluginDir1 = extensionDir.resolve("fake-extension-1");
+        Path pluginDir2 = extensionDir.resolve("fake-extension-2");
 
         PluginTestUtil.writePluginProperties(
             pluginDir1,
@@ -91,7 +91,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         Settings settings = Settings.builder().build();
-        ExtensionsOrchestrator orchestrator = new ExtensionsOrchestrator(settings, extensionsDir);
+        ExtensionsOrchestrator orchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         Set<DiscoveryExtension> expectedExtensionsSet = new HashSet<DiscoveryExtension>();
 
@@ -127,7 +127,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testNonAccessibleDirectory() throws Exception {
-        Settings settings = Settings.builder().build();
+        Settings settings = Settings.builder().put("node.name", "my-node").build();
+        ;
         AccessControlException e = expectThrows(
             AccessControlException.class,
             () -> new ExtensionsOrchestrator(settings, PathUtils.get(""))
@@ -136,9 +137,9 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testExtensionsInitialize() throws Exception {
-        Path extensionsDir = createTempDir().resolve("extensions");
-        Path pluginDir1 = extensionsDir.resolve("fake-extension-1");
-        Path pluginDir2 = extensionsDir.resolve("fake-extension-2");
+        Path extensionDir = createTempDir().resolve("extensions");
+        Path pluginDir1 = extensionDir.resolve("fake-extension-1");
+        Path pluginDir2 = extensionDir.resolve("fake-extension-2");
 
         PluginTestUtil.writePluginProperties(
             pluginDir1,
@@ -173,7 +174,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         Settings settings = Settings.builder().put("cluster.name", "test").build();
-        ExtensionsOrchestrator orchestrator = new ExtensionsOrchestrator(settings, extensionsDir);
+        ExtensionsOrchestrator orchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
         MockNioTransport transport = new MockNioTransport(
@@ -236,9 +237,9 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     public void testOnIndexModule() throws Exception {
 
-        Path extensionsDir = createTempDir().resolve("extensions");
-        Path pluginDir1 = extensionsDir.resolve("fake-extension-1");
-        Path pluginDir2 = extensionsDir.resolve("fake-extension-2");
+        Path extensionDir = createTempDir().resolve("extensions");
+        Path pluginDir1 = extensionDir.resolve("fake-extension-1");
+        Path pluginDir2 = extensionDir.resolve("fake-extension-2");
 
         PluginTestUtil.writePluginProperties(
             pluginDir1,
@@ -276,7 +277,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        ExtensionsOrchestrator orchestrator = new ExtensionsOrchestrator(settings, extensionsDir);
+        ExtensionsOrchestrator orchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
         MockNioTransport transport = new MockNioTransport(
@@ -324,7 +325,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
-        IndexModule module = new IndexModule(
+        IndexModule indexModule = new IndexModule(
             indexSettings,
             emptyAnalysisRegistry,
             new InternalEngineFactory(),
@@ -346,7 +347,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             );
 
-            orchestrator.onIndexModule(module);
+            orchestrator.onIndexModule(indexModule);
 
             transportService.close();
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
