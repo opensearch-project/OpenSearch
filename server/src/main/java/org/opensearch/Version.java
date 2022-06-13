@@ -84,7 +84,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_1_3_1 = new Version(1030199, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_3_2 = new Version(1030299, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_3_3 = new Version(1030399, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version CURRENT = V_1_3_3;
+    public static final Version V_1_3_4 = new Version(1030499, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version CURRENT = V_1_3_4;
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
