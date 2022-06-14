@@ -53,6 +53,7 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.apache.lucene.codec.experimental;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -78,6 +79,21 @@ public class CodecTests extends OpenSearchTestCase {
         assertStoredFieldsCompressionEquals(Lucene92Codec.Mode.BEST_COMPRESSION, codec);
     }
 
+    public void testZstdCompression() throws Exception {
+        Codec codec = createCodecService().codec("zstd");
+        assertStoredFieldsCompressionEquals(Lucene92CustomCodec.Mode.ZSTD, codec);
+    }
+
+    public void testZstdNoDictCompression() throws Exception {
+        Codec codec = createCodecService().codec("zstd_no_dict");
+        assertStoredFieldsCompressionEquals(Lucene92CustomCodec.Mode.ZSTD_NO_DICT, codec);
+    }
+
+    public void testLz4NativeCompression() throws Exception {
+        Codec codec = createCodecService().codec("lz4_native");
+        assertStoredFieldsCompressionEquals(Lucene92CustomCodec.Mode.LZ4_NATIVE, codec);
+    }
+
     // write some docs with it, inspect .si to see this was the used compression
     private void assertStoredFieldsCompressionEquals(Lucene92Codec.Mode expected, Codec actual) throws Exception {
         Directory dir = newDirectory();
@@ -92,6 +108,23 @@ public class CodecTests extends OpenSearchTestCase {
         String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
         assertEquals(expected, Lucene92Codec.Mode.valueOf(v));
+        ir.close();
+        dir.close();
+    }
+
+    private void assertStoredFieldsCompressionEquals(Lucene92CustomCodec.Mode expected, Codec actual) throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(null);
+        iwc.setCodec(actual);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        iw.addDocument(new Document());
+        iw.commit();
+        iw.close();
+        DirectoryReader ir = DirectoryReader.open(dir);
+        SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
+        String v = sr.getSegmentInfo().info.getAttribute(Lucene90CustomStoredFieldsFormat.MODE_KEY);
+        assertNotNull(v);
+        assertEquals(expected, Lucene92CustomCodec.Mode.valueOf(v));
         ir.close();
         dir.close();
     }

@@ -182,4 +182,6 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
 
+  // ZSTD and lz4-java permissions
+  permission java.lang.RuntimePermission "*";
 };

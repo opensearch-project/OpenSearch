@@ -32,17 +32,10 @@
 
 package org.apache.lucene.codecs.experimental;
 
-import org.apache.lucene.codecs.Codec;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.common.lucene.Lucene;
 
 public class PerFieldMappingPostingFormatCustomCodec extends Lucene92CustomCodec {
     private final MapperService mapperService;
-
-    static {
-        assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCustomCodec.class)
-            : "PerFieldMappingPostingFormatCustomCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
-    }
 
     public PerFieldMappingPostingFormatCustomCodec(Lucene92CustomCodec.Mode compressionMode, MapperService mapperService) {
         super(compressionMode);

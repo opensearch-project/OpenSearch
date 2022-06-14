@@ -1,0 +1,3 @@
+LZ4 compression for Java, based on Yann Collet's work available at http://code.google.com/p/lz4/.
+
+
