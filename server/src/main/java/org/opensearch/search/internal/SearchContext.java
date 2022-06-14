@@ -388,9 +388,19 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * Returns time in milliseconds that can be used for relative time calculations.
-     * WARN: This is not the epoch time.
+     * WARN: This is not the epoch time and can be a cached time.
      */
     public abstract long getRelativeTimeInMillis();
+
+    /**
+     * Returns time in milliseconds that can be used for relative time calculations. This is just a wrapper of {@link System#nanoTime()}
+     * and it is not cached. This should be used instead of {@link SearchContext#getRelativeTimeInMillis()} when cached time might cause
+     * problems
+     * @return {@link System#nanoTime()} converted to Milliseconds
+     */
+    public long getPreciseRelativeTimeInMillis() {
+        return TimeValue.nsecToMSec(System.nanoTime());
+    }
 
     /** Return a view of the additional query collector managers that should be run for this context. */
     public abstract Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers();

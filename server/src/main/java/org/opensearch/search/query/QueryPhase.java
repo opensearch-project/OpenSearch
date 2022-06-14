@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.lucene.queries.MinDocQuery;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -75,7 +74,6 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
-import java.util.function.LongSupplier;
 
 import static org.opensearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
@@ -259,9 +257,7 @@ public class QueryPhase {
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
-                timeoutRunnable = searcher.addQueryCancellation(
-                    createQueryTimeoutChecker(searchContext::getRelativeTimeInMillis, searchContext.timeout().millis())
-                );
+                timeoutRunnable = searcher.addQueryCancellation(createQueryTimeoutChecker(searchContext));
             } else {
                 timeoutRunnable = null;
             }
@@ -308,20 +304,19 @@ public class QueryPhase {
     /**
      * Create runnable which throws {@link TimeExceededException} when the runnable is called after timeout + runnable creation time
      * exceeds currentTime
-     * @param relativeMsTimeSupplier supplier of currentTime in milliseconds which is okay to be cached
-     * @param timeout the max time duration in milliseconds before throwing {@link TimeExceededException}
+     * @param searchContext to extract timeout from and to get relative time from
      * @return the created runnable
      */
-    static Runnable createQueryTimeoutChecker(LongSupplier relativeMsTimeSupplier, final long timeout) {
-        /* for startTime, relative non-cached time must be used to prevent false positive timeouts.
+    static Runnable createQueryTimeoutChecker(final SearchContext searchContext) {
+        /* for startTime, relative non-cached precise time must be used to prevent false positive timeouts.
         * Using cached time for startTime will fail and produce false positive timeouts when maxTime = (startTime + timeout) falls in
         * next time cache slot(s) AND time caching lifespan > passed timeout */
-        final long startTime = TimeValue.nsecToMSec(System.nanoTime());
-        final long maxTime = startTime + timeout;
+        final long startTime = searchContext.getPreciseRelativeTimeInMillis();
+        final long maxTime = startTime + searchContext.timeout().millis();
         return () -> {
             /* As long as startTime is non cached time, using cached time here might only produce false negative timeouts within the time
             * cache life span which is acceptable */
-            final long time = relativeMsTimeSupplier.getAsLong();
+            final long time = searchContext.getRelativeTimeInMillis();
             if (time > maxTime) {
                 throw new TimeExceededException();
             }

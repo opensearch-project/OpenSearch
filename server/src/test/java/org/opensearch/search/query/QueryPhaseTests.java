@@ -122,6 +122,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 
 public class QueryPhaseTests extends IndexShardTestCase {
@@ -1113,7 +1117,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
         Thread.sleep(timeToAlignTimeWithCachedTimeOffset);
 
         long initialRelativeCachedTime = threadPool.relativeTimeInMillis();
-        Runnable queryTimeoutChecker = QueryPhase.createQueryTimeoutChecker(() -> threadPool.relativeTimeInMillis(), timeout);
+        SearchContext mockedSearchContext = mock(SearchContext.class);
+        when(mockedSearchContext.timeout()).thenReturn(TimeValue.timeValueMillis(timeout));
+        when(mockedSearchContext.getRelativeTimeInMillis()).thenAnswer(invocation -> threadPool.relativeTimeInMillis());
+        when(mockedSearchContext.getPreciseRelativeTimeInMillis()).thenCallRealMethod();
+        Runnable queryTimeoutChecker = QueryPhase.createQueryTimeoutChecker(mockedSearchContext);
         // make sure next time slot become available
         Thread.sleep(sleepAfterCreation);
         if (checkCachedTimeChanged) {
@@ -1123,6 +1131,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertEquals(initialRelativeCachedTime, threadPool.relativeTimeInMillis());
         }
         queryTimeoutChecker.run();
+        verify(mockedSearchContext, times(1)).timeout();
+        verify(mockedSearchContext, times(1)).getPreciseRelativeTimeInMillis();
+        verify(mockedSearchContext, atLeastOnce()).getRelativeTimeInMillis();
+        verifyNoMoreInteractions(mockedSearchContext);
     }
 
     private static class TestSearchContextWithRewriteAndCancellation extends TestSearchContext {
