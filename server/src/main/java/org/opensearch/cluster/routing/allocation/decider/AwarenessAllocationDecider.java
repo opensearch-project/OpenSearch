@@ -210,10 +210,10 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             int numberOfAttributes = nodesPerAttribute.size();
             List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
-            Set<String> attributesSet = new HashSet<>();
+
             if (fullValues != null) {
                 // If forced awareness is enabled, numberOfAttributes = count(distinct((union(discovered_attributes, forced_attributes)))
-                attributesSet.addAll(forcedAwarenessAttributes.get(awarenessAttribute));
+                Set<String> attributesSet = new HashSet<>(fullValues);
                 for (ObjectCursor<String> stringObjectCursor : nodesPerAttribute.keys()) {
                     attributesSet.add(stringObjectCursor.value);
                 }
