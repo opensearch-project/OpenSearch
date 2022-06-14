@@ -21,6 +21,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
@@ -32,6 +33,8 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -49,6 +52,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
     private final SegmentReplicationSourceFactory sourceFactory;
+
+    private static final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint= new HashMap<>();
 
     /**
      * The internal actions
@@ -86,6 +91,13 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
+    ReplicationCheckpoint getLatestReceivedCheckpoint(ShardId shardId){
+        if(latestReceivedCheckpoint.containsKey(shardId)){
+            return latestReceivedCheckpoint.get(shardId);
+        }
+        return null;
+    }
+
     /**
      * Invoked when a new checkpoint is received from a primary shard.
      * It checks if a new checkpoint should be processed or not and starts replication if needed.
@@ -93,6 +105,15 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * @param indexShard      replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint requestCheckpoint, final IndexShard indexShard) {
+
+        if(getLatestReceivedCheckpoint(indexShard.shardId()) != null){
+            if (requestCheckpoint.isAheadOf(latestReceivedCheckpoint.get(indexShard.shardId()))) {
+                latestReceivedCheckpoint.replace(indexShard.shardId(), requestCheckpoint);
+            }
+        }
+        else{
+            latestReceivedCheckpoint.put(indexShard.shardId(), requestCheckpoint);
+        }
         if (onGoingReplications.isShardReplicating(indexShard.shardId())) {
             logger.trace("Ignoring new replication checkpoint - shard is currently replicating to a checkpoint");
             return;
@@ -100,7 +121,19 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         if (indexShard.shouldProcessCheckpoint(requestCheckpoint)) {
             startReplication(requestCheckpoint, indexShard, new SegmentReplicationListener() {
                 @Override
-                public void onReplicationDone(SegmentReplicationState state) {}
+                public void onReplicationDone(SegmentReplicationState state) {
+                    // if we received a checkpoint during the copy event that is ahead of this
+                    // try and process it.
+                    if (getLatestReceivedCheckpoint(indexShard.shardId()).isAheadOf(indexShard.getLatestReplicationCheckpoint())) {
+                        threadPool.generic()
+                            .execute(
+                                () -> onNewCheckpoint(
+                                    getLatestReceivedCheckpoint(indexShard.shardId()),
+                                    indexShard
+                                )
+                            );
+                    }
+                }
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {

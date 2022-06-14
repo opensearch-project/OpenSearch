@@ -168,6 +168,47 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
     }
 
+    public void testReplicationOnDone() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+        IndexShard spyShard = spy(indexShard);
+        ReplicationCheckpoint cp = indexShard.getLatestReplicationCheckpoint();
+        ReplicationCheckpoint newCheckpoint = new ReplicationCheckpoint(
+            cp.getShardId(),
+            cp.getPrimaryTerm(),
+            cp.getSegmentsGen(),
+            cp.getSeqNo(),
+            cp.getSegmentInfosVersion() + 1
+        );
+        ReplicationCheckpoint newCheckpoint2 = new ReplicationCheckpoint(
+            cp.getShardId(),
+            cp.getPrimaryTerm(),
+            cp.getSegmentsGen(),
+            cp.getSeqNo(),
+            cp.getSegmentInfosVersion() + 2
+        );
+        spy.onNewCheckpoint(newCheckpoint, spyShard);
+        spy.onNewCheckpoint(newCheckpoint2, spyShard);
+        ArgumentCaptor<SegmentReplicationTargetService.SegmentReplicationListener> captor = ArgumentCaptor.forClass(
+            SegmentReplicationTargetService.SegmentReplicationListener.class
+        );
+        verify(spy, times(1)).startReplication(any(), any(), captor.capture());
+        SegmentReplicationTargetService.SegmentReplicationListener listener = captor.getValue();
+        listener.onDone(new SegmentReplicationState());
+        verify(spy, times(1)).startReplication(any(), any(), any());
+        closeShard(indexShard, false);
+
+    }
+
+    public void testLatestReceivedCheckpoint() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+        assertEquals(null, spy.getLatestReceivedCheckpoint(indexShard.shardId()));
+        spy.onNewCheckpoint(checkpoint, indexShard);
+        assertEquals(checkpoint, spy.getLatestReceivedCheckpoint(indexShard.shardId()));
+        spy.onNewCheckpoint(indexShard.getLatestReplicationCheckpoint(), indexShard);
+        assertEquals(indexShard.getLatestReplicationCheckpoint(), spy.getLatestReceivedCheckpoint(indexShard.shardId()));
+        closeShards(indexShard);
+    }
+
     public void testBeforeIndexShardClosed_CancelsOngoingReplications() throws IOException {
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
