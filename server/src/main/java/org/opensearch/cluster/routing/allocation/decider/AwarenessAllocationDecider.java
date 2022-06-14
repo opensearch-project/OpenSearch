@@ -33,11 +33,14 @@
 package org.opensearch.cluster.routing.allocation.decider;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -207,12 +210,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             int numberOfAttributes = nodesPerAttribute.size();
             List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
+
             if (fullValues != null) {
-                for (String fullValue : fullValues) {
-                    if (shardPerAttribute.containsKey(fullValue) == false) {
-                        numberOfAttributes++;
-                    }
+                // If forced awareness is enabled, numberOfAttributes = count(distinct((union(discovered_attributes, forced_attributes)))
+                Set<String> attributesSet = new HashSet<>(fullValues);
+                for (ObjectCursor<String> stringObjectCursor : nodesPerAttribute.keys()) {
+                    attributesSet.add(stringObjectCursor.value);
                 }
+                numberOfAttributes = attributesSet.size();
             }
             // TODO should we remove ones that are not part of full list?
 
