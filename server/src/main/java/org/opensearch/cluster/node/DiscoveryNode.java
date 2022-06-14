@@ -572,7 +572,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private static Map<String, DiscoveryNodeRole> roleMap = rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream());
 
     public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
-        //As we are supporting dynamic role, should make role name case-insensitive to avoid confusion of role name like "Data"/"DATA"
+        // As we are supporting dynamic role, should make role name case-insensitive to avoid confusion of role name like "Data"/"DATA"
         String lowerCasedRoleName = Objects.requireNonNull(roleName).toLowerCase(Locale.ROOT);
         if (roleMap.containsKey(lowerCasedRoleName)) {
             return roleMap.get(lowerCasedRoleName);
