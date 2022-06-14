@@ -58,7 +58,6 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DiscoveryNodeRole.class);
     public static final String MASTER_ROLE_DEPRECATION_MESSAGE =
         "Assigning [master] role in setting [node.roles] is deprecated. To promote inclusive language, please use [cluster_manager] role instead.";
-
     private final String roleName;
 
     /**
@@ -95,11 +94,17 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     private final boolean isKnownRole;
 
+    private final boolean isDynamicRole;
+
     /**
      * Whether this role is known by this node, or is an {@link DiscoveryNodeRole.UnknownRole}.
      */
     public final boolean isKnownRole() {
         return isKnownRole;
+    }
+
+    public final boolean isDynamicRole() {
+        return isDynamicRole;
     }
 
     public boolean isEnabledByDefault(final Settings settings) {
@@ -111,18 +116,21 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     }
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
-        this(true, roleName, roleNameAbbreviation, canContainData);
+        this(true, false, roleName, roleNameAbbreviation, canContainData);
     }
 
     private DiscoveryNodeRole(
         final boolean isKnownRole,
+        final boolean isDynamicRole,
         final String roleName,
         final String roleNameAbbreviation,
         final boolean canContainData
     ) {
         this.isKnownRole = isKnownRole;
-        this.roleName = Objects.requireNonNull(roleName);
-        this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
+        this.isDynamicRole = isDynamicRole;
+        // As we are supporting dynamic role, should make role name case-insensitive to avoid confusion of role name like "Data"/"DATA"
+        this.roleName = Objects.requireNonNull(roleName).toLowerCase(Locale.ROOT);
+        this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation).toLowerCase(Locale.ROOT);
         this.canContainData = canContainData;
     }
 
@@ -153,12 +161,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return roleName.equals(that.roleName)
             && roleNameAbbreviation.equals(that.roleNameAbbreviation)
             && canContainData == that.canContainData
-            && isKnownRole == that.isKnownRole;
+            && isKnownRole == that.isKnownRole
+            && isDynamicRole == that.isDynamicRole;
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation(), canContainData());
+        return Objects.hash(isKnownRole, isDynamicRole, roleName(), roleNameAbbreviation(), canContainData());
     }
 
     @Override
@@ -178,6 +187,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             + ", canContainData="
             + canContainData
             + (isKnownRole ? "" : ", isKnownRole=false")
+            + (isDynamicRole ? "" : ", isDynamicRole=false")
             + '}';
     }
 
@@ -311,7 +321,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
          * @param canContainData       whether or not nodes with the role can contain data
          */
         UnknownRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
-            super(false, roleName, roleNameAbbreviation, canContainData);
+            super(false, false, roleName, roleNameAbbreviation, canContainData);
         }
 
         @Override
@@ -319,6 +329,32 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             // since this setting is not registered, it will always return false when testing if the local node has the role
             assert false;
             return Setting.boolSetting("node. " + roleName(), false, Setting.Property.NodeScope);
+        }
+
+    }
+
+    /**
+     * Represents a dynamic role. This can occur if a custom role that not in {@link DiscoveryNodeRole#BUILT_IN_ROLES} added for a node.
+     * Some plugin can support extension function with dynamic roles. For example, ML plugin may run machine learning tasks on nodes
+     * with "ml" dynamic role.
+     */
+    static class DynamicRole extends DiscoveryNodeRole {
+
+        /**
+         * Construct a dynamic role with the specified role name and role name abbreviation.
+         *
+         * @param roleName             the role name
+         * @param roleNameAbbreviation the role name abbreviation
+         * @param canContainData       whether or not nodes with the role can contain data
+         */
+        DynamicRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
+            super(false, true, roleName, roleNameAbbreviation, canContainData);
+        }
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // return null as dynamic role has no legacy setting
+            return null;
         }
 
     }
