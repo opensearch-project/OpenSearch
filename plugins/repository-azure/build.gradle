@@ -94,6 +94,7 @@ thirdPartyAudit {
     // Optional and not enabled by Elasticsearch
     'com.google.common.util.concurrent.internal.InternalFutureFailureAccess',
     'com.google.common.util.concurrent.internal.InternalFutures',
+    'com.azure.core.implementation.util.BinaryDataHelper',
     'com.azure.storage.internal.avro.implementation.AvroObject',
     'com.azure.storage.internal.avro.implementation.AvroReader',
     'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
@@ -137,7 +138,7 @@ thirdPartyAudit {
     'javax.xml.bind.annotation.XmlAccessOrder',
     'javax.xml.bind.annotation.XmlAccessType',
     'javax.xml.bind.annotation.XmlAccessorOrder',
-    'javax.xml.bind.annotation.XmlAccessorType', 
+    'javax.xml.bind.annotation.XmlAccessorType',
     'javax.xml.bind.annotation.XmlAttribute',
     'javax.xml.bind.annotation.XmlElement',
     'javax.xml.bind.annotation.XmlElement$DEFAULT',
