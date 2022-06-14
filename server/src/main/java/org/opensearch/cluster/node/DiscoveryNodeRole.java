@@ -128,7 +128,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     ) {
         this.isKnownRole = isKnownRole;
         this.isDynamicRole = isDynamicRole;
-        this.roleName = Objects.requireNonNull(roleName);
+        //As we are supporting dynamic role, should make role name case-insensitive to avoid confusion of role name like "Data"/"DATA"
+        this.roleName = Objects.requireNonNull(roleName).toLowerCase(Locale.ROOT);
         this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
         this.canContainData = canContainData;
     }

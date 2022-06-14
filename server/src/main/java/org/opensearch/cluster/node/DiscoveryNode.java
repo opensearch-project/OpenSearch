@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -571,10 +572,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private static Map<String, DiscoveryNodeRole> roleMap = rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream());
 
     public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
-        if (roleMap.containsKey(roleName)) {
-            return roleMap.get(roleName);
+        //As we are supporting dynamic role, should make role name case-insensitive to avoid confusion of role name like "Data"/"DATA"
+        String lowerCasedRoleName = Objects.requireNonNull(roleName).toLowerCase(Locale.ROOT);
+        if (roleMap.containsKey(lowerCasedRoleName)) {
+            return roleMap.get(lowerCasedRoleName);
         }
-        return new DiscoveryNodeRole.DynamicRole(roleName, roleName, false);
+        return new DiscoveryNodeRole.DynamicRole(lowerCasedRoleName, lowerCasedRoleName, false);
     }
 
     public static Set<DiscoveryNodeRole> getPossibleRoles() {
