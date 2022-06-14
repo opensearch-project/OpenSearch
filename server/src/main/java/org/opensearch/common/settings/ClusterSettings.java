@@ -558,6 +558,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
+                NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FLAT_SKEW_SETTING,
                 ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED,
                 ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED,
                 ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW,
