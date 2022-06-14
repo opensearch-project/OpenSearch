@@ -94,18 +94,20 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * @param indexShard      replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint requestCheckpoint, final IndexShard indexShard) {
-        logger.trace("Checkpoint received {}", () -> requestCheckpoint);
-        if (shouldProcessCheckpoint(requestCheckpoint, indexShard)) {
-            logger.trace("Processing new checkpoint {}", requestCheckpoint);
+        if (onGoingReplications.isShardReplicating(indexShard.shardId())) {
+            logger.trace("Ignoring new replication checkpoint - shard is currently replicating to a checkpoint");
+            return;
+        }
+        if (indexShard.shouldProcessCheckpoint(requestCheckpoint)) {
             startReplication(requestCheckpoint, indexShard, new SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {
-                    logger.trace("Replication complete to {}", indexShard.getLatestReplicationCheckpoint());
                 }
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
                     if (sendShardFailure == true) {
+                        logger.error("replication failure", e);
                         indexShard.failShard("replication failure", e);
                     }
                 }
@@ -126,38 +128,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final long replicationId = onGoingReplications.start(target, recoverySettings.activityTimeout());
         logger.trace(() -> new ParameterizedMessage("Starting replication {}", replicationId));
         threadPool.generic().execute(new ReplicationRunner(replicationId));
-    }
-
-    /**
-     * Checks if checkpoint should be processed
-     *
-     * @param requestCheckpoint       received checkpoint that is checked for processing
-     * @param indexShard      replica shard on which checkpoint is received
-     * @return true if checkpoint should be processed
-     */
-    private boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint, IndexShard indexShard) {
-        if (indexShard.state().equals(IndexShardState.STARTED) == false) {
-            logger.trace("Ignoring new replication checkpoint - shard is not started {}", indexShard.state());
-            return false;
-        }
-        ReplicationCheckpoint localCheckpoint = indexShard.getLatestReplicationCheckpoint();
-        if (onGoingReplications.isShardReplicating(indexShard.shardId())) {
-            logger.trace("Ignoring new replication checkpoint - shard is currently replicating to a checkpoint");
-            return false;
-        }
-        if (localCheckpoint.isAheadOf(requestCheckpoint)) {
-            logger.trace(
-                "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
-                localCheckpoint,
-                requestCheckpoint
-            );
-            return false;
-        }
-        if (localCheckpoint.equals(requestCheckpoint)) {
-            logger.trace("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint);
-            return false;
-        }
-        return true;
     }
 
     /**

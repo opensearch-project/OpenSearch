@@ -1394,6 +1394,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Checks if checkpoint should be processed
+     *
+     * @param requestCheckpoint       received checkpoint that is checked for processing
+     * @return true if checkpoint should be processed
+     */
+    public boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
+        if (state().equals(IndexShardState.STARTED) == false) {
+            logger.trace("Ignoring new replication checkpoint - shard is not started {}", state());
+            return false;
+        }
+        ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
+        if (localCheckpoint.isAheadOf(requestCheckpoint)) {
+            logger.trace(
+                "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
+                localCheckpoint,
+                requestCheckpoint
+            );
+            return false;
+        }
+        if (localCheckpoint.equals(requestCheckpoint)) {
+            logger.trace("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint);
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * gets a {@link Store.MetadataSnapshot} for the current directory. This method is safe to call in all lifecycle of the index shard,
      * without having to worry about the current state of the engine and concurrent flushes.
      *
