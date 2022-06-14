@@ -591,6 +591,9 @@ public class LuceneTests extends OpenSearchTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+        // override 500ms default introduced in
+        // https://issues.apache.org/jira/browse/LUCENE-10078
+        config.setMaxFullFlushMergeWaitMillis(0);
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         List<String> liveDocs = new ArrayList<>();

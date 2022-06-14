@@ -41,6 +41,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -56,6 +57,7 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
+import static org.opensearch.common.settings.IndexScopedSettings.FEATURE_FLAGGED_INDEX_SETTINGS;
 
 public class IndexSettingsTests extends OpenSearchTestCase {
 
@@ -752,5 +754,42 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         indexSettings.updateIndexMetadata(newIndexMeta("index", newSettings.build()));
         assertThat(indexSettings.getTranslogRetentionAge().millis(), equalTo(-1L));
         assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(-1L));
+    }
+
+    public void testRemoteStoreDefaultSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isRemoteStoreEnabled());
+    }
+
+    public void testRemoteStoreExplicitSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE, true)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isRemoteStoreEnabled());
+    }
+
+    public void testUpdateRemoteStoreFails() {
+        Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
+        remoteStoreSettingSet.add(FEATURE_FLAGGED_INDEX_SETTINGS.get(FeatureFlags.REMOTE_STORE));
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put("index.remote_store", randomBoolean()).build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertEquals(error.getMessage(), "final index setting [index.remote_store], not updateable");
     }
 }
