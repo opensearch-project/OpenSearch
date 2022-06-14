@@ -134,6 +134,10 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
+  // lz4 native and zstd compressions
+  api "org.lz4:lz4-java:${versions.lz4}"
+  api "com.github.luben:zstd-jni:${versions.zstd}"
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
