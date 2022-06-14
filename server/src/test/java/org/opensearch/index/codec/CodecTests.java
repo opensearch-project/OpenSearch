@@ -53,7 +53,8 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
-import org.apache.lucene.codec.experimental;
+import org.apache.lucene.codecs.experimental.Lucene92CustomCodec;
+import org.apache.lucene.codecs.experimental.Lucene90CustomStoredFieldsFormat;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -81,17 +82,17 @@ public class CodecTests extends OpenSearchTestCase {
 
     public void testZstdCompression() throws Exception {
         Codec codec = createCodecService().codec("zstd");
-        assertStoredFieldsCompressionEquals(Lucene92CustomCodec.Mode.ZSTD, codec);
+        assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.ZSTD, codec);
     }
 
     public void testZstdNoDictCompression() throws Exception {
         Codec codec = createCodecService().codec("zstd_no_dict");
-        assertStoredFieldsCompressionEquals(Lucene92CustomCodec.Mode.ZSTD_NO_DICT, codec);
+        assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.ZSTD_NO_DICT, codec);
     }
 
     public void testLz4NativeCompression() throws Exception {
         Codec codec = createCodecService().codec("lz4_native");
-        assertStoredFieldsCompressionEquals(Lucene92CustomCodec.Mode.LZ4_NATIVE, codec);
+        assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.LZ4_NATIVE, codec);
     }
 
     // write some docs with it, inspect .si to see this was the used compression
@@ -112,7 +113,7 @@ public class CodecTests extends OpenSearchTestCase {
         dir.close();
     }
 
-    private void assertStoredFieldsCompressionEquals(Lucene92CustomCodec.Mode expected, Codec actual) throws Exception {
+    private void assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode expected, Codec actual) throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(null);
         iwc.setCodec(actual);
