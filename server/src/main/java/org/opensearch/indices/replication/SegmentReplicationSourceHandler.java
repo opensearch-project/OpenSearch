@@ -9,6 +9,7 @@
 package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -35,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -51,6 +53,7 @@ class SegmentReplicationSourceHandler {
     private final ListenableFuture<GetSegmentFilesResponse> future = new ListenableFuture<>();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final Logger logger;
+    private final AtomicBoolean active = new AtomicBoolean();
 
     /**
      * Constructor.
@@ -95,7 +98,10 @@ class SegmentReplicationSourceHandler {
      * @param request  {@link GetSegmentFilesRequest} request object containing list of files to be sent.
      * @param listener {@link ActionListener} that completes with the list of files sent.
      */
-    public void sendFiles(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
+    public synchronized void sendFiles(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
+        if (active.compareAndSet(false, true) == false) {
+            throw new OpenSearchException("Replication to {} is already running.", shard.shardId());
+        }
         future.addListener(listener, OpenSearchExecutors.newDirectExecutorService());
         final Closeable releaseResources = () -> IOUtils.close(resources);
         try {
@@ -131,7 +137,7 @@ class SegmentReplicationSourceHandler {
                 .toArray(StoreFileMetadata[]::new);
 
             final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = segmentFileTransferHandler
-                .sendFiles(shard.store(), storeFileMetadata, () -> 0, sendFileStep);
+                .createTransfer(shard.store(), storeFileMetadata, () -> 0, sendFileStep);
             resources.add(transfer);
             transfer.start();
 
@@ -156,5 +162,9 @@ class SegmentReplicationSourceHandler {
 
     CopyState getCopyState() {
         return copyState;
+    }
+
+    public boolean isActive() {
+        return active.get();
     }
 }

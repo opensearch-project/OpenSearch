@@ -100,7 +100,7 @@ public class SegmentFileTransferHandlerTests extends IndexShardTestCase {
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
-        final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = handler.sendFiles(
+        final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = handler.createTransfer(
             shard.store(),
             filesToSend,
             translogOps,
@@ -139,7 +139,7 @@ public class SegmentFileTransferHandlerTests extends IndexShardTestCase {
             maxConcurrentFileChunks
         );
 
-        final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = handler.sendFiles(
+        final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = handler.createTransfer(
             shard.store(),
             filesToSend,
             translogOps,
@@ -190,7 +190,7 @@ public class SegmentFileTransferHandlerTests extends IndexShardTestCase {
             maxConcurrentFileChunks
         );
 
-        final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = handler.sendFiles(
+        final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = handler.createTransfer(
             shard.store(),
             filesToSend,
             translogOps,

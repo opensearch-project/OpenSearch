@@ -8,8 +8,10 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -26,6 +28,8 @@ import java.util.Map;
 
 /**
  * Manages references to ongoing segrep events on a node.
+ * Each replica will have a new {@link SegmentReplicationSourceHandler} created when starting replication.
+ * CopyStates will be cached for reuse between replicas and only released when all replicas have finished copying segments.
  *
  * @opensearch.internal
  */
@@ -38,14 +42,15 @@ class OngoingSegmentReplications {
 
     /**
      * Constructor.
-     * @param indicesService {@link IndicesService}
+     *
+     * @param indicesService   {@link IndicesService}
      * @param recoverySettings {@link RecoverySettings}
      */
     OngoingSegmentReplications(IndicesService indicesService, RecoverySettings recoverySettings) {
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
         this.copyStateMap = Collections.synchronizedMap(new HashMap<>());
-        this.nodesToHandlers = Collections.synchronizedMap(new HashMap<>());
+        this.nodesToHandlers = ConcurrentCollections.newConcurrentMap();
     }
 
     /**
@@ -84,15 +89,105 @@ class OngoingSegmentReplications {
         }
     }
 
+    /**
+     * Start sending files to the replica.
+     *
+     * @param request  {@link GetSegmentFilesRequest}
+     * @param listener {@link ActionListener} that resolves when sending files is complete.
+     */
+    void startSegmentCopy(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
+        final DiscoveryNode node = request.getTargetNode();
+        final SegmentReplicationSourceHandler handler = nodesToHandlers.get(node);
+        if (handler != null) {
+            if (handler.isActive()) {
+                throw new OpenSearchException(
+                    "Replication to shard {}, on node {} has already started",
+                    request.getCheckpoint().getShardId(),
+                    request.getTargetNode()
+                );
+            }
+            // update the given listener to release the CopyState before it resolves.
+            final ActionListener<GetSegmentFilesResponse> wrappedListener = ActionListener.runBefore(listener, () -> {
+                final SegmentReplicationSourceHandler sourceHandler = nodesToHandlers.remove(node);
+                if (sourceHandler != null) {
+                    removeCopyState(sourceHandler.getCopyState());
+                }
+            });
+            handler.sendFiles(request, wrappedListener);
+        } else {
+            listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+        }
+    }
+
+    /**
+     * Cancel any ongoing replications for a given {@link DiscoveryNode}
+     *
+     * @param node {@link DiscoveryNode} node for which to cancel replication events.
+     */
     void cancelReplication(DiscoveryNode node) {
-        if (nodesToHandlers.containsKey(node)) {
-            final SegmentReplicationSourceHandler handler = nodesToHandlers.remove(node);
+        final SegmentReplicationSourceHandler handler = nodesToHandlers.remove(node);
+        if (handler != null) {
             handler.cancel("Cancel on node left");
             removeCopyState(handler.getCopyState());
         }
     }
 
-    SegmentReplicationSourceHandler createTargetHandler(DiscoveryNode node, CopyState copyState, FileChunkWriter fileChunkWriter) {
+    /**
+     * Prepare for a Replication event. This method constructs a {@link CopyState} holding files to be sent off of the current
+     * nodes's store.  This state is intended to be sent back to Replicas before copy is initiated so the replica can perform a diff against its
+     * local store.  It will then build a handler to orchestrate the segment copy that will be stored locally and started on a subsequent request from replicas
+     * with the list of required files.
+     *
+     * @param request         {@link CheckpointInfoRequest}
+     * @param fileChunkWriter {@link FileChunkWriter} writer to handle sending files over the transport layer.
+     * @return {@link CopyState} the built CopyState for this replication event.
+     * @throws IOException - When there is an IO error building CopyState.
+     */
+    CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
+        final CopyState copyState = getCachedCopyState(request.getCheckpoint());
+        if (nodesToHandlers.containsKey(request.getTargetNode())) {
+            throw new OpenSearchException(
+                "Shard copy {} on node {} already replicating",
+                request.getCheckpoint().getShardId(),
+                request.getTargetNode()
+            );
+        }
+        nodesToHandlers.computeIfAbsent(request.getTargetNode(), node -> createTargetHandler(node, copyState, fileChunkWriter));
+        return copyState;
+    }
+
+    /**
+     * Cancel all Replication events for the given shard, intended to be called when the current primary is shutting down.
+     *
+     * @param shard  {@link IndexShard}
+     * @param reason {@link String} - Reason for the cancel
+     */
+    synchronized void cancel(IndexShard shard, String reason) {
+        for (SegmentReplicationSourceHandler entry : nodesToHandlers.values()) {
+            if (entry.getCopyState().getShard().equals(shard)) {
+                entry.cancel(reason);
+            }
+        }
+        copyStateMap.clear();
+    }
+
+    /**
+     * Checks if the {@link #copyStateMap} has the input {@link ReplicationCheckpoint}
+     * as a key by invoking {@link Map#containsKey(Object)}.
+     */
+    boolean isInCopyStateMap(ReplicationCheckpoint replicationCheckpoint) {
+        return copyStateMap.containsKey(replicationCheckpoint);
+    }
+
+    int size() {
+        return nodesToHandlers.size();
+    }
+
+    int cachedCopyStateSize() {
+        return copyStateMap.size();
+    }
+
+    private SegmentReplicationSourceHandler createTargetHandler(DiscoveryNode node, CopyState copyState, FileChunkWriter fileChunkWriter) {
         return new SegmentReplicationSourceHandler(
             node,
             fileChunkWriter,
@@ -120,31 +215,9 @@ class OngoingSegmentReplications {
     }
 
     /**
-     * Checks if the {@link #copyStateMap} has the input {@link ReplicationCheckpoint}
-     * as a key by invoking {@link Map#containsKey(Object)}.
-     */
-    boolean isInCopyStateMap(ReplicationCheckpoint replicationCheckpoint) {
-        return copyStateMap.containsKey(replicationCheckpoint);
-    }
-
-    void startSegmentCopy(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
-        final DiscoveryNode node = request.getTargetNode();
-        if (nodesToHandlers.containsKey(node)) {
-            final SegmentReplicationSourceHandler handler = nodesToHandlers.get(node);
-            // update the given listener to release the CopyState before it resolves.
-            final ActionListener<GetSegmentFilesResponse> wrappedListener = ActionListener.runBefore(listener, () -> {
-                final SegmentReplicationSourceHandler sourceHandler = nodesToHandlers.remove(node);
-                removeCopyState(sourceHandler.getCopyState());
-            });
-            handler.sendFiles(request, wrappedListener);
-        } else {
-            listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
-        }
-    }
-
-    /**
      * Remove a CopyState. Intended to be called after a replication event completes.
      * This method will remove a copyState from the copyStateMap only if its refCount hits 0.
+     *
      * @param copyState {@link CopyState}
      */
     private synchronized void removeCopyState(CopyState copyState) {
@@ -152,44 +225,5 @@ class OngoingSegmentReplications {
         if (copyState.refCount() <= 0) {
             copyStateMap.remove(copyState.getRequestedReplicationCheckpoint());
         }
-    }
-
-    /**
-     * Prepare for a Replication event. This method constructs a {@link CopyState} holding files to be sent off of the current
-     * nodes's store.  This state is intended to be sent back to Replicas before copy is initiated so the replica can perform a diff against its
-     * local store.  It will then build a handler to orchestrate the segment copy that will be stored locally and started on a subsequent request from replicas
-     * with the list of required files.
-     * @param request {@link CheckpointInfoRequest}
-     * @param fileChunkWriter {@link FileChunkWriter} writer to handle sending files over the transport layer.
-     * @return {@link CopyState} the built CopyState for this replication event.
-     * @throws IOException - When there is an IO error building CopyState.
-     */
-    CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
-        final CopyState copyState = getCachedCopyState(request.getCheckpoint());
-        final SegmentReplicationSourceHandler handler = createTargetHandler(request.getTargetNode(), copyState, fileChunkWriter);
-        nodesToHandlers.putIfAbsent(request.getTargetNode(), handler);
-        return copyState;
-    }
-
-    int size() {
-        return nodesToHandlers.size();
-    }
-
-    int cachedCopyStateSize() {
-        return copyStateMap.size();
-    }
-
-    /**
-     * Cancel all Replication events for the given shard, intended to be called when the current primary is shutting down.
-     * @param shard {@link IndexShard}
-     * @param reason  {@link String} - Reason for the cancel
-     */
-    public void cancel(IndexShard shard, String reason) {
-        for (SegmentReplicationSourceHandler entry : nodesToHandlers.values()) {
-            if (entry.getCopyState().getShard().equals(shard)) {
-                entry.cancel(reason);
-            }
-        }
-        copyStateMap.clear();
     }
 }

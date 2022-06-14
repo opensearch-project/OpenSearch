@@ -24,7 +24,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -88,9 +87,6 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
     private class CheckpointInfoRequestHandler implements TransportRequestHandler<CheckpointInfoRequest> {
         @Override
         public void messageReceived(CheckpointInfoRequest request, TransportChannel channel, Task task) throws Exception {
-            final ReplicationCheckpoint checkpoint = request.getCheckpoint();
-            logger.trace("Received request for checkpoint {}", checkpoint);
-
             final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = new RemoteSegmentFileChunkWriter(
                 request.getReplicationId(),
                 recoverySettings,

@@ -87,7 +87,7 @@ public final class SegmentFileTransferHandler {
      * @param listener {@link ActionListener}
      * @return {@link MultiChunkTransfer}
      */
-    public MultiChunkTransfer<StoreFileMetadata, FileChunk> sendFiles(
+    public MultiChunkTransfer<StoreFileMetadata, FileChunk> createTransfer(
         Store store,
         StoreFileMetadata[] files,
         IntSupplier translogOps,

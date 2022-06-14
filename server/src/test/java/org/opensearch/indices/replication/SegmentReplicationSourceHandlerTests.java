@@ -164,4 +164,30 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
             }
         });
     }
+
+    public void testReplicationAlreadyRunning() throws IOException {
+        chunkWriter = mock(FileChunkWriter.class);
+
+        final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
+        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+        SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
+            localNode,
+            chunkWriter,
+            threadPool,
+            copyState,
+            5000,
+            1
+        );
+
+        final GetSegmentFilesRequest getSegmentFilesRequest = new GetSegmentFilesRequest(
+            1L,
+            replica.routingEntry().allocationId().getId(),
+            replicaDiscoveryNode,
+            Collections.emptyList(),
+            latestReplicationCheckpoint
+        );
+
+        handler.sendFiles(getSegmentFilesRequest, mock(ActionListener.class));
+        Assert.assertThrows(OpenSearchException.class, () -> { handler.sendFiles(getSegmentFilesRequest, mock(ActionListener.class)); });
+    }
 }

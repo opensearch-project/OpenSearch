@@ -9,6 +9,7 @@
 package org.opensearch.indices.replication;
 
 import org.junit.Assert;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
@@ -213,4 +214,18 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         verify(listener, times(1)).onResponse(any());
     }
 
+    public void testShardAlreadyReplicatingToNode() throws IOException {
+        OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(
+            1L,
+            replica.routingEntry().allocationId().getId(),
+            replicaDiscoveryNode,
+            testCheckpoint
+        );
+        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
+            listener.onResponse(null);
+        };
+        replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+        assertThrows(OpenSearchException.class, () -> { replications.prepareForReplication(request, segmentSegmentFileChunkWriter); });
+    }
 }
