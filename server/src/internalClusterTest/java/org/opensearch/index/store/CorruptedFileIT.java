@@ -77,7 +77,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
-import org.opensearch.indices.recovery.RecoveryFileChunkRequest;
+import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.snapshots.SnapshotState;
@@ -397,7 +397,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
                 internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
                 (connection, requestId, action, request, options) -> {
                     if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                        FileChunkRequest req = (FileChunkRequest) request;
                         byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
                         int i = randomIntBetween(0, req.content().length() - 1);
                         array[i] = (byte) ~array[i]; // flip one byte in the content
@@ -474,11 +474,11 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
                 internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
                 (connection, requestId, action, request, options) -> {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                        FileChunkRequest req = (FileChunkRequest) request;
                         if (truncate && req.length() > 1) {
                             BytesRef bytesRef = req.content().toBytesRef();
                             BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
-                            request = new RecoveryFileChunkRequest(
+                            request = new FileChunkRequest(
                                 req.recoveryId(),
                                 req.requestSeqNo(),
                                 req.shardId(),

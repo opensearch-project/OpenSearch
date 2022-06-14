@@ -157,11 +157,11 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
             }
         });
 
-        logger.info("--> submit task to restore master");
+        logger.info("--> submit task to restore cluster-manager");
         ClusterState currentState = clusterService.getClusterApplierService().state();
         clusterService.getClusterApplierService()
             .onNewClusterState(
-                "restore master",
+                "restore cluster-manager",
                 () -> ClusterState.builder(currentState)
                     .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId()))
                     .build(),
@@ -184,7 +184,7 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
 
         assertFalse(listener.isDone());
 
-        logger.info("--> realising task to restore master");
+        logger.info("--> realising task to restore cluster-manager");
         applyLatch.countDown();
         listener.get();
     }

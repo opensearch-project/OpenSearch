@@ -21,6 +21,7 @@ public class FeatureFlagTests extends OpenSearchTestCase {
     @BeforeClass
     public static void enableFeature() {
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.REPLICATION_TYPE, "true"));
+        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.REMOTE_STORE, "true"));
     }
 
     public void testReplicationTypeFeatureFlag() {
@@ -39,5 +40,11 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         String javaVersionProperty = "java.version";
         assertNotNull(System.getProperty(javaVersionProperty));
         assertFalse(FeatureFlags.isEnabled(javaVersionProperty));
+    }
+
+    public void testRemoteStoreFeatureFlag() {
+        String remoteStoreFlag = FeatureFlags.REMOTE_STORE;
+        assertNotNull(System.getProperty(remoteStoreFlag));
+        assertTrue(FeatureFlags.isEnabled(remoteStoreFlag));
     }
 }

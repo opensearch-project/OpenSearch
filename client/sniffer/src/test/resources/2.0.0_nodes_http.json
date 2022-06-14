@@ -1,4 +1,9 @@
 {
+  "_nodes": {
+    "total": 8,
+    "successful": 8,
+    "failed": 0
+  },
   "cluster_name": "opensearch",
   "nodes": {
     "qr-SOrELSaGW8SlU8nflBw": {
@@ -7,20 +12,22 @@
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
       "version": "2.0.0",
-      "build": "de54438",
-      "http_address": "127.0.0.1:9200",
+      "build_type": "tar",
+      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "roles": [
+        "cluster_manager",
+        "ingest"
+      ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "1",
-        "array.0": "m",
-        "data": "false",
-        "array.1": "1",
-        "master": "true"
+        "array": "[m, 1]",
+        "shard_indexing_pressure_enabled": "true"
       },
       "http": {
         "bound_address": [
-          "127.0.0.1:9200",
-          "[::1]:9200"
+          "[::1]:9200",
+          "127.0.0.1:9200"
         ],
         "publish_address": "127.0.0.1:9200",
         "max_content_length_in_bytes": 104857600
@@ -32,19 +39,23 @@
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
       "version": "2.0.0",
-      "build": "de54438",
-      "http_address": "127.0.0.1:9201",
+      "build_type": "tar",
+      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "roles": [
+        "cluster_manager",
+        "data",
+        "ingest"
+      ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "2",
-        "array.0": "m",
-        "array.1": "2",
-        "master": "true"
+        "shard_indexing_pressure_enabled": "true",
+        "array": "[m, 2]"
       },
       "http": {
         "bound_address": [
-          "127.0.0.1:9201",
-          "[::1]:9201"
+          "[::1]:9201",
+          "127.0.0.1:9201"
         ],
         "publish_address": "127.0.0.1:9201",
         "max_content_length_in_bytes": 104857600
@@ -56,20 +67,22 @@
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
       "version": "2.0.0",
-      "build": "de54438",
-      "http_address": "127.0.0.1:9202",
+      "build_type": "tar",
+      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "roles": [
+        "cluster_manager",
+        "ingest"
+      ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "3",
-        "array.0": "m",
-        "data": "false",
-        "array.1": "3",
-        "master": "true"
+        "shard_indexing_pressure_enabled": "true",
+        "array": "[m, 3]"
       },
       "http": {
         "bound_address": [
-          "127.0.0.1:9202",
-          "[::1]:9202"
+          "[::1]:9202",
+          "127.0.0.1:9202"
         ],
         "publish_address": "127.0.0.1:9202",
         "max_content_length_in_bytes": 104857600
@@ -81,19 +94,22 @@
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
       "version": "2.0.0",
-      "build": "de54438",
-      "http_address": "127.0.0.1:9203",
+      "build_type": "tar",
+      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "roles": [
+        "data",
+        "ingest"
+      ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "1",
-        "array.0": "d",
-        "array.1": "1",
-        "master": "false"
+        "shard_indexing_pressure_enabled": "true",
+        "array": "[d, 1]"
       },
       "http": {
         "bound_address": [
-          "127.0.0.1:9203",
-          "[::1]:9203"
+          "[::1]:9203",
+          "127.0.0.1:9203"
         ],
         "publish_address": "127.0.0.1:9203",
         "max_content_length_in_bytes": 104857600
@@ -105,19 +121,22 @@
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
       "version": "2.0.0",
-      "build": "de54438",
-      "http_address": "127.0.0.1:9204",
+      "build_type": "tar",
+      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "roles": [
+        "data",
+        "ingest"
+      ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "2",
-        "array.0": "d",
-        "array.1": "2",
-        "master": "false"
+        "shard_indexing_pressure_enabled": "true",
+        "array": "[d, 2]"
       },
       "http": {
         "bound_address": [
-          "127.0.0.1:9204",
-          "[::1]:9204"
+          "[::1]:9204",
+          "127.0.0.1:9204"
         ],
         "publish_address": "127.0.0.1:9204",
         "max_content_length_in_bytes": 104857600
@@ -129,19 +148,22 @@
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
       "version": "2.0.0",
-      "build": "de54438",
-      "http_address": "127.0.0.1:9205",
+      "build_type": "tar",
+      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "roles": [
+        "data",
+        "ingest"
+      ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "3",
-        "array.0": "d",
-        "array.1": "3",
-        "master": "false"
+        "shard_indexing_pressure_enabled": "true",
+        "array": "[d, 3]"
       },
       "http": {
         "bound_address": [
-          "127.0.0.1:9205",
-          "[::1]:9205"
+          "[::1]:9205",
+          "127.0.0.1:9205"
         ],
         "publish_address": "127.0.0.1:9205",
         "max_content_length_in_bytes": 104857600
@@ -153,20 +175,21 @@
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
       "version": "2.0.0",
-      "build": "de54438",
-      "http_address": "127.0.0.1:9206",
+      "build_type": "tar",
+      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "roles": [
+        "ingest"
+      ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "1",
-        "array.0": "c",
-        "data": "false",
-        "array.1": "1",
-        "master": "false"
+        "shard_indexing_pressure_enabled": "true",
+        "array": "[c, 1]"
       },
       "http": {
         "bound_address": [
-          "127.0.0.1:9206",
-          "[::1]:9206"
+          "[::1]:9206",
+          "127.0.0.1:9206"
         ],
         "publish_address": "127.0.0.1:9206",
         "max_content_length_in_bytes": 104857600
@@ -178,20 +201,21 @@
       "host": "127.0.0.1",
       "ip": "127.0.0.1",
       "version": "2.0.0",
-      "build": "de54438",
-      "http_address": "127.0.0.1:9207",
+      "build_type": "tar",
+      "build_hash": "bae3b4e4178c20ac24fece8e82099abe3b2630d0",
+      "roles": [
+        "ingest"
+      ],
       "attributes": {
         "dummy": "everyone_has_me",
         "number": "2",
-        "array.0": "c",
-        "data": "false",
-        "array.1": "2",
-        "master": "false"
+        "shard_indexing_pressure_enabled": "true",
+        "array": "[c, 2]"
       },
       "http": {
         "bound_address": [
-          "127.0.0.1:9207",
-          "[::1]:9207"
+          "[::1]:9207",
+          "127.0.0.1:9207"
         ],
         "publish_address": "127.0.0.1:9207",
         "max_content_length_in_bytes": 104857600
