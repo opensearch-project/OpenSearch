@@ -18,7 +18,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -101,8 +100,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         if (indexShard.shouldProcessCheckpoint(requestCheckpoint)) {
             startReplication(requestCheckpoint, indexShard, new SegmentReplicationListener() {
                 @Override
-                public void onReplicationDone(SegmentReplicationState state) {
-                }
+                public void onReplicationDone(SegmentReplicationState state) {}
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
