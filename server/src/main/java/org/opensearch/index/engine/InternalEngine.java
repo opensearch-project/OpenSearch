@@ -132,7 +132,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -2295,7 +2295,7 @@ public class InternalEngine extends Engine {
             final long maxFullFlushMergeWaitMillis = config().getIndexSettings().getMaxFullFlushMergeWaitTime().millis();
             if (maxFullFlushMergeWaitMillis > 0) {
                 iwc.setMaxFullFlushMergeWaitMillis(maxFullFlushMergeWaitMillis);
-                final Optional<Function<MergePolicy, MergePolicy>> mergeOnFlushPolicy = config().getIndexSettings().getMergeOnFlushPolicy();
+                final Optional<UnaryOperator<MergePolicy>> mergeOnFlushPolicy = config().getIndexSettings().getMergeOnFlushPolicy();
                 if (mergeOnFlushPolicy.isPresent()) {
                     mergePolicy = mergeOnFlushPolicy.get().apply(mergePolicy);
                 }

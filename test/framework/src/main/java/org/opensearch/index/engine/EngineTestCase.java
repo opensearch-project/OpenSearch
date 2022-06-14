@@ -202,7 +202,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY))
             )
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
-            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false)
             .build();
     }
 

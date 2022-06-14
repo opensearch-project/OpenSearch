@@ -58,6 +58,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -75,6 +76,9 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIEL
  * @opensearch.internal
  */
 public final class IndexSettings {
+    private static final String MERGE_ON_FLUSH_DEFAULT_POLICY = "default";
+    private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
+
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
         "index.query.default_field",
         Collections.singletonList("*"),
@@ -542,7 +546,7 @@ public final class IndexSettings {
 
     public static final Setting<String> INDEX_MERGE_ON_FLUSH_POLICY = Setting.simpleString(
         "index.merge_on_flush.policy",
-        "default",
+        MERGE_ON_FLUSH_DEFAULT_POLICY,
         Property.IndexScope,
         Property.Dynamic
     );
@@ -644,7 +648,7 @@ public final class IndexSettings {
     /**
      * Specialized merge-on-flush policy if provided
      */
-    private volatile Function<MergePolicy, MergePolicy> mergeOnFlushPolicy;
+    private volatile UnaryOperator<MergePolicy> mergeOnFlushPolicy;
 
     /**
      * Returns the default search fields for this index.
@@ -1443,9 +1447,9 @@ public final class IndexSettings {
     }
 
     private void setMergeOnFlushPolicy(String policy) {
-        if (Strings.isEmpty(policy) || "default".equalsIgnoreCase(policy)) {
+        if (Strings.isEmpty(policy) || MERGE_ON_FLUSH_DEFAULT_POLICY.equalsIgnoreCase(policy)) {
             mergeOnFlushPolicy = null;
-        } else if ("merge-on-flush".equalsIgnoreCase(policy)) {
+        } else if (MERGE_ON_FLUSH_MERGE_POLICY.equalsIgnoreCase(policy)) {
             this.mergeOnFlushPolicy = MergeOnFlushMergePolicy::new;
         } else {
             throw new IllegalArgumentException(
@@ -1453,12 +1457,15 @@ public final class IndexSettings {
                     + IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY.getKey()
                     + " has unsupported policy specified: "
                     + policy
-                    + ". Please use one of: default, merge-on-flush"
+                    + ". Please use one of: "
+                    + MERGE_ON_FLUSH_DEFAULT_POLICY
+                    + ", "
+                    + MERGE_ON_FLUSH_MERGE_POLICY
             );
         }
     }
 
-    public Optional<Function<MergePolicy, MergePolicy>> getMergeOnFlushPolicy() {
+    public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
         return Optional.ofNullable(mergeOnFlushPolicy);
     }
 }
