@@ -36,12 +36,12 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Represents the target of a replication event.
@@ -73,7 +73,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         try {
             multiFileWriter.close();
         } finally {
-            // free store. increment happens in constructor
             super.closeInternal();
         }
     }
@@ -169,8 +168,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 )
             );
         }
-        final List<StoreFileMetadata> filesToFetch = Stream.concat(diff.missing.stream(), diff.different.stream())
-            .collect(Collectors.toList());
+        final List<StoreFileMetadata> filesToFetch = new ArrayList<StoreFileMetadata>(diff.missing);
 
         Set<String> storeFiles = new HashSet<>(Arrays.asList(store.directory().listAll()));
         final Set<StoreFileMetadata> pendingDeleteFiles = checkpointInfo.getPendingDeleteFiles()
@@ -185,8 +183,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }
         if (filesToFetch.isEmpty()) {
             getFilesListener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+        } else {
+            source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, store, getFilesListener);
         }
-        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, store, getFilesListener);
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
@@ -204,7 +203,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 );
                 indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
                 store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", store.getMetadata(infos));
-                // method/function that checks if some segment doesn't match with that of primary we
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are

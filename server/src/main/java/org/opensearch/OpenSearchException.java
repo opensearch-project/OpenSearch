@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -1599,7 +1600,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.indices.replication.common.ReplicationFailedException.class,
             org.opensearch.indices.replication.common.ReplicationFailedException::new,
             161,
-            UNKNOWN_VERSION_ADDED
+            V_2_1_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

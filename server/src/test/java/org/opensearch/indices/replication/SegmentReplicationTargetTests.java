@@ -9,6 +9,7 @@
 package org.opensearch.indices.replication;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
@@ -231,9 +232,53 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         });
     }
 
-    public void testFailure_finalizeReplicationThrows() throws IOException {
+    public void testFailure_finalizeReplication_IOException() throws IOException {
 
         IOException exception = new IOException("dummy failure");
+        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+            }
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                Store store,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+        };
+        SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
+            SegmentReplicationTargetService.SegmentReplicationListener.class
+        );
+        segrepTarget = new SegmentReplicationTarget(repCheckpoint, spyIndexShard, segrepSource, segRepListener);
+
+        doThrow(exception).when(spyIndexShard).finalizeReplication(any(), anyLong());
+
+        segrepTarget.startReplication(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void replicationResponse) {
+                Assert.fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertEquals(exception, e.getCause());
+            }
+        });
+    }
+
+    public void testFailure_finalizeReplication_IndexFormatException() throws IOException {
+
+        IndexFormatTooNewException exception = new IndexFormatTooNewException("string", 1, 2, 1);
         SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
             @Override
             public void getCheckpointMetadata(
@@ -311,7 +356,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(e);
                 assert (e instanceof IllegalStateException);
             }
         });
