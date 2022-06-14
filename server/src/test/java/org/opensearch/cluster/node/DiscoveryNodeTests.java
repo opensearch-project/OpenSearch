@@ -44,6 +44,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -193,4 +194,14 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         }
     }
 
+    public void testGetRoleFromRoleNameIsCaseInsensitive() {
+        String dataRoleName = "DATA";
+        DiscoveryNodeRole dataNodeRole = DiscoveryNode.getRoleFromRoleName(dataRoleName);
+        assertEquals(DiscoveryNodeRole.DATA_ROLE, dataNodeRole);
+
+        String dynamicRoleName = "TestRole";
+        DiscoveryNodeRole dynamicNodeRole = DiscoveryNode.getRoleFromRoleName(dynamicRoleName);
+        assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleName());
+        assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleNameAbbreviation());
+    }
 }
