@@ -7,4 +7,4 @@
  */
 
 /** Cluster Manager Node Information transport handlers. */
-package org.opensearch.action.support.clustermanager.info;
+package org.opensearch.action.support.master.info;
