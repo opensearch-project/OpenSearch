@@ -30,47 +30,56 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
 /**
- * Base request for cluster-manager based read operations that allows to read the cluster state from the local node if needed
+ * A based request for cluster-manager based operation.
  *
  * @opensearch.internal
  */
-public abstract class MasterNodeReadRequest<Request extends MasterNodeReadRequest<Request>> extends MasterNodeRequest<Request> {
+public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNodeRequest<Request>> extends ActionRequest {
 
-    protected boolean local = false;
+    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
-    protected MasterNodeReadRequest() {}
+    protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
-    protected MasterNodeReadRequest(StreamInput in) throws IOException {
+    protected ClusterManagerNodeRequest() {}
+
+    protected ClusterManagerNodeRequest(StreamInput in) throws IOException {
         super(in);
-        local = in.readBoolean();
+        masterNodeTimeout = in.readTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(local);
+        out.writeTimeValue(masterNodeTimeout);
     }
 
+    /**
+     * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
+     */
     @SuppressWarnings("unchecked")
-    public final Request local(boolean local) {
-        this.local = local;
+    public final Request masterNodeTimeout(TimeValue timeout) {
+        this.masterNodeTimeout = timeout;
         return (Request) this;
     }
 
     /**
-     * Return local information, do not retrieve the state from cluster-manager node (default: false).
-     * @return <code>true</code> if local information is to be returned;
-     * <code>false</code> if information is to be retrieved from cluster-manager node (default).
+     * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
      */
-    public final boolean local() {
-        return local;
+    public final Request masterNodeTimeout(String timeout) {
+        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
+    }
+
+    public final TimeValue masterNodeTimeout() {
+        return this.masterNodeTimeout;
     }
 }

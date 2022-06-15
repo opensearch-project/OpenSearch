@@ -30,46 +30,33 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.unit.TimeValue;
 
 /**
- * Base request builder for cluster-manager node operations
+ * Base request builder for cluster-manager node read operations that can be executed on the local node as well
  *
  * @opensearch.internal
  */
-public abstract class MasterNodeOperationRequestBuilder<
-    Request extends MasterNodeRequest<Request>,
+public abstract class ClusterManagerNodeReadOperationRequestBuilder<
+    Request extends ClusterManagerNodeReadRequest<Request>,
     Response extends ActionResponse,
-    RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
-        Request,
-        Response> {
+    RequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>> extends
+    ClusterManagerNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected MasterNodeOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
+    protected ClusterManagerNodeReadOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 
     /**
-     * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
+     * Specifies if the request should be executed on local node rather than on master
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
+    public final RequestBuilder setLocal(boolean local) {
+        request.local(local);
         return (RequestBuilder) this;
     }
-
-    /**
-     * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
-     */
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
-        return (RequestBuilder) this;
-    }
-
 }

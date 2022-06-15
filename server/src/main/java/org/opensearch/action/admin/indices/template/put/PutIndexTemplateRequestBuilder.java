@@ -32,8 +32,8 @@
 package org.opensearch.action.admin.indices.template.put;
 
 import org.opensearch.action.admin.indices.alias.Alias;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
@@ -48,7 +48,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<
+public class PutIndexTemplateRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     PutIndexTemplateRequest,
     AcknowledgedResponse,
     PutIndexTemplateRequestBuilder> {

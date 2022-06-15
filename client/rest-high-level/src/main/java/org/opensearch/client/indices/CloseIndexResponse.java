@@ -33,7 +33,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
-import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.ShardsAcknowledgedResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
