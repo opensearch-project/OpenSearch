@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -40,7 +40,7 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class GetStoredScriptRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+public class GetStoredScriptRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     GetStoredScriptRequest,
     GetStoredScriptResponse,
     GetStoredScriptRequestBuilder> {

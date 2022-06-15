@@ -32,8 +32,8 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.OpenSearchStatusException;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.ShardsAcknowledgedResponse;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
