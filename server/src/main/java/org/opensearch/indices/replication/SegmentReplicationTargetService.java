@@ -94,7 +94,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint requestCheckpoint, final IndexShard indexShard) {
         if (onGoingReplications.isShardReplicating(indexShard.shardId())) {
-            logger.trace("Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}", indexShard.getLatestReplicationCheckpoint());
+            logger.trace(
+                "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
+                indexShard.getLatestReplicationCheckpoint()
+            );
             return;
         }
         if (indexShard.shouldProcessCheckpoint(requestCheckpoint)) {
