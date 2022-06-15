@@ -859,7 +859,13 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            checkpointPublisher,
+            repositoriesService
+        );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
