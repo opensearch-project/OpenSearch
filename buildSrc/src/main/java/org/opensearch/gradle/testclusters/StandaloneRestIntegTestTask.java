@@ -32,6 +32,7 @@
 package org.opensearch.gradle.testclusters;
 
 import groovy.lang.Closure;
+
 import org.opensearch.gradle.FileSystemOperationsAware;
 import org.opensearch.gradle.test.Fixture;
 import org.opensearch.gradle.util.GradleUtils;
@@ -46,6 +47,8 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
 import org.gradle.internal.resources.SharedResource;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -124,10 +127,30 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
 
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
-            locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
+            locks.add(getResourceLock(resource, Math.min(nodeCount, resource.getMaxUsages())));
         }
 
         return Collections.unmodifiableList(locks);
+    }
+
+    private ResourceLock getResourceLock(SharedResource resource, int nUsages) {
+        try {
+            try {
+                // The getResourceLock(int) is used by Gradle pre-7.5
+                return (ResourceLock) MethodHandles.publicLookup()
+                    .findVirtual(SharedResource.class, "getResourceLock", MethodType.methodType(ResourceLock.class, int.class))
+                    .bindTo(resource)
+                    .invokeExact(nUsages);
+            } catch (NoSuchMethodException | IllegalAccessException ex) {
+                // The getResourceLock() is used by Gradle post-7.4
+                return (ResourceLock) MethodHandles.publicLookup()
+                    .findVirtual(SharedResource.class, "getResourceLock", MethodType.methodType(ResourceLock.class))
+                    .bindTo(resource)
+                    .invokeExact();
+            }
+        } catch (Throwable ex) {
+            throw new IllegalStateException("Unable to find suitable ResourceLock::getResourceLock", ex);
+        }
     }
 
     @Override
