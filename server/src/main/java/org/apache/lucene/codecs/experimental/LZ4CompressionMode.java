@@ -6,30 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.apache.lucene.codecs.experimental;
 
 import java.io.IOException;
@@ -46,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 
 /** LZ4 JNI based Compression Mode */
 public class LZ4CompressionMode extends CompressionMode {
+
     private static final int NUM_SUB_BLOCKS = 10;
 
     /** default constructor */
@@ -100,8 +77,6 @@ public class LZ4CompressionMode extends CompressionMode {
         @Override
         public void close() throws IOException {}
     }
-
-    // decompression
 
     /** LZ4 decompressor */
     private static final class LZ4InnerDecompressor extends Decompressor {
