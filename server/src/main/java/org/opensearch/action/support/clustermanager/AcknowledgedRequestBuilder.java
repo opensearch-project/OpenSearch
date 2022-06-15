@@ -24,39 +24,50 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.unit.TimeValue;
 
 /**
- * Base request builder for cluster-manager node read operations that can be executed on the local node as well
+ * Base request builder for cluster-manager node operations that support acknowledgements
  *
  * @opensearch.internal
  */
-public abstract class MasterNodeReadOperationRequestBuilder<
-    Request extends MasterNodeReadRequest<Request>,
-    Response extends ActionResponse,
-    RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>> extends
-    MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+public abstract class AcknowledgedRequestBuilder<
+    Request extends AcknowledgedRequest<Request>,
+    Response extends AcknowledgedResponse,
+    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends ClusterManagerNodeOperationRequestBuilder<
+        Request,
+        Response,
+        RequestBuilder> {
 
-    protected MasterNodeReadOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
+    protected AcknowledgedRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 
     /**
-     * Specifies if the request should be executed on local node rather than on master
+     * Sets the maximum wait for acknowledgement from other nodes
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setLocal(boolean local) {
-        request.local(local);
+    public RequestBuilder setTimeout(TimeValue timeout) {
+        request.timeout(timeout);
+        return (RequestBuilder) this;
+    }
+
+    /**
+     * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
+     * to {@code 10s}.
+     */
+    @SuppressWarnings("unchecked")
+    public RequestBuilder setTimeout(String timeout) {
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
 }
