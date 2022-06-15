@@ -15,6 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -53,5 +54,24 @@ public class NodeRoleSettingsTests extends OpenSearchTestCase {
         Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master").build();
         assertEquals(Collections.singletonList(DiscoveryNodeRole.MASTER_ROLE), NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings));
         assertWarnings(DiscoveryNodeRole.MASTER_ROLE_DEPRECATION_MESSAGE);
+    }
+
+    public void testUnknownNodeRoleAndBuiltInRoleCanCoexist() {
+        String testRole = "test_role";
+        Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "data, " + testRole).build();
+        List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings);
+        assertEquals(2, nodeRoles.size());
+        assertEquals(DiscoveryNodeRole.DATA_ROLE, nodeRoles.get(0));
+        assertEquals(testRole, nodeRoles.get(1).roleName());
+        assertEquals(testRole, nodeRoles.get(1).roleNameAbbreviation());
+    }
+
+    public void testUnknownNodeRoleOnly() {
+        String testRole = "test_role";
+        Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), testRole).build();
+        List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings);
+        assertEquals(1, nodeRoles.size());
+        assertEquals(testRole, nodeRoles.get(0).roleName());
+        assertEquals(testRole, nodeRoles.get(0).roleNameAbbreviation());
     }
 }
