@@ -119,6 +119,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -1120,7 +1121,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         SearchContext mockedSearchContext = mock(SearchContext.class);
         when(mockedSearchContext.timeout()).thenReturn(TimeValue.timeValueMillis(timeout));
         when(mockedSearchContext.getRelativeTimeInMillis()).thenAnswer(invocation -> threadPool.relativeTimeInMillis());
-        when(mockedSearchContext.getPreciseRelativeTimeInMillis()).thenCallRealMethod();
+        when(mockedSearchContext.getRelativeTimeInMillis(eq(false))).thenCallRealMethod();
         Runnable queryTimeoutChecker = QueryPhase.createQueryTimeoutChecker(mockedSearchContext);
         // make sure next time slot become available
         Thread.sleep(sleepAfterCreation);
@@ -1132,7 +1133,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         queryTimeoutChecker.run();
         verify(mockedSearchContext, times(1)).timeout();
-        verify(mockedSearchContext, times(1)).getPreciseRelativeTimeInMillis();
+        verify(mockedSearchContext, times(1)).getRelativeTimeInMillis(eq(false));
         verify(mockedSearchContext, atLeastOnce()).getRelativeTimeInMillis();
         verifyNoMoreInteractions(mockedSearchContext);
     }

@@ -393,12 +393,16 @@ public abstract class SearchContext implements Releasable {
     public abstract long getRelativeTimeInMillis();
 
     /**
-     * Returns time in milliseconds that can be used for relative time calculations. This is just a wrapper of {@link System#nanoTime()}
-     * and it is not cached. This should be used instead of {@link SearchContext#getRelativeTimeInMillis()} when cached time might cause
-     * problems
-     * @return {@link System#nanoTime()} converted to Milliseconds
+     * Returns time in milliseconds that can be used for relative time calculations. this method will fall back to
+     * {@link SearchContext#getRelativeTimeInMillis()} (which might be a cached time) if useCache was set to true else it will be just be a
+     * wrapper of {@link System#nanoTime()} converted to milliseconds.
+     * @param useCache to allow using cached time if true or forcing calling {@link System#nanoTime()} if false
+     * @return Returns time in milliseconds that can be used for relative time calculations.
      */
-    public long getPreciseRelativeTimeInMillis() {
+    public long getRelativeTimeInMillis(boolean useCache) {
+        if (useCache) {
+            return getRelativeTimeInMillis();
+        }
         return TimeValue.nsecToMSec(System.nanoTime());
     }
 

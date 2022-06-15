@@ -368,7 +368,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             // make sure getPreciseRelativeTimeInMillis is same as System.nanoTime()
             long timeToleranceInMs = 10;
             long currTime = TimeValue.nsecToMSec(System.nanoTime());
-            assertTrue(Math.abs(context3.getPreciseRelativeTimeInMillis() - currTime) <= timeToleranceInMs);
+            assertTrue(Math.abs(context3.getRelativeTimeInMillis(false) - currTime) <= timeToleranceInMs);
 
             when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
             when(queryShardContext.fieldMapper(anyString())).thenReturn(mock(MappedFieldType.class));

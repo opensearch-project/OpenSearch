@@ -311,7 +311,7 @@ public class QueryPhase {
         /* for startTime, relative non-cached precise time must be used to prevent false positive timeouts.
         * Using cached time for startTime will fail and produce false positive timeouts when maxTime = (startTime + timeout) falls in
         * next time cache slot(s) AND time caching lifespan > passed timeout */
-        final long startTime = searchContext.getPreciseRelativeTimeInMillis();
+        final long startTime = searchContext.getRelativeTimeInMillis(false);
         final long maxTime = startTime + searchContext.timeout().millis();
         return () -> {
             /* As long as startTime is non cached time, using cached time here might only produce false negative timeouts within the time
