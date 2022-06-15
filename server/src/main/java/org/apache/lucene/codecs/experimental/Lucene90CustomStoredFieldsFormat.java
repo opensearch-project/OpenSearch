@@ -91,7 +91,6 @@ public class Lucene90CustomStoredFieldsFormat extends StoredFieldsFormat {
         switch (mode) {
             case ZSTD:
                 return new Lucene90CompressingStoredFieldsFormat("CustomStoredFieldsZstd", ZSTD_MODE, ZSTD_BLOCK_LENGTH, 4096, 10);
-
             case ZSTD_NO_DICT:
                 return new Lucene90CompressingStoredFieldsFormat(
                     "CustomStoredFieldsZstdNoDict",
@@ -100,10 +99,8 @@ public class Lucene90CustomStoredFieldsFormat extends StoredFieldsFormat {
                     4096,
                     10
                 );
-
             case LZ4_NATIVE:
                 return new Lucene90CompressingStoredFieldsFormat("CustomStoredFieldsLz4", LZ4_MODE, LZ4_NATIVE_BLOCK_LENGTH, 1024, 10);
-
             default:
                 throw new AssertionError();
         }
