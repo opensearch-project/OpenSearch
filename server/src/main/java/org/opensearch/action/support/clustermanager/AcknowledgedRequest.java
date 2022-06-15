@@ -29,7 +29,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.cluster.ack.AckedRequest;
 import org.opensearch.common.io.stream.StreamInput;
@@ -46,7 +46,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
  *
  * @opensearch.internal
  */
-public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
+public abstract class AcknowledgedRequest<Request extends ClusterManagerNodeRequest<Request>> extends ClusterManagerNodeRequest<Request>
     implements
         AckedRequest {
 

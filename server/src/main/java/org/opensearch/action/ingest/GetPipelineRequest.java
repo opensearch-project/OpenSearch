@@ -33,7 +33,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -45,7 +45,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest> {
+public class GetPipelineRequest extends ClusterManagerNodeReadRequest<GetPipelineRequest> {
 
     private String[] ids;
 

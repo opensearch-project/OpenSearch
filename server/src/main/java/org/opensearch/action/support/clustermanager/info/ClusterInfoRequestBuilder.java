@@ -29,45 +29,47 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager.info;
 
 import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.ArrayUtils;
 
 /**
- * Base request builder for cluster-manager node operations that support acknowledgements
+ * Transport request builder for cluster information
  *
  * @opensearch.internal
  */
-public abstract class AcknowledgedRequestBuilder<
-    Request extends AcknowledgedRequest<Request>,
-    Response extends AcknowledgedResponse,
-    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends MasterNodeOperationRequestBuilder<
+public abstract class ClusterInfoRequestBuilder<
+    Request extends ClusterInfoRequest<Request>,
+    Response extends ActionResponse,
+    Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends ClusterManagerNodeReadOperationRequestBuilder<
         Request,
         Response,
-        RequestBuilder> {
+        Builder> {
 
-    protected AcknowledgedRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
+    protected ClusterInfoRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 
-    /**
-     * Sets the maximum wait for acknowledgement from other nodes
-     */
     @SuppressWarnings("unchecked")
-    public RequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return (RequestBuilder) this;
+    public Builder setIndices(String... indices) {
+        request.indices(indices);
+        return (Builder) this;
     }
 
-    /**
-     * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
-     * to {@code 10s}.
-     */
     @SuppressWarnings("unchecked")
-    public RequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return (RequestBuilder) this;
+    public Builder addIndices(String... indices) {
+        request.indices(ArrayUtils.concat(request.indices(), indices));
+        return (Builder) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Builder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
+        return (Builder) this;
     }
 }
