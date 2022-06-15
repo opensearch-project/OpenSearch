@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,10 +71,10 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends
-    HandledTransportAction<Request, Response> {
+public abstract class TransportClusterManagerNodeAction<Request extends ClusterManagerNodeRequest<Request>, Response extends ActionResponse>
+    extends HandledTransportAction<Request, Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportClusterManagerNodeAction.class);
 
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
@@ -83,7 +83,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     private final String executor;
 
-    protected TransportMasterNodeAction(
+    protected TransportClusterManagerNodeAction(
         String actionName,
         TransportService transportService,
         ClusterService clusterService,
@@ -95,7 +95,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
-    protected TransportMasterNodeAction(
+    protected TransportClusterManagerNodeAction(
         String actionName,
         boolean canTripCircuitBreaker,
         TransportService transportService,
@@ -214,7 +214,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             clusterManagerNode,
                             actionName,
                             request,
-                            new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {
+                            new ActionListenerResponseHandler<Response>(listener, TransportClusterManagerNodeAction.this::read) {
                                 @Override
                                 public void handleException(final TransportException exp) {
                                     Throwable cause = exp.unwrapCause();

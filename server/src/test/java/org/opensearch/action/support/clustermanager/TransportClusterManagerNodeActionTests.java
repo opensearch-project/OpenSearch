@@ -29,7 +29,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -86,7 +86,7 @@ import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class TransportMasterNodeActionTests extends OpenSearchTestCase {
+public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     private static ThreadPool threadPool;
 
     private ClusterService clusterService;
@@ -156,7 +156,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         }
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends ClusterManagerNodeRequest<Request> {
         Request() {}
 
         Request(StreamInput in) throws IOException {
@@ -198,7 +198,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         }
     }
 
-    class Action extends TransportMasterNodeAction<Request, Response> {
+    class Action extends TransportClusterManagerNodeAction<Request, Response> {
         Action(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
             super(
                 actionName,

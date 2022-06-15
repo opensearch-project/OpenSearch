@@ -44,8 +44,8 @@ import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesRequ
 import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.opensearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -73,7 +73,9 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class TransportDeleteDanglingIndexAction extends TransportMasterNodeAction<DeleteDanglingIndexRequest, AcknowledgedResponse> {
+public class TransportDeleteDanglingIndexAction extends TransportClusterManagerNodeAction<
+    DeleteDanglingIndexRequest,
+    AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 
     private final Settings settings;
