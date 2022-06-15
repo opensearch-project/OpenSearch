@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 
 /**
@@ -42,7 +42,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
  *
  * @opensearch.internal
  */
-public class ClusterGetSettingsRequest extends MasterNodeReadRequest<ClusterGetSettingsRequest> {
+public class ClusterGetSettingsRequest extends ClusterManagerNodeReadRequest<ClusterGetSettingsRequest> {
     private boolean includeDefaults = false;
 
     @Override

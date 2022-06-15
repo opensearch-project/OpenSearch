@@ -39,7 +39,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -79,7 +79,7 @@ import static java.util.Collections.unmodifiableList;
  *
  * @opensearch.internal
  */
-public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
+public class TransportGetSnapshotsAction extends TransportClusterManagerNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
 

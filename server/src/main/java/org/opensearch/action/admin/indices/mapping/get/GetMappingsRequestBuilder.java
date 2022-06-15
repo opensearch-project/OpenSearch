@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.mapping.get;
 
-import org.opensearch.action.support.master.info.ClusterInfoRequestBuilder;
+import org.opensearch.action.support.clustermanager.info.ClusterInfoRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**

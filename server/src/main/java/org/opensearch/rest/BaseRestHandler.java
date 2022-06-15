@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
@@ -215,7 +215,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * @param mnr the action request
      * @param request the REST request to handle
      */
-    public static void parseDeprecatedMasterTimeoutParameter(MasterNodeRequest mnr, RestRequest request) {
+    public static void parseDeprecatedMasterTimeoutParameter(ClusterManagerNodeRequest mnr, RestRequest request) {
         if (request.hasParam("master_timeout")) {
             if (request.hasParam("cluster_manager_timeout")) {
                 throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);

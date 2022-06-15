@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilters;
@@ -46,10 +46,11 @@ import org.opensearch.transport.TransportService;
  *
  * @opensearch.internal
  */
-public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse> extends
-    TransportMasterNodeAction<Request, Response> {
+public abstract class TransportClusterManagerNodeReadAction<
+    Request extends ClusterManagerNodeReadRequest<Request>,
+    Response extends ActionResponse> extends TransportClusterManagerNodeAction<Request, Response> {
 
-    protected TransportMasterNodeReadAction(
+    protected TransportClusterManagerNodeReadAction(
         String actionName,
         TransportService transportService,
         ClusterService clusterService,
@@ -61,7 +62,7 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
-    protected TransportMasterNodeReadAction(
+    protected TransportClusterManagerNodeReadAction(
         String actionName,
         boolean checkSizeLimit,
         TransportService transportService,

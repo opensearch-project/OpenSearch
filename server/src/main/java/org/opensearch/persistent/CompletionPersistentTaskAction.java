@@ -35,9 +35,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.opensearch.action.support.master.MasterNodeRequest;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -75,7 +75,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
      *
      * @opensearch.internal
      */
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends ClusterManagerNodeRequest<Request> {
 
         private String taskId;
 
@@ -139,10 +139,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
      *
      * @opensearch.internal
      */
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
-        CompletionPersistentTaskAction.Request,
-        PersistentTaskResponse,
-        CompletionPersistentTaskAction.RequestBuilder> {
+    public static class RequestBuilder extends ClusterManagerNodeOperationRequestBuilder<Request, PersistentTaskResponse, RequestBuilder> {
 
         protected RequestBuilder(OpenSearchClient client, CompletionPersistentTaskAction action) {
             super(client, action, new Request());
@@ -154,7 +151,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
      *
      * @opensearch.internal
      */
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 
