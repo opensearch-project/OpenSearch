@@ -10,7 +10,7 @@ package org.opensearch.action;
 
 import org.junit.After;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
@@ -581,8 +581,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         assertWarnings("empty templates should no longer be used");
     }
 
-    private MasterNodeRequest getMasterNodeRequest() {
-        return new MasterNodeRequest() {
+    private ClusterManagerNodeRequest getMasterNodeRequest() {
+        return new ClusterManagerNodeRequest() {
             @Override
             public ActionRequestValidationException validate() {
                 return null;

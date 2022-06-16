@@ -37,7 +37,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.io.stream.StreamInput;
@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @opensearch.internal
  */
-public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
+public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandHidden();

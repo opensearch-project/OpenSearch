@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Master Node Information transport handlers. */
-package org.opensearch.action.support.master.info;
+/** Cluster Manager Node transport handlers. */
+package org.opensearch.action.support.clustermanager;

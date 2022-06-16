@@ -40,7 +40,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -72,7 +72,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
+public class TransportRolloverAction extends TransportClusterManagerNodeAction<RolloverRequest, RolloverResponse> {
 
     private final MetadataRolloverService rolloverService;
     private final ActiveShardsObserver activeShardsObserver;

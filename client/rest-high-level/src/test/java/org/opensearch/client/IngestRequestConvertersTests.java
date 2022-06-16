@@ -40,7 +40,7 @@ import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
