@@ -188,13 +188,14 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         spy.onNewCheckpoint(newCheckpoint, spyShard);
         spy.onNewCheckpoint(newCheckpoint2, spyShard);
+        verify(spy, times(1)).onNewCheckpoint(eq(newCheckpoint2), any());
         ArgumentCaptor<SegmentReplicationTargetService.SegmentReplicationListener> captor = ArgumentCaptor.forClass(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
-        verify(spy, times(1)).startReplication(any(), any(), captor.capture());
+        verify(spy, times(1)).startReplication(eq(newCheckpoint), any(), captor.capture());
         SegmentReplicationTargetService.SegmentReplicationListener listener = captor.getValue();
         listener.onDone(new SegmentReplicationState());
-        verify(spy, times(1)).startReplication(any(), any(), any());
+        verify(spy, times(2)).onNewCheckpoint(eq(newCheckpoint2), any());
         closeShard(indexShard, false);
 
     }

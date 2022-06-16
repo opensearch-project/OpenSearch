@@ -125,13 +125,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     // if we received a checkpoint during the copy event that is ahead of this
                     // try and process it.
                     if (getLatestReceivedCheckpoint(indexShard.shardId()).isAheadOf(indexShard.getLatestReplicationCheckpoint())) {
-                        threadPool.generic()
-                            .execute(
-                                () -> onNewCheckpoint(
-                                    getLatestReceivedCheckpoint(indexShard.shardId()),
-                                    indexShard
-                                )
-                            );
+                        onNewCheckpoint(getLatestReceivedCheckpoint(indexShard.shardId()), indexShard);
                     }
                 }
 
