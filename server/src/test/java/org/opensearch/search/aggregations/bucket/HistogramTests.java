@@ -103,6 +103,19 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregation
         assertThat(ex.getMessage(), equalTo("max bound [0.4] must be greater than min bound [0.5]"));
     }
 
+    /**
+     * Check that minBound/maxBound does not throw {@link NullPointerException} when called before being set.
+     */
+    public void testMinBoundMaxBoundDefaultValues() {
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder("foo");
+
+        double minValue = factory.minBound();
+        double maxValue = factory.maxBound();
+
+        assertThat(minValue, equalTo(Double.POSITIVE_INFINITY));
+        assertThat(maxValue, equalTo(Double.NEGATIVE_INFINITY));
+    }
+
     private List<BucketOrder> randomOrder() {
         List<BucketOrder> orders = new ArrayList<>();
         switch (randomInt(4)) {
