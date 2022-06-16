@@ -21,7 +21,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
@@ -53,7 +52,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final SegmentReplicationSourceFactory sourceFactory;
 
-    private static final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint= new HashMap<>();
+    private static final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = new HashMap<>();
 
     /**
      * The internal actions
@@ -91,8 +90,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
-    ReplicationCheckpoint getLatestReceivedCheckpoint(ShardId shardId){
-        if(latestReceivedCheckpoint.containsKey(shardId)){
+    ReplicationCheckpoint getLatestReceivedCheckpoint(ShardId shardId) {
+        if (latestReceivedCheckpoint.containsKey(shardId)) {
             return latestReceivedCheckpoint.get(shardId);
         }
         return null;
@@ -106,12 +105,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint requestCheckpoint, final IndexShard indexShard) {
 
-        if(getLatestReceivedCheckpoint(indexShard.shardId()) != null){
+        if (getLatestReceivedCheckpoint(indexShard.shardId()) != null) {
             if (requestCheckpoint.isAheadOf(latestReceivedCheckpoint.get(indexShard.shardId()))) {
                 latestReceivedCheckpoint.replace(indexShard.shardId(), requestCheckpoint);
             }
-        }
-        else{
+        } else {
             latestReceivedCheckpoint.put(indexShard.shardId(), requestCheckpoint);
         }
         if (onGoingReplications.isShardReplicating(indexShard.shardId())) {
