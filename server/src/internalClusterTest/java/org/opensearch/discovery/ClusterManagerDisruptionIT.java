@@ -227,7 +227,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
-        assertNoClusterManager(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(30));
+        assertNoClusterManager(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES, TimeValue.timeValueSeconds(30));
 
         logger.info("wait until elected cluster-manager has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
         ensureStableCluster(2, nonIsolatedNode);
