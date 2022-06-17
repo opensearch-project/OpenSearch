@@ -41,6 +41,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.DeletePitInfo;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.PitSearchContextIdForNode;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -138,7 +141,13 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1018,36 +1027,43 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Free reader contexts if found
      */
-    public boolean freeReaderContextsIfFound(List<ShardSearchContextId> contextIds) {
-        boolean success = true;
-        for (ShardSearchContextId contextId : contextIds) {
+    public DeletePitResponse freeReaderContextsIfFound(List<PitSearchContextIdForNode> contextIds) {
+        List<DeletePitInfo> deleteResults = new ArrayList<>();
+        for (PitSearchContextIdForNode contextId : contextIds) {
             try {
-                if (getReaderContext(contextId) != null) {
-                    try (ReaderContext context = removeReaderContext(contextId.getId())) {
-                        boolean freed = context != null;
-                        if (!freed) {
-                            success = false;
-                        }
+                if (getReaderContext(contextId.getSearchContextIdForNode().getSearchContextId()) != null) {
+                    try (ReaderContext context = removeReaderContext(contextId.getSearchContextIdForNode().getSearchContextId().getId())) {
+                        PitReaderContext pitReaderContext = (PitReaderContext) context;
+                        String pitId = pitReaderContext.getPitId();
+                        boolean success = context != null;
+                        DeletePitInfo deletePitInfo = new DeletePitInfo(success, pitId);
+                        deleteResults.add(deletePitInfo);
                     }
+                } else {
+                    DeletePitInfo deletePitInfo = new DeletePitInfo(true, contextId.getPitId());
+                    deleteResults.add(deletePitInfo);
                 }
             } catch (SearchContextMissingException e) {
-                // do nothing in case of context not found case
+                DeletePitInfo deletePitInfo = new DeletePitInfo(true, contextId.getPitId());
+                deleteResults.add(deletePitInfo);
             }
         }
-        return success;
+        return new DeletePitResponse(deleteResults);
     }
 
     /**
      * Free all active pit contexts
      */
-    public boolean freeAllPitContexts() {
-        List<ShardSearchContextId> contextIds = new ArrayList<>();
+    public DeletePitResponse freeAllPitContexts() {
+        List<DeletePitInfo> deleteResults = new ArrayList<>();
         for (ReaderContext readerContext : activeReaders.values()) {
             if (readerContext instanceof PitReaderContext) {
-                contextIds.add(readerContext.id());
+                boolean result = freeReaderContext(readerContext.id());
+                DeletePitInfo deletePitInfo = new DeletePitInfo(result, ((PitReaderContext) readerContext).getPitId());
+                deleteResults.add(deletePitInfo);
             }
         }
-        return freeReaderContextsIfFound(contextIds);
+        return new DeletePitResponse(deleteResults);
     }
 
     /**

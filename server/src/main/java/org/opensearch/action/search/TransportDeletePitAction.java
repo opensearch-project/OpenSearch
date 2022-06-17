@@ -10,10 +10,8 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -24,7 +22,6 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,33 +69,17 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      * Deletes list of pits, return success if all reader contexts are deleted ( or not found ).
      */
     private void deletePits(ActionListener<DeletePitResponse> listener, DeletePitRequest request) {
-        Map<String, List<SearchContextIdForNode>> nodeToContextsMap = new HashMap<>();
+        Map<String, List<PitSearchContextIdForNode>> nodeToContextsMap = new HashMap<>();
         for (String pitId : request.getPitIds()) {
             SearchContextId contextId = SearchContextId.decode(namedWriteableRegistry, pitId);
             for (SearchContextIdForNode contextIdForNode : contextId.shards().values()) {
-                List<SearchContextIdForNode> contexts = nodeToContextsMap.getOrDefault(contextIdForNode.getNode(), new ArrayList<>());
-                contexts.add(contextIdForNode);
+                PitSearchContextIdForNode pitSearchContext = new PitSearchContextIdForNode(pitId, contextIdForNode);
+                List<PitSearchContextIdForNode> contexts = nodeToContextsMap.getOrDefault(contextIdForNode.getNode(), new ArrayList<>());
+                contexts.add(pitSearchContext);
                 nodeToContextsMap.put(contextIdForNode.getNode(), contexts);
             }
         }
-        ActionListener<Integer> deleteListener = ActionListener.wrap(r -> {
-            if (r == nodeToContextsMap.size()) {
-                listener.onResponse(new DeletePitResponse(true));
-            } else {
-                logger.debug(
-                    () -> new ParameterizedMessage(
-                        "Delete PITs failed. Cleared contexts in {} nodes out of {}",
-                        r,
-                        nodeToContextsMap.size()
-                    )
-                );
-                listener.onResponse(new DeletePitResponse(false));
-            }
-        }, e -> {
-            logger.error("Delete PITs failed ", e);
-            listener.onResponse(new DeletePitResponse(false));
-        });
-        SearchUtils.deletePitContexts(nodeToContextsMap, deleteListener, clusterService.state(), searchTransportService);
+        SearchUtils.deletePitContexts(nodeToContextsMap, listener, clusterService.state(), searchTransportService);
     }
 
     /**
@@ -106,22 +87,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      */
     private void deleteAllPits(ActionListener<DeletePitResponse> listener) {
         int size = clusterService.state().getNodes().getSize();
-        ActionListener groupedActionListener = new GroupedActionListener<SearchTransportService.SearchFreeContextResponse>(
-            new ActionListener<>() {
-                @Override
-                public void onResponse(final Collection<SearchTransportService.SearchFreeContextResponse> responses) {
-                    boolean hasFailures = responses.stream().anyMatch(r -> !r.isFreed());
-                    listener.onResponse(new DeletePitResponse(!hasFailures));
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    logger.error("Delete all PITs failed ", e);
-                    listener.onResponse(new DeletePitResponse(false));
-                }
-            },
-            size
-        );
+        ActionListener groupedActionListener = SearchUtils.getDeletePitGroupedListener(listener, size);
         for (final DiscoveryNode node : clusterService.state().getNodes()) {
             try {
                 Transport.Connection connection = searchTransportService.getConnection(null, node);

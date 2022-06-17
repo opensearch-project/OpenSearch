@@ -13,7 +13,6 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -21,6 +20,8 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
@@ -31,61 +32,73 @@ import static org.opensearch.rest.RestStatus.OK;
  */
 public class DeletePitResponse extends ActionResponse implements StatusToXContentObject {
 
-    /**
-     * This will be true if PIT reader contexts are deleted ond also if contexts are not found.
-     */
-    private final boolean succeeded;
+    private final List<DeletePitInfo> deletePitResults;
 
-    public DeletePitResponse(boolean succeeded) {
-        this.succeeded = succeeded;
+    public DeletePitResponse(List<DeletePitInfo> deletePitResults) {
+        this.deletePitResults = deletePitResults;
     }
 
     public DeletePitResponse(StreamInput in) throws IOException {
         super(in);
-        succeeded = in.readBoolean();
+        int size = in.readVInt();
+        deletePitResults = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            deletePitResults.add(new DeletePitInfo(in));
+        }
+
+    }
+
+    public List<DeletePitInfo> getDeletePitResults() {
+        return deletePitResults;
     }
 
     /**
      * @return Whether the attempt to delete PIT was successful.
      */
-    public boolean isSucceeded() {
-        return succeeded;
-    }
 
     @Override
     public RestStatus status() {
-        return succeeded ? OK : NOT_FOUND;
+        for (DeletePitInfo deletePitResult : deletePitResults) {
+            if (!deletePitResult.isSucceeded()) return NOT_FOUND;
+        }
+        return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(succeeded);
-    }
-
-    private static final ParseField SUCCEEDED = new ParseField("succeeded");
-
-    private static final ConstructingObjectParser<DeletePitResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "delete_pit",
-        true,
-        a -> new DeletePitResponse((boolean) a[0])
-    );
-    static {
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SUCCEEDED, ObjectParser.ValueType.BOOLEAN);
+        out.writeVInt(deletePitResults.size());
+        for (DeletePitInfo deletePitResult : deletePitResults) {
+            deletePitResult.writeTo(out);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field(SUCCEEDED.getPreferredName(), succeeded);
+        builder.startArray("pits");
+        for (DeletePitInfo response : deletePitResults) {
+            response.toXContent(builder, params);
+        }
+        builder.endArray();
         builder.endObject();
         return builder;
     }
 
-    /**
-     * Parse the delete PIT response body into a new {@link DeletePitResponse} object
-     */
+    private static final ConstructingObjectParser<DeletePitResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "delete_pit_response",
+        true,
+        (Object[] parsedObjects) -> {
+            @SuppressWarnings("unchecked")
+            List<DeletePitInfo> deletePitInfoList = (List<DeletePitInfo>) parsedObjects[0];
+            return new DeletePitResponse(deletePitInfoList);
+        }
+    );
+    static {
+        PARSER.declareObjectArray(constructorArg(), DeletePitInfo.PARSER, new ParseField("pits"));
+    }
+
     public static DeletePitResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
+        return PARSER.parse(parser, null);
     }
 
 }

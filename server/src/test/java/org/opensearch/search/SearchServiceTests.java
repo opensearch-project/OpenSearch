@@ -40,14 +40,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.action.search.ClearScrollRequest;
-import org.opensearch.action.search.SearchPhaseExecutionException;
-import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.action.search.SearchType;
-import org.opensearch.action.search.UpdatePitContextRequest;
-import org.opensearch.action.search.UpdatePitContextResponse;
+import org.opensearch.action.search.*;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
@@ -1419,12 +1412,20 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         SearchService searchService = getInstanceFromNode(SearchService.class);
         PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
         searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
-        List<ShardSearchContextId> contextIds = new ArrayList<>();
-        contextIds.add(future.actionGet());
+        List<PitSearchContextIdForNode> contextIds = new ArrayList<>();
+        ShardSearchContextId shardSearchContextId = future.actionGet();
+        PitSearchContextIdForNode pitSearchContextIdForNode = new PitSearchContextIdForNode(
+            "1",
+            new SearchContextIdForNode(null, "node1", shardSearchContextId)
+        );
+        contextIds.add(pitSearchContextIdForNode);
+
         assertThat(searchService.getActiveContexts(), equalTo(1));
-        assertTrue(searchService.freeReaderContextsIfFound(contextIds));
+        DeletePitResponse deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSucceeded());
         // assert true for reader context not found
-        assertTrue(searchService.freeReaderContextsIfFound(contextIds));
+        deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSucceeded());
         // adding this assert to showcase behavior difference
         assertFalse(searchService.freeReaderContext(future.actionGet()));
     }

@@ -13,6 +13,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.junit.Before;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.common.unit.TimeValue;
@@ -59,7 +60,8 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         pitIds.add(pitResponse.getId());
         DeletePitRequest deletePitRequest = new DeletePitRequest(pitIds);
         DeletePitResponse deletePitResponse = execute(deletePitRequest, highLevelClient()::deletePit, highLevelClient()::deletePitAsync);
-        assertTrue(deletePitResponse.isSucceeded());
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSucceeded());
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).getPitId().equals(pitResponse.getId()));
     }
 
     public void testDeleteAllPits() throws IOException {
@@ -76,6 +78,8 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
             highLevelClient()::deleteAllPits,
             highLevelClient()::deleteAllPitsAsync
         );
-        assertTrue(deletePitResponse.isSucceeded());
+        for (DeletePitInfo deletePitInfo : deletePitResponse.getDeletePitResults()) {
+            assertTrue(deletePitInfo.isSucceeded());
+        }
     }
 }

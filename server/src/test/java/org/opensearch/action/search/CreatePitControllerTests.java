@@ -30,7 +30,6 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
-import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -39,6 +38,8 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterConnectionTests;
 import org.opensearch.transport.Transport;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -199,11 +200,11 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     @Override
                     public void sendFreePITContexts(
                         Transport.Connection connection,
-                        List<ShardSearchContextId> contextIds,
-                        ActionListener<SearchFreeContextResponse> listener
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
-                        Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                        Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
                         t.start();
                     }
 
@@ -294,11 +295,11 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     @Override
                     public void sendFreePITContexts(
                         Transport.Connection connection,
-                        List<ShardSearchContextId> contextIds,
-                        ActionListener<SearchFreeContextResponse> listener
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
-                        Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                        Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
                         t.start();
                     }
                 };
@@ -391,11 +392,11 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     @Override
                     public void sendFreePITContexts(
                         Transport.Connection connection,
-                        List<ShardSearchContextId> contextIds,
-                        ActionListener<SearchFreeContextResponse> listener
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
-                        Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                        Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
                         t.start();
                     }
 
@@ -481,11 +482,11 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     @Override
                     public void sendFreePITContexts(
                         Transport.Connection connection,
-                        List<ShardSearchContextId> contextIds,
-                        ActionListener<SearchFreeContextResponse> listener
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
-                        Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                        Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
                         t.start();
                     }
 

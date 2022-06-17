@@ -15,6 +15,7 @@ import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.DeletePitAction;
+import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.common.settings.Settings;
@@ -29,7 +30,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 
 /**
@@ -70,13 +73,20 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
         ActionFuture<DeletePitResponse> deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = deleteExecute.get();
-        assertTrue(deletePITResponse.isSucceeded());
+        assertEquals(2, deletePITResponse.getDeletePitResults().size());
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertTrue(pitIds.contains(deletePitInfo.getPitId()));
+            assertTrue(deletePitInfo.isSucceeded());
+        }
         /**
          * Checking deleting the same PIT id again results in succeeded
          */
         deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         deletePITResponse = deleteExecute.get();
-        assertTrue(deletePITResponse.isSucceeded());
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertTrue(pitIds.contains(deletePitInfo.getPitId()));
+            assertTrue(deletePitInfo.isSucceeded());
+        }
     }
 
     public void testDeletePitWithValidAndDeletedIds() throws Exception {
@@ -93,8 +103,10 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
         ActionFuture<DeletePitResponse> deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = deleteExecute.get();
-        assertTrue(deletePITResponse.isSucceeded());
-
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertTrue(pitIds.contains(deletePitInfo.getPitId()));
+            assertTrue(deletePitInfo.isSucceeded());
+        }
         execute = client().execute(CreatePitAction.INSTANCE, request);
         pitResponse = execute.get();
         pitIds.add(pitResponse.getId());
@@ -104,7 +116,10 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         deletePITRequest = new DeletePitRequest(pitIds);
         deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         deletePITResponse = deleteExecute.get();
-        assertTrue(deletePITResponse.isSucceeded());
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertTrue(pitIds.contains(deletePitInfo.getPitId()));
+            assertTrue(deletePitInfo.isSucceeded());
+        }
     }
 
     public void testDeletePitWithValidAndInvalidIds() throws Exception {
@@ -135,7 +150,10 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
-        assertTrue(deletePITResponse.isSucceeded());
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
+            assertTrue(deletePitInfo.isSucceeded());
+        }
         client().admin().indices().prepareDelete("index1").get();
     }
 
@@ -153,8 +171,15 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
-                DeletePitResponse deletePITResponse = execute.get();
-                assertFalse(deletePITResponse.isSucceeded());
+                try {
+                    DeletePitResponse deletePITResponse = execute.get();
+                    for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+                        assertTrue(pitIds.contains(deletePitInfo.getPitId()));
+                        assertFalse(deletePitInfo.isSucceeded());
+                    }
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -166,7 +191,10 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
-        assertTrue(deletePITResponse.isSucceeded());
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertTrue(pitIds.contains(deletePitInfo.getPitId()));
+            assertTrue(deletePitInfo.isSucceeded());
+        }
         client().admin().indices().prepareDelete("index1").get();
     }
 
@@ -180,8 +208,15 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
-                DeletePitResponse deletePITResponse = execute.get();
-                assertFalse(deletePITResponse.isSucceeded());
+                try {
+                    DeletePitResponse deletePITResponse = execute.get();
+                    for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+                        assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
+                        assertFalse(deletePitInfo.isSucceeded());
+                    }
+                } catch (Exception e) {
+                    assertTrue(e.getMessage().contains("Node not connected"));
+                }
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -193,7 +228,10 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
-        assertTrue(deletePITResponse.isSucceeded());
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
+            assertTrue(deletePitInfo.isSucceeded());
+        }
         client().admin().indices().prepareDelete("index1").get();
     }
 
@@ -236,7 +274,10 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
         deleted.set(true);
-        assertTrue(deletePITResponse.isSucceeded());
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertTrue(pitIds.contains(deletePitInfo.getPitId()));
+            assertTrue(deletePitInfo.isSucceeded());
+        }
 
         for (Thread thread : threads) {
             thread.join();

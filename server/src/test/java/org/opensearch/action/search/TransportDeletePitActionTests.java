@@ -29,7 +29,6 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
-import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -37,8 +36,8 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterConnectionTests;
 import org.opensearch.transport.Transport;
-import org.opensearch.transport.TransportResponse;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -46,6 +45,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.action.search.PitTestsUtil.getPitId;
@@ -162,11 +162,14 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     @Override
                     public void sendFreePITContexts(
                         Transport.Connection connection,
-                        List<ShardSearchContextId> contextIds,
-                        ActionListener<SearchFreeContextResponse> listener
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
-                        Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                        DeletePitInfo deletePitInfo = new DeletePitInfo(true, "pitId");
+                        List<DeletePitInfo> deletePitInfos = new ArrayList<>();
+                        deletePitInfos.add(deletePitInfo);
+                        Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(deletePitInfos)));
                         t.start();
                     }
 
@@ -187,7 +190,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
                 DeletePitResponse dr = future.get();
-                assertEquals(true, dr.isSucceeded());
+                assertTrue(dr.getDeletePitResults().get(0).getPitId().equals("pitId"));
+                assertTrue(dr.getDeletePitResults().get(0).isSucceeded());
                 assertEquals(3, deleteNodesInvoked.size());
 
             }
@@ -218,9 +222,12 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
-                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
+                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
                         deleteNodesInvoked.add(connection.getNode());
-                        Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                        DeletePitInfo deletePitInfo = new DeletePitInfo(true, "pitId");
+                        List<DeletePitInfo> deletePitInfos = new ArrayList<>();
+                        deletePitInfos.add(deletePitInfo);
+                        Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(deletePitInfos)));
                         t.start();
                     }
 
@@ -241,7 +248,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
                 DeletePitResponse dr = future.get();
-                assertEquals(true, dr.isSucceeded());
+                assertTrue(dr.getDeletePitResults().get(0).getPitId().equals("pitId"));
+                assertTrue(dr.getDeletePitResults().get(0).isSucceeded());
                 assertEquals(3, deleteNodesInvoked.size());
 
             }
@@ -276,8 +284,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     @Override
                     public void sendFreePITContexts(
                         Transport.Connection connection,
-                        List<ShardSearchContextId> contextIds,
-                        ActionListener<SearchFreeContextResponse> listener
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
 
@@ -285,7 +293,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                             Thread t = new Thread(() -> listener.onFailure(new Exception("node 3 down")));
                             t.start();
                         } else {
-                            Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                            Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
                             t.start();
                         }
                     }
@@ -306,14 +314,14 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
-                DeletePitResponse dr = future.get();
-                assertEquals(false, dr.isSucceeded());
+                Exception e = assertThrows(ExecutionException.class, () -> future.get());
+                assertThat(e.getMessage(), containsString("node 3 down"));
                 assertEquals(3, deleteNodesInvoked.size());
             }
         }
     }
 
-    public void testDeletePitWhenAllNodesAreDown() throws InterruptedException, ExecutionException {
+    public void testDeletePitWhenAllNodesAreDown() {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
@@ -339,8 +347,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     @Override
                     public void sendFreePITContexts(
                         Transport.Connection connection,
-                        List<ShardSearchContextId> contextIds,
-                        ActionListener<SearchFreeContextResponse> listener
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onFailure(new Exception("node 3 down")));
@@ -363,14 +371,14 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
-                DeletePitResponse dr = future.get();
-                assertEquals(false, dr.isSucceeded());
+                Exception e = assertThrows(ExecutionException.class, () -> future.get());
+                assertThat(e.getMessage(), containsString("node 3 down"));
                 assertEquals(3, deleteNodesInvoked.size());
             }
         }
     }
 
-    public void testDeletePitFailure() throws InterruptedException, ExecutionException {
+    public void testDeletePitFailure() {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
@@ -399,16 +407,16 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     @Override
                     public void sendFreePITContexts(
                         Transport.Connection connection,
-                        List<ShardSearchContextId> contextId,
-                        ActionListener<SearchFreeContextResponse> listener
+                        List<PitSearchContextIdForNode> contextId,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
 
                         if (connection.getNode().getId() == "node_3") {
-                            Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(false)));
+                            Thread t = new Thread(() -> listener.onFailure(new Exception("node down")));
                             t.start();
                         } else {
-                            Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                            Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
                             t.start();
                         }
                     }
@@ -429,14 +437,14 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
-                DeletePitResponse dr = future.get();
-                assertEquals(false, dr.isSucceeded());
+                Exception e = assertThrows(ExecutionException.class, () -> future.get());
+                assertThat(e.getMessage(), containsString("node down"));
                 assertEquals(3, deleteNodesInvoked.size());
             }
         }
     }
 
-    public void testDeleteAllPitWhenNodeIsDown() throws InterruptedException, ExecutionException {
+    public void testDeleteAllPitWhenNodeIsDown() {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
@@ -462,13 +470,13 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
                     @Override
-                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
+                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
                         deleteNodesInvoked.add(connection.getNode());
                         if (connection.getNode().getId() == "node_3") {
                             Thread t = new Thread(() -> listener.onFailure(new Exception("node 3 down")));
                             t.start();
                         } else {
-                            Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                            Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
                             t.start();
                         }
                     }
@@ -489,14 +497,14 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
-                DeletePitResponse dr = future.get();
-                assertEquals(false, dr.isSucceeded());
+                Exception e = assertThrows(ExecutionException.class, () -> future.get());
+                assertThat(e.getMessage(), containsString("node 3 down"));
                 assertEquals(3, deleteNodesInvoked.size());
             }
         }
     }
 
-    public void testDeleteAllPitWhenAllNodesAreDown() throws InterruptedException, ExecutionException {
+    public void testDeleteAllPitWhenAllNodesAreDown() {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
@@ -523,7 +531,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
 
                     @Override
-                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
+                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
                         deleteNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onFailure(new Exception("node down")));
                         t.start();
@@ -545,14 +553,14 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
-                DeletePitResponse dr = future.get();
-                assertEquals(false, dr.isSucceeded());
+                Exception e = assertThrows(ExecutionException.class, () -> future.get());
+                assertThat(e.getMessage(), containsString("node down"));
                 assertEquals(3, deleteNodesInvoked.size());
             }
         }
     }
 
-    public void testDeleteAllPitFailure() throws InterruptedException, ExecutionException {
+    public void testDeleteAllPitFailure() {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
@@ -578,13 +586,13 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
 
-                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
+                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
                         deleteNodesInvoked.add(connection.getNode());
                         if (connection.getNode().getId() == "node_3") {
-                            Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(false)));
+                            Thread t = new Thread(() -> listener.onFailure(new Exception("node 3 is down")));
                             t.start();
                         } else {
-                            Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(true)));
+                            Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
                             t.start();
                         }
                     }
@@ -605,8 +613,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
-                DeletePitResponse dr = future.get();
-                assertEquals(false, dr.isSucceeded());
+                Exception e = assertThrows(ExecutionException.class, () -> future.get());
+                assertThat(e.getMessage(), containsString("java.lang.Exception: node 3 is down"));
                 assertEquals(3, deleteNodesInvoked.size());
             }
         }

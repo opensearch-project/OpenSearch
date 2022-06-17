@@ -206,25 +206,25 @@ public class SearchTransportService {
 
     public void sendFreePITContexts(
         Transport.Connection connection,
-        List<ShardSearchContextId> contextIds,
-        ActionListener<SearchFreeContextResponse> listener
+        List<PitSearchContextIdForNode> contextIds,
+        ActionListener<DeletePitResponse> listener
     ) {
         transportService.sendRequest(
             connection,
             FREE_PIT_CONTEXT_ACTION_NAME,
             new PitFreeContextsRequest(contextIds),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new)
+            new ActionListenerResponseHandler<>(listener, DeletePitResponse::new)
         );
     }
 
-    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
+    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
         transportService.sendRequest(
             connection,
             FREE_ALL_PIT_CONTEXTS_ACTION_NAME,
             TransportRequest.Empty.INSTANCE,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new)
+            new ActionListenerResponseHandler<>(listener, DeletePitResponse::new)
         );
     }
 
@@ -402,9 +402,9 @@ public class SearchTransportService {
      * Request to free the PIT context based on id
      */
     static class PitFreeContextsRequest extends TransportRequest {
-        private List<ShardSearchContextId> contextIds;
+        private List<PitSearchContextIdForNode> contextIds;
 
-        PitFreeContextsRequest(List<ShardSearchContextId> contextIds) {
+        PitFreeContextsRequest(List<PitSearchContextIdForNode> contextIds) {
             this.contextIds = new ArrayList<>();
             this.contextIds.addAll(contextIds);
         }
@@ -415,7 +415,7 @@ public class SearchTransportService {
             if (size > 0) {
                 this.contextIds = new ArrayList<>();
                 for (int i = 0; i < size; i++) {
-                    ShardSearchContextId contextId = new ShardSearchContextId(in);
+                    PitSearchContextIdForNode contextId = new PitSearchContextIdForNode(in);
                     contextIds.add(contextId);
                 }
             }
@@ -425,12 +425,12 @@ public class SearchTransportService {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVInt(contextIds.size());
-            for (ShardSearchContextId contextId : contextIds) {
+            for (PitSearchContextIdForNode contextId : contextIds) {
                 contextId.writeTo(out);
             }
         }
 
-        public List<ShardSearchContextId> getContextIds() {
+        public List<PitSearchContextIdForNode> getContextIds() {
             return this.contextIds;
         }
     }
@@ -524,19 +524,17 @@ public class SearchTransportService {
             FREE_PIT_CONTEXT_ACTION_NAME,
             ThreadPool.Names.SAME,
             PitFreeContextsRequest::new,
-            (request, channel, task) -> {
-                channel.sendResponse(new SearchFreeContextResponse(searchService.freeReaderContextsIfFound(request.getContextIds())));
-            }
+            (request, channel, task) -> { channel.sendResponse(searchService.freeReaderContextsIfFound(request.getContextIds())); }
         );
-        TransportActionProxy.registerProxyAction(transportService, FREE_PIT_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, FREE_PIT_CONTEXT_ACTION_NAME, DeletePitResponse::new);
 
         transportService.registerRequestHandler(
             FREE_ALL_PIT_CONTEXTS_ACTION_NAME,
             ThreadPool.Names.SAME,
             TransportRequest.Empty::new,
-            (request, channel, task) -> { channel.sendResponse(new SearchFreeContextResponse(searchService.freeAllPitContexts())); }
+            (request, channel, task) -> { channel.sendResponse(searchService.freeAllPitContexts()); }
         );
-        TransportActionProxy.registerProxyAction(transportService, FREE_ALL_PIT_CONTEXTS_ACTION_NAME, SearchFreeContextResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, FREE_ALL_PIT_CONTEXTS_ACTION_NAME, DeletePitResponse::new);
 
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,

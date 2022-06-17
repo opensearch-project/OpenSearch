@@ -804,7 +804,8 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                 highLevelClient()::deletePit,
                 highLevelClient()::deletePitAsync
             );
-            assertTrue(deletePitResponse.isSucceeded());
+            assertTrue(deletePitResponse.getDeletePitResults().get(0).isSucceeded());
+            assertTrue(deletePitResponse.getDeletePitResults().get(0).getPitId().equals(pitResponse.getId()));
         }
     }
 
