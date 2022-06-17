@@ -76,7 +76,9 @@ public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNo
      * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
      */
     public final Request clusterManagerNodeTimeout(String timeout) {
-        return clusterManagerNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
+        return clusterManagerNodeTimeout(
+            TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".clusterManagerNodeTimeout")
+        );
     }
 
     public final TimeValue clusterManagerNodeTimeout() {
