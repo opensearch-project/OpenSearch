@@ -1602,7 +1602,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.cluster.service.MasterTaskThrottlingException.class,
             org.opensearch.cluster.service.MasterTaskThrottlingException::new,
             161,
-            Version.V_1_3_0
+            Version.V_3_0_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

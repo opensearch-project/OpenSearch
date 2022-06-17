@@ -17,8 +17,8 @@ public class AdjustableSemaphore extends Semaphore {
     private final Object maxPermitsMutex = new Object();
     private int maxPermits;
 
-    public AdjustableSemaphore(int maxPermits) {
-        super(maxPermits);
+    public AdjustableSemaphore(int maxPermits, boolean fair) {
+        super(maxPermits, fair);
         this.maxPermits = maxPermits;
     }
 

@@ -76,7 +76,7 @@ public class Throttler<T> {
         if (semaphores.containsKey(key)) {
             semaphores.get(key).setMaxPermits(newLimit);
         } else {
-            semaphores.put(key, new AdjustableSemaphore(newLimit));
+            semaphores.put(key, new AdjustableSemaphore(newLimit, true));
         }
     }
 
@@ -100,7 +100,7 @@ public class Throttler<T> {
     public synchronized void setThrottlingEnabled(final boolean throttlingEnabled) {
         this.throttlingEnabled = throttlingEnabled;
         for (T key : semaphores.keySet()) {
-            semaphores.put(key, new AdjustableSemaphore(semaphores.get(key).getMaxPermits()));
+            semaphores.put(key, new AdjustableSemaphore(semaphores.get(key).getMaxPermits(), true));
         }
     }
 

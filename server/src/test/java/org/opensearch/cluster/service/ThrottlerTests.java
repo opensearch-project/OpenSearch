@@ -91,7 +91,7 @@ public class ThrottlerTests extends OpenSearchTestCase {
 
     public void testUpdateLimitForThrottlingSemaphore() {
         int initialLimit = randomInt(10);
-        AdjustableSemaphore semaphore = new AdjustableSemaphore(initialLimit);
+        AdjustableSemaphore semaphore = new AdjustableSemaphore(initialLimit, true);
         assertEquals(initialLimit, semaphore.availablePermits());
 
         int newIncreasedLimit = randomIntBetween(initialLimit, 20);
