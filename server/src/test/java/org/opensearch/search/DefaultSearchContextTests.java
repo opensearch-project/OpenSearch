@@ -365,6 +365,10 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
+            // make sure getPreciseRelativeTimeInMillis is same as System.nanoTime()
+            long timeToleranceInMs = 10;
+            long currTime = TimeValue.nsecToMSec(System.nanoTime());
+            assertTrue(Math.abs(context3.getRelativeTimeInMillis(false) - currTime) <= timeToleranceInMs);
 
             when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
             when(queryShardContext.fieldMapper(anyString())).thenReturn(mock(MappedFieldType.class));
