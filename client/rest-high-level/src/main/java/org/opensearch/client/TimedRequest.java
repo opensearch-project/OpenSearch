@@ -31,6 +31,7 @@
 
 package org.opensearch.client;
 
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.unit.TimeValue;
 
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
@@ -61,8 +62,19 @@ public abstract class TimedRequest implements Validatable {
      * Sets the timeout to connect to the cluster-manager node
      * @param clusterManagerTimeout timeout as a {@link TimeValue}
      */
-    public void setMasterTimeout(TimeValue clusterManagerTimeout) {
+    public void setClusterManagerTimeout(TimeValue clusterManagerTimeout) {
         this.clusterManagerTimeout = clusterManagerTimeout;
+    }
+    
+    /**
+     * Sets the timeout to connect to the cluster-manager node
+     * @param clusterManagerTimeout timeout as a {@link TimeValue}
+     *                              
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #setClusterManagerTimeout(TimeValue)}
+     */
+    @Deprecated
+    public void setMasterTimeout(TimeValue clusterManagerTimeout) {
+        setClusterManagerTimeout(clusterManagerTimeout);
     }
 
     /**
