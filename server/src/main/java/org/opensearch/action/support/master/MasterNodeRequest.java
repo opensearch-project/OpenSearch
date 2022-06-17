@@ -74,9 +74,4 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     public final Request masterNodeTimeout(String timeout) {
         return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
     }
-
-    @Deprecated
-    public final TimeValue masterNodeTimeout() {
-        return this.masterNodeTimeout;
-    }
 }

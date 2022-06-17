@@ -82,4 +82,14 @@ public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNo
     public final TimeValue clusterManagerNodeTimeout() {
         return this.clusterManagerNodeTimeout;
     }
+
+    /**
+     * Preserve the method so that classes implements AcknowledgedRequest don't need to override it for backwards compatibility.}
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout()}
+     */
+    @Deprecated
+    public final TimeValue masterNodeTimeout() {
+        return this.clusterManagerNodeTimeout;
+    }
 }
