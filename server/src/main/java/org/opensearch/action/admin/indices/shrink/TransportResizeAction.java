@@ -251,7 +251,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
     }
 
     @Override
-    protected String getMasterActionName(DiscoveryNode node) {
-        return super.getMasterActionName(node);
+    protected String getClusterManagerActionName(DiscoveryNode node) {
+        return super.getClusterManagerActionName(node);
     }
 }

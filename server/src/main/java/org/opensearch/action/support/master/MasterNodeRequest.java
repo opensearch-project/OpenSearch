@@ -63,8 +63,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     @SuppressWarnings("unchecked")
     @Deprecated
     public final Request masterNodeTimeout(TimeValue timeout) {
-        this.masterNodeTimeout = timeout;
-        return (Request) this;
+        return clusterManagerNodeTimeout(timeout);
     }
 
     /**
@@ -72,6 +71,6 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
      */
     @Deprecated
     public final Request masterNodeTimeout(String timeout) {
-        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
+        return clusterManagerNodeTimeout(timeout);
     }
 }

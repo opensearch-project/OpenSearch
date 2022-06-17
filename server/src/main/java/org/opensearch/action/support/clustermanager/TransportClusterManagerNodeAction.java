@@ -222,7 +222,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         retryOnMasterChange(clusterState, null);
                     } else {
                         DiscoveryNode clusterManagerNode = nodes.getMasterNode();
-                        final String actionName = getMasterActionName(clusterManagerNode);
+                        final String actionName = getClusterManagerActionName(clusterManagerNode);
                         transportService.sendRequest(
                             clusterManagerNode,
                             actionName,
@@ -303,7 +303,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
      * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
      * This mainly for backwards compatibility should be used rarely
      */
-    protected String getMasterActionName(DiscoveryNode node) {
+    protected String getClusterManagerActionName(DiscoveryNode node) {
         return actionName;
     }
 }
