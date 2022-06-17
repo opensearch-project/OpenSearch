@@ -59,7 +59,7 @@ public abstract class ClusterManagerNodeOperationRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
+        request.clusterManagerNodeTimeout(timeout);
         return (RequestBuilder) this;
     }
 
@@ -68,7 +68,7 @@ public abstract class ClusterManagerNodeOperationRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
+        request.clusterManagerNodeTimeout(timeout);
         return (RequestBuilder) this;
     }
 

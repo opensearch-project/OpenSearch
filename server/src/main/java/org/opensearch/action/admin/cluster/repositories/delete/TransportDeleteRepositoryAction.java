@@ -95,7 +95,7 @@ public class TransportDeleteRepositoryAction extends TransportClusterManagerNode
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteRepositoryRequest request,
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

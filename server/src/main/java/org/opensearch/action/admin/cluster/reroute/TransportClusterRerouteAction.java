@@ -119,7 +119,7 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ClusterRerouteRequest request,
         final ClusterState state,
         final ActionListener<ClusterRerouteResponse> listener

@@ -98,7 +98,7 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final CreateSnapshotRequest request,
         ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener
