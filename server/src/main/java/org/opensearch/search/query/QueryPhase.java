@@ -257,15 +257,7 @@ public class QueryPhase {
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
-                final long startTime = searchContext.getRelativeTimeInMillis();
-                final long timeout = searchContext.timeout().millis();
-                final long maxTime = startTime + timeout;
-                timeoutRunnable = searcher.addQueryCancellation(() -> {
-                    final long time = searchContext.getRelativeTimeInMillis();
-                    if (time > maxTime) {
-                        throw new TimeExceededException();
-                    }
-                });
+                timeoutRunnable = searcher.addQueryCancellation(createQueryTimeoutChecker(searchContext));
             } else {
                 timeoutRunnable = null;
             }
@@ -307,6 +299,28 @@ public class QueryPhase {
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }
+    }
+
+    /**
+     * Create runnable which throws {@link TimeExceededException} when the runnable is called after timeout + runnable creation time
+     * exceeds currentTime
+     * @param searchContext to extract timeout from and to get relative time from
+     * @return the created runnable
+     */
+    static Runnable createQueryTimeoutChecker(final SearchContext searchContext) {
+        /* for startTime, relative non-cached precise time must be used to prevent false positive timeouts.
+        * Using cached time for startTime will fail and produce false positive timeouts when maxTime = (startTime + timeout) falls in
+        * next time cache slot(s) AND time caching lifespan > passed timeout */
+        final long startTime = searchContext.getRelativeTimeInMillis(false);
+        final long maxTime = startTime + searchContext.timeout().millis();
+        return () -> {
+            /* As long as startTime is non cached time, using cached time here might only produce false negative timeouts within the time
+            * cache life span which is acceptable */
+            final long time = searchContext.getRelativeTimeInMillis();
+            if (time > maxTime) {
+                throw new TimeExceededException();
+            }
+        };
     }
 
     private static boolean searchWithCollector(
