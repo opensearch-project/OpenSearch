@@ -17,6 +17,7 @@ import org.opensearch.index.store.StoreFileMetadata;
  *
  * @opensearch.internal
  */
+@FunctionalInterface
 public interface FileChunkWriter {
 
     void writeFileChunk(

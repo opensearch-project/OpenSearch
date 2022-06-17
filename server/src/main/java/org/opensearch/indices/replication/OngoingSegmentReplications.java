@@ -145,14 +145,16 @@ class OngoingSegmentReplications {
      */
     CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
-        if (nodesToHandlers.containsKey(request.getTargetNode())) {
+        if (nodesToHandlers.putIfAbsent(
+            request.getTargetNode(),
+            createTargetHandler(request.getTargetNode(), copyState, fileChunkWriter)
+        ) != null) {
             throw new OpenSearchException(
                 "Shard copy {} on node {} already replicating",
                 request.getCheckpoint().getShardId(),
                 request.getTargetNode()
             );
         }
-        nodesToHandlers.computeIfAbsent(request.getTargetNode(), node -> createTargetHandler(node, copyState, fileChunkWriter));
         return copyState;
     }
 
@@ -221,8 +223,7 @@ class OngoingSegmentReplications {
      * @param copyState {@link CopyState}
      */
     private synchronized void removeCopyState(CopyState copyState) {
-        copyState.decRef();
-        if (copyState.refCount() <= 0) {
+        if (copyState.decRef() == true) {
             copyStateMap.remove(copyState.getRequestedReplicationCheckpoint());
         }
     }

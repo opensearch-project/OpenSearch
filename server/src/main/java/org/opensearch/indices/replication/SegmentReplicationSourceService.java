@@ -60,7 +60,6 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
 
     private final OngoingSegmentReplications ongoingSegmentReplications;
 
-    // TODO mark this as injected and bind in Node
     public SegmentReplicationSourceService(
         IndicesService indicesService,
         TransportService transportService,
