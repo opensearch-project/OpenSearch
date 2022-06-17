@@ -53,7 +53,7 @@ class SegmentReplicationSourceHandler {
     private final ListenableFuture<GetSegmentFilesResponse> future = new ListenableFuture<>();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final Logger logger;
-    private final AtomicBoolean active = new AtomicBoolean();
+    private final AtomicBoolean isReplicating = new AtomicBoolean();
 
     /**
      * Constructor.
@@ -99,7 +99,7 @@ class SegmentReplicationSourceHandler {
      * @param listener {@link ActionListener} that completes with the list of files sent.
      */
     public synchronized void sendFiles(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
-        if (active.compareAndSet(false, true) == false) {
+        if (isReplicating.compareAndSet(false, true) == false) {
             throw new OpenSearchException("Replication to {} is already running.", shard.shardId());
         }
         future.addListener(listener, OpenSearchExecutors.newDirectExecutorService());
@@ -164,7 +164,7 @@ class SegmentReplicationSourceHandler {
         return copyState;
     }
 
-    public boolean isActive() {
-        return active.get();
+    public boolean isReplicating() {
+        return isReplicating.get();
     }
 }

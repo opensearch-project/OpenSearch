@@ -99,7 +99,7 @@ class OngoingSegmentReplications {
         final DiscoveryNode node = request.getTargetNode();
         final SegmentReplicationSourceHandler handler = nodesToHandlers.get(node);
         if (handler != null) {
-            if (handler.isActive()) {
+            if (handler.isReplicating()) {
                 throw new OpenSearchException(
                     "Replication to shard {}, on node {} has already started",
                     request.getCheckpoint().getShardId(),
