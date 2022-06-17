@@ -122,7 +122,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 PluginInfo.readFromProperties(pluginDir2)
             )
         );
-
         assertEquals(expectedExtensionsSet, orchestrator.extensionsSet);
     }
 

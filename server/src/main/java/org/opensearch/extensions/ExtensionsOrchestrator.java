@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,17 +66,17 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
     private final Path extensionsPath;
     final Set<DiscoveryExtension> extensionsSet;
+    Set<DiscoveryExtension> extensionsInitializedSet;
     final Set<DiscoveryNode> extensionsNodeSet;
     TransportService transportService;
-    DiscoveryNode defaultExtensionNode;
 
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
         this.transportService = null;
         this.extensionsSet = new HashSet<DiscoveryExtension>();
+        this.extensionsInitializedSet = new HashSet<DiscoveryExtension>();
         this.extensionsNodeSet = new HashSet<DiscoveryNode>();
-        this.defaultExtensionNode = null;
 
         /*
          * Now Discover extensions
@@ -102,12 +103,16 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             return;
         }
         List<Path> pluginDirs = PluginsService.findPluginDirs(extensionsPath);
+        logger.info("Hi");
 
         Set<Extension> extensions = new HashSet<Extension>();
+        logger.info(pluginDirs);
+        logger.info(Paths.get("").toAbsolutePath().toString());
         if (!pluginDirs.isEmpty()) {
             try {
-                extensions = readFromExtensionsYml("/config/extensions.yml").getExtensions();
+                extensions = readFromExtensionsYml("extensions.yml").getExtensions();
             } catch (Exception e) {
+                e.printStackTrace();
                 throw new IllegalStateException("Could not read from extensions.yml");
             }
         }
@@ -139,9 +144,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                             Version.fromString(extension.getVersion())
                         );
                         extensionsNodeSet.add(extensionNode);
-                        if (defaultExtensionNode == null) {
-                            defaultExtensionNode = extensionNode;
-                        }
                         break;
                     }
                 }
@@ -171,6 +173,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             @Override
             public void handleResponse(PluginResponse response) {
                 logger.info("received {}", response);
+                logger.info("##################\n" + response.getName());
+                for (DiscoveryExtension extension : extensionsSet) {
+                    if (extension.getName().equals(response.getName())) {
+                        extensionsInitializedSet.add(extension);
+                        break;
+                    }
+                }
             }
 
             @Override
@@ -197,6 +206,12 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
+        for (DiscoveryNode extensionNode : extensionsNodeSet) {
+            onIndexModule(indexModule, extensionNode);
+        }
+    }
+
+    private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
@@ -250,7 +265,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                             try {
                                 logger.info("Sending request of index name to extension");
                                 transportService.sendRequest(
-                                    defaultExtensionNode,
+                                    extensionNode,
                                     INDICES_EXTENSION_NAME_ACTION_NAME,
                                     new IndicesModuleRequest(indexModule),
                                     indicesModuleNameResponseHandler
@@ -284,7 +299,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         try {
             logger.info("Sending request to extension");
             transportService.sendRequest(
-                defaultExtensionNode,
+                extensionNode,
                 INDICES_EXTENSION_POINT_ACTION_NAME,
                 new IndicesModuleRequest(indexModule),
                 indicesModuleResponseHandler
@@ -300,6 +315,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     private static ExtensionsSettings readFromExtensionsYml(String filePath) throws Exception {
+        logger.info(Paths.get(filePath).toAbsolutePath().toString());
         ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
         InputStream input = ExtensionsOrchestrator.class.getResourceAsStream(filePath);
         ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
