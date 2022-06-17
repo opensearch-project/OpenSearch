@@ -44,7 +44,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -227,7 +227,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
                             request.waitForEvents()
                         );
                         // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer cluster-manager. source: [" + source + "]"));
+                        listener.onFailure(new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
                     }
 
                     @Override

@@ -31,30 +31,32 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.OpenSearchException;
-import org.opensearch.common.io.stream.StreamInput;
-
-import java.io.IOException;
-
 /**
- * Thrown when a node join request or a cluster-manager ping reaches a node which is not
- * currently acting as a cluster-manager or when a cluster state update task is to be executed
- * on a node that is no longer cluster-manager.
+ * Enables listening to cluster-manager changes events of the local node (when the local node becomes the cluster-manager, and when the local
+ * node cease being a cluster-manager).
  *
  * @opensearch.internal
  */
-public class NotMasterException extends OpenSearchException {
+public interface LocalNodeClusterManagerListener extends ClusterStateListener {
 
-    public NotMasterException(String msg) {
-        super(msg);
-    }
+    /**
+     * Called when local node is elected to be the cluster-manager
+     */
+    void onClusterManager();
 
-    public NotMasterException(StreamInput in) throws IOException {
-        super(in);
-    }
+    /**
+     * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
+     */
+    void offClusterManager();
 
     @Override
-    public Throwable fillInStackTrace() {
-        return this;
+    default void clusterChanged(ClusterChangedEvent event) {
+        final boolean wasClusterManager = event.previousState().nodes().isLocalNodeElectedMaster();
+        final boolean isClusterManager = event.localNodeMaster();
+        if (wasClusterManager == false && isClusterManager) {
+            onClusterManager();
+        } else if (wasClusterManager && isClusterManager == false) {
+            offClusterManager();
+        }
     }
 }

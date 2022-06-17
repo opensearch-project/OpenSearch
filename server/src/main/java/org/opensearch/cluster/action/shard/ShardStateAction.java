@@ -45,7 +45,7 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.MasterNodeChangePredicate;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -223,7 +223,7 @@ public class ShardStateAction {
     }
 
     private static Class[] CLUSTER_MANAGER_CHANNEL_EXCEPTIONS = new Class[] {
-        NotMasterException.class,
+        NotClusterManagerException.class,
         ConnectTransportException.class,
         FailedToCommitClusterStateException.class };
 
@@ -388,7 +388,7 @@ public class ShardStateAction {
                     public void onNoLongerMaster(String source) {
                         logger.error("{} no longer cluster-manager while failing shard [{}]", request.shardId, request);
                         try {
-                            channel.sendResponse(new NotMasterException(source));
+                            channel.sendResponse(new NotClusterManagerException(source));
                         } catch (Exception channelException) {
                             logger.warn(
                                 () -> new ParameterizedMessage(
@@ -817,7 +817,7 @@ public class ShardStateAction {
 
         @Override
         public void onFailure(String source, Exception e) {
-            if (e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException) {
+            if (e instanceof FailedToCommitClusterStateException || e instanceof NotClusterManagerException) {
                 logger.debug(() -> new ParameterizedMessage("failure during [{}]", source), e);
             } else {
                 logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);

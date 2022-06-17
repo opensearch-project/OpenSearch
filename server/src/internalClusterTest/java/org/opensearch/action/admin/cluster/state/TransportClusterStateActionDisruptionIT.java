@@ -40,7 +40,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.discovery.MasterNotDiscoveredException;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -79,7 +79,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             final ClusterStateResponse clusterStateResponse;
             try {
                 clusterStateResponse = clusterStateRequestBuilder.get();
-            } catch (MasterNotDiscoveredException e) {
+            } catch (ClusterManagerNotDiscoveredException e) {
                 return; // ok, we hit the disconnected node
             }
             assertNotNull("should always contain a cluster-manager node", clusterStateResponse.getState().nodes().getMasterNodeId());
@@ -129,7 +129,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             final ClusterStateResponse clusterStateResponse;
             try {
                 clusterStateResponse = clusterStateRequestBuilder.get();
-            } catch (MasterNotDiscoveredException e) {
+            } catch (ClusterManagerNotDiscoveredException e) {
                 return; // ok, we hit the disconnected node
             }
             if (clusterStateResponse.isWaitForTimedOut() == false) {

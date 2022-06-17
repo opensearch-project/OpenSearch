@@ -24,39 +24,45 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.cluster;
+package org.opensearch.discovery;
+
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
- * Enables listening to cluster-manager changes events of the local node (when the local node becomes the cluster-manager, and when the local
- * node cease being a cluster-manager).
+ * Exception when the cluster-manager is not discovered
  *
  * @opensearch.internal
  */
-public interface LocalNodeMasterListener extends ClusterStateListener {
+public class ClusterManagerNotDiscoveredException extends OpenSearchException {
 
-    /**
-     * Called when local node is elected to be the cluster-manager
-     */
-    void onClusterManager();
+    public ClusterManagerNotDiscoveredException() {
+        super("");
+    }
 
-    /**
-     * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
-     */
-    void offClusterManager();
+    public ClusterManagerNotDiscoveredException(Throwable cause) {
+        super(cause);
+    }
+
+    public ClusterManagerNotDiscoveredException(String message) {
+        super(message);
+    }
 
     @Override
-    default void clusterChanged(ClusterChangedEvent event) {
-        final boolean wasClusterManager = event.previousState().nodes().isLocalNodeElectedMaster();
-        final boolean isClusterManager = event.localNodeMaster();
-        if (wasClusterManager == false && isClusterManager) {
-            onClusterManager();
-        } else if (wasClusterManager && isClusterManager == false) {
-            offClusterManager();
-        }
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
+    }
+
+    public ClusterManagerNotDiscoveredException(StreamInput in) throws IOException {
+        super(in);
     }
 }

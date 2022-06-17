@@ -59,7 +59,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
+public class UnsafeBootstrapClusterManagerCommand extends OpenSearchNodeCommand {
 
     static final String CLUSTER_STATE_TERM_VERSION_MSG_FORMAT = "Current node cluster state (term, version) pair is (%s, %s)";
     static final String CONFIRMATION_MSG = DELIMITER
@@ -85,7 +85,7 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
 
     private OptionSpec<Boolean> applyClusterReadOnlyBlockOption;
 
-    UnsafeBootstrapMasterCommand() {
+    UnsafeBootstrapClusterManagerCommand() {
         super(
             "Forces the successful election of the current node after the permanent loss of the half or more cluster-manager-eligible nodes"
         );
