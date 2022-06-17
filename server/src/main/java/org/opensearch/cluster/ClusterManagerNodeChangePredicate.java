@@ -41,9 +41,13 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public final class ClusterManagerNodeChangePredicate {
+// TODO: add final keyword to the class and private keyword to the default constructor,
+// after removing the deprecated class MasterNodeChangePredicate.
+// Removed the final keyword temporarily only for making the class MasterNodeChangePredicate as a subclass,
+// so that preserving the both class names by maintaining one class implementation for backwards compatibility.
+public class ClusterManagerNodeChangePredicate {
 
-    private ClusterManagerNodeChangePredicate() {
+    ClusterManagerNodeChangePredicate() {
 
     }
 
