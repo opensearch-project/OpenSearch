@@ -1026,6 +1026,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Free reader contexts if found
+     * @return response with list of PIT IDs deleted and if operation is successful
      */
     public DeletePitResponse freeReaderContextsIfFound(List<PitSearchContextIdForNode> contextIds) {
         List<DeletePitInfo> deleteResults = new ArrayList<>();
@@ -1040,10 +1041,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         deleteResults.add(deletePitInfo);
                     }
                 } else {
+                    // For search context missing cases, mark the operation as succeeded
                     DeletePitInfo deletePitInfo = new DeletePitInfo(true, contextId.getPitId());
                     deleteResults.add(deletePitInfo);
                 }
             } catch (SearchContextMissingException e) {
+                // For search context missing cases, mark the operation as succeeded
                 DeletePitInfo deletePitInfo = new DeletePitInfo(true, contextId.getPitId());
                 deleteResults.add(deletePitInfo);
             }
@@ -1053,6 +1056,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Free all active pit contexts
+     * @return response with list of PIT IDs deleted and if operation is successful
      */
     public DeletePitResponse freeAllPitContexts() {
         List<DeletePitInfo> deleteResults = new ArrayList<>();

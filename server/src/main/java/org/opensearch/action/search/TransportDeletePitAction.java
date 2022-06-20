@@ -8,8 +8,6 @@
 
 package org.opensearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
@@ -34,7 +32,6 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
     private TransportSearchAction transportSearchAction;
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
-    private static final Logger logger = LogManager.getLogger(TransportDeletePitAction.class);
 
     @Inject
     public TransportDeletePitAction(
@@ -66,7 +63,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
     }
 
     /**
-     * Deletes list of pits, return success if all reader contexts are deleted ( or not found ).
+     * Deletes one or more point in time search contexts.
      */
     private void deletePits(ActionListener<DeletePitResponse> listener, DeletePitRequest request) {
         Map<String, List<PitSearchContextIdForNode>> nodeToContextsMap = new HashMap<>();
@@ -86,6 +83,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      * Delete all active PIT reader contexts
      */
     private void deleteAllPits(ActionListener<DeletePitResponse> listener) {
+        // TODO: Use list all PITs to delete all PITs in case of remote cluster use case
         int size = clusterService.state().getNodes().getSize();
         ActionListener groupedActionListener = SearchUtils.getDeletePitGroupedListener(listener, size);
         for (final DiscoveryNode node : clusterService.state().getNodes()) {

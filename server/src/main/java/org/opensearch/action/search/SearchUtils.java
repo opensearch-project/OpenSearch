@@ -56,7 +56,7 @@ public class SearchUtils {
     }
 
     /**
-     * Delete list of pit contexts. Returns success only if each reader context is either deleted or not found.
+     * Delete list of pit contexts. Returns the details of success of operation per PIT ID.
      */
     public static void deletePitContexts(
         Map<String, List<PitSearchContextIdForNode>> nodeToContextsMap,

@@ -263,6 +263,7 @@ public class CreatePitController {
             @Override
             public void onResponse(DeletePitResponse response) {
                 // this is invoke and forget call
+                if (!logger.isDebugEnabled()) return;
                 for (DeletePitInfo deletePitInfo : response.getDeletePitResults()) {
                     if (!deletePitInfo.isSucceeded()) {
                         logger.debug(() -> new ParameterizedMessage("Failed to delete PIT ID {}", deletePitInfo.getPitId()));
