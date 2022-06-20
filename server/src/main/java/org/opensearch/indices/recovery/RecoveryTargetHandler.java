@@ -32,11 +32,9 @@
 package org.opensearch.indices.recovery;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 
 import java.util.List;
@@ -46,7 +44,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public interface RecoveryTargetHandler {
+public interface RecoveryTargetHandler extends FileChunkWriter {
 
     /**
      * Prepares the target to receive translog operations, after all file have been copied
@@ -122,16 +120,6 @@ public interface RecoveryTargetHandler {
      * @param sourceMetadata   meta data of the source store
      */
     void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener);
-
-    /** writes a partial file chunk to the target store */
-    void writeFileChunk(
-        StoreFileMetadata fileMetadata,
-        long position,
-        BytesReference content,
-        boolean lastChunk,
-        int totalTranslogOps,
-        ActionListener<Void> listener
-    );
 
     default void cancel() {}
 }
