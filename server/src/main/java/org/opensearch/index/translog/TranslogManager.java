@@ -28,8 +28,9 @@ public interface TranslogManager {
      *
      * @param translogRecoveryRunner the translog recovery runner
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
+     * @return ops recovered
      */
-    void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo) throws IOException;
+    int recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo) throws IOException;
 
     /**
      * Checks if the underlying storage sync is required.

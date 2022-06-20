@@ -36,7 +36,7 @@ public class InternalTranslogManager implements TranslogManager {
     private final ReleasableLock readLock;
     private final Runnable ensureOpen;
     private final ShardId shardId;
-    private Translog translog;
+    private final Translog translog;
     private final BiConsumer<String, Exception> failEngine;
     private final Function<AlreadyClosedException, Boolean> failOnTragicEvent;
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
@@ -115,13 +115,14 @@ public class InternalTranslogManager implements TranslogManager {
     /**
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
      * This operation will close the engine if the recovery fails.
-     *
-     * @param translogRecoveryRunner the translog recovery runner
+     *  @param translogRecoveryRunner the translog recovery runner
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
+     * @return
      */
     @Override
-    public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
+    public int recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
         throws IOException {
+        int opsRecovered = 0;
         translogEventListener.onBeginTranslogRecovery();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
@@ -129,7 +130,7 @@ public class InternalTranslogManager implements TranslogManager {
                 throw new IllegalStateException("Engine has already been recovered");
             }
             try {
-                recoverFromTranslogInternal(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo);
+                opsRecovered = recoverFromTranslogInternal(translogRecoveryRunner, localCheckpoint, recoverUpToSeqNo);
             } catch (Exception e) {
                 try {
                     pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
@@ -140,9 +141,10 @@ public class InternalTranslogManager implements TranslogManager {
                 throw e;
             }
         }
+        return opsRecovered;
     }
 
-    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo) {
+    private int recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo) {
         final int opsRecovered;
         if (localCheckpoint < recoverUpToSeqNo) {
             try (Translog.Snapshot snapshot = translog.newSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
@@ -165,6 +167,7 @@ public class InternalTranslogManager implements TranslogManager {
             )
         );
         translogEventListener.onTranslogRecovery();
+        return opsRecovered;
     }
 
     /**

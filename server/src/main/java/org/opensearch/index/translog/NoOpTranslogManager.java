@@ -43,7 +43,7 @@ public class NoOpTranslogManager implements TranslogManager {
     public void rollTranslogGeneration() throws TranslogException {}
 
     @Override
-    public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
+    public int recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
         throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen.run();
@@ -53,6 +53,7 @@ public class NoOpTranslogManager implements TranslogManager {
                 throw new TranslogException(shardId, "failed to recover from empty translog snapshot", e);
             }
         }
+        return emptyTranslogSnapshot.totalOperations();
     }
 
     @Override
