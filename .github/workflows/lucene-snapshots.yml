@@ -40,6 +40,10 @@ jobs:
           echo "::set-output name=REVISION::$(git rev-parse --short HEAD)"
         id: version
 
+      - name: Initialize gradle settings
+        working-directory: ./lucene
+        run: ./gradlew localSettings
+
       - name: Publish Lucene to local maven repo.
         working-directory: ./lucene
         run: ./gradlew publishJarsPublicationToMavenLocal -Pversion.suffix=snapshot-${{ steps.version.outputs.REVISION }}

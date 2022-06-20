@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.cluster.reroute;
 
-import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -161,7 +161,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
             assertEquals(request, copy);
             assertEquals(request.hashCode(), copy.hashCode());
 
-            // Changing masterNodeTime makes requests not equal
+            // Changing clusterManagerNodeTimeout makes requests not equal
             copy.masterNodeTimeout(timeValueMillis(request.masterNodeTimeout().millis() + 1));
             assertNotEquals(request, copy);
             assertNotEquals(request.hashCode(), copy.hashCode());
@@ -231,7 +231,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
         if (original.isRetryFailed() || randomBoolean()) {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
-        if (false == original.masterNodeTimeout().equals(MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
+        if (false == original.masterNodeTimeout().equals(ClusterManagerNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
             params.put("cluster_manager_timeout", original.masterNodeTimeout().toString());
         }
         if (original.getCommands() != null) {

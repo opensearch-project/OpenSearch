@@ -67,7 +67,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
-import org.opensearch.indices.recovery.RecoveryFileChunkRequest;
+import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -809,7 +809,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
             TransportRequestOptions options
         ) throws IOException {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
+                FileChunkRequest chunkRequest = (FileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
                     logger.debug("corrupting [{}] to {}. file name: [{}]", action, connection.getNode(), chunkRequest.name());

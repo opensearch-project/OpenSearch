@@ -31,13 +31,8 @@
 
 package org.opensearch.action.support.master.info;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.Writeable;
@@ -50,7 +45,7 @@ import org.opensearch.transport.TransportService;
  * @opensearch.internal
  */
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse> extends
-    TransportMasterNodeReadAction<Request, Response> {
+    org.opensearch.action.support.clustermanager.info.TransportClusterInfoAction<Request, Response> {
 
     public TransportClusterInfoAction(
         String actionName,
@@ -64,28 +59,4 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
-    @Override
-    protected String executor() {
-        // read operation, lightweight...
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
-    }
-
-    @Override
-    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        doMasterOperation(request, concreteIndices, state, listener);
-    }
-
-    protected abstract void doMasterOperation(
-        Request request,
-        String[] concreteIndices,
-        ClusterState state,
-        ActionListener<Response> listener
-    );
 }

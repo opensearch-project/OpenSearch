@@ -156,7 +156,7 @@ public class LocalCheckpointTracker {
     public synchronized void fastForwardProcessedSeqNo(final long seqNo) {
         advanceMaxSeqNo(seqNo);
         final long currentProcessedCheckpoint = processedCheckpoint.get();
-        if (shouldUpdateSeqNo(seqNo, currentProcessedCheckpoint, persistedCheckpoint) == false) {
+        if (seqNo <= currentProcessedCheckpoint) {
             return;
         }
         processedCheckpoint.compareAndSet(currentProcessedCheckpoint, seqNo);

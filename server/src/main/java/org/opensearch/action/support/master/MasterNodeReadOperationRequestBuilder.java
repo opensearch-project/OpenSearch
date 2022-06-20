@@ -34,29 +34,25 @@ package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.client.OpenSearchClient;
 
 /**
  * Base request builder for cluster-manager node read operations that can be executed on the local node as well
  *
  * @opensearch.internal
+ * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link ClusterManagerNodeReadOperationRequestBuilder}
  */
+@Deprecated
 public abstract class MasterNodeReadOperationRequestBuilder<
-    Request extends MasterNodeReadRequest<Request>,
+    Request extends ClusterManagerNodeReadRequest<Request>,
     Response extends ActionResponse,
-    RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>> extends
-    MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    RequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>> extends
+    ClusterManagerNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
     protected MasterNodeReadOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
-    }
-
-    /**
-     * Specifies if the request should be executed on local node rather than on master
-     */
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setLocal(boolean local) {
-        request.local(local);
-        return (RequestBuilder) this;
     }
 }

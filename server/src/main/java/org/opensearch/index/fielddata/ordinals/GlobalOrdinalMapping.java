@@ -112,4 +112,8 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
         return values.cost();
     }
 
+    @Override
+    public long docValueCount() {
+        return values.docValueCount();
+    }
 }

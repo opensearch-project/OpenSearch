@@ -774,14 +774,14 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             );
             allNodes[i++] = node;
         }
-        DiscoveryNode master = new DiscoveryNode(
-            "master",
+        DiscoveryNode clusterManager = new DiscoveryNode(
+            "cluster-manager",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
-        allNodes[i] = master;
+        allNodes[i] = clusterManager;
         return allNodes;
     }
 

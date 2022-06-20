@@ -38,9 +38,9 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -134,7 +134,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
      *
      * @opensearch.internal
      */
-    public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
 

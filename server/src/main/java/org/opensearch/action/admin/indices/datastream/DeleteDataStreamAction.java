@@ -39,9 +39,9 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.MasterNodeRequest;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -94,7 +94,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
      *
      * @opensearch.internal
      */
-    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends ClusterManagerNodeRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
 
@@ -164,7 +164,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
      *
      * @opensearch.internal
      */
-    public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataDeleteIndexService deleteIndexService;
 

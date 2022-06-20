@@ -32,8 +32,9 @@
 package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionType;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.unit.TimeValue;
 
 /**
  * Base request builder for cluster-manager node operations that support acknowledgements
@@ -43,31 +44,10 @@ import org.opensearch.common.unit.TimeValue;
 public abstract class AcknowledgedRequestBuilder<
     Request extends AcknowledgedRequest<Request>,
     Response extends AcknowledgedResponse,
-    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends MasterNodeOperationRequestBuilder<
-        Request,
-        Response,
-        RequestBuilder> {
+    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends
+    org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected AcknowledgedRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
+    protected AcknowledgedRequestBuilder(OpenSearchClient client, ActionType action, Request request) {
         super(client, action, request);
-    }
-
-    /**
-     * Sets the maximum wait for acknowledgement from other nodes
-     */
-    @SuppressWarnings("unchecked")
-    public RequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return (RequestBuilder) this;
-    }
-
-    /**
-     * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
-     * to {@code 10s}.
-     */
-    @SuppressWarnings("unchecked")
-    public RequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return (RequestBuilder) this;
     }
 }

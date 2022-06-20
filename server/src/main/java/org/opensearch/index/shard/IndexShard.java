@@ -157,8 +157,12 @@ import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
+import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -298,6 +302,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
+    private final ReferenceManager.RefreshListener checkpointRefreshListener;
+
+    private final RemoteStoreRefreshListener remoteStoreRefreshListener;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -319,7 +326,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listeners,
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final CircuitBreakerService circuitBreakerService
+        final CircuitBreakerService circuitBreakerService,
+        @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        @Nullable final RemoteStoreRefreshListener remoteStoreRefreshListener
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -402,6 +411,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        if (checkpointPublisher != null) {
+            this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
+        } else {
+            this.checkpointRefreshListener = null;
+        }
+        this.remoteStoreRefreshListener = remoteStoreRefreshListener;
     }
 
     public ThreadPool getThreadPool() {
@@ -1360,6 +1375,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
+    }
+
+    /**
+     * Returns the lastest Replication Checkpoint that shard received
+     */
+    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        return new ReplicationCheckpoint(shardId, 0, 0, 0, 0);
+    }
+
+    /**
+     * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
+     */
+    public synchronized void onNewCheckpoint(final PublishCheckpointRequest request) {
+        assert shardRouting.primary() == false;
+        // TODO
     }
 
     /**
@@ -2613,6 +2643,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Fetch the latest checkpoint that has been processed but not necessarily persisted.
+     * Also see {@link #getLocalCheckpoint()}.
+     */
+    public long getProcessedLocalCheckpoint() {
+        return getEngine().getProcessedLocalCheckpoint();
+    }
+
+    /**
      * Returns the global checkpoint for the shard.
      *
      * @return the global checkpoint
@@ -2876,7 +2914,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void startRecovery(
         RecoveryState recoveryState,
         PeerRecoveryTargetService recoveryTargetService,
-        PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        RecoveryListener recoveryListener,
         RepositoriesService repositoriesService,
         Consumer<MappingMetadata> mappingUpdateConsumer,
         IndicesService indicesService
@@ -2909,7 +2947,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                    recoveryListener.onFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                 }
                 break;
             case SNAPSHOT:
@@ -2984,15 +3022,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void executeRecovery(
         String reason,
         RecoveryState recoveryState,
-        PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        RecoveryListener recoveryListener,
         CheckedConsumer<ActionListener<Boolean>, Exception> action
     ) {
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
             if (r) {
-                recoveryListener.onRecoveryDone(recoveryState);
+                recoveryListener.onDone(recoveryState);
             }
-        }, e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));
+        }, e -> recoveryListener.onFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));
     }
 
     /**
@@ -3105,6 +3143,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
 
+        final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
+        internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
+        if (remoteStoreRefreshListener != null && shardRouting.primary()) {
+            internalRefreshListener.add(remoteStoreRefreshListener);
+        }
+        if (this.checkpointRefreshListener != null) {
+            internalRefreshListener.add(checkpointRefreshListener);
+        }
+
         return this.engineConfigFactory.newEngineConfig(
             shardId,
             threadPool,
@@ -3121,13 +3168,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, refreshPendingLocationListener),
-            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            internalRefreshListener,
             indexSort,
             circuitBreakerService,
             globalCheckpointSupplier,
             replicationTracker::getRetentionLeases,
             () -> getOperationPrimaryTerm(),
-            tombstoneDocSupplier()
+            tombstoneDocSupplier(),
+            indexSettings.isSegRepEnabled() && shardRouting.primary() == false
         );
     }
 
@@ -3970,5 +4018,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     RetentionLeaseSyncer getRetentionLeaseSyncer() {
         return retentionLeaseSyncer;
+    }
+
+    /**
+     * Fetch the latest SegmentInfos held by the shard's underlying Engine, wrapped
+     * by a a {@link GatedCloseable} to ensure files are not deleted/merged away.
+     *
+     * @throws EngineException - When segment infos cannot be safely retrieved
+     */
+    public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        return getEngine().getSegmentInfosSnapshot();
     }
 }

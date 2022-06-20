@@ -32,7 +32,7 @@
 package org.opensearch.action.admin.cluster.repositories.cleanup;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -40,7 +40,7 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<
+public class CleanupRepositoryRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     CleanupRepositoryRequest,
     CleanupRepositoryResponse,
     CleanupRepositoryRequestBuilder> {

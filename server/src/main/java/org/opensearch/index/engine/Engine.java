@@ -169,12 +169,44 @@ public abstract class Engine implements Closeable {
 
     protected abstract SegmentInfos getLastCommittedSegmentInfos();
 
+    /**
+     * Return the latest active SegmentInfos from the engine.
+     * @return {@link SegmentInfos}
+     */
+    protected abstract SegmentInfos getLatestSegmentInfos();
+
+    /**
+     * In contrast to {@link #getLatestSegmentInfos()}, which returns a {@link SegmentInfos}
+     * object directly, this method returns a {@link GatedCloseable} reference to the same object.
+     * This allows the engine to include a clean-up {@link org.opensearch.common.CheckedRunnable}
+     * which is run when the reference is closed. The default implementation of the clean-up
+     * procedure is a no-op.
+     *
+     * @return {@link GatedCloseable} - A wrapper around a {@link SegmentInfos} instance that
+     * must be closed for segment files to be deleted.
+     */
+    public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        // default implementation
+        return new GatedCloseable<>(getLatestSegmentInfos(), () -> {});
+    }
+
     public MergeStats getMergeStats() {
         return new MergeStats();
     }
 
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
+
+    /**
+     * Reads the current stored history ID from commit data.
+     */
+    String loadHistoryUUID(Map<String, String> commitData) {
+        final String uuid = commitData.get(HISTORY_UUID_KEY);
+        if (uuid == null) {
+            throw new IllegalStateException("commit doesn't contain history uuid");
+        }
+        return uuid;
+    }
 
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
@@ -828,6 +860,12 @@ public abstract class Engine implements Closeable {
      * @return the persisted local checkpoint for this Engine
      */
     public abstract long getPersistedLocalCheckpoint();
+
+    /**
+     * @return the latest checkpoint that has been processed but not necessarily persisted.
+     * Also see {@link #getPersistedLocalCheckpoint()}
+     */
+    public abstract long getProcessedLocalCheckpoint();
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint

@@ -49,6 +49,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.apache.lucene.search.BooleanClause;
@@ -646,17 +647,6 @@ public class InternalEngine extends Engine {
     @Override
     public long getWritingBytes() {
         return indexWriter.getFlushingBytes() + versionMap.getRefreshingBytes();
-    }
-
-    /**
-     * Reads the current stored history ID from the IW commit data.
-     */
-    private String loadHistoryUUID(Map<String, String> commitData) {
-        final String uuid = commitData.get(HISTORY_UUID_KEY);
-        if (uuid == null) {
-            throw new IllegalStateException("commit doesn't contain history uuid");
-        }
-        return uuid;
     }
 
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
@@ -2299,6 +2289,39 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public SegmentInfos getLatestSegmentInfos() {
+        OpenSearchDirectoryReader reader = null;
+        try {
+            reader = internalReaderManager.acquire();
+            return ((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos();
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        } finally {
+            try {
+                internalReaderManager.release(reader);
+            } catch (IOException e) {
+                throw new EngineException(shardId, e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Fetch the latest {@link SegmentInfos} object via {@link #getLatestSegmentInfos()}
+     * but also increment the ref-count to ensure that these segment files are retained
+     * until the reference is closed. On close, the ref-count is decremented.
+     */
+    @Override
+    public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        final SegmentInfos segmentInfos = getLatestSegmentInfos();
+        try {
+            indexWriter.incRefDeleter(segmentInfos);
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        }
+        return new GatedCloseable<>(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
+    }
+
+    @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
         stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
@@ -2717,6 +2740,7 @@ public class InternalEngine extends Engine {
         return getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
+    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }

@@ -173,19 +173,15 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseDoSectionNoBody() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "get:\n" + "    index:    test_index\n" + "    type:    test_type\n" + "    id:        1"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "get:\n" + "    index:    test_index\n" + "    id:        1");
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
         assertThat(apiCallSection.getApi(), equalTo("get"));
-        assertThat(apiCallSection.getParams().size(), equalTo(3));
+        assertThat(apiCallSection.getParams().size(), equalTo(2));
         assertThat(apiCallSection.getParams().get("index"), equalTo("test_index"));
-        assertThat(apiCallSection.getParams().get("type"), equalTo("test_type"));
         assertThat(apiCallSection.getParams().get("id"), equalTo("1"));
         assertThat(apiCallSection.hasBody(), equalTo(false));
     }
@@ -204,19 +200,15 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
     public void testParseDoSectionWithJsonBody() throws Exception {
         String body = "{ \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }";
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "index:\n" + "    index:  test_1\n" + "    type:   test\n" + "    id:     1\n" + "    body:   " + body
-        );
+        parser = createParser(YamlXContent.yamlXContent, "index:\n" + "    index:  test_1\n" + "    id:     1\n" + "    body:   " + body);
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
         assertThat(apiCallSection.getApi(), equalTo("index"));
-        assertThat(apiCallSection.getParams().size(), equalTo(3));
+        assertThat(apiCallSection.getParams().size(), equalTo(2));
         assertThat(apiCallSection.getParams().get("index"), equalTo("test_1"));
-        assertThat(apiCallSection.getParams().get("type"), equalTo("test"));
         assertThat(apiCallSection.getParams().get("id"), equalTo("1"));
         assertThat(apiCallSection.hasBody(), equalTo(true));
 
@@ -225,9 +217,9 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
     public void testParseDoSectionWithJsonMultipleBodiesAsLongString() throws Exception {
         String bodies[] = new String[] {
-            "{ \"index\": { \"_index\":\"test_index\", \"_type\":\"test_type\", \"_id\":\"test_id\" } }\n",
+            "{ \"index\": { \"_index\":\"test_index\", \"_id\":\"test_id\" } }\n",
             "{ \"f1\":\"v1\", \"f2\":42 }\n",
-            "{ \"index\": { \"_index\":\"test_index2\", \"_type\":\"test_type2\", \"_id\":\"test_id2\" } }\n",
+            "{ \"index\": { \"_index\":\"test_index2\", \"_id\":\"test_id2\" } }\n",
             "{ \"f1\":\"v2\", \"f2\":47 }\n" };
         parser = createParser(
             YamlXContent.yamlXContent,
@@ -284,21 +276,19 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 + "    body:\n"
                 + "        - index:\n"
                 + "            _index: test_index\n"
-                + "            _type:  test_type\n"
                 + "            _id:    test_id\n"
                 + "        - f1: v1\n"
                 + "          f2: 42\n"
                 + "        - index:\n"
                 + "            _index: test_index2\n"
-                + "            _type:  test_type2\n"
                 + "            _id:    test_id2\n"
                 + "        - f1: v2\n"
                 + "          f2: 47"
         );
         String[] bodies = new String[4];
-        bodies[0] = "{\"index\": {\"_index\": \"test_index\", \"_type\":  \"test_type\", \"_id\": \"test_id\"}}";
+        bodies[0] = "{\"index\": {\"_index\": \"test_index\", \"_id\": \"test_id\"}}";
         bodies[1] = "{ \"f1\":\"v1\", \"f2\": 42 }";
-        bodies[2] = "{\"index\": {\"_index\": \"test_index2\", \"_type\":  \"test_type2\", \"_id\": \"test_id2\"}}";
+        bodies[2] = "{\"index\": {\"_index\": \"test_index2\", \"_id\": \"test_id2\"}}";
         bodies[3] = "{ \"f1\":\"v2\", \"f2\": 47 }";
 
         DoSection doSection = DoSection.parse(parser);
@@ -322,13 +312,10 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             "mget:\n"
                 + "    body:\n"
                 + "        docs:\n"
-                + "            - { _index: test_2, _type: test, _id: 1}\n"
-                + "            - { _index: test_1, _type: none, _id: 1}"
+                + "            - { _index: test_2, _id: 1}\n"
+                + "            - { _index: test_1, _id: 1}"
         );
-        String body = "{ \"docs\": [ "
-            + "{\"_index\": \"test_2\", \"_type\":\"test\", \"_id\":1}, "
-            + "{\"_index\": \"test_1\", \"_type\":\"none\", \"_id\":1} "
-            + "]}";
+        String body = "{ \"docs\": [ " + "{\"_index\": \"test_2\", \"_id\":1}, " + "{\"_index\": \"test_1\", \"_id\":1} " + "]}";
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();
@@ -346,7 +333,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             YamlXContent.yamlXContent,
             "index:\n"
                 + "    index:  test_1\n"
-                + "    type:   test\n"
                 + "    id:     1\n"
                 + "    body:   \"{ \\\"_source\\\": true, \\\"query\\\": { \\\"match_all\\\": {} } }\""
         );
@@ -356,9 +342,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         assertThat(apiCallSection, notNullValue());
         assertThat(apiCallSection.getApi(), equalTo("index"));
-        assertThat(apiCallSection.getParams().size(), equalTo(3));
+        assertThat(apiCallSection.getParams().size(), equalTo(2));
         assertThat(apiCallSection.getParams().get("index"), equalTo("test_1"));
-        assertThat(apiCallSection.getParams().get("type"), equalTo("test"));
         assertThat(apiCallSection.getParams().get("id"), equalTo("1"));
         assertThat(apiCallSection.hasBody(), equalTo(true));
         assertThat(apiCallSection.getBodies().size(), equalTo(1));
@@ -444,16 +429,15 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     public void testParseDoSectionMultivaluedField() throws Exception {
         parser = createParser(
             YamlXContent.yamlXContent,
-            "indices.get_field_mapping:\n" + "        index: test_index\n" + "        type: test_type\n" + "        field: [ text , text1 ]"
+            "indices.get_field_mapping:\n" + "        index: test_index\n" + "        field: [ text , text1 ]"
         );
 
         DoSection doSection = DoSection.parse(parser);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_field_mapping"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
         assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
-        assertThat(doSection.getApiCallSection().getParams().get("type"), equalTo("test_type"));
         assertThat(doSection.getApiCallSection().getParams().get("field"), equalTo("text,text1"));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
         assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
@@ -464,7 +448,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             YamlXContent.yamlXContent,
             "indices.get_field_mapping:\n"
                 + "        index: test_index\n"
-                + "        type: test_type\n"
                 + "warnings:\n"
                 + "    - some test warning they are typically pretty long\n"
                 + "    - some other test warning sometimes they have [in] them"
@@ -474,9 +457,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_field_mapping"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(1));
         assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
-        assertThat(doSection.getApiCallSection().getParams().get("type"), equalTo("test_type"));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
         assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
         assertThat(
@@ -502,7 +484,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             YamlXContent.yamlXContent,
             "indices.get_field_mapping:\n"
                 + "        index: test_index\n"
-                + "        type: test_type\n"
                 + "allowed_warnings:\n"
                 + "    - some test warning they are typically pretty long\n"
                 + "    - some other test warning sometimes they have [in] them"
@@ -512,9 +493,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_field_mapping"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(1));
         assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
-        assertThat(doSection.getApiCallSection().getParams().get("type"), equalTo("test_type"));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
         assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
         assertThat(

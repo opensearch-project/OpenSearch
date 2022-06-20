@@ -173,7 +173,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
         assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
     }
 
-    public void testDescriptionOnMasterIneligibleNodes() {
+    public void testDescriptionOnClusterManagerIneligibleNodes() {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
@@ -284,7 +284,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is("this node is unhealthy: unhealthy-info")
         );
 
-        final DiscoveryNode masterNode = new DiscoveryNode(
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
@@ -293,7 +293,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
         );
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
-            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
+            .nodes(DiscoveryNodes.builder().add(clusterManagerNode).localNodeId(clusterManagerNode.getId()))
             .build();
 
         assertThat(
@@ -851,9 +851,13 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             )
         );
 
-        final DiscoveryNode otherMasterNode = new DiscoveryNode("other-master", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode otherNonMasterNode = new DiscoveryNode(
-            "other-non-master",
+        final DiscoveryNode otherClusterManagerNode = new DiscoveryNode(
+            "other-cluster-manager",
+            buildNewFakeTransportAddress(),
+            Version.CURRENT
+        );
+        final DiscoveryNode otherNonClusterManagerNode = new DiscoveryNode(
+            "other-non-cluster-manager",
             buildNewFakeTransportAddress(),
             emptyMap(),
             new HashSet<>(
@@ -866,7 +870,13 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
 
         String[] configNodeIds = new String[] { "n1", "n2" };
         final ClusterState stateWithOtherNodes = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).add(otherMasterNode).add(otherNonMasterNode))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(localNode)
+                    .localNodeId(localNode.getId())
+                    .add(otherClusterManagerNode)
+                    .add(otherNonClusterManagerNode)
+            )
             .metadata(
                 Metadata.builder()
                     .coordinationMetadata(
@@ -897,13 +907,13 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                         + "discovery will continue using [] from hosts providers and ["
                         + localNode
                         + ", "
-                        + otherMasterNode
+                        + otherClusterManagerNode
                         + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0",
 
                     "cluster-manager not discovered or elected yet, an election requires two nodes with ids [n1, n2], "
                         + "have discovered [] which is not a quorum; "
                         + "discovery will continue using [] from hosts providers and ["
-                        + otherMasterNode
+                        + otherClusterManagerNode
                         + ", "
                         + localNode
                         + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"

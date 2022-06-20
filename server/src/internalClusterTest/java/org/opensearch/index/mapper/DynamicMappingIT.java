@@ -76,7 +76,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
             assertThat(e.getMessage(), Matchers.containsString("failed to parse field [foo] of type [long]"));
         } catch (IllegalArgumentException e) {
             // rare case: the node that processes the index request doesn't have the mappings
-            // yet and sends a mapping update to the master node to map "bar" as "text". This
+            // yet and sends a mapping update to the cluster-manager node to map "bar" as "text". This
             // fails as it had been already mapped as a long by the previous index request.
             assertThat(e.getMessage(), Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]"));
         }
@@ -140,19 +140,19 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testPreflightCheckAvoidsMaster() throws InterruptedException {
+    public void testPreflightCheckAvoidsClusterManager() throws InterruptedException {
         createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
         ensureGreen("index");
         client().prepareIndex("index").setId("1").setSource("field1", "value1").get();
 
-        final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
+        final CountDownLatch clusterManagerBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
 
         internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
             .submitStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    masterBlockedLatch.countDown();
+                    clusterManagerBlockedLatch.countDown();
                     indexingCompletedLatch.await();
                     return currentState;
                 }
@@ -163,7 +163,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
                 }
             });
 
-        masterBlockedLatch.await();
+        clusterManagerBlockedLatch.await();
         final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId("2").setSource("field2", "value2");
         try {
             assertThat(
