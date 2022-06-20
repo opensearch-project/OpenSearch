@@ -48,7 +48,7 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotReques
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.GroupedActionListener;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -3621,7 +3621,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private class UpdateSnapshotStatusAction extends TransportMasterNodeAction<
+    private class UpdateSnapshotStatusAction extends TransportClusterManagerNodeAction<
         UpdateIndexShardSnapshotStatusRequest,
         UpdateIndexShardSnapshotStatusResponse> {
         UpdateSnapshotStatusAction(

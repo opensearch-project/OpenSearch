@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {
         try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig();
+            IndexWriterConfig iwc = newIndexWriterConfig().setMaxFullFlushMergeWaitMillis(0);
             MergePolicy mp = new ShuffleForcedMergePolicy(newTieredMergePolicy());
             iwc.setMergePolicy(mp);
             boolean sorted = random().nextBoolean();

@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.cluster.repositories.delete;
 
-import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 
 /**

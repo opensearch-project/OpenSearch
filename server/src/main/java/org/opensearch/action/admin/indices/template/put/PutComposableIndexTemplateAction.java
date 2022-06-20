@@ -36,8 +36,8 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.common.Nullable;
@@ -70,7 +70,7 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
      *
      * @opensearch.internal
      */
-    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest {
+    public static class Request extends ClusterManagerNodeRequest<Request> implements IndicesRequest {
         private final String name;
         @Nullable
         private String cause;

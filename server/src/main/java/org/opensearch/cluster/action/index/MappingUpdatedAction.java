@@ -37,7 +37,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.Client;
 import org.opensearch.client.IndicesAdminClient;
 import org.opensearch.cluster.service.ClusterService;
@@ -108,7 +108,7 @@ public class MappingUpdatedAction {
     /**
      * Update mappings on the cluster-manager node, waiting for the change to be committed,
      * but not for the mapping update to be applied on all nodes. The timeout specified by
-     * {@code timeout} is the cluster-manager node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
+     * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#masterNodeTimeout()}),
      * potentially waiting for a cluster-manager node to be available.
      */
     public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {

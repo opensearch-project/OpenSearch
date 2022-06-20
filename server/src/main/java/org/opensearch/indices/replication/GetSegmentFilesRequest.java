@@ -57,4 +57,8 @@ public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest {
     public ReplicationCheckpoint getCheckpoint() {
         return checkpoint;
     }
+
+    public List<StoreFileMetadata> getFilesToFetch() {
+        return filesToFetch;
+    }
 }

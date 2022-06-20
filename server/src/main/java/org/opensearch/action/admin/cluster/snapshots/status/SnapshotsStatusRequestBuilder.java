@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
@@ -41,7 +41,7 @@ import org.opensearch.common.util.ArrayUtils;
  *
  * @opensearch.internal
  */
-public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<
+public class SnapshotsStatusRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     SnapshotsStatusRequest,
     SnapshotsStatusResponse,
     SnapshotsStatusRequestBuilder> {
