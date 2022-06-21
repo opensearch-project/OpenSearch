@@ -8,20 +8,25 @@
 
 package org.opensearch.search;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.opensearch.action.ActionFuture;
-import org.opensearch.action.search.CreatePitAction;
-import org.opensearch.action.search.CreatePitRequest;
-import org.opensearch.action.search.CreatePitResponse;
-import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.search.*;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -205,7 +210,73 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().putNull("*"))
                 .setTransientSettings(Settings.builder().putNull("*"))
         );
+    }
 
+    public void testGetAllPits() throws Exception {
+        client().admin().indices().prepareCreate("index1").get();
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index", "index1" });
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
+        CreatePitResponse pitResponse1 = client().execute(CreatePitAction.INSTANCE, request).get();
+        CreatePitResponse pitResponse2 = client().execute(CreatePitAction.INSTANCE, request).get();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.local(false);
+        clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().state(clusterStateRequest).get();
+        final List<DiscoveryNode> nodes = new LinkedList<>();
+        for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().getDataNodes().values()) {
+            DiscoveryNode node = cursor.value;
+            nodes.add(node);
+        }
+        DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
+        nodes.toArray(disNodesArr);
+        GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
+        ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+        GetAllPitNodesResponse getPitResponse = execute1.get();
+        assertEquals(3, getPitResponse.getPITIDs().size());
+        List<String> resultPitIds = getPitResponse.getPITIDs().stream().map(p -> p.getPitId()).collect(Collectors.toList());
+        // asserting that we get all unique PIT IDs
+        Assert.assertTrue(resultPitIds.contains(pitResponse.getId()));
+        Assert.assertTrue(resultPitIds.contains(pitResponse1.getId()));
+        Assert.assertTrue(resultPitIds.contains(pitResponse2.getId()));
+        client().admin().indices().prepareDelete("index1").get();
+    }
+
+    public void testGetAllPitsDuringNodeDrop() throws Exception {
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
+        GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(getDiscoveryNodes());
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+                GetAllPitNodesResponse getPitResponse = execute1.get();
+                // we still get a pit id from the data node which is up
+                assertEquals(1, getPitResponse.getPITIDs().size());
+                // failure for node drop
+                assertEquals(1, getPitResponse.failures().size());
+                assertTrue(getPitResponse.failures().get(0).getMessage().contains("Failed node"));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+    }
+
+    private DiscoveryNode[] getDiscoveryNodes() throws ExecutionException, InterruptedException {
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.local(false);
+        clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().state(clusterStateRequest).get();
+        final List<DiscoveryNode> nodes = new LinkedList<>();
+        for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().getDataNodes().values()) {
+            DiscoveryNode node = cursor.value;
+            nodes.add(node);
+        }
+        DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
+        nodes.toArray(disNodesArr);
+        return disNodesArr;
     }
 
 }
