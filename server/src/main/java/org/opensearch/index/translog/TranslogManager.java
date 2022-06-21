@@ -13,7 +13,7 @@ import java.util.stream.Stream;
 
 /**
  * The interface that orchestrates Translog operations and manages the {@link Translog} and interfaces with the Engine
- * 
+ *
  * @opensearch.internal
  */
 public interface TranslogManager {
