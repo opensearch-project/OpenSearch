@@ -31,13 +31,24 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 
     public void testRecoveryFromTranslog() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final AtomicBoolean beginTranslogRecoveryInvoked = new AtomicBoolean(false);
+        final AtomicBoolean onTranslogRecoveryInvoked = new AtomicBoolean(false);
         TranslogManager translogManager = null;
+
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, null, globalCheckpoint::get);
-            translogManager = new InternalTranslogManager(config, shardId,
-                new ReleasableLock(new ReentrantReadWriteLock().readLock()), () -> tracker,
-                translogUUID, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER, () -> {}, null, null);
+            translogManager = new InternalTranslogManager(
+                config,
+                shardId,
+                new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+                () -> tracker,
+                translogUUID,
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
+                () -> {},
+                null,
+                null
+            );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
@@ -54,9 +65,27 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 
             translogManager.syncTranslog();
             translogManager.getTranslog(false).close();
-            translogManager = new InternalTranslogManager(config, shardId,
-                new ReleasableLock(new ReentrantReadWriteLock().readLock()), () -> new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED),
-                translogUUID, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER, () -> {}, null, null);
+            translogManager = new InternalTranslogManager(
+                config,
+                shardId,
+                new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+                () -> new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED),
+                translogUUID,
+                new TranslogEventListener() {
+                    @Override
+                    public void onTranslogRecovery() {
+                        onTranslogRecoveryInvoked.set(true);
+                    }
+
+                    @Override
+                    public void onBeginTranslogRecovery() {
+                        beginTranslogRecoveryInvoked.set(true);
+                    }
+                },
+                () -> {},
+                null,
+                null
+            );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
                 Translog.Operation operation;
@@ -68,20 +97,32 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 
             assertEquals(maxSeqNo + 1, opsRecovered.get());
             assertEquals(maxSeqNo + 1, opsRecoveredFromTranslog);
+
+            assertTrue(beginTranslogRecoveryInvoked.get());
+            assertTrue(onTranslogRecoveryInvoked.get());
+
         } finally {
             translogManager.getTranslog(false).close();
         }
     }
 
-    public void testTranslogGenerations() throws IOException {
+    public void testTranslogRollsGeneration() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         TranslogManager translogManager = null;
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, null, globalCheckpoint::get);
-            translogManager = new InternalTranslogManager(config, shardId,
-                new ReleasableLock(new ReentrantReadWriteLock().readLock()), () -> tracker,
-                translogUUID, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER, () -> {}, null, null);
+            translogManager = new InternalTranslogManager(
+                config,
+                shardId,
+                new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+                () -> tracker,
+                translogUUID,
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
+                () -> {},
+                null,
+                null
+            );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
@@ -98,9 +139,17 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 
             translogManager.syncTranslog();
             translogManager.getTranslog(false).close();
-            translogManager = new InternalTranslogManager(config, shardId,
-                new ReleasableLock(new ReentrantReadWriteLock().readLock()), () -> new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED),
-                translogUUID, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER, () -> {}, null, null);
+            translogManager = new InternalTranslogManager(
+                config,
+                shardId,
+                new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+                () -> new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED),
+                translogUUID,
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
+                () -> {},
+                null,
+                null
+            );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
                 Translog.Operation operation;
@@ -123,9 +172,17 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, null, globalCheckpoint::get);
-            translogManager = new InternalTranslogManager(config, shardId,
-                new ReleasableLock(new ReentrantReadWriteLock().readLock()), () -> tracker,
-                translogUUID, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER, () -> {}, null, null);
+            translogManager = new InternalTranslogManager(
+                config,
+                shardId,
+                new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+                () -> tracker,
+                translogUUID,
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
+                () -> {},
+                null,
+                null
+            );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
@@ -144,9 +201,17 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManager.trimOperationsFromTranslog(primaryTerm.get(), NO_OPS_PERFORMED); // trim everything in translog
 
             translogManager.getTranslog(false).close();
-            translogManager = new InternalTranslogManager(config, shardId,
-                new ReleasableLock(new ReentrantReadWriteLock().readLock()), () -> new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED),
-                translogUUID, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER, () -> {}, null, null);
+            translogManager = new InternalTranslogManager(
+                config,
+                shardId,
+                new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+                () -> new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED),
+                translogUUID,
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
+                () -> {},
+                null,
+                null
+            );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
                 Translog.Operation operation;
@@ -171,23 +236,29 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         final AtomicInteger localCheckpoint = new AtomicInteger(randomIntBetween(0, maxSeqNo.get()));
         try (Store store = createStore()) {
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
-            EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, null,
-                globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, null, globalCheckpoint::get);
             AtomicReference<TranslogManager> translogManagerAtomicReference = new AtomicReference<>();
-            translogManager = new InternalTranslogManager(config, shardId,
-                new ReleasableLock(new ReentrantReadWriteLock().readLock()), () -> new LocalCheckpointTracker(maxSeqNo.get(), localCheckpoint.get()),
-                translogUUID, new TranslogEventListener() {
-                @Override
-                public void onTranslogSync() {
-                    try {
-                        translogManagerAtomicReference.get().getTranslog(false).trimUnreferencedReaders();
-                        syncListenerInvoked.set(true);
-                    } catch (IOException ex) {
-                        fail("Failed due to "+ ex);
+            translogManager = new InternalTranslogManager(
+                config,
+                shardId,
+                new ReleasableLock(new ReentrantReadWriteLock().readLock()),
+                () -> new LocalCheckpointTracker(maxSeqNo.get(), localCheckpoint.get()),
+                translogUUID,
+                new TranslogEventListener() {
+                    @Override
+                    public void onTranslogSync() {
+                        try {
+                            translogManagerAtomicReference.get().getTranslog(false).trimUnreferencedReaders();
+                            syncListenerInvoked.set(true);
+                        } catch (IOException ex) {
+                            fail("Failed due to " + ex);
+                        }
                     }
-                }
-            }, () -> {
-            }, null, null);
+                },
+                () -> {},
+                null,
+                null
+            );
             translogManagerAtomicReference.set(translogManager);
             Engine.Index index = indexForDoc(doc);
             Engine.IndexResult indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), 1, false);
@@ -196,7 +267,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManager.syncTranslog();
 
             assertThat(translogManager.getTranslog(true).currentFileGeneration(), equalTo(2L));
-            assertThat(translogManager.getTranslog(true).getMinFileGeneration(), equalTo( 2L));
+            assertThat(translogManager.getTranslog(true).getMinFileGeneration(), equalTo(2L));
             assertTrue(syncListenerInvoked.get());
         } finally {
             translogManager.getTranslog(false).close();

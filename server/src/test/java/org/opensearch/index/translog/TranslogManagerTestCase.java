@@ -8,7 +8,6 @@
 
 package org.opensearch.index.translog;
 
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -75,7 +74,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
-public class TranslogManagerTestCase extends OpenSearchTestCase {
+public abstract class TranslogManagerTestCase extends OpenSearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 0);
     protected final AllocationId allocationId = AllocationId.newInitializing();
@@ -191,7 +190,6 @@ public class TranslogManagerTestCase extends OpenSearchTestCase {
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .build();
     }
-
 
     public static final class PrimaryTermSupplier implements LongSupplier {
         private final AtomicLong term;
@@ -518,4 +516,3 @@ public class TranslogManagerTestCase extends OpenSearchTestCase {
         };
     }
 }
-
