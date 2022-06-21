@@ -20,7 +20,7 @@ public interface TranslogRecoveryRunner {
 
     /**
      * Recovers a translog snapshot
-     * @param snapshot
+     * @param snapshot the snapshot of translog operations
      * @return recoveredOps
      * @throws IOException exception while recovering operations
      */
