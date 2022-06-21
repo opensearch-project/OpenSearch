@@ -102,17 +102,17 @@ setup:
 
   - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
   - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
 
   - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
   - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_double.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_double.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 151.0 }
   - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
 
