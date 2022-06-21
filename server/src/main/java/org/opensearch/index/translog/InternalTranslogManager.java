@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
- * The {@link TranslogManager} implementation capable of orchestrating all {@link Translog} operations while
+ * The {@link TranslogManager} implementation capable of orchestrating all read/write {@link Translog} operations while
  * interfacing with the {@link org.opensearch.index.engine.InternalEngine}
  */
 public class InternalTranslogManager implements TranslogManager {
@@ -117,7 +117,7 @@ public class InternalTranslogManager implements TranslogManager {
      * This operation will close the engine if the recovery fails.
      *  @param translogRecoveryRunner the translog recovery runner
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
-     * @return
+     * @return the total number of operations recovered
      */
     @Override
     public int recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
@@ -190,6 +190,10 @@ public class InternalTranslogManager implements TranslogManager {
         return synced;
     }
 
+    /**
+     * Syncs the translog and invokes the listener
+     * @throws IOException the exception on sync failure
+     */
     @Override
     public void syncTranslog() throws IOException {
         translog.sync();
@@ -280,6 +284,9 @@ public class InternalTranslogManager implements TranslogManager {
         }
     }
 
+    /**
+     * Ensures that the flushes can succeed if there are no pending translog recovery
+     */
     @Override
     public void ensureCanFlush() {
         // translog recovery happens after the engine is fully constructed.
@@ -320,6 +327,11 @@ public class InternalTranslogManager implements TranslogManager {
         );
     }
 
+    /**
+     * Returns the the translog instance
+     * @param ensureOpen check if the engine is open
+     * @return the {@link Translog} instance
+     */
     @Override
     public Translog getTranslog(boolean ensureOpen) {
         if (ensureOpen) {

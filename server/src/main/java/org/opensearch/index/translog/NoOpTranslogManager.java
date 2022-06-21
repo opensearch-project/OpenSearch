@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.stream.Stream;
 
 /**
- * The no-op implementation of {@link TranslogManager} that doesn't perform any action
+ * The no-op implementation of {@link TranslogManager} that doesn't perform any operation
  */
 public class NoOpTranslogManager implements TranslogManager {
 

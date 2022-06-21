@@ -21,7 +21,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /***
- * The implementation of {@link TranslogManager} that only performs writes to the Translog
+ * The implementation of {@link TranslogManager} that only orchestrates writes to the underlying {@link Translog}
  */
 public class WriteOnlyTranslogManager extends InternalTranslogManager {
 
