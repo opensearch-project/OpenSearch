@@ -23,24 +23,23 @@ public class ZstdCompressionMode extends CompressionMode {
 
     private static final int NUM_SUB_BLOCKS = 10;
     private static final int DICT_SIZE_FACTOR = 6;
+    private static final int DEFAULT_COMPRESSION_LEVEL = 6;
 
-    private final int level;
-
-    public static final int defaultLevel = 6;
+    private final int compressionLevel;
 
     /** default constructor */
     ZstdCompressionMode() {
-        this.level = defaultLevel;
+        this.compressionLevel = DEFAULT_COMPRESSION_LEVEL;
     }
 
     /** compression mode for a given compression level */
-    ZstdCompressionMode(int level) {
-        this.level = level;
+    ZstdCompressionMode(int compressionLevel) {
+        this.compressionLevel = compressionLevel;
     }
 
     @Override
     public Compressor newCompressor() {
-        return new ZSTDCompressor(level);
+        return new ZSTDCompressor(compressionLevel);
     }
 
     @Override
@@ -51,8 +50,8 @@ public class ZstdCompressionMode extends CompressionMode {
     /** zstandard compressor */
     private static final class ZSTDCompressor extends Compressor {
 
-        int compressionLevel;
-        byte[] compressedBuffer;
+        private final int compressionLevel;
+        private byte[] compressedBuffer;
 
         /** compressor with a given compresion level */
         public ZSTDCompressor(int compressionLevel) {
@@ -105,11 +104,11 @@ public class ZstdCompressionMode extends CompressionMode {
     /** zstandard decompressor */
     private static final class ZSTDDecompressor extends Decompressor {
 
-        byte[] compressed;
+        private byte[] compressedBuffer;
 
         /** default decompressor */
         public ZSTDDecompressor() {
-            compressed = BytesRef.EMPTY_BYTES;
+            compressedBuffer = BytesRef.EMPTY_BYTES;
         }
 
         /*resuable decompress function*/
@@ -119,11 +118,11 @@ public class ZstdCompressionMode extends CompressionMode {
                 return;
             }
 
-            compressed = ArrayUtil.grow(compressed, compressedLength);
-            in.readBytes(compressed, 0, compressedLength);
+            compressedBuffer = ArrayUtil.grow(compressedBuffer, compressedLength);
+            in.readBytes(compressedBuffer, 0, compressedLength);
 
             bytes.bytes = ArrayUtil.grow(bytes.bytes, bytes.length + decompressedLen);
-            int uncompressed = dctx.decompressByteArray(bytes.bytes, bytes.length, decompressedLen, compressed, 0, compressedLength);
+            int uncompressed = dctx.decompressByteArray(bytes.bytes, bytes.length, decompressedLen, compressedBuffer, 0, compressedLength);
 
             if (decompressedLen != uncompressed) {
                 throw new IllegalStateException(decompressedLen + " " + uncompressed);

@@ -15,9 +15,9 @@ import org.apache.lucene.codecs.lucene92.Lucene92Codec;
 /** Custom codec for different compression algorithm */
 public class Lucene92CustomCodec extends FilterCodec {
 
-    private final StoredFieldsFormat storedFieldsFormat;
+    public static final int DEFAULT_COMPRESSION_LEVEL = 6;
 
-    public static final int defaultCompressionLevel = 6;
+    private final StoredFieldsFormat storedFieldsFormat;
 
     /** Compression modes */
     public static enum Mode {
@@ -31,12 +31,12 @@ public class Lucene92CustomCodec extends FilterCodec {
 
     /** Default codec */
     public Lucene92CustomCodec() {
-        this(Mode.LZ4_NATIVE, defaultCompressionLevel);
+        this(Mode.LZ4_NATIVE, DEFAULT_COMPRESSION_LEVEL);
     }
 
     /** new codec for a given compression algorithm and default compression level */
     public Lucene92CustomCodec(Mode compressionMode) {
-        this(compressionMode, defaultCompressionLevel);
+        this(compressionMode, DEFAULT_COMPRESSION_LEVEL);
     }
 
     /** new codec for a given compression algorithm and compression level */

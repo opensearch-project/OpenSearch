@@ -25,18 +25,22 @@ public class Lucene90CustomStoredFieldsFormat extends StoredFieldsFormat {
 
     private static final int ZSTD_BLOCK_LENGTH = 10 * 48 * 1024;
     private static final int LZ4_NATIVE_BLOCK_LENGTH = 10 * 8 * 1024;
+    private static final int ZSTD_MAX_DOCS_PER_BLOCK = 4096;
+    private static final int ZSTD_BLOCK_SHIFT = 10;
+    private static final int LZ4_MAX_DOCS_PER_BLOCK = 1024;
+    private static final int LZ4_BLOCK_SHIFT = 10;
 
     private final CompressionMode ZSTD_MODE;
     private final CompressionMode ZSTD_MODE_NO_DICT;
     private final CompressionMode LZ4_MODE;
 
-    private Lucene92CustomCodec.Mode mode;
+    private final Lucene92CustomCodec.Mode mode;
 
     public static final String MODE_KEY = Lucene90CustomStoredFieldsFormat.class.getSimpleName() + ".mode";
 
     /** default constructor */
     public Lucene90CustomStoredFieldsFormat() {
-        this(Lucene92CustomCodec.Mode.LZ4_NATIVE, Lucene92CustomCodec.defaultCompressionLevel);
+        this(Lucene92CustomCodec.Mode.LZ4_NATIVE, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
     }
 
     /** Stored fields format with specified compression algo. */
@@ -62,7 +66,7 @@ public class Lucene90CustomStoredFieldsFormat extends StoredFieldsFormat {
         String previous = si.putAttribute(MODE_KEY, mode.name());
         if (previous != null && previous.equals(mode.name()) == false) {
             throw new IllegalStateException(
-                "found existing value for " + MODE_KEY + " for segment: " + si.name + "old=" + previous + ", new=" + mode.name()
+                "found existing value for " + MODE_KEY + " for segment: " + si.name + " old = " + previous + ", new = " + mode.name()
             );
         }
         return impl(mode).fieldsWriter(directory, si, context);
@@ -71,17 +75,29 @@ public class Lucene90CustomStoredFieldsFormat extends StoredFieldsFormat {
     private StoredFieldsFormat impl(Lucene92CustomCodec.Mode mode) {
         switch (mode) {
             case ZSTD:
-                return new Lucene90CompressingStoredFieldsFormat("CustomStoredFieldsZstd", ZSTD_MODE, ZSTD_BLOCK_LENGTH, 4096, 10);
+                return new Lucene90CompressingStoredFieldsFormat(
+                    "CustomStoredFieldsZstd",
+                    ZSTD_MODE,
+                    ZSTD_BLOCK_LENGTH,
+                    ZSTD_MAX_DOCS_PER_BLOCK,
+                    ZSTD_BLOCK_SHIFT
+                );
             case ZSTD_NO_DICT:
                 return new Lucene90CompressingStoredFieldsFormat(
                     "CustomStoredFieldsZstdNoDict",
                     ZSTD_MODE_NO_DICT,
                     ZSTD_BLOCK_LENGTH,
-                    4096,
-                    10
+                    ZSTD_MAX_DOCS_PER_BLOCK,
+                    ZSTD_BLOCK_SHIFT
                 );
             case LZ4_NATIVE:
-                return new Lucene90CompressingStoredFieldsFormat("CustomStoredFieldsLz4", LZ4_MODE, LZ4_NATIVE_BLOCK_LENGTH, 1024, 10);
+                return new Lucene90CompressingStoredFieldsFormat(
+                    "CustomStoredFieldsLz4",
+                    LZ4_MODE,
+                    LZ4_NATIVE_BLOCK_LENGTH,
+                    LZ4_MAX_DOCS_PER_BLOCK,
+                    LZ4_BLOCK_SHIFT
+                );
             default:
                 throw new AssertionError();
         }

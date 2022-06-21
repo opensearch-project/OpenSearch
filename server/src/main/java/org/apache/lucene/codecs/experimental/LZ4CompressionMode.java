@@ -40,8 +40,8 @@ public class LZ4CompressionMode extends CompressionMode {
 
     /** LZ4 compressor */
     private static final class LZ4InnerCompressor extends Compressor {
-        byte[] compressedBuffer;
-        LZ4Compressor compressor;
+        private byte[] compressedBuffer;
+        private LZ4Compressor compressor;
 
         /** Default constructor */
         public LZ4InnerCompressor() {
@@ -81,12 +81,12 @@ public class LZ4CompressionMode extends CompressionMode {
     /** LZ4 decompressor */
     private static final class LZ4InnerDecompressor extends Decompressor {
 
-        byte[] compressed;
-        LZ4FastDecompressor decompressor;
+        private byte[] compressedBuffer;
+        private LZ4FastDecompressor decompressor;
 
         /** default decompressor */
         public LZ4InnerDecompressor() {
-            compressed = BytesRef.EMPTY_BYTES;
+            compressedBuffer = BytesRef.EMPTY_BYTES;
             decompressor = LZ4Factory.nativeInstance().fastDecompressor();
         }
 
@@ -119,15 +119,15 @@ public class LZ4CompressionMode extends CompressionMode {
                 if (compressedLength == 0) {
                     return;
                 }
-                compressed = ArrayUtil.grow(compressed, compressedLength);
-                in.readBytes(compressed, 0, compressedLength);
+                compressedBuffer = ArrayUtil.grow(compressedBuffer, compressedLength);
+                in.readBytes(compressedBuffer, 0, compressedLength);
 
                 int l = Math.min(blockLength, originalLength - offsetInBlock);
                 bytes.bytes = ArrayUtil.grow(bytes.bytes, bytes.length + l);
 
                 byte[] output = new byte[l];
 
-                decompressor.decompress(compressed, 0, output, 0, l);
+                decompressor.decompress(compressedBuffer, 0, output, 0, l);
                 System.arraycopy(output, 0, bytes.bytes, bytes.length, l);
 
                 bytes.length += l;
