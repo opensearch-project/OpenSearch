@@ -407,7 +407,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 public void onFailure(Exception e) {
                     if (fail.compareAndExchange(true, false)) {
                         try {
-                            throw new NullPointerException("Simulated exception");
+                            throw new RuntimeException("Simulated exception");
                         } finally {
                             executor.submit(() -> latch.countDown());
                         }
@@ -451,7 +451,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 @Override
                 public void onResponse(SearchResponse response) {
                     if (fail.compareAndExchange(true, false)) {
-                        throw new NullPointerException("Simulated exception");
+                        throw new RuntimeException("Simulated exception");
                     }
                 }
 
