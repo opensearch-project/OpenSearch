@@ -853,8 +853,6 @@ public abstract class Engine implements Closeable {
      */
     public abstract long getLastSyncedGlobalCheckpoint();
 
-    public abstract long getProcessedLocalCheckpoint();
-
     /**
      * Global stats on segments.
      */

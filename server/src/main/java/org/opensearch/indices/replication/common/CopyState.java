@@ -33,14 +33,20 @@ import java.util.Set;
 public class CopyState extends AbstractRefCounted {
 
     private final GatedCloseable<SegmentInfos> segmentInfosRef;
+    /** ReplicationCheckpoint requested */
+    private final ReplicationCheckpoint requestedReplicationCheckpoint;
+    /** Actual ReplicationCheckpoint returned by the shard */
     private final ReplicationCheckpoint replicationCheckpoint;
     private final Store.MetadataSnapshot metadataSnapshot;
     private final HashSet<StoreFileMetadata> pendingDeleteFiles;
     private final byte[] infosBytes;
     private GatedCloseable<IndexCommit> commitRef;
+    private final IndexShard shard;
 
-    public CopyState(IndexShard shard) throws IOException {
+    public CopyState(ReplicationCheckpoint requestedReplicationCheckpoint, IndexShard shard) throws IOException {
         super("CopyState-" + shard.shardId());
+        this.requestedReplicationCheckpoint = requestedReplicationCheckpoint;
+        this.shard = shard;
         this.segmentInfosRef = shard.getSegmentInfosSnapshot();
         SegmentInfos segmentInfos = this.segmentInfosRef.get();
         this.metadataSnapshot = shard.store().getMetadata(segmentInfos);
@@ -99,5 +105,13 @@ public class CopyState extends AbstractRefCounted {
 
     public Set<StoreFileMetadata> getPendingDeleteFiles() {
         return pendingDeleteFiles;
+    }
+
+    public IndexShard getShard() {
+        return shard;
+    }
+
+    public ReplicationCheckpoint getRequestedReplicationCheckpoint() {
+        return requestedReplicationCheckpoint;
     }
 }

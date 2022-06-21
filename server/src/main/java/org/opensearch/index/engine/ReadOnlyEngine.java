@@ -388,11 +388,6 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public long getProcessedLocalCheckpoint() {
-        return 0;
-    }
-
-    @Override
     public long getIndexBufferRAMBytesUsed() {
         return 0;
     }
