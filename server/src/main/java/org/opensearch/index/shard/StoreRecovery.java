@@ -117,6 +117,20 @@ final class StoreRecovery {
         }
     }
 
+    void recoverFromRemoteStore(final IndexShard indexShard, ActionListener<Boolean> listener) {
+        if (canRecover(indexShard)) {
+            RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
+            assert recoveryType == RecoverySource.Type.REMOTE_STORE : "expected remote store recovery type but was: " + recoveryType;
+            ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
+                logger.debug("starting recovery from remote store ...");
+                recoverFromRemoteStore(indexShard);
+                return true;
+            });
+        } else {
+            listener.onResponse(false);
+        }
+    }
+
     void recoverFromLocalShards(
         Consumer<MappingMetadata> mappingUpdateConsumer,
         IndexShard indexShard,
@@ -422,6 +436,43 @@ final class StoreRecovery {
                 }
             }
         });
+    }
+
+    private void recoverFromRemoteStore(IndexShard indexShard) throws IndexShardRecoveryException {
+        indexShard.preRecovery();
+        indexShard.prepareForIndexRecovery();
+        if (indexShard.getRemoteStoreRefreshListener() == null) {
+            throw new IndexShardRecoveryException(
+                indexShard.shardId(),
+                "Remote store is not enabled for this index",
+                new IllegalArgumentException()
+            );
+        }
+        final Directory remoteDirectory = indexShard.getRemoteStoreRefreshListener().getRemoteDirectory();
+        final Store store = indexShard.store();
+        final Directory storeDirectory = store.directory();
+        store.incRef();
+        try {
+            for (String file : storeDirectory.listAll()) {
+                storeDirectory.deleteFile(file);
+            }
+        } catch (IOException e) {
+            throw new IndexShardRecoveryException(indexShard.shardId, "Exception while recovering from remote store", e);
+        }
+        try {
+            for (String file : remoteDirectory.listAll()) {
+                storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
+            }
+            indexShard.recoveryState().getIndex().setFileDetailsComplete();
+            // ToDo: Add code to restore remote trans-log
+            indexShard.openEngineAndRecoverFromTranslog();
+            indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+            indexShard.finalizeRecovery();
+            indexShard.postRecovery("post recovery from remote_store");
+        } catch (IOException e) {
+            throw new IndexShardRecoveryException(indexShard.shardId, "Exception while recovering from remote store", e);
+        }
+        store.decRef();
     }
 
     /**

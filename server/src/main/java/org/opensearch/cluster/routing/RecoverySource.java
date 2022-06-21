@@ -88,6 +88,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 return new SnapshotRecoverySource(in);
             case LOCAL_SHARDS:
                 return LocalShardsRecoverySource.INSTANCE;
+            case REMOTE_STORE:
+                return new RemoteStoreRecoverySource(in);
             default:
                 throw new IllegalArgumentException("unknown recovery type: " + type.name());
         }
@@ -116,7 +118,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         EXISTING_STORE,
         PEER,
         SNAPSHOT,
-        LOCAL_SHARDS
+        LOCAL_SHARDS,
+        REMOTE_STORE
     }
 
     public abstract Type getType();
@@ -345,6 +348,97 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         public int hashCode() {
             return Objects.hash(restoreUUID, snapshot, index, version);
+        }
+
+    }
+
+    /**
+     * Recovery from remote store
+     *
+     * @opensearch.internal
+     */
+    public static class RemoteStoreRecoverySource extends RecoverySource {
+
+        private final String restoreUUID;
+        private final IndexId index;
+        private final Version version;
+
+        public RemoteStoreRecoverySource(String restoreUUID, Version version, IndexId indexId) {
+            this.restoreUUID = restoreUUID;
+            this.version = Objects.requireNonNull(version);
+            this.index = Objects.requireNonNull(indexId);
+        }
+
+        RemoteStoreRecoverySource(StreamInput in) throws IOException {
+            restoreUUID = in.readString();
+            version = Version.readVersion(in);
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+                index = new IndexId(in);
+            } else {
+                index = new IndexId(in.readString(), IndexMetadata.INDEX_UUID_NA_VALUE);
+            }
+        }
+
+        public String restoreUUID() {
+            return restoreUUID;
+        }
+
+        /**
+         * Gets the {@link IndexId} of the recovery source. May contain {@link IndexMetadata#INDEX_UUID_NA_VALUE} as the index uuid if it
+         * was created by an older version cluster-manager in a mixed version cluster.
+         *
+         * @return IndexId
+         */
+        public IndexId index() {
+            return index;
+        }
+
+        public Version version() {
+            return version;
+        }
+
+        @Override
+        protected void writeAdditionalFields(StreamOutput out) throws IOException {
+            out.writeString(restoreUUID);
+            Version.writeVersion(version, out);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+                index.writeTo(out);
+            } else {
+                out.writeString(index.getName());
+            }
+        }
+
+        @Override
+        public Type getType() {
+            return Type.REMOTE_STORE;
+        }
+
+        @Override
+        public void addAdditionalFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.field("version", version.toString()).field("index", index.getName()).field("restoreUUID", restoreUUID);
+        }
+
+        @Override
+        public String toString() {
+            return "remote store recovery [" + restoreUUID + "]";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            RemoteStoreRecoverySource that = (RemoteStoreRecoverySource) o;
+            return restoreUUID.equals(that.restoreUUID) && index.equals(that.index) && version.equals(that.version);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(restoreUUID, index, version);
         }
 
     }
