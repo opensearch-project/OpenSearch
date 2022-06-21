@@ -53,6 +53,8 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
+        // the number of centroids is defined as <= the number of samples inserted
+        assertTrue(state.centroidCount() <= values.length);
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, metadata);
     }
 
