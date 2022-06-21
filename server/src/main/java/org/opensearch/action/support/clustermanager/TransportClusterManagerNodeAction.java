@@ -120,12 +120,9 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected abstract void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception;
 
-    /**
-     * Preserve the method so that org.opensearch.action.support.master.info.TransportClusterInfoAction class
-     * can override masterOperation() for backwards compatibility.}
-     *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)}
-     */
+    // Preserve the method so that o.o.action.support.master.info.TransportClusterInfoAction class
+    // can override masterOperation() for backwards compatibility.
+    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)} */
     @Deprecated
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         clusterManagerOperation(request, state, listener);
