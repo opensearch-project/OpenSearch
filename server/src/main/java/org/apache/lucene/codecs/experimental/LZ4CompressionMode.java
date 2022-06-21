@@ -26,7 +26,7 @@ public class LZ4CompressionMode extends CompressionMode {
     private static final int NUM_SUB_BLOCKS = 10;
 
     /** default constructor */
-    public LZ4CompressionMode() {}
+    protected LZ4CompressionMode() {}
 
     @Override
     public Compressor newCompressor() {

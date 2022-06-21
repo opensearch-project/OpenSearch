@@ -28,12 +28,12 @@ public class ZstdCompressionMode extends CompressionMode {
     private final int compressionLevel;
 
     /** default constructor */
-    ZstdCompressionMode() {
+    protected ZstdCompressionMode() {
         this.compressionLevel = DEFAULT_COMPRESSION_LEVEL;
     }
 
     /** compression mode for a given compression level */
-    ZstdCompressionMode(int compressionLevel) {
+    protected ZstdCompressionMode(int compressionLevel) {
         this.compressionLevel = compressionLevel;
     }
 

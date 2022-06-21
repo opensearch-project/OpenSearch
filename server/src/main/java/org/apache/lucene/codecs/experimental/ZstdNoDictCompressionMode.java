@@ -28,12 +28,12 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
     public static final int defaultLevel = 6;
 
     /** default constructor */
-    ZstdNoDictCompressionMode() {
+    protected ZstdNoDictCompressionMode() {
         this.level = defaultLevel;
     }
 
     /** compression mode for a given compression level */
-    ZstdNoDictCompressionMode(int level) {
+    protected ZstdNoDictCompressionMode(int level) {
         this.level = level;
     }
 
