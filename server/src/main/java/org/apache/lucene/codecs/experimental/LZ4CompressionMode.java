@@ -41,7 +41,7 @@ public class LZ4CompressionMode extends CompressionMode {
     /** LZ4 compressor */
     private static final class LZ4InnerCompressor extends Compressor {
         private byte[] compressedBuffer;
-        private LZ4Compressor compressor;
+        private final LZ4Compressor compressor;
 
         /** Default constructor */
         public LZ4InnerCompressor() {
@@ -82,7 +82,7 @@ public class LZ4CompressionMode extends CompressionMode {
     private static final class LZ4InnerDecompressor extends Decompressor {
 
         private byte[] compressedBuffer;
-        private LZ4FastDecompressor decompressor;
+        private final LZ4FastDecompressor decompressor;
 
         /** default decompressor */
         public LZ4InnerDecompressor() {

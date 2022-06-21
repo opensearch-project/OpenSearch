@@ -22,24 +22,23 @@ import org.apache.lucene.util.BytesRef;
 public class ZstdNoDictCompressionMode extends CompressionMode {
 
     private static final int NUM_SUB_BLOCKS = 10;
+    private static final int DEFAULT_COMPRESSION_LEVEL = 6;
 
-    private final int level;
-
-    public static final int defaultLevel = 6;
+    private final int compressionLevel;
 
     /** default constructor */
     protected ZstdNoDictCompressionMode() {
-        this.level = defaultLevel;
+        this.compressionLevel = DEFAULT_COMPRESSION_LEVEL;
     }
 
     /** compression mode for a given compression level */
-    protected ZstdNoDictCompressionMode(int level) {
-        this.level = level;
+    protected ZstdNoDictCompressionMode(int compressionLevel) {
+        this.compressionLevel = compressionLevel;
     }
 
     @Override
     public Compressor newCompressor() {
-        return new ZSTDCompressor(level);
+        return new ZSTDCompressor(compressionLevel);
     }
 
     @Override
@@ -50,7 +49,7 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
     /** zstandard compressor */
     private static final class ZSTDCompressor extends Compressor {
 
-        int compressionLevel;
+        private final int compressionLevel;
         byte[] compressedBuffer;
 
         /** compressor with a given compresion level */
@@ -100,7 +99,7 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
     /** zstandard decompressor */
     private static final class ZSTDDecompressor extends Decompressor {
 
-        byte[] compressed;
+        private byte[] compressed;
 
         /** default decompressor */
         public ZSTDDecompressor() {
