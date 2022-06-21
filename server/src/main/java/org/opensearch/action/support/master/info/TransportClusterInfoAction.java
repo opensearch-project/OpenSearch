@@ -61,7 +61,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
-    @Override
+    @Deprecated
     protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
         clusterManagerOperation(request, state, listener);
     }

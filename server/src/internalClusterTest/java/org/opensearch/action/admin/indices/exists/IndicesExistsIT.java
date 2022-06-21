@@ -53,7 +53,7 @@ public class IndicesExistsIT extends OpenSearchIntegTestCase {
         String node = internalCluster().startNode(settings);
 
         assertRequestBuilderThrows(
-            client(node).admin().indices().prepareExists("test").setMasterNodeTimeout(TimeValue.timeValueSeconds(0)),
+            client(node).admin().indices().prepareExists("test").setClusterManagerNodeTimeout(TimeValue.timeValueSeconds(0)),
             MasterNotDiscoveredException.class
         );
 

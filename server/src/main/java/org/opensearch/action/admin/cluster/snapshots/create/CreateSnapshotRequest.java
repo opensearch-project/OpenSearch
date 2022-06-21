@@ -562,7 +562,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             + includeGlobalState
             + ", waitForCompletion="
             + waitForCompletion
-            + ", masterNodeTimeout="
+            + ", clusterManagerNodeTimeout="
             + clusterManagerNodeTimeout
             + ", metadata="
             + userMetadata
