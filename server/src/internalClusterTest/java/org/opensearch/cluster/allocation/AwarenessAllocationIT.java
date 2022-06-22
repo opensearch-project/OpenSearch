@@ -366,16 +366,19 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .put("cluster.routing.allocation.load_awareness.provisioned_capacity", Integer.toString(nodeCountPerAZ * 3))
             .build();
 
+        logger.info("--> starting a dedicated cluster manager node");
+        internalCluster().startClusterManagerOnlyNode();
+
         logger.info("--> starting 15 nodes on zones 'a' & 'b' & 'c'");
-        List<String> nodes_in_zone_a = internalCluster().startNodes(
+        List<String> nodes_in_zone_a = internalCluster().startDataOnlyNodes(
             nodeCountPerAZ,
             Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
         );
-        List<String> nodes_in_zone_b = internalCluster().startNodes(
+        List<String> nodes_in_zone_b = internalCluster().startDataOnlyNodes(
             nodeCountPerAZ,
             Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
         );
-        List<String> nodes_in_zone_c = internalCluster().startNodes(
+        List<String> nodes_in_zone_c = internalCluster().startDataOnlyNodes(
             nodeCountPerAZ,
             Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
         );
@@ -395,7 +398,7 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .setIndices("test-1")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
-            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3))
+            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 + 1))
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
             .execute()
@@ -431,7 +434,7 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .prepareHealth()
             .setIndices("test-1")
             .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 - nodesToStop))
+            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 - nodesToStop + 1))
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
             .execute()
@@ -452,7 +455,7 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .prepareHealth()
             .setIndices("test-1", "test-2")
             .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 - nodesToStop))
+            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 - nodesToStop + 1))
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
             .execute()
@@ -477,7 +480,7 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .prepareHealth()
             .setIndices("test-1", "test-2")
             .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3))
+            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 + 1))
             .setWaitForGreenStatus()
             .setWaitForActiveShards(2 * numOfShards * (numOfReplica + 1))
             .setWaitForNoRelocatingShards(true)
