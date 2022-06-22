@@ -49,7 +49,13 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         sut = new SegmentReplicationTargetService(threadPool, recoverySettings, transportService, replicationSourceFactory);
     }
 
-    public void testTargetReturnsSuccess_listenerCompletes() throws IOException {
+    @Override
+    public void tearDown() throws Exception {
+        closeShards(indexShard);
+        super.tearDown();
+    }
+
+    public void testTargetReturnsSuccess_listenerCompletes() {
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
             indexShard,
@@ -73,10 +79,9 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             return null;
         }).when(spy).startReplication(any());
         sut.startReplication(spy);
-        closeShards(indexShard);
     }
 
-    public void testTargetThrowsException() throws IOException {
+    public void testTargetThrowsException() {
         final OpenSearchException expectedError = new OpenSearchException("Fail");
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
@@ -103,17 +108,15 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             return null;
         }).when(spy).startReplication(any());
         sut.startReplication(spy);
-        closeShards(indexShard);
     }
 
-    public void testAlreadyOnNewCheckpoint() throws IOException {
+    public void testAlreadyOnNewCheckpoint() {
         SegmentReplicationTargetService spy = spy(sut);
         spy.onNewCheckpoint(indexShard.getLatestReplicationCheckpoint(), indexShard);
         verify(spy, times(0)).startReplication(any(), any(), any());
-        closeShards(indexShard);
     }
 
-    public void testShardAlreadyReplicating() throws IOException {
+    public void testShardAlreadyReplicating() {
         SegmentReplicationTargetService spy = spy(sut);
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
@@ -125,14 +128,12 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         spy.startReplication(spyTarget);
         spy.onNewCheckpoint(checkpoint, indexShard);
         verify(spy, times(0)).startReplication(any(), any(), any());
-        closeShards(indexShard);
     }
 
-    public void testNewCheckpointBehindCurrentCheckpoint() throws IOException {
+    public void testNewCheckpointBehindCurrentCheckpoint() {
         SegmentReplicationTargetService spy = spy(sut);
         spy.onNewCheckpoint(checkpoint, indexShard);
         verify(spy, times(0)).startReplication(any(), any(), any());
-        closeShards(indexShard);
     }
 
     public void testShardNotStarted() throws IOException {
@@ -141,7 +142,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         spy.onNewCheckpoint(checkpoint, shard);
         verify(spy, times(0)).startReplication(any(), any(), any());
         closeShards(shard);
-        closeShards(indexShard);
     }
 
     public void testShouldProcessCheckpoint() throws IOException {
@@ -168,7 +168,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
     }
 
-    public void testBeforeIndexShardClosed_CancelsOngoingReplications() throws IOException {
+    public void testBeforeIndexShardClosed_CancelsOngoingReplications() {
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
             indexShard,
@@ -179,6 +179,5 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         sut.startReplication(spy);
         sut.beforeIndexShardClosed(indexShard.shardId(), indexShard, Settings.EMPTY);
         Mockito.verify(spy, times(1)).cancel(any());
-        closeShards(indexShard);
     }
 }
