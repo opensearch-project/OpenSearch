@@ -109,6 +109,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -161,8 +162,8 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -1360,6 +1361,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return getEngine().acquireLastIndexCommit(flushFirst);
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
+        }
+    }
+
+    private Optional<NRTReplicationEngine> getReplicationEngine() {
+        if (getEngine() instanceof NRTReplicationEngine) {
+            return Optional.of((NRTReplicationEngine) getEngine());
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    public void finalizeReplication(SegmentInfos infos, long seqNo) throws IOException {
+        if (getReplicationEngine().isPresent()) {
+            getReplicationEngine().get().updateSegments(infos, seqNo);
         }
     }
 
