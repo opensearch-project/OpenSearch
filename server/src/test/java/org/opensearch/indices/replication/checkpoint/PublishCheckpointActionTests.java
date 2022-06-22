@@ -22,7 +22,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -73,7 +73,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    public void testPublishCheckpointActionOnPrimary() throws InterruptedException {
+    public void testPublishCheckpointActionOnPrimary() {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -87,7 +87,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, clusterService.getClusterSettings());
+        final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
         final PublishCheckpointAction action = new PublishCheckpointAction(
             Settings.EMPTY,
@@ -96,7 +96,8 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            mockTargetService
         );
 
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);
@@ -116,7 +117,6 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         final Index index = new Index("index", "uuid");
         final IndexService indexService = mock(IndexService.class);
         when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
-
         final int id = randomIntBetween(0, 4);
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexService.getShard(id)).thenReturn(indexShard);
@@ -124,7 +124,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, clusterService.getClusterSettings());
+        final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
         final PublishCheckpointAction action = new PublishCheckpointAction(
             Settings.EMPTY,
@@ -133,7 +133,8 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            mockTargetService
         );
 
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);
@@ -145,7 +146,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         final TransportReplicationAction.ReplicaResult result = listener.actionGet();
 
         // onNewCheckpoint should be called on shard with checkpoint request
-        verify(indexShard).onNewCheckpoint(request);
+        verify(mockTargetService, times(1)).onNewCheckpoint(checkpoint, indexShard);
 
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
