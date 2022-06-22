@@ -36,8 +36,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -220,6 +222,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.common.util.FeatureFlags.REPLICATION_TYPE;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
 /**
@@ -941,6 +944,10 @@ public class Node implements Closeable {
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService));
+                    if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
+                        b.bind(SegmentReplicationSourceService.class)
+                            .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
+                    }
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));

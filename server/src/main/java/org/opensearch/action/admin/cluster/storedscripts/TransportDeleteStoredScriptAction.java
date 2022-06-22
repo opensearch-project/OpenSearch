@@ -34,8 +34,8 @@ package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -54,7 +54,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction<DeleteStoredScriptRequest, AcknowledgedResponse> {
+public class TransportDeleteStoredScriptAction extends TransportClusterManagerNodeAction<DeleteStoredScriptRequest, AcknowledgedResponse> {
 
     private final ScriptService scriptService;
 
@@ -90,8 +90,11 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
     }
 
     @Override
-    protected void masterOperation(DeleteStoredScriptRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
-        throws Exception {
+    protected void clusterManagerOperation(
+        DeleteStoredScriptRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         scriptService.deleteStoredScript(clusterService, request, listener);
     }
 

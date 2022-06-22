@@ -145,14 +145,14 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
         }
 
         @Override
-        protected void doMasterOperation(
+        protected void doClusterManagerOperation(
             GetIndexRequest request,
             String[] concreteIndices,
             ClusterState state,
             ActionListener<GetIndexResponse> listener
         ) {
             ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
-            super.doMasterOperation(request, concreteIndices, stateWithIndex, listener);
+            super.doClusterManagerOperation(request, concreteIndices, stateWithIndex, listener);
         }
     }
 

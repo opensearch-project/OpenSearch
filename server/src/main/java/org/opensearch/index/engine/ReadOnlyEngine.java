@@ -271,6 +271,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    protected SegmentInfos getLatestSegmentInfos() {
+        return lastCommittedSegmentInfos;
+    }
+
+    @Override
     public String getHistoryUUID() {
         return lastCommittedSegmentInfos.userData.get(Engine.HISTORY_UUID_KEY);
     }
@@ -367,6 +372,13 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
+    }
+
+    @Override
+    public long getProcessedLocalCheckpoint() {
+        // the read-only engine does not process checkpoints, so its
+        // processed checkpoint is identical to its persisted one.
+        return getPersistedLocalCheckpoint();
     }
 
     @Override

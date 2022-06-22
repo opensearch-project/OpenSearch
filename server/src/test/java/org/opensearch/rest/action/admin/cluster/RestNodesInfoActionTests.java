@@ -54,11 +54,11 @@ public class RestNodesInfoActionTests extends OpenSearchTestCase {
 
     public void testDuplicatedFiltersAreNotRemoved() {
         Map<String, String> params = new HashMap<>();
-        params.put("nodeId", "_all,master:false,_all");
+        params.put("nodeId", "_all,cluster_manager:false,_all");
 
         RestRequest restRequest = buildRestRequest(params);
         NodesInfoRequest actual = RestNodesInfoAction.prepareRequest(restRequest);
-        assertArrayEquals(new String[] { "_all", "master:false", "_all" }, actual.nodesIds());
+        assertArrayEquals(new String[] { "_all", "cluster_manager:false", "_all" }, actual.nodesIds());
     }
 
     public void testOnlyMetrics() {

@@ -33,8 +33,8 @@
 package org.opensearch.analysis.common;
 
 import org.opensearch.painless.spi.PainlessExtension;
-import org.opensearch.painless.spi.Whitelist;
-import org.opensearch.painless.spi.WhitelistLoader;
+import org.opensearch.painless.spi.Allowlist;
+import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.script.ScriptContext;
 
 import java.util.Collections;
@@ -43,13 +43,13 @@ import java.util.Map;
 
 public class AnalysisPainlessExtension implements PainlessExtension {
 
-    private static final Whitelist ALLOWLIST = WhitelistLoader.loadFromResourceFiles(
+    private static final Allowlist ALLOWLIST = AllowlistLoader.loadFromResourceFiles(
         AnalysisPainlessExtension.class,
-        "painless_whitelist.txt"
+        "painless_allowlist.txt"
     );
 
     @Override
-    public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
+    public Map<ScriptContext<?>, List<Allowlist>> getContextAllowlists() {
         return Collections.singletonMap(AnalysisPredicateScript.CONTEXT, Collections.singletonList(ALLOWLIST));
     }
 }

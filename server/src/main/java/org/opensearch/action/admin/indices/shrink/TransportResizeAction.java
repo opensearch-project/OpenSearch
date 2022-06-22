@@ -38,7 +38,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateR
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -69,7 +69,7 @@ import java.util.function.IntFunction;
  *
  * @opensearch.internal
  */
-public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
+public class TransportResizeAction extends TransportClusterManagerNodeAction<ResizeRequest, ResizeResponse> {
     private final MetadataCreateIndexService createIndexService;
     private final Client client;
 
@@ -127,7 +127,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ResizeRequest resizeRequest,
         final ClusterState state,
         final ActionListener<ResizeResponse> listener
@@ -241,7 +241,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
             // miss the mappings for everything is corrupted and hard to debug
             .ackTimeout(targetIndex.timeout())
-            .masterNodeTimeout(targetIndex.masterNodeTimeout())
+            .masterNodeTimeout(targetIndex.clusterManagerNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())
             .waitForActiveShards(targetIndex.waitForActiveShards())
@@ -251,7 +251,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     }
 
     @Override
-    protected String getMasterActionName(DiscoveryNode node) {
-        return super.getMasterActionName(node);
+    protected String getClusterManagerActionName(DiscoveryNode node) {
+        return super.getClusterManagerActionName(node);
     }
 }

@@ -287,7 +287,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
-        new BulkRequestParser(true).parse(
+        new BulkRequestParser().parse(
             data,
             defaultIndex,
             routing,
@@ -296,7 +296,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             requireAlias,
             allowExplicitIndex,
             xContentType,
-            (indexRequest, type) -> internalAdd(indexRequest),
+            this::internalAdd,
             this::internalAdd,
             this::add
         );

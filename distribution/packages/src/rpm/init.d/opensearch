@@ -16,6 +16,8 @@
 # Description: OpenSearch is a very scalable, schema-free and high-performance search solution supporting multi-tenancy and near realtime search.
 ### END INIT INFO
 
+set -e -o pipefail
+
 #
 # init.d / servicectl compatibility (openSUSE)
 #

@@ -241,16 +241,16 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field1", "value1").execute().actionGet();
     }
 
-    public void testJustMasterNode() throws Exception {
+    public void testJustClusterManagerNode() throws Exception {
         logger.info("--> cleaning nodes");
 
-        logger.info("--> starting 1 master node non data");
+        logger.info("--> starting 1 cluster-manager node non data");
         internalCluster().startNode(nonDataNode());
 
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).execute().actionGet();
 
-        logger.info("--> restarting master node");
+        logger.info("--> restarting cluster-manager node");
         internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
@@ -273,10 +273,10 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         assertThat(clusterStateResponse.getState().metadata().hasIndex("test"), equalTo(true));
     }
 
-    public void testJustMasterNodeAndJustDataNode() {
+    public void testJustClusterManagerNodeAndJustDataNode() {
         logger.info("--> cleaning nodes");
 
-        logger.info("--> starting 1 master node non data");
+        logger.info("--> starting 1 cluster-manager node non data");
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
 

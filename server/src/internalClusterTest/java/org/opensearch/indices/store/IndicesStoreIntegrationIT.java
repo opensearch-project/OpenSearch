@@ -105,7 +105,7 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
 
     @Override
     protected void ensureClusterStateConsistency() throws IOException {
-        // testShardActiveElseWhere might change the state of a non-master node
+        // testShardActiveElseWhere might change the state of a non-cluster-manager node
         // so we cannot check state consistency of this cluster
     }
 

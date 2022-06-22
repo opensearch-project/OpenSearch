@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -328,7 +329,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 }
                 final DiscoveryNodeRole role = roleMap.get(roleName);
                 if (role == null) {
-                    roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
+                    if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
+                        roles.add(new DiscoveryNodeRole.DynamicRole(roleName, roleNameAbbreviation, canContainData));
+                    } else {
+                        roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
+                    }
                 } else {
                     assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                     assert roleNameAbbreviation.equals(role.roleNameAbbreviation()) : "role name abbreviation ["
@@ -567,10 +572,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private static Map<String, DiscoveryNodeRole> roleMap = rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream());
 
     public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
-        if (roleMap.containsKey(roleName) == false) {
-            throw new IllegalArgumentException("unknown role [" + roleName + "]");
+        // As we are supporting dynamic role, should make role name case-insensitive to avoid confusion of role name like "Data"/"DATA"
+        String lowerCasedRoleName = Objects.requireNonNull(roleName).toLowerCase(Locale.ROOT);
+        if (roleMap.containsKey(lowerCasedRoleName)) {
+            return roleMap.get(lowerCasedRoleName);
         }
-        return roleMap.get(roleName);
+        return new DiscoveryNodeRole.DynamicRole(lowerCasedRoleName, lowerCasedRoleName, false);
     }
 
     public static Set<DiscoveryNodeRole> getPossibleRoles() {

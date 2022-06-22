@@ -44,6 +44,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -174,7 +175,10 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         runTestDiscoveryNodeIsRemoteClusterClient(nonRemoteClusterClientNode(), false);
     }
 
-    // TODO: Remove the test along with MASTER_ROLE. It is added in 2.0, along with the introduction of CLUSTER_MANAGER_ROLE.
+    // Added in 2.0 temporarily, validate the MASTER_ROLE is in the list of known roles.
+    // MASTER_ROLE was removed from BUILT_IN_ROLES and is imported by setAdditionalRoles(),
+    // as a workaround for making the new CLUSTER_MANAGER_ROLE has got the same abbreviation 'm'.
+    // The test validate this behavior.
     public void testSetAdditionalRolesCanAddDeprecatedMasterRole() {
         DiscoveryNode.setAdditionalRoles(Collections.emptySet());
         assertTrue(DiscoveryNode.getPossibleRoleNames().contains(DiscoveryNodeRole.MASTER_ROLE.roleName()));
@@ -190,4 +194,14 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         }
     }
 
+    public void testGetRoleFromRoleNameIsCaseInsensitive() {
+        String dataRoleName = "DATA";
+        DiscoveryNodeRole dataNodeRole = DiscoveryNode.getRoleFromRoleName(dataRoleName);
+        assertEquals(DiscoveryNodeRole.DATA_ROLE, dataNodeRole);
+
+        String dynamicRoleName = "TestRole";
+        DiscoveryNodeRole dynamicNodeRole = DiscoveryNode.getRoleFromRoleName(dynamicRoleName);
+        assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleName());
+        assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleNameAbbreviation());
+    }
 }

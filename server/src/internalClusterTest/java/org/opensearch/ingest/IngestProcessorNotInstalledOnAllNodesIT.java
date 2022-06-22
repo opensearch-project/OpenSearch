@@ -33,7 +33,7 @@
 package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.node.NodeService;
@@ -91,7 +91,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends OpenSearchIntegTest
         }
     }
 
-    public void testFailPipelineCreationProcessorNotInstalledOnMasterNode() throws Exception {
+    public void testFailPipelineCreationProcessorNotInstalledOnClusterManagerNode() throws Exception {
         internalCluster().startNode();
         installPlugin = true;
         internalCluster().startNode();

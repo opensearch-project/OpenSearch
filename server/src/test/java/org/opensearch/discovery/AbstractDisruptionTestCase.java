@@ -155,15 +155,15 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
         return client(node).admin().cluster().prepareState().setLocal(true).get().getState();
     }
 
-    void assertNoMaster(final String node) throws Exception {
-        assertNoMaster(node, null, TimeValue.timeValueSeconds(30));
+    void assertNoClusterManager(final String node) throws Exception {
+        assertNoClusterManager(node, null, TimeValue.timeValueSeconds(30));
     }
 
-    void assertNoMaster(final String node, TimeValue maxWaitTime) throws Exception {
-        assertNoMaster(node, null, maxWaitTime);
+    void assertNoClusterManager(final String node, TimeValue maxWaitTime) throws Exception {
+        assertNoClusterManager(node, null, maxWaitTime);
     }
 
-    void assertNoMaster(final String node, @Nullable final ClusterBlock expectedBlocks, TimeValue maxWaitTime) throws Exception {
+    void assertNoClusterManager(final String node, @Nullable final ClusterBlock expectedBlocks, TimeValue maxWaitTime) throws Exception {
         assertBusy(() -> {
             ClusterState state = getNodeClusterState(node);
             final DiscoveryNodes nodes = state.nodes();
@@ -179,26 +179,34 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
         }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);
     }
 
-    void assertDifferentMaster(final String node, final String oldMasterNode) throws Exception {
+    void assertDifferentClusterManager(final String node, final String oldClusterManagerNode) throws Exception {
         assertBusy(() -> {
             ClusterState state = getNodeClusterState(node);
-            String masterNode = null;
+            String clusterManagerNode = null;
             if (state.nodes().getMasterNode() != null) {
-                masterNode = state.nodes().getMasterNode().getName();
+                clusterManagerNode = state.nodes().getMasterNode().getName();
             }
-            logger.trace("[{}] master is [{}]", node, state.nodes().getMasterNode());
-            assertThat("node [" + node + "] still has [" + masterNode + "] as master", oldMasterNode, not(equalTo(masterNode)));
+            logger.trace("[{}] cluster-manager is [{}]", node, state.nodes().getMasterNode());
+            assertThat(
+                "node [" + node + "] still has [" + clusterManagerNode + "] as cluster-manager",
+                oldClusterManagerNode,
+                not(equalTo(clusterManagerNode))
+            );
         }, 30, TimeUnit.SECONDS);
     }
 
-    void assertMaster(String masterNode, List<String> nodes) throws Exception {
+    void assertClusterManager(String clusterManagerNode, List<String> nodes) throws Exception {
         assertBusy(() -> {
             for (String node : nodes) {
                 ClusterState state = getNodeClusterState(node);
                 String failMsgSuffix = "cluster_state:\n" + state;
                 assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
-                String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
-                assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
+                String otherClusterManagerNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
+                assertThat(
+                    "wrong cluster-manager on node [" + node + "]. " + failMsgSuffix,
+                    otherClusterManagerNodeName,
+                    equalTo(clusterManagerNode)
+                );
             }
         });
     }

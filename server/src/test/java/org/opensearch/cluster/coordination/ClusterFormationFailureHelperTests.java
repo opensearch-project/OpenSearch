@@ -57,6 +57,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
@@ -172,7 +173,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
         assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
     }
 
-    public void testDescriptionOnMasterIneligibleNodes() {
+    public void testDescriptionOnClusterManagerIneligibleNodes() {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
@@ -283,7 +284,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is("this node is unhealthy: unhealthy-info")
         );
 
-        final DiscoveryNode masterNode = new DiscoveryNode(
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
@@ -292,7 +293,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
         );
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
-            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
+            .nodes(DiscoveryNodes.builder().add(clusterManagerNode).localNodeId(clusterManagerNode.getId()))
             .build();
 
         assertThat(
@@ -397,6 +398,38 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                     + localNode
                     + "] from last-known cluster state; node term 4, last-accepted version 7 in term 4"
             )
+        );
+    }
+
+    // Validate the value of the deprecated 'master' setting can be obtained during cluster formation failure.
+    public void testDescriptionBeforeBootstrappingWithDeprecatedMasterNodesSetting() {
+        final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .version(7L)
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(4L).build()))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+            .build();
+        assertThat(
+            new ClusterFormationState(
+                Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "other").build(),
+                clusterState,
+                emptyList(),
+                emptyList(),
+                4L,
+                electionStrategy,
+                new StatusInfo(HEALTHY, "healthy-info")
+            ).getDescription(),
+            is(
+                "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and "
+                    + "this node must discover cluster-manager-eligible nodes [other] to bootstrap a cluster: have discovered []; "
+                    + "discovery will continue using [] from hosts providers and ["
+                    + localNode
+                    + "] from last-known cluster state; node term 4, last-accepted version 7 in term 4"
+            )
+        );
+        assertWarnings(
+            "[cluster.initial_master_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -818,9 +851,13 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             )
         );
 
-        final DiscoveryNode otherMasterNode = new DiscoveryNode("other-master", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode otherNonMasterNode = new DiscoveryNode(
-            "other-non-master",
+        final DiscoveryNode otherClusterManagerNode = new DiscoveryNode(
+            "other-cluster-manager",
+            buildNewFakeTransportAddress(),
+            Version.CURRENT
+        );
+        final DiscoveryNode otherNonClusterManagerNode = new DiscoveryNode(
+            "other-non-cluster-manager",
             buildNewFakeTransportAddress(),
             emptyMap(),
             new HashSet<>(
@@ -833,7 +870,13 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
 
         String[] configNodeIds = new String[] { "n1", "n2" };
         final ClusterState stateWithOtherNodes = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).add(otherMasterNode).add(otherNonMasterNode))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(localNode)
+                    .localNodeId(localNode.getId())
+                    .add(otherClusterManagerNode)
+                    .add(otherNonClusterManagerNode)
+            )
             .metadata(
                 Metadata.builder()
                     .coordinationMetadata(
@@ -864,13 +907,13 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                         + "discovery will continue using [] from hosts providers and ["
                         + localNode
                         + ", "
-                        + otherMasterNode
+                        + otherClusterManagerNode
                         + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0",
 
                     "cluster-manager not discovered or elected yet, an election requires two nodes with ids [n1, n2], "
                         + "have discovered [] which is not a quorum; "
                         + "discovery will continue using [] from hosts providers and ["
-                        + otherMasterNode
+                        + otherClusterManagerNode
                         + ", "
                         + localNode
                         + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"

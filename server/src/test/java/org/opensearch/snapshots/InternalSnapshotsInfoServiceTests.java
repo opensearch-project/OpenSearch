@@ -290,7 +290,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         assertThat("Expecting all snapshot shard size fetches to execute a Reroute", reroutes.get(), equalTo(maxShardsToCreate));
     }
 
-    public void testNoLongerMaster() throws Exception {
+    public void testNoLongerClusterManager() throws Exception {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
             clusterService,
@@ -310,18 +310,18 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             final int nbShards = randomIntBetween(1, 5);
             applyClusterState(
-                "restore-indices-when-master-" + indexName,
+                "restore-indices-when-cluster-manager-" + indexName,
                 clusterState -> addUnassignedShards(clusterState, indexName, nbShards)
             );
         }
 
-        applyClusterState("demote-current-master", this::demoteMasterNode);
+        applyClusterState("demote-current-cluster-manager", this::demoteClusterManagerNode);
 
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             final int nbShards = randomIntBetween(1, 5);
             applyClusterState(
-                "restore-indices-when-no-longer-master-" + indexName,
+                "restore-indices-when-no-longer-cluster-manager-" + indexName,
                 clusterState -> addUnassignedShards(clusterState, indexName, nbShards)
             );
         }
@@ -484,7 +484,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
             .build();
     }
 
-    private ClusterState demoteMasterNode(final ClusterState currentState) {
+    private ClusterState demoteClusterManagerNode(final ClusterState currentState) {
         final DiscoveryNode node = new DiscoveryNode(
             "other",
             OpenSearchTestCase.buildNewFakeTransportAddress(),

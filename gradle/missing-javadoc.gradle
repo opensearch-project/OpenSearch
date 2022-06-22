@@ -103,7 +103,7 @@ configure([
   project(":example-plugins:custom-settings"),
   project(":example-plugins:custom-significance-heuristic"),
   project(":example-plugins:custom-suggester"),
-  project(":example-plugins:painless-whitelist"),
+  project(":example-plugins:painless-allowlist"),
   project(":example-plugins:rescore"),
   project(":example-plugins:rest-handler"),
   project(":example-plugins:script-expert-scoring"),

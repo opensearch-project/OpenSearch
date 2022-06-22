@@ -708,7 +708,7 @@ public class RestoreService implements ClusterStateApplier {
 
                     @Override
                     public TimeValue timeout() {
-                        return request.masterNodeTimeout();
+                        return request.clusterManagerNodeTimeout();
                     }
 
                     @Override

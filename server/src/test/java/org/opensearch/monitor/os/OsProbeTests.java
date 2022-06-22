@@ -32,6 +32,8 @@
 
 package org.opensearch.monitor.os;
 
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.both;
@@ -296,8 +298,12 @@ public class OsProbeTests extends OpenSearchTestCase {
             }
         };
 
-        assumeThat("CGroups are not available", noCpuStatsOsProbe.areCgroupStatsAvailable(), is(true));
-        noCpuStatsOsProbe.osStats();
+        assumeThat("CGroups are available", noCpuStatsOsProbe.areCgroupStatsAvailable(), is(true));
+        OsStats osStats = noCpuStatsOsProbe.osStats();
+
+        // Depending on CGroups v1/v2, the cgroup stats may not be available
+        assumeThat("CGroup is available", osStats.getCgroup(), is(not(nullValue())));
+
         // no nr_throttled and throttled_time
         verify(logger, times(2)).warn(anyString());
         reset(logger);

@@ -94,6 +94,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.DummyShardLock;
@@ -189,7 +190,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = store.getMetadata();
         ReplicationLuceneIndex luceneIndex = new ReplicationLuceneIndex();
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
@@ -226,7 +227,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
         handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
         sendFilesFuture.actionGet();
-        Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata(null);
+        Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata();
         Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata);
         assertEquals(metas.size(), recoveryDiff.identical.size());
         assertEquals(0, recoveryDiff.different.size());
@@ -512,7 +513,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.close();
 
         ReplicationLuceneIndex luceneIndex = new ReplicationLuceneIndex();
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = store.getMetadata();
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);
@@ -544,21 +545,22 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 });
             }
         };
+        IndexShard mockShard = mock(IndexShard.class);
+        when(mockShard.shardId()).thenReturn(new ShardId("testIndex", "testUUID", 0));
+        doAnswer(invocation -> {
+            assertFalse(failedEngine.get());
+            failedEngine.set(true);
+            return null;
+        }).when(mockShard).failShard(any(), any());
         RecoverySourceHandler handler = new RecoverySourceHandler(
-            null,
+            mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
             request,
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
             between(1, 8),
             between(1, 8)
-        ) {
-            @Override
-            protected void failEngine(IOException cause) {
-                assertFalse(failedEngine.get());
-                failedEngine.set(true);
-            }
-        };
+        );
         SetOnce<Exception> sendFilesError = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
         handler.sendFiles(
@@ -570,6 +572,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         latch.await();
         assertThat(sendFilesError.get(), instanceOf(IOException.class));
         assertNotNull(ExceptionsHelper.unwrapCorruption(sendFilesError.get()));
+        failedEngine.get();
         assertTrue(failedEngine.get());
         // ensure all chunk requests have been completed; otherwise some files on the target are left open.
         IOUtils.close(() -> terminate(threadPool), () -> threadPool = null);
@@ -594,7 +597,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = store.getMetadata();
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);
@@ -617,21 +620,22 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 }
             }
         };
+        IndexShard mockShard = mock(IndexShard.class);
+        when(mockShard.shardId()).thenReturn(new ShardId("testIndex", "testUUID", 0));
+        doAnswer(invocation -> {
+            assertFalse(failedEngine.get());
+            failedEngine.set(true);
+            return null;
+        }).when(mockShard).failShard(any(), any());
         RecoverySourceHandler handler = new RecoverySourceHandler(
-            null,
+            mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
             request,
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
             between(1, 10),
             between(1, 4)
-        ) {
-            @Override
-            protected void failEngine(IOException cause) {
-                assertFalse(failedEngine.get());
-                failedEngine.set(true);
-            }
-        };
+        );
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
         handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
         Exception ex = expectThrows(Exception.class, sendFilesFuture::actionGet);
@@ -747,7 +751,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
         try {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads, logger);
+            RunUnderPrimaryPermit.run(() -> {}, "test", shard, cancellableThreads, logger);
         } catch (CancellableThreads.ExecutionCancelledException e) {
             // expected.
         }

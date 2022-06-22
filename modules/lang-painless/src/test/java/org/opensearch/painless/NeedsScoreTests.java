@@ -35,7 +35,7 @@ package org.opensearch.painless;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.NumberSortScript;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -54,8 +54,8 @@ public class NeedsScoreTests extends OpenSearchSingleNodeTestCase {
     public void testNeedsScores() {
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
 
-        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(NumberSortScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        Map<ScriptContext<?>, List<Allowlist>> contexts = new HashMap<>();
+        contexts.put(NumberSortScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
         QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null);

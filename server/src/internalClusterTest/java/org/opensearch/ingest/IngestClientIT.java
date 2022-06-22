@@ -48,7 +48,7 @@ import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.ingest.SimulateDocumentBaseResult;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.common.bytes.BytesReference;
@@ -111,7 +111,6 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 .startArray("docs")
                 .startObject()
                 .field("_index", "index")
-                .field("_type", "type")
                 .field("_id", "id")
                 .startObject("_source")
                 .field("foo", "bar")

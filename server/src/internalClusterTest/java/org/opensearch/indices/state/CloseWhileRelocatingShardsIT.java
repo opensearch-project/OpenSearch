@@ -33,7 +33,7 @@ package org.opensearch.indices.state;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -147,7 +147,7 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
         );
 
         final String targetNode = internalCluster().startDataOnlyNode();
-        ensureClusterSizeConsistency(); // wait for the master to finish processing join.
+        ensureClusterSizeConsistency(); // wait for the cluster-manager to finish processing join.
 
         try {
             final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());

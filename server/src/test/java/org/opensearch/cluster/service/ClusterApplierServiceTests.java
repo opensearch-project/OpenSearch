@@ -104,7 +104,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    private TimedClusterApplierService createTimedClusterService(boolean makeMaster) {
+    private TimedClusterApplierService createTimedClusterService(boolean makeClusterManager) {
         DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         TimedClusterApplierService timedClusterApplierService = new TimedClusterApplierService(
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),
@@ -118,7 +118,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
                     DiscoveryNodes.builder()
                         .add(localNode)
                         .localNodeId(localNode.getId())
-                        .masterNodeId(makeMaster ? localNode.getId() : null)
+                        .masterNodeId(makeClusterManager ? localNode.getId() : null)
                 )
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                 .build()
@@ -292,19 +292,19 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public void testLocalNodeMasterListenerCallbacks() {
+    public void testLocalNodeClusterManagerListenerCallbacks() {
         TimedClusterApplierService timedClusterApplierService = createTimedClusterService(false);
 
-        AtomicBoolean isMaster = new AtomicBoolean();
+        AtomicBoolean isClusterManager = new AtomicBoolean();
         timedClusterApplierService.addLocalNodeMasterListener(new LocalNodeMasterListener() {
             @Override
             public void onClusterManager() {
-                isMaster.set(true);
+                isClusterManager.set(true);
             }
 
             @Override
             public void offClusterManager() {
-                isMaster.set(false);
+                isClusterManager.set(false);
             }
         });
 
@@ -313,7 +313,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
         state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
         setState(timedClusterApplierService, state);
-        assertThat(isMaster.get(), is(true));
+        assertThat(isClusterManager.get(), is(true));
 
         nodes = state.nodes();
         nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
@@ -322,11 +322,11 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
             .nodes(nodesBuilder)
             .build();
         setState(timedClusterApplierService, state);
-        assertThat(isMaster.get(), is(false));
+        assertThat(isClusterManager.get(), is(false));
         nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
         state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
         setState(timedClusterApplierService, state);
-        assertThat(isMaster.get(), is(true));
+        assertThat(isClusterManager.get(), is(true));
 
         timedClusterApplierService.close();
     }

@@ -38,7 +38,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -627,7 +627,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         return snapshotInfos.get(0);
     }
 
-    protected void awaitMasterFinishRepoOperations() throws Exception {
+    protected void awaitClusterManagerFinishRepoOperations() throws Exception {
         logger.info("--> waiting for cluster-manager to finish all repo operations on its SNAPSHOT pool");
         final ThreadPool clusterManagerThreadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
         assertBusy(() -> {
