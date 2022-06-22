@@ -2289,7 +2289,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SegmentInfos getLatestSegmentInfos() {
+    protected SegmentInfos getLatestSegmentInfos() {
         OpenSearchDirectoryReader reader = null;
         try {
             reader = internalReaderManager.acquire();

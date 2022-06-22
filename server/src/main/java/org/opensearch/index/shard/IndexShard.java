@@ -161,7 +161,7 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
@@ -1396,15 +1396,60 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the lastest Replication Checkpoint that shard received
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        return new ReplicationCheckpoint(shardId, 0, 0, 0, 0);
+        try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
+            return Optional.ofNullable(snapshot.get())
+                .map(
+                    segmentInfos -> new ReplicationCheckpoint(
+                        this.shardId,
+                        getOperationPrimaryTerm(),
+                        segmentInfos.getGeneration(),
+                        getProcessedLocalCheckpoint(),
+                        segmentInfos.getVersion()
+                    )
+                )
+                .orElse(
+                    new ReplicationCheckpoint(
+                        shardId,
+                        getOperationPrimaryTerm(),
+                        SequenceNumbers.NO_OPS_PERFORMED,
+                        getProcessedLocalCheckpoint(),
+                        SequenceNumbers.NO_OPS_PERFORMED
+                    )
+                );
+        } catch (IOException ex) {
+            throw new OpenSearchException("Error Closing SegmentInfos Snapshot", ex);
+        }
     }
 
     /**
-     * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
+     * Checks if checkpoint should be processed
+     *
+     * @param requestCheckpoint       received checkpoint that is checked for processing
+     * @return true if checkpoint should be processed
      */
-    public synchronized void onNewCheckpoint(final PublishCheckpointRequest request) {
-        assert shardRouting.primary() == false;
-        // TODO
+    public final boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
+        if (state().equals(IndexShardState.STARTED) == false) {
+            logger.trace(() -> new ParameterizedMessage("Ignoring new replication checkpoint - shard is not started {}", state()));
+            return false;
+        }
+        ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
+        if (localCheckpoint.isAheadOf(requestCheckpoint)) {
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
+                    localCheckpoint,
+                    requestCheckpoint
+                )
+            );
+            return false;
+        }
+        if (localCheckpoint.equals(requestCheckpoint)) {
+            logger.trace(
+                () -> new ParameterizedMessage("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint)
+            );
+            return false;
+        }
+        return true;
     }
 
     /**
