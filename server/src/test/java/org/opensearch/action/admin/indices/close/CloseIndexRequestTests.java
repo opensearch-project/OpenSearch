@@ -54,7 +54,7 @@ public class CloseIndexRequestTests extends OpenSearchTestCase {
                 deserializedRequest = new CloseIndexRequest(in);
             }
             assertEquals(request.timeout(), deserializedRequest.timeout());
-            assertEquals(request.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());
+            assertEquals(request.clusterManagerNodeTimeout(), deserializedRequest.clusterManagerNodeTimeout());
             assertEquals(request.indicesOptions(), deserializedRequest.indicesOptions());
             assertEquals(request.getParentTask(), deserializedRequest.getParentTask());
             assertEquals(request.waitForActiveShards(), deserializedRequest.waitForActiveShards());
@@ -72,7 +72,7 @@ public class CloseIndexRequestTests extends OpenSearchTestCase {
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setVersion(out.getVersion());
                     assertEquals(request.getParentTask(), TaskId.readFromStream(in));
-                    assertEquals(request.masterNodeTimeout(), in.readTimeValue());
+                    assertEquals(request.clusterManagerNodeTimeout(), in.readTimeValue());
                     assertEquals(request.timeout(), in.readTimeValue());
                     assertArrayEquals(request.indices(), in.readStringArray());
                     // indices options are not equivalent when sent to an older version and re-read due
@@ -96,7 +96,7 @@ public class CloseIndexRequestTests extends OpenSearchTestCase {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(version);
                 sample.getParentTask().writeTo(out);
-                out.writeTimeValue(sample.masterNodeTimeout());
+                out.writeTimeValue(sample.clusterManagerNodeTimeout());
                 out.writeTimeValue(sample.timeout());
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
@@ -110,7 +110,7 @@ public class CloseIndexRequestTests extends OpenSearchTestCase {
                     deserializedRequest = new CloseIndexRequest(in);
                 }
                 assertEquals(sample.getParentTask(), deserializedRequest.getParentTask());
-                assertEquals(sample.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());
+                assertEquals(sample.clusterManagerNodeTimeout(), deserializedRequest.clusterManagerNodeTimeout());
                 assertEquals(sample.timeout(), deserializedRequest.timeout());
                 assertArrayEquals(sample.indices(), deserializedRequest.indices());
                 // indices options are not equivalent when sent to an older version and re-read due
@@ -140,7 +140,7 @@ public class CloseIndexRequestTests extends OpenSearchTestCase {
             request.timeout(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomPositiveTimeValue());
+            request.clusterManagerNodeTimeout(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
             request.setParentTask(randomAlphaOfLength(5), randomNonNegativeLong());

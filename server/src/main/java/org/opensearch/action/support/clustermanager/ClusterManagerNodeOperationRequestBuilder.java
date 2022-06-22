@@ -58,8 +58,8 @@ public abstract class ClusterManagerNodeOperationRequestBuilder<
      * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
+    public final RequestBuilder setClusterManagerNodeTimeout(TimeValue timeout) {
+        request.clusterManagerNodeTimeout(timeout);
         return (RequestBuilder) this;
     }
 
@@ -67,8 +67,8 @@ public abstract class ClusterManagerNodeOperationRequestBuilder<
      * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
+    public final RequestBuilder setClusterManagerNodeTimeout(String timeout) {
+        request.clusterManagerNodeTimeout(timeout);
         return (RequestBuilder) this;
     }
 

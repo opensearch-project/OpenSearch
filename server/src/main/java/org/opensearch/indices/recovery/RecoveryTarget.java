@@ -77,9 +77,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     private static final String RECOVERY_PREFIX = "recovery.";
 
     private final DiscoveryNode sourceNode;
-    private final CancellableThreads cancellableThreads;
     protected final MultiFileWriter multiFileWriter;
-    protected final Store store;
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
@@ -93,13 +91,10 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
      */
     public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, ReplicationListener listener) {
         super("recovery_status", indexShard, indexShard.recoveryState().getIndex(), listener);
-        this.cancellableThreads = new CancellableThreads();
         this.sourceNode = sourceNode;
         indexShard.recoveryStats().incCurrentAsTarget();
-        this.store = indexShard.store();
         final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, tempFilePrefix, logger, this::ensureRefCount);
-        store.incRef();
     }
 
     /**
@@ -130,11 +125,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     public CancellableThreads cancellableThreads() {
         return cancellableThreads;
-    }
-
-    public Store store() {
-        ensureRefCount();
-        return store;
     }
 
     public String description() {
@@ -256,14 +246,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         // this might still throw an exception ie. if the shard is CLOSED due to some other event.
         // it's safer to decrement the reference in a try finally here.
         indexShard.postRecovery("peer recovery done");
-    }
-
-    /**
-     * if {@link #cancellableThreads()} was used, the threads will be interrupted.
-     */
-    @Override
-    protected void onCancel(String reason) {
-        cancellableThreads.cancel(reason);
     }
 
     /*** Implementation of {@link RecoveryTargetHandler } */

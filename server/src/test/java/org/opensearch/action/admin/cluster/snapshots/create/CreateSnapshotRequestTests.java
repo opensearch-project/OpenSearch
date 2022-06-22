@@ -120,7 +120,7 @@ public class CreateSnapshotRequestTests extends OpenSearchTestCase {
         }
 
         if (randomBoolean()) {
-            original.masterNodeTimeout("60s");
+            original.clusterManagerNodeTimeout("60s");
         }
 
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
@@ -129,7 +129,7 @@ public class CreateSnapshotRequestTests extends OpenSearchTestCase {
         Map<String, Object> map = parser.mapOrdered();
         CreateSnapshotRequest processed = new CreateSnapshotRequest((String) map.get("repository"), (String) map.get("snapshot"));
         processed.waitForCompletion(original.waitForCompletion());
-        processed.masterNodeTimeout(original.masterNodeTimeout());
+        processed.clusterManagerNodeTimeout(original.clusterManagerNodeTimeout());
         processed.source(map);
 
         assertEquals(original, processed);

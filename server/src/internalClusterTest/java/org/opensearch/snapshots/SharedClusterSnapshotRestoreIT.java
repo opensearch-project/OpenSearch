@@ -588,7 +588,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
-            .setMasterNodeTimeout("30s")
+            .setClusterManagerNodeTimeout("30s")
             .setWaitForCompletion(true)
             .execute()
             .actionGet();

@@ -521,7 +521,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             && Arrays.equals(indices, that.indices)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(settings, that.settings)
-            && Objects.equals(masterNodeTimeout, that.masterNodeTimeout)
+            && Objects.equals(clusterManagerNodeTimeout, that.clusterManagerNodeTimeout)
             && Objects.equals(userMetadata, that.userMetadata);
     }
 
@@ -562,8 +562,8 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             + includeGlobalState
             + ", waitForCompletion="
             + waitForCompletion
-            + ", masterNodeTimeout="
-            + masterNodeTimeout
+            + ", clusterManagerNodeTimeout="
+            + clusterManagerNodeTimeout
             + ", metadata="
             + userMetadata
             + '}';

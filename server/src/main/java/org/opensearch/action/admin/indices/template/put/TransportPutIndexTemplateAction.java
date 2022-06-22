@@ -106,7 +106,7 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutIndexTemplateRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -125,7 +125,7 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
                 .mappings(request.mappings())
                 .aliases(request.aliases())
                 .create(request.create())
-                .masterTimeout(request.masterNodeTimeout())
+                .masterTimeout(request.clusterManagerNodeTimeout())
                 .version(request.version()),
 
             new MetadataIndexTemplateService.PutListener() {

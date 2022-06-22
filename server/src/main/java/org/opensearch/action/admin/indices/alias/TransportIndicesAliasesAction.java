@@ -126,7 +126,7 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final IndicesAliasesRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -200,7 +200,7 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
         request.aliasActions().clear();
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(unmodifiableList(finalActions))
             .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
+            .masterNodeTimeout(request.clusterManagerNodeTimeout());
 
         indexAliasesService.indicesAliases(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
