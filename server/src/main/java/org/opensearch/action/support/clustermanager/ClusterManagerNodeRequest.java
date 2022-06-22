@@ -48,11 +48,13 @@ public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNo
 
     public static final TimeValue DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
+    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT} */
     @Deprecated
     public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
     protected TimeValue clusterManagerNodeTimeout = DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
+    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout} */
     @Deprecated
     protected TimeValue masterNodeTimeout = clusterManagerNodeTimeout;
 
@@ -80,6 +82,8 @@ public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNo
 
     /**
      * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout(TimeValue)}
      */
     @SuppressWarnings("unchecked")
     @Deprecated
@@ -98,6 +102,8 @@ public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNo
 
     /**
      * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout(String)}
      */
     @Deprecated
     public final Request masterNodeTimeout(String timeout) {
@@ -108,7 +114,6 @@ public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNo
         return this.clusterManagerNodeTimeout;
     }
 
-    // Preserve the method so that classes implements AcknowledgedRequest don't need to override it for backwards compatibility.
     /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout()} */
     @Deprecated
     public final TimeValue masterNodeTimeout() {

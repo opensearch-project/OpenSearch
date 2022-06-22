@@ -65,6 +65,8 @@ public abstract class ClusterManagerNodeOperationRequestBuilder<
 
     /**
      * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #setClusterManagerNodeTimeout(TimeValue)}
      */
     @SuppressWarnings("unchecked")
     @Deprecated
@@ -83,6 +85,8 @@ public abstract class ClusterManagerNodeOperationRequestBuilder<
 
     /**
      * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #setClusterManagerNodeTimeout(String)}
      */
     @SuppressWarnings("unchecked")
     @Deprecated

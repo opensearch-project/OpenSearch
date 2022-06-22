@@ -49,5 +49,4 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);
     }
-
 }

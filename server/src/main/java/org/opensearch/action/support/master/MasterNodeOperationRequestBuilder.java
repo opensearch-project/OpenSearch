@@ -54,5 +54,4 @@ public abstract class MasterNodeOperationRequestBuilder<
     protected MasterNodeOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
-
 }
