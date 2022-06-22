@@ -229,7 +229,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
                             "stopped being cluster-manager while waiting for events with priority [{}]. retrying.",
                             request.waitForEvents()
                         );
-                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
+                        // TransportClusterManagerNodeAction implements the retry logic, which is triggered by passing a NotClusterManagerException
                         listener.onFailure(new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
                     }
 

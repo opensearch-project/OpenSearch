@@ -197,7 +197,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         NodeHealthService nodeHealthService
     ) {
         if (this.clusterManagerService != null || coordinator != null) {
-            throw new IllegalStateException("method setupMasterServiceAndCoordinator can only be called once");
+            throw new IllegalStateException("method setupClusterManagerServiceAndCoordinator can only be called once");
         }
         this.clusterManagerService = clusterManagerService;
         CapturingTransport capturingTransport = new CapturingTransport() {

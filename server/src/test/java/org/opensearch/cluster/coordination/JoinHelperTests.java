@@ -186,7 +186,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
 
         assertThat(
             JoinHelper.FailedJoinAttempt.getLogLevel(
-                new RemoteTransportException("caused by NotMasterException", new NotClusterManagerException("test"))
+                new RemoteTransportException("caused by NotClusterManagerException", new NotClusterManagerException("test"))
             ),
             is(Level.DEBUG)
         );
