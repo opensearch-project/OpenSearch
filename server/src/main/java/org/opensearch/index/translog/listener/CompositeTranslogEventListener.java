@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.ExceptionsHelper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,61 +40,71 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
 
     @Override
     public void onAfterTranslogSync() {
+        List<Exception> exceptionList = new ArrayList<>(listeners.size());
         for (TranslogEventListener listener : listeners) {
             try {
                 listener.onAfterTranslogSync();
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onTranslogSync listener"), ex);
-                throw ex;
+                exceptionList.add(ex);
             }
         }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
     }
 
     @Override
     public void onAfterTranslogRecovery() {
+        List<Exception> exceptionList = new ArrayList<>(listeners.size());
         for (TranslogEventListener listener : listeners) {
             try {
                 listener.onAfterTranslogRecovery();
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onTranslogRecovery listener"), ex);
-                throw ex;
+                exceptionList.add(ex);
             }
         }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
     }
 
     @Override
     public void onBeginTranslogRecovery() {
+        List<Exception> exceptionList = new ArrayList<>(listeners.size());
         for (TranslogEventListener listener : listeners) {
             try {
                 listener.onBeginTranslogRecovery();
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onBeginTranslogRecovery listener"), ex);
-                throw ex;
+                exceptionList.add(ex);
             }
         }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
     }
 
     @Override
     public void onFailure(String reason, Exception e) {
+        List<Exception> exceptionList = new ArrayList<>(listeners.size());
         for (TranslogEventListener listener : listeners) {
             try {
                 listener.onFailure(reason, e);
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onFailure listener"), ex);
-                throw ex;
+                exceptionList.add(ex);
             }
         }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
     }
 
     @Override
     public void onTragicFailure(AlreadyClosedException e) {
+        List<Exception> exceptionList = new ArrayList<>(listeners.size());
         for (TranslogEventListener listener : listeners) {
             try {
                 listener.onTragicFailure(e);
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onTragicFailure listener"), ex);
-                throw ex;
+                exceptionList.add(ex);
             }
         }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
     }
 }
