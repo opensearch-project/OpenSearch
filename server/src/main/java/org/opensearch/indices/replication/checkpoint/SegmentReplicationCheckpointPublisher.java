@@ -22,6 +22,7 @@ public class SegmentReplicationCheckpointPublisher {
 
     private final PublishAction publishAction;
 
+    // This Component is behind feature flag so we are manually binding this in IndicesModule.
     @Inject
     public SegmentReplicationCheckpointPublisher(PublishCheckpointAction publishAction) {
         this(publishAction::publish);

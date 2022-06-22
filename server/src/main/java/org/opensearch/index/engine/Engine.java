@@ -84,7 +84,6 @@ import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
-import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -180,6 +179,7 @@ public abstract class Engine implements Closeable {
         // Default Implementation.
         return null;
     };
+
 
     /**
      * In contrast to {@link #getLatestSegmentInfos()}, which returns a {@link SegmentInfos}
