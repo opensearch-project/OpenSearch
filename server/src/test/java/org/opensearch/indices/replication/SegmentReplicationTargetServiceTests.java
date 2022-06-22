@@ -19,15 +19,13 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
@@ -125,6 +123,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
     public void testShardAlreadyReplicating() {
         SegmentReplicationTargetService spy = spy(sut);
+        // Create a separate target and start it so the shard is already replicating.
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
             indexShard,
@@ -133,8 +132,11 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         final SegmentReplicationTarget spyTarget = Mockito.spy(target);
         spy.startReplication(spyTarget);
+
+        // a new checkpoint comes in for the same IndexShard.
         spy.onNewCheckpoint(checkpoint, indexShard);
         verify(spy, times(0)).startReplication(any(), any(), any());
+        spyTarget.markAsDone();
     }
 
     public void testNewCheckpointBehindCurrentCheckpoint() {
@@ -151,7 +153,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testShouldProcessCheckpoint() throws IOException {
+    public void testNewCheckpoint_validationPassesAndReplicationFails() throws IOException {
         allowShardFailures();
         SegmentReplicationTargetService spy = spy(sut);
         IndexShard spyShard = spy(indexShard);
@@ -163,16 +165,16 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             cp.getSeqNo(),
             cp.getSegmentInfosVersion() + 1
         );
-        spy.onNewCheckpoint(newCheckpoint, spyShard);
         ArgumentCaptor<SegmentReplicationTargetService.SegmentReplicationListener> captor = ArgumentCaptor.forClass(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
+        doNothing().when(spy).startReplication(any(), any(), any());
+        spy.onNewCheckpoint(newCheckpoint, spyShard);
         verify(spy, times(1)).startReplication(any(), any(), captor.capture());
         SegmentReplicationTargetService.SegmentReplicationListener listener = captor.getValue();
-        listener.onFailure(new SegmentReplicationState(), new OpenSearchException("testing"), true);
+        listener.onFailure(new SegmentReplicationState(new ReplicationLuceneIndex()), new OpenSearchException("testing"), true);
         verify(spyShard).failShard(any(), any());
         closeShard(indexShard, false);
-
     }
 
     public void testBeforeIndexShardClosed_CancelsOngoingReplications() {
@@ -185,6 +187,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         final SegmentReplicationTarget spy = Mockito.spy(target);
         sut.startReplication(spy);
         sut.beforeIndexShardClosed(indexShard.shardId(), indexShard, Settings.EMPTY);
-        Mockito.verify(spy, times(1)).cancel(any());
+        verify(spy, times(1)).cancel(any());
     }
 }
