@@ -39,10 +39,8 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -93,20 +91,4 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     @Deprecated
     protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
 
-    /**
-     * Override this operation if access to the task parameter is needed
-     */
-    @Deprecated
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        clusterManagerOperation(task, request, state, listener);
-    }
-
-    /**
-     * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
-     * This mainly for backwards compatibility should be used rarely
-     */
-    @Deprecated
-    protected String getMasterActionName(DiscoveryNode node) {
-        return getClusterManagerActionName(node);
-    }
 }

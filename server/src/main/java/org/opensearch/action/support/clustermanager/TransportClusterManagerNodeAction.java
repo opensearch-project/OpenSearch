@@ -120,8 +120,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected abstract void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception;
 
-    // Preserve the method so that o.o.action.support.master.info.TransportClusterInfoAction class
-    // can override masterOperation() for backwards compatibility.
+    // Change the method to be concrete after deprecation so that existing class can override it while new class don't have to.
     /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)} */
     @Deprecated
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
@@ -134,6 +133,16 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
         clusterManagerOperation(request, state, listener);
+    }
+
+    /**
+     * Override this operation if access to the task parameter is needed
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)}
+     */
+    @Deprecated
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        clusterManagerOperation(task, request, state, listener);
     }
 
     protected boolean localExecute(Request request) {
@@ -302,5 +311,16 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
      */
     protected String getClusterManagerActionName(DiscoveryNode node) {
         return actionName;
+    }
+
+    /**
+     * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
+     * This mainly for backwards compatibility should be used rarely
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #getClusterManagerActionName(DiscoveryNode)}
+     */
+    @Deprecated
+    protected String getMasterActionName(DiscoveryNode node) {
+        return getClusterManagerActionName(node);
     }
 }
