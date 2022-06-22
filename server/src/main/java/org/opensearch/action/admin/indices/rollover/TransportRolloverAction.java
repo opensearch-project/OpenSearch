@@ -130,13 +130,13 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
     }
 
     @Override
-    protected void masterOperation(RolloverRequest request, ClusterState state, ActionListener<RolloverResponse> listener)
+    protected void clusterManagerOperation(RolloverRequest request, ClusterState state, ActionListener<RolloverResponse> listener)
         throws Exception {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         Task task,
         final RolloverRequest rolloverRequest,
         final ClusterState state,
@@ -215,7 +215,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                                     activeShardsObserver.waitForActiveShards(
                                         new String[] { rolloverIndexName },
                                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                                        rolloverRequest.masterNodeTimeout(),
+                                        rolloverRequest.clusterManagerNodeTimeout(),
                                         isShardsAcknowledged -> listener.onResponse(
                                             new RolloverResponse(
                                                 sourceIndexName,
