@@ -382,7 +382,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
         assertTrue(listener.isDone());
-        assertListenerThrows("MasterNotDiscoveredException should be thrown", listener, ClusterManagerNotDiscoveredException.class);
+        assertListenerThrows("ClusterManagerNotDiscoveredException should be thrown", listener, ClusterManagerNotDiscoveredException.class);
     }
 
     public void testClusterManagerBecomesAvailable() throws ExecutionException, InterruptedException {

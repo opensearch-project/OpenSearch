@@ -233,7 +233,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
         // we clean the metadata when loosing a cluster-manager, therefore all operations on indices will auto create it, if allowed
         try {
             builder.get();
-            fail("expected ClusterBlockException or MasterNotDiscoveredException");
+            fail("expected ClusterBlockException or ClusterManagerNotDiscoveredException");
         } catch (ClusterBlockException | ClusterManagerNotDiscoveredException e) {
             if (e instanceof ClusterManagerNotDiscoveredException) {
                 assertTrue(autoCreateIndex);
