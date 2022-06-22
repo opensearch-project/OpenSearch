@@ -67,7 +67,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
-        getRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRequest.masterNodeTimeout()));
+        getRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRequest.clusterManagerNodeTimeout()));
         parseDeprecatedMasterTimeoutParameter(getRequest, request);
         return channel -> client.admin().cluster().getStoredScript(getRequest, new RestStatusToXContentListener<>(channel));
     }

@@ -68,8 +68,8 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RestoreSnapshotRequest restoreSnapshotRequest = restoreSnapshotRequest(request.param("repository"), request.param("snapshot"));
-        restoreSnapshotRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", restoreSnapshotRequest.masterNodeTimeout())
+        restoreSnapshotRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", restoreSnapshotRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(restoreSnapshotRequest, request);
         restoreSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));

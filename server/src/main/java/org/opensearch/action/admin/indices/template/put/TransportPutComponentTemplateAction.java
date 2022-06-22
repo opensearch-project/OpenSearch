@@ -106,7 +106,7 @@ public class TransportPutComponentTemplateAction extends TransportClusterManager
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutComponentTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -125,7 +125,7 @@ public class TransportPutComponentTemplateAction extends TransportClusterManager
             request.cause(),
             request.create(),
             request.name(),
-            request.masterNodeTimeout(),
+            request.clusterManagerNodeTimeout(),
             componentTemplate,
             listener
         );

@@ -702,7 +702,7 @@ final class RequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params();
         params.withTimeout(putStoredScriptRequest.timeout());
-        params.withMasterTimeout(putStoredScriptRequest.masterNodeTimeout());
+        params.withMasterTimeout(putStoredScriptRequest.clusterManagerNodeTimeout());
         if (Strings.hasText(putStoredScriptRequest.context())) {
             params.putParam("context", putStoredScriptRequest.context());
         }
@@ -757,7 +757,7 @@ final class RequestConverters {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new Params();
-        params.withMasterTimeout(getStoredScriptRequest.masterNodeTimeout());
+        params.withMasterTimeout(getStoredScriptRequest.clusterManagerNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }
@@ -767,7 +767,7 @@ final class RequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         Params params = new Params();
         params.withTimeout(deleteStoredScriptRequest.timeout());
-        params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
+        params.withMasterTimeout(deleteStoredScriptRequest.clusterManagerNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }

@@ -79,7 +79,9 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
 
             simulateRequest.indexTemplateRequest(indexTemplateRequest);
         }
-        simulateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", simulateRequest.masterNodeTimeout()));
+        simulateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", simulateRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(simulateRequest, request);
 
         return channel -> client.execute(SimulateTemplateAction.INSTANCE, simulateRequest, new RestToXContentListener<>(channel));

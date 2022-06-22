@@ -79,7 +79,7 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
         final GetComposableIndexTemplateAction.Request getRequest = new GetComposableIndexTemplateAction.Request(request.param("name"));
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
-        getRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRequest.masterNodeTimeout()));
+        getRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRequest.clusterManagerNodeTimeout()));
         parseDeprecatedMasterTimeoutParameter(getRequest, request);
 
         final boolean implicitAll = getRequest.name() == null;

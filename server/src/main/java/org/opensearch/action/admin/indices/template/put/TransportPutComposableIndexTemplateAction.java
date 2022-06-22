@@ -99,7 +99,7 @@ public class TransportPutComposableIndexTemplateAction extends TransportClusterM
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutComposableIndexTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -109,7 +109,7 @@ public class TransportPutComposableIndexTemplateAction extends TransportClusterM
             request.cause(),
             request.create(),
             request.name(),
-            request.masterNodeTimeout(),
+            request.clusterManagerNodeTimeout(),
             indexTemplate,
             listener
         );

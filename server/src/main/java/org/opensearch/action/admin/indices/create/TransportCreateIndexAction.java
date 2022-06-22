@@ -95,7 +95,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final CreateIndexRequest request,
         final ClusterState state,
         final ActionListener<CreateIndexResponse> listener
@@ -111,7 +111,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
             indexName,
             request.index()
         ).ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
+            .masterNodeTimeout(request.clusterManagerNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
             .aliases(request.aliases())

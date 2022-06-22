@@ -90,8 +90,11 @@ public class TransportDeleteStoredScriptAction extends TransportClusterManagerNo
     }
 
     @Override
-    protected void masterOperation(DeleteStoredScriptRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
-        throws Exception {
+    protected void clusterManagerOperation(
+        DeleteStoredScriptRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         scriptService.deleteStoredScript(clusterService, request, listener);
     }
 

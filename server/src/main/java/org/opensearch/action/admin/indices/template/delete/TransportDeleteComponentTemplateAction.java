@@ -102,11 +102,11 @@ public class TransportDeleteComponentTemplateAction extends TransportClusterMana
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteComponentTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        indexTemplateService.removeComponentTemplate(request.name(), request.masterNodeTimeout(), listener);
+        indexTemplateService.removeComponentTemplate(request.name(), request.clusterManagerNodeTimeout(), listener);
     }
 }

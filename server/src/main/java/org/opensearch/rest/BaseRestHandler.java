@@ -220,7 +220,7 @@ public abstract class BaseRestHandler implements RestHandler {
             if (request.hasParam("cluster_manager_timeout")) {
                 throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
             }
-            mnr.masterNodeTimeout(request.paramAsTime("master_timeout", mnr.masterNodeTimeout()));
+            mnr.clusterManagerNodeTimeout(request.paramAsTime("master_timeout", mnr.clusterManagerNodeTimeout()));
         }
     }
 

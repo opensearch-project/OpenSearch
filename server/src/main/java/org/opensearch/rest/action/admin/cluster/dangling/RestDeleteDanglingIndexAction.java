@@ -75,7 +75,7 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
         );
 
         deleteRequest.timeout(request.paramAsTime("timeout", deleteRequest.timeout()));
-        deleteRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteRequest.masterNodeTimeout()));
+        deleteRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteRequest.clusterManagerNodeTimeout()));
         parseDeprecatedMasterTimeoutParameter(deleteRequest, request);
 
         return channel -> client.admin()

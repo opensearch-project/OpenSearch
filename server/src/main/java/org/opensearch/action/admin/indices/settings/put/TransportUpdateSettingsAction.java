@@ -116,7 +116,7 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final UpdateSettingsRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -128,7 +128,7 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
             .settings(request.settings())
             .setPreserveExisting(request.isPreserveExisting())
             .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
+            .masterNodeTimeout(request.clusterManagerNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override

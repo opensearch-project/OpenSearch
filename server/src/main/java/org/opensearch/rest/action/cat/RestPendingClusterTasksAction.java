@@ -74,8 +74,8 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
-        pendingClusterTasksRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", pendingClusterTasksRequest.masterNodeTimeout())
+        pendingClusterTasksRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", pendingClusterTasksRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(pendingClusterTasksRequest, request);
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));

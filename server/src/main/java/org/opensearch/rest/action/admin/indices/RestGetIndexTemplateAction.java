@@ -81,8 +81,8 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        getIndexTemplatesRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", getIndexTemplatesRequest.masterNodeTimeout())
+        getIndexTemplatesRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getIndexTemplatesRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(getIndexTemplatesRequest, request);
 

@@ -127,7 +127,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ResizeRequest resizeRequest,
         final ClusterState state,
         final ActionListener<ResizeResponse> listener
@@ -241,7 +241,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
             // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
             // miss the mappings for everything is corrupted and hard to debug
             .ackTimeout(targetIndex.timeout())
-            .masterNodeTimeout(targetIndex.masterNodeTimeout())
+            .masterNodeTimeout(targetIndex.clusterManagerNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())
             .waitForActiveShards(targetIndex.waitForActiveShards())
@@ -251,7 +251,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
     }
 
     @Override
-    protected String getMasterActionName(DiscoveryNode node) {
-        return super.getMasterActionName(node);
+    protected String getClusterManagerActionName(DiscoveryNode node) {
+        return super.getClusterManagerActionName(node);
     }
 }

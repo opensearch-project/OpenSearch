@@ -147,8 +147,8 @@ public class ClusterClientDocumentationIT extends OpenSearchRestHighLevelClientT
         request.timeout("2m"); // <2>
         // end::put-settings-request-timeout
         // tag::put-settings-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::put-settings-request-masterTimeout
 
         // tag::put-settings-execute
@@ -222,8 +222,8 @@ public class ClusterClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::get-settings-request-local
 
         // tag::get-settings-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::get-settings-request-masterTimeout
 
         // tag::get-settings-execute
@@ -299,8 +299,8 @@ public class ClusterClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::health-request-timeout
 
         // tag::health-request-master-timeout
-        request.masterNodeTimeout(TimeValue.timeValueSeconds(20)); // <1>
-        request.masterNodeTimeout("20s"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueSeconds(20)); // <1>
+        request.clusterManagerNodeTimeout("20s"); // <2>
         // end::health-request-master-timeout
 
         // tag::health-request-wait-status
