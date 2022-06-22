@@ -43,7 +43,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.MasterNodeChangePredicate;
+import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -253,7 +253,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         }
 
         private void retryOnMasterChange(ClusterState state, Throwable failure) {
-            retry(state, failure, MasterNodeChangePredicate.build(state));
+            retry(state, failure, ClusterManagerNodeChangePredicate.build(state));
         }
 
         private void retry(ClusterState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
