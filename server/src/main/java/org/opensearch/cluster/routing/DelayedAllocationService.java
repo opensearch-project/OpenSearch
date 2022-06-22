@@ -150,7 +150,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+        if (DiscoveryNode.isClusterManagerNode(clusterService.getSettings())) {
             clusterService.addListener(this);
         }
     }
@@ -174,7 +174,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) {
+        if (event.localNodeClusterManager()) {
             long currentNanoTime = currentNanoTime();
             scheduleIfNeeded(currentNanoTime, event.state());
         }

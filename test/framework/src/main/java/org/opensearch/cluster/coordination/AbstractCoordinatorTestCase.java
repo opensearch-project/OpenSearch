@@ -311,7 +311,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     nodeHealthService
                 );
                 clusterNodes.add(clusterNode);
-                if (clusterNode.getLocalNode().isMasterNode()) {
+                if (clusterNode.getLocalNode().isClusterManagerNode()) {
                     clusterManagerEligibleNodeIds.add(clusterNode.getId());
                 }
             }
@@ -784,7 +784,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         ClusterNode getAnyBootstrappableNode() {
             return randomFrom(
                 clusterNodes.stream()
-                    .filter(n -> n.getLocalNode().isMasterNode())
+                    .filter(n -> n.getLocalNode().isClusterManagerNode())
                     .filter(n -> initialConfiguration.getNodeIds().contains(n.getLocalNode().getId()))
                     .collect(Collectors.toList())
             );
@@ -899,7 +899,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                         final long persistedCurrentTerm;
 
                         if ( // node is cluster-manager-ineligible either before or after the restart ...
-                        (oldState.getLastAcceptedState().nodes().getLocalNode().isMasterNode() && newLocalNode.isMasterNode()) == false
+                        (oldState.getLastAcceptedState().nodes().getLocalNode().isClusterManagerNode()
+                            && newLocalNode.isClusterManagerNode()) == false
                             // ... and it's accepted some non-initial state so we can roll back ...
                             && (oldState.getLastAcceptedState().term() > 0L || oldState.getLastAcceptedState().version() > 0L)
                             // ... and we're feeling lucky ...
@@ -1194,7 +1195,9 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     address.getAddress(),
                     address,
                     Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(nodeSettings) ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(),
+                    localNode.isClusterManagerNode() && DiscoveryNode.isClusterManagerNode(nodeSettings)
+                        ? DiscoveryNodeRole.BUILT_IN_ROLES
+                        : emptySet(),
                     Version.CURRENT
                 );
                 return new ClusterNode(
@@ -1427,7 +1430,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             }
 
             private boolean isNotUsefullyBootstrapped() {
-                return getLocalNode().isMasterNode() == false || coordinator.isInitialConfigurationSet() == false;
+                return getLocalNode().isClusterManagerNode() == false || coordinator.isInitialConfigurationSet() == false;
             }
 
             void allowClusterStateApplicationFailure() {

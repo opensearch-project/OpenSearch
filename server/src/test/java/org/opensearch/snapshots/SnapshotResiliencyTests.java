@@ -1341,13 +1341,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             testClusterNodes.nodes.values()
                 .stream()
                 .map(n -> n.node)
-                .filter(DiscoveryNode::isMasterNode)
+                .filter(DiscoveryNode::isClusterManagerNode)
                 .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet())
         );
         testClusterNodes.nodes.values()
             .stream()
-            .filter(n -> n.node.isMasterNode())
+            .filter(n -> n.node.isClusterManagerNode())
             .forEach(testClusterNode -> testClusterNode.coordinator.setInitialConfiguration(votingConfiguration));
         // Connect all nodes to each other
         testClusterNodes.nodes.values()
@@ -1536,7 +1536,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
             final List<TestClusterNode> clusterManagerNodes = testClusterNodes.nodes.values()
                 .stream()
-                .filter(n -> n.node.isMasterNode())
+                .filter(n -> n.node.isClusterManagerNode())
                 .filter(n -> disconnectedNodes.contains(n.node.getName()) == false)
                 .sorted(Comparator.comparing(n -> n.node.getName()))
                 .collect(Collectors.toList());
@@ -1609,7 +1609,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         public TestClusterNode currentClusterManager(ClusterState state) {
             TestClusterNode clusterManager = nodes.get(state.nodes().getClusterManagerNode().getName());
             assertNotNull(clusterManager);
-            assertTrue(clusterManager.node.isMasterNode());
+            assertTrue(clusterManager.node.isClusterManagerNode());
             return clusterManager;
         }
 
@@ -2207,7 +2207,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     () -> persistedState,
                     hostsResolver -> nodes.values()
                         .stream()
-                        .filter(n -> n.node.isMasterNode())
+                        .filter(n -> n.node.isClusterManagerNode())
                         .map(n -> n.node.getAddress())
                         .collect(Collectors.toList()),
                     clusterService.getClusterApplierService(),

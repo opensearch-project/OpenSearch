@@ -207,7 +207,7 @@ public class ClusterFormationFailureHelper {
                 discoveryWillContinueDescription
             );
 
-            if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
+            if (clusterState.nodes().getLocalNode().isClusterManagerNode() == false) {
                 return String.format(Locale.ROOT, "cluster-manager not discovered yet: %s", discoveryStateIgnoringQuorum);
             }
 

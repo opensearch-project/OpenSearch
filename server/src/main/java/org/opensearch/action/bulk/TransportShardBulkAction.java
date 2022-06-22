@@ -169,7 +169,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
-            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
+            mappingUpdatedAction.updateMappingOnClusterManager(shardId.getIndex(), update, mappingListener);
         }, mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {

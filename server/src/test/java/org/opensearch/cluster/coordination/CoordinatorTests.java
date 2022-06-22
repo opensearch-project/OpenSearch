@@ -170,7 +170,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             final ClusterNode leader = cluster.getAnyLeader();
-            assertTrue(leader.getLocalNode().isMasterNode());
+            assertTrue(leader.getLocalNode().isClusterManagerNode());
         }
     }
 
@@ -1729,7 +1729,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             final long expectedTerm = leader.coordinator.getCurrentTerm();
 
-            if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode()).count() == 2) {
+            if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isClusterManagerNode()).count() == 2) {
                 // in the 2-node case, auto-shrinking the voting configuration is required to reduce the voting configuration down to just
                 // the leader, otherwise restarting the other cluster-manager-eligible node triggers an election
                 leader.submitSetAutoShrinkVotingConfiguration(true);

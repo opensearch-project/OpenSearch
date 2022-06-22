@@ -212,8 +212,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
      */
     public void testIsBecomeClusterManagerTask() {
         JoinTaskExecutor.Task joinTaskOfMaster = JoinTaskExecutor.newBecomeMasterTask();
-        assertThat(joinTaskOfMaster.isBecomeMasterTask(), is(true));
+        assertThat(joinTaskOfMaster.isBecomeClusterManagerTask(), is(true));
         JoinTaskExecutor.Task joinTaskOfClusterManager = JoinTaskExecutor.newBecomeClusterManagerTask();
-        assertThat(joinTaskOfClusterManager.isBecomeMasterTask(), is(true));
+        assertThat(joinTaskOfClusterManager.isBecomeClusterManagerTask(), is(true));
     }
 }

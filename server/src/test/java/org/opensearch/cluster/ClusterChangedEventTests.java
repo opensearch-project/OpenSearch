@@ -115,11 +115,11 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
         ClusterState previousState = createSimpleClusterState();
         ClusterState newState = createState(numNodesInCluster, true, initialIndices);
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
-        assertTrue("local node should be cluster-manager", event.localNodeMaster());
+        assertTrue("local node should be cluster-manager", event.localNodeClusterManager());
 
         newState = createState(numNodesInCluster, false, initialIndices);
         event = new ClusterChangedEvent("_na_", newState, previousState);
-        assertFalse("local node should not be cluster-manager", event.localNodeMaster());
+        assertFalse("local node should not be cluster-manager", event.localNodeClusterManager());
     }
 
     /**
@@ -332,7 +332,7 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
             .routingTable(createRoutingTable(1, metadata))
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
-        assertTrue("local node should be master", event.localNodeMaster());
+        assertTrue("local node should be master", event.localNodeClusterManager());
 
         newState = ClusterState.builder(TEST_CLUSTER_NAME)
             .nodes(builderLocalNotMaster.build())
@@ -340,7 +340,7 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
             .routingTable(createRoutingTable(1, metadata))
             .build();
         event = new ClusterChangedEvent("_na_", newState, previousState);
-        assertFalse("local node should not be master", event.localNodeMaster());
+        assertFalse("local node should not be master", event.localNodeClusterManager());
     }
 
     private static class CustomMetadata2 extends TestCustomMetadata {

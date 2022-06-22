@@ -405,7 +405,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
@@ -432,7 +432,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
@@ -474,7 +474,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             capturedRequests = transport.getCapturedRequestsAndClear();
             assertThat(capturedRequests.length, equalTo(1));
             capturedRequest = capturedRequests[0];
-            assertTrue(capturedRequest.node.isMasterNode());
+            assertTrue(capturedRequest.node.isClusterManagerNode());
             assertThat(capturedRequest.request, equalTo(request));
             assertThat(capturedRequest.action, equalTo("internal:testAction"));
         } else if (failsWithConnectTransportException) {
@@ -525,7 +525,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
@@ -560,7 +560,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 

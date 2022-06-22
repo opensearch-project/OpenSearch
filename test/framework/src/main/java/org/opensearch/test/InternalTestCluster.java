@@ -199,11 +199,11 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.node.settings()
     );
 
-    private static final Predicate<NodeAndClient> NO_DATA_NO_CLUSTER_MANAGER_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
-        nodeAndClient.node.settings()
-    ) == false && DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;
+    private static final Predicate<NodeAndClient> NO_DATA_NO_CLUSTER_MANAGER_PREDICATE = nodeAndClient -> DiscoveryNode
+        .isClusterManagerNode(nodeAndClient.node.settings()) == false
+        && DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;
 
-    private static final Predicate<NodeAndClient> CLUSTER_MANAGER_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
+    private static final Predicate<NodeAndClient> CLUSTER_MANAGER_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isClusterManagerNode(
         nodeAndClient.node.settings()
     );
 
@@ -792,13 +792,13 @@ public final class InternalTestCluster extends TestCluster {
         String suffix = "";
         // only add the suffixes if roles are explicitly defined
         if (settings.hasValue("nodes.roles")) {
-            if (DiscoveryNode.isMasterNode(settings)) {
+            if (DiscoveryNode.isClusterManagerNode(settings)) {
                 suffix = suffix + DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleNameAbbreviation();
             }
             if (DiscoveryNode.isDataNode(settings)) {
                 suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
             }
-            if (!DiscoveryNode.isMasterNode(settings) && !DiscoveryNode.isDataNode(settings)) {
+            if (!DiscoveryNode.isClusterManagerNode(settings) && !DiscoveryNode.isDataNode(settings)) {
                 suffix = suffix + "c";
             }
         }
@@ -936,7 +936,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         public boolean isMasterEligible() {
-            return DiscoveryNode.isMasterNode(node.settings());
+            return DiscoveryNode.isClusterManagerNode(node.settings());
         }
 
         Client client() {
@@ -1164,7 +1164,7 @@ public final class InternalTestCluster extends TestCluster {
 
         int autoBootstrapClusterManagerNodeIndex = -1;
         final List<String> clusterManagerNodeNames = settings.stream()
-            .filter(DiscoveryNode::isMasterNode)
+            .filter(DiscoveryNode::isClusterManagerNode)
             .map(Node.NODE_NAME_SETTING::get)
             .collect(Collectors.toList());
 
@@ -1745,7 +1745,7 @@ public final class InternalTestCluster extends TestCluster {
                     .filter(Objects::nonNull)
                     .map(TransportService::getLocalNode)
                     .filter(Objects::nonNull)
-                    .filter(DiscoveryNode::isMasterNode)
+                    .filter(DiscoveryNode::isClusterManagerNode)
                     .map(n -> n.getAddress().toString())
                     .distinct()
                     .collect(Collectors.toList());
@@ -2025,7 +2025,7 @@ public final class InternalTestCluster extends TestCluster {
         List<Settings> newSettings = new ArrayList<>();
 
         for (Settings settings : allNodesSettings) {
-            if (DiscoveryNode.isMasterNode(settings) == false) {
+            if (DiscoveryNode.isClusterManagerNode(settings) == false) {
                 newSettings.add(settings);
             } else {
                 currentNodeId++;
@@ -2035,13 +2035,13 @@ public final class InternalTestCluster extends TestCluster {
                     List<String> nodeNames = new ArrayList<>();
 
                     for (Settings nodeSettings : getDataOrMasterNodeInstances(Settings.class)) {
-                        if (DiscoveryNode.isMasterNode(nodeSettings)) {
+                        if (DiscoveryNode.isClusterManagerNode(nodeSettings)) {
                             nodeNames.add(Node.NODE_NAME_SETTING.get(nodeSettings));
                         }
                     }
 
                     for (Settings nodeSettings : allNodesSettings) {
-                        if (DiscoveryNode.isMasterNode(nodeSettings)) {
+                        if (DiscoveryNode.isClusterManagerNode(nodeSettings)) {
                             nodeNames.add(Node.NODE_NAME_SETTING.get(nodeSettings));
                         }
                     }
@@ -2100,7 +2100,7 @@ public final class InternalTestCluster extends TestCluster {
      * Starts multiple nodes with the given settings and returns their names
      */
     public synchronized List<String> startNodes(Settings... extraSettings) {
-        final int newClusterManagerCount = Math.toIntExact(Stream.of(extraSettings).filter(DiscoveryNode::isMasterNode).count());
+        final int newClusterManagerCount = Math.toIntExact(Stream.of(extraSettings).filter(DiscoveryNode::isClusterManagerNode).count());
         final int defaultMinClusterManagerNodes;
         if (autoManageClusterManagerNodes) {
             defaultMinClusterManagerNodes = getMinClusterManagerNodes(getClusterManagerNodesCount() + newClusterManagerCount);
@@ -2113,7 +2113,7 @@ public final class InternalTestCluster extends TestCluster {
             && prevClusterManagerCount == 0
             && newClusterManagerCount > 0
             && Arrays.stream(extraSettings)
-                .allMatch(s -> DiscoveryNode.isMasterNode(s) == false || ZEN2_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(s)))
+                .allMatch(s -> DiscoveryNode.isClusterManagerNode(s) == false || ZEN2_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(s)))
                     ? RandomNumbers.randomIntBetween(random, 0, newClusterManagerCount - 1)
                     : -1;
 
@@ -2126,7 +2126,7 @@ public final class InternalTestCluster extends TestCluster {
         nextNodeId.set(firstNodeId + numOfNodes);
 
         final List<String> initialClusterManagerNodes = settings.stream()
-            .filter(DiscoveryNode::isMasterNode)
+            .filter(DiscoveryNode::isClusterManagerNode)
             .map(Node.NODE_NAME_SETTING::get)
             .collect(Collectors.toList());
 
@@ -2135,7 +2135,7 @@ public final class InternalTestCluster extends TestCluster {
         for (int i = 0; i < numOfNodes; i++) {
             final Settings nodeSettings = updatedSettings.get(i);
             final Builder builder = Settings.builder();
-            if (DiscoveryNode.isMasterNode(nodeSettings)) {
+            if (DiscoveryNode.isClusterManagerNode(nodeSettings)) {
                 if (autoBootstrapClusterManagerNodeIndex == 0) {
                     builder.putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), initialClusterManagerNodes);
                 }
@@ -2179,7 +2179,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private int getClusterManagerNodesCount() {
-        return (int) nodes.values().stream().filter(n -> DiscoveryNode.isMasterNode(n.node().settings())).count();
+        return (int) nodes.values().stream().filter(n -> DiscoveryNode.isClusterManagerNode(n.node().settings())).count();
     }
 
     public String startClusterManagerOnlyNode() {

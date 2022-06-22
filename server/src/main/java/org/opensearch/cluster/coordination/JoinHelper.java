@@ -157,7 +157,7 @@ public class JoinHelper {
                             + "), there is a newer cluster-manager"
                     );
                 } else if (currentState.nodes().getClusterManagerNodeId() == null
-                    && joiningTasks.stream().anyMatch(Task::isBecomeMasterTask)) {
+                    && joiningTasks.stream().anyMatch(Task::isBecomeClusterManagerTask)) {
                         assert currentState.term() < term
                             : "there should be at most one become cluster-manager task per election (= by term)";
                         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
@@ -316,7 +316,7 @@ public class JoinHelper {
     }
 
     public void sendJoinRequest(DiscoveryNode destination, long term, Optional<Join> optionalJoin, Runnable onCompletion) {
-        assert destination.isMasterNode() : "trying to join cluster-manager-ineligible " + destination;
+        assert destination.isClusterManagerNode() : "trying to join cluster-manager-ineligible " + destination;
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
             logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
@@ -367,7 +367,7 @@ public class JoinHelper {
     }
 
     public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
-        assert startJoinRequest.getSourceNode().isMasterNode() : "sending start-join request for cluster-manager-ineligible "
+        assert startJoinRequest.getSourceNode().isClusterManagerNode() : "sending start-join request for cluster-manager-ineligible "
             + startJoinRequest.getSourceNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler<Empty>() {
             @Override

@@ -123,7 +123,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
              */
             NodeInfo clusterManagerNode = null;
             for (NodeInfo candidate : client.admin().cluster().prepareNodesInfo().get().getNodes()) {
-                if (candidate.getNode().isMasterNode()) {
+                if (candidate.getNode().isClusterManagerNode()) {
                     clusterManagerNode = candidate;
                 }
             }

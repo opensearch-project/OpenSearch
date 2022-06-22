@@ -731,7 +731,7 @@ public class Node implements Closeable {
                 systemIndices,
                 scriptService
             );
-            if (DiscoveryNode.isMasterNode(settings)) {
+            if (DiscoveryNode.isClusterManagerNode(settings)) {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             }
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
@@ -1471,7 +1471,7 @@ public class Node implements Closeable {
         NodeClient client
     ) {
         final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
-        if (DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
             // listen for state changes (this node starts/stops being the elected cluster manager, or new nodes are added)
             clusterService.addListener(service);
         }

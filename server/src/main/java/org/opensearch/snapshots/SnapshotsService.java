@@ -235,7 +235,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             actionFilters,
             indexNameExpressionResolver
         );
-        if (DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
             clusterService.addLowPriorityApplier(this);
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
@@ -1305,7 +1305,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         try {
-            if (event.localNodeMaster()) {
+            if (event.localNodeClusterManager()) {
                 // We don't remove old cluster-manager when cluster-manager flips anymore. So, we need to check for change in
                 // cluster-manager
                 SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);

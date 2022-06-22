@@ -110,7 +110,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
 
         final String[] nonClusterManagerNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
             .map(n -> n.value)
-            .filter(n -> n.isMasterNode() == false)
+            .filter(n -> n.isClusterManagerNode() == false)
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
         assertThat(discoveryNodes.resolveNodes("_all", "cluster_manager:false"), arrayContainingInAnyOrder(nonClusterManagerNodes));
@@ -123,13 +123,13 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
 
         final String[] coordinatorOnlyNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
             .map(n -> n.value)
-            .filter(n -> n.isDataNode() == false && n.isIngestNode() == false && n.isMasterNode() == false)
+            .filter(n -> n.isDataNode() == false && n.isIngestNode() == false && n.isClusterManagerNode() == false)
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 
         final String[] nonCoordinatorOnlyNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
             .map(n -> n.value)
-            .filter(n -> n.isMasterNode() || n.isDataNode() || n.isIngestNode())
+            .filter(n -> n.isClusterManagerNode() || n.isDataNode() || n.isIngestNode())
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 
@@ -183,7 +183,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         assertEquals(returnedNodes.size(), inputNodes.size());
         assertEquals(new HashSet<>(returnedNodes), new HashSet<>(inputNodes));
         final List<DiscoveryNode> sortedNodes = new ArrayList<>(returnedNodes);
-        Collections.sort(sortedNodes, Comparator.comparing(n -> n.isMasterNode() == false));
+        Collections.sort(sortedNodes, Comparator.comparing(n -> n.isClusterManagerNode() == false));
         assertEquals(sortedNodes, returnedNodes);
     }
 
@@ -316,13 +316,13 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
 
         final String[] clusterManagerNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
             .map(n -> n.value)
-            .filter(n -> n.isMasterNode() == true)
+            .filter(n -> n.isClusterManagerNode() == true)
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 
         final String[] nonClusterManagerNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
             .map(n -> n.value)
-            .filter(n -> n.isMasterNode() == false)
+            .filter(n -> n.isClusterManagerNode() == false)
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 

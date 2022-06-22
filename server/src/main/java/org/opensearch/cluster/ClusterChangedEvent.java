@@ -213,8 +213,18 @@ public class ClusterChangedEvent {
     /**
      * Returns <code>true</code> iff the local node is the mater node of the cluster.
      */
-    public boolean localNodeMaster() {
+    public boolean localNodeClusterManager() {
         return state.nodes().isLocalNodeElectedClusterManager();
+    }
+
+    /**
+     * Returns <code>true</code> iff the local node is the mater node of the cluster.
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #localNodeClusterManager()}
+     */
+    @Deprecated
+    public boolean localNodeMaster() {
+        return localNodeClusterManager();
     }
 
     /**
