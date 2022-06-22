@@ -108,7 +108,7 @@ public class TransportClusterSearchShardsAction extends TransportClusterManagerN
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ClusterSearchShardsRequest request,
         final ClusterState state,
         final ActionListener<ClusterSearchShardsResponse> listener

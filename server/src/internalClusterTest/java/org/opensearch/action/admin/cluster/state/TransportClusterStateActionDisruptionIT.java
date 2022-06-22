@@ -75,7 +75,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
                 .prepareState()
                 .clear()
                 .setNodes(true)
-                .setMasterNodeTimeout("100ms");
+                .setClusterManagerNodeTimeout("100ms");
             final ClusterStateResponse clusterStateResponse;
             try {
                 clusterStateResponse = clusterStateRequestBuilder.get();
@@ -95,7 +95,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
                 .clear()
                 .setLocal(true)
                 .setNodes(true)
-                .setMasterNodeTimeout("100ms")
+                .setClusterManagerNodeTimeout("100ms")
                 .get()
                 .getState()
                 .nodes();
@@ -123,7 +123,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
                 .clear()
                 .setNodes(true)
                 .setMetadata(true)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                .setClusterManagerNodeTimeout(TimeValue.timeValueMillis(100))
                 .setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .setWaitForMetadataVersion(waitForMetadataVersion);
             final ClusterStateResponse clusterStateResponse;
@@ -156,7 +156,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
                 .setLocal(true)
                 .setMetadata(true)
                 .setWaitForMetadataVersion(waitForMetadataVersion)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                .setClusterManagerNodeTimeout(TimeValue.timeValueMillis(100))
                 .setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .get();
             if (clusterStateResponse.isWaitForTimedOut() == false) {

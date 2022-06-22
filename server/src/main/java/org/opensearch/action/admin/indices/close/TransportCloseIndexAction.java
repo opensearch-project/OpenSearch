@@ -140,7 +140,7 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final CloseIndexRequest request,
         final ClusterState state,
         final ActionListener<CloseIndexResponse> listener
@@ -149,7 +149,7 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final Task task,
         final CloseIndexRequest request,
         final ClusterState state,
@@ -163,7 +163,10 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
 
         final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId()).ackTimeout(
             request.timeout()
-        ).masterNodeTimeout(request.masterNodeTimeout()).waitForActiveShards(request.waitForActiveShards()).indices(concreteIndices);
+        )
+            .masterNodeTimeout(request.clusterManagerNodeTimeout())
+            .waitForActiveShards(request.waitForActiveShards())
+            .indices(concreteIndices);
         indexStateService.closeIndices(closeRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
             logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);
