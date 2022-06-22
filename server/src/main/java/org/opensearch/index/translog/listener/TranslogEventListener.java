@@ -8,6 +8,8 @@
 
 package org.opensearch.index.translog.listener;
 
+import org.apache.lucene.store.AlreadyClosedException;
+
 /**
  * The listener that gets fired on events related to {@link org.opensearch.index.translog.TranslogManager}
  *
@@ -21,15 +23,28 @@ public interface TranslogEventListener {
     /**
      * Invoked after translog sync operations
      */
-    default void onTranslogSync() {}
+    default void onAfterTranslogSync() {}
 
     /**
      * Invoked after recovering operations from translog
      */
-    default void onTranslogRecovery() {}
+    default void onAfterTranslogRecovery() {}
 
     /**
      * Invoked before recovering operations from translog
      */
     default void onBeginTranslogRecovery() {}
+
+    /**
+     * Invoked when translog operations run into accessing an already closed resource
+     * @param ex the exception thrown when accessing a closed resource
+     */
+    default void onTragicFailure(AlreadyClosedException ex) {}
+
+    /**
+     * Invoked when translog operations run into any other failure
+     * @param reason the failure reason
+     * @param ex the failure exception
+     */
+    default void onFailure(String reason, Exception ex) {}
 }

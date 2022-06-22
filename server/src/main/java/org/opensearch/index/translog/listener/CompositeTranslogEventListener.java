@@ -11,6 +11,7 @@ package org.opensearch.index.translog.listener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -37,10 +38,10 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
     }
 
     @Override
-    public void onTranslogSync() {
+    public void onAfterTranslogSync() {
         for (TranslogEventListener listener : listeners) {
             try {
-                listener.onTranslogSync();
+                listener.onAfterTranslogSync();
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onTranslogSync listener"), ex);
             }
@@ -48,10 +49,10 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
     }
 
     @Override
-    public void onTranslogRecovery() {
+    public void onAfterTranslogRecovery() {
         for (TranslogEventListener listener : listeners) {
             try {
-                listener.onTranslogRecovery();
+                listener.onAfterTranslogRecovery();
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onTranslogRecovery listener"), ex);
             }
@@ -65,6 +66,28 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 listener.onBeginTranslogRecovery();
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onBeginTranslogRecovery listener"), ex);
+            }
+        }
+    }
+
+    @Override
+    public void onFailure(String reason, Exception e) {
+        for (TranslogEventListener listener : listeners) {
+            try {
+                listener.onFailure(reason, e);
+            } catch (Exception ex) {
+                logger.warn(() -> new ParameterizedMessage("failed to invoke onFailure listener"), ex);
+            }
+        }
+    }
+
+    @Override
+    public void onTragicFailure(AlreadyClosedException e) {
+        for (TranslogEventListener listener : listeners) {
+            try {
+                listener.onTragicFailure(e);
+            } catch (Exception ex) {
+                logger.warn(() -> new ParameterizedMessage("failed to invoke onTragicFailure listener"), ex);
             }
         }
     }
