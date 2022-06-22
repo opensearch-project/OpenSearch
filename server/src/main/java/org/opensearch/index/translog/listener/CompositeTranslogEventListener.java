@@ -44,6 +44,7 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 listener.onAfterTranslogSync();
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onTranslogSync listener"), ex);
+                throw ex;
             }
         }
     }
@@ -55,6 +56,7 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 listener.onAfterTranslogRecovery();
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onTranslogRecovery listener"), ex);
+                throw ex;
             }
         }
     }
@@ -66,6 +68,7 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 listener.onBeginTranslogRecovery();
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onBeginTranslogRecovery listener"), ex);
+                throw ex;
             }
         }
     }
@@ -77,6 +80,7 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 listener.onFailure(reason, e);
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onFailure listener"), ex);
+                throw ex;
             }
         }
     }
@@ -88,6 +92,7 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 listener.onTragicFailure(e);
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onTragicFailure listener"), ex);
+                throw ex;
             }
         }
     }

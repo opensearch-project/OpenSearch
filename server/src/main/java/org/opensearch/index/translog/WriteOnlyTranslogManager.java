@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.listener.TranslogEventListener;
@@ -34,7 +35,7 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
         Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier,
         String translogUUID,
         TranslogEventListener translogEventListener,
-        Runnable ensureEngineOpen
+        LifecycleAware engineLifecycleAware
     ) throws IOException {
         super(
             translogConfig,
@@ -46,7 +47,7 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
             localCheckpointTrackerSupplier,
             translogUUID,
             translogEventListener,
-            ensureEngineOpen
+            engineLifecycleAware
         );
     }
 
