@@ -59,7 +59,7 @@ public interface ClusterStateTaskListener {
      * called when the task was rejected because the local node is no longer cluster-manager.
      * Used only for tasks submitted to {@link MasterService}.
      *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #}
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #onNoLongerClusterManager(String)}
      */
     @Deprecated
     default void onNoLongerMaster(String source) {

@@ -1572,7 +1572,7 @@ public class MetadataIndexTemplateService {
             return this;
         }
 
-        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #} */
+        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerTimeout(TimeValue)} */
         @Deprecated
         public PutRequest masterTimeout(TimeValue masterTimeout) {
             return clusterManagerTimeout(masterTimeout);
