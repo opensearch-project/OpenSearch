@@ -1377,24 +1377,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the lastest segmentInfos
-     */
-    public SegmentInfos getLatestSegmentInfos() {
-        return getEngine().getSegmentInfosSnapshot().get();
-    }
-
-    /**
      * Returns the lastest Replication Checkpoint that shard received
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
-        return new ReplicationCheckpoint(
-            this.shardId,
-            getOperationPrimaryTerm(),
-            latestSegmentInfos.getGeneration(),
-            getProcessedLocalCheckpoint(),
-            latestSegmentInfos.getVersion()
-        );
+        try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
+            return Optional.ofNullable(snapshot.get())
+                .map(
+                    segmentInfos -> new ReplicationCheckpoint(
+                        this.shardId,
+                        getOperationPrimaryTerm(),
+                        segmentInfos.getGeneration(),
+                        getProcessedLocalCheckpoint(),
+                        segmentInfos.getVersion()
+                    )
+                )
+                .orElse(
+                    new ReplicationCheckpoint(
+                        shardId,
+                        getOperationPrimaryTerm(),
+                        SequenceNumbers.NO_OPS_PERFORMED,
+                        getProcessedLocalCheckpoint(),
+                        SequenceNumbers.NO_OPS_PERFORMED
+                    )
+                );
+        } catch (IOException ex) {
+            throw new OpenSearchException("Error Closing SegmentInfos Snapshot", ex);
+        }
     }
 
     /**
@@ -1403,22 +1411,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param requestCheckpoint       received checkpoint that is checked for processing
      * @return true if checkpoint should be processed
      */
-    public boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
+    public final boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
         if (state().equals(IndexShardState.STARTED) == false) {
-            logger.trace("Ignoring new replication checkpoint - shard is not started {}", state());
+            logger.trace(() -> new ParameterizedMessage("Ignoring new replication checkpoint - shard is not started {}", state()));
             return false;
         }
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
         if (localCheckpoint.isAheadOf(requestCheckpoint)) {
             logger.trace(
-                "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
-                localCheckpoint,
-                requestCheckpoint
+                () -> new ParameterizedMessage(
+                    "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
+                    localCheckpoint,
+                    requestCheckpoint
+                )
             );
             return false;
         }
         if (localCheckpoint.equals(requestCheckpoint)) {
-            logger.trace("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint);
+            logger.trace(
+                () -> new ParameterizedMessage("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint)
+            );
             return false;
         }
         return true;

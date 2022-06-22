@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.replication.checkpoint;
 
-import org.opensearch.common.inject.Inject;
 import org.opensearch.index.shard.IndexShard;
 
 import java.util.Objects;
@@ -22,7 +21,7 @@ public class SegmentReplicationCheckpointPublisher {
 
     private final PublishAction publishAction;
 
-    @Inject
+    // This Component is behind feature flag so we are manually binding this in IndicesModule.
     public SegmentReplicationCheckpointPublisher(PublishCheckpointAction publishAction) {
         this(publishAction::publish);
     }

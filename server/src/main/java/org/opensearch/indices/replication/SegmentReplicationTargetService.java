@@ -14,7 +14,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -59,7 +58,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         public static final String FILE_CHUNK = "internal:index/shard/replication/file_chunk";
     }
 
-    @Inject
     public SegmentReplicationTargetService(
         final ThreadPool threadPool,
         final RecoverySettings recoverySettings,
@@ -89,19 +87,21 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     /**
      * Invoked when a new checkpoint is received from a primary shard.
      * It checks if a new checkpoint should be processed or not and starts replication if needed.
-     * @param requestCheckpoint       received checkpoint that is checked for processing
-     * @param indexShard      replica shard on which checkpoint is received
+     * @param receivedCheckpoint       received checkpoint that is checked for processing
+     * @param replicaShard      replica shard on which checkpoint is received
      */
-    public synchronized void onNewCheckpoint(final ReplicationCheckpoint requestCheckpoint, final IndexShard indexShard) {
-        if (onGoingReplications.isShardReplicating(indexShard.shardId())) {
+    public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
+        if (onGoingReplications.isShardReplicating(replicaShard.shardId())) {
             logger.trace(
-                "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
-                indexShard.getLatestReplicationCheckpoint()
+                () -> new ParameterizedMessage(
+                    "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
+                    replicaShard.getLatestReplicationCheckpoint()
+                )
             );
             return;
         }
-        if (indexShard.shouldProcessCheckpoint(requestCheckpoint)) {
-            startReplication(requestCheckpoint, indexShard, new SegmentReplicationListener() {
+        if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
+            startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {}
 
@@ -109,7 +109,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
                     if (sendShardFailure == true) {
                         logger.error("replication failure", e);
-                        indexShard.failShard("replication failure", e);
+                        replicaShard.failShard("replication failure", e);
                     }
                 }
             });
