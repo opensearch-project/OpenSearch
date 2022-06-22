@@ -83,8 +83,8 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         SnapshotsStatusRequest snapshotsStatusRequest = snapshotsStatusRequest(repository).snapshots(snapshots);
         snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 
-        snapshotsStatusRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", snapshotsStatusRequest.masterNodeTimeout())
+        snapshotsStatusRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", snapshotsStatusRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(snapshotsStatusRequest, request);
         return channel -> client.admin().cluster().snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));

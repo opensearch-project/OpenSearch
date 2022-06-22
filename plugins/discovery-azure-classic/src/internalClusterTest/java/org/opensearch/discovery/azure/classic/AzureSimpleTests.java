@@ -50,7 +50,9 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 
         final String node1 = internalCluster().startNode(settings);
         registerAzureNode(node1);
-        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
+        assertNotNull(
+            client().admin().cluster().prepareState().setClusterManagerNodeTimeout("1s").get().getState().nodes().getMasterNodeId()
+        );
 
         // We expect having 1 node as part of the cluster, let's test that
         assertNumberOfNodes(1);
@@ -63,7 +65,9 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 
         final String node1 = internalCluster().startNode(settings);
         registerAzureNode(node1);
-        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
+        assertNotNull(
+            client().admin().cluster().prepareState().setClusterManagerNodeTimeout("1s").get().getState().nodes().getMasterNodeId()
+        );
 
         // We expect having 1 node as part of the cluster, let's test that
         assertNumberOfNodes(1);

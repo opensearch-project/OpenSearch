@@ -68,8 +68,8 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         VerifyRepositoryRequest verifyRepositoryRequest = verifyRepositoryRequest(request.param("repository"));
-        verifyRepositoryRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", verifyRepositoryRequest.masterNodeTimeout())
+        verifyRepositoryRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", verifyRepositoryRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(verifyRepositoryRequest, request);
         verifyRepositoryRequest.timeout(request.paramAsTime("timeout", verifyRepositoryRequest.timeout()));

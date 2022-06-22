@@ -69,8 +69,8 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CleanupRepositoryRequest cleanupRepositoryRequest = cleanupRepositoryRequest(request.param("repository"));
         cleanupRepositoryRequest.timeout(request.paramAsTime("timeout", cleanupRepositoryRequest.timeout()));
-        cleanupRepositoryRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", cleanupRepositoryRequest.masterNodeTimeout())
+        cleanupRepositoryRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", cleanupRepositoryRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(cleanupRepositoryRequest, request);
         return channel -> client.admin().cluster().cleanupRepository(cleanupRepositoryRequest, new RestToXContentListener<>(channel));

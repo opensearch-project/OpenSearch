@@ -109,7 +109,9 @@ public class RestShardsAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request);
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {

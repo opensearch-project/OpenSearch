@@ -91,7 +91,9 @@ public class RestPutMappingAction extends BaseRestHandler {
 
         putMappingRequest.source(sourceAsMap);
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
-        putMappingRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", putMappingRequest.masterNodeTimeout()));
+        putMappingRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", putMappingRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(putMappingRequest, request);
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
         putMappingRequest.writeIndexOnly(request.paramAsBoolean("write_index_only", false));

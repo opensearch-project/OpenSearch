@@ -192,7 +192,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
             clusterService.submitStateUpdateTask(
                 "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.names) + "]",
@@ -200,7 +200,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
                     @Override
                     public TimeValue timeout() {
-                        return request.masterNodeTimeout();
+                        return request.clusterManagerNodeTimeout();
                     }
 
                     @Override

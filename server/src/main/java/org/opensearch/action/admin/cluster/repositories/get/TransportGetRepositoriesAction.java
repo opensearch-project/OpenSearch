@@ -99,7 +99,7 @@ public class TransportGetRepositoriesAction extends TransportClusterManagerNodeR
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final GetRepositoriesRequest request,
         ClusterState state,
         final ActionListener<GetRepositoriesResponse> listener

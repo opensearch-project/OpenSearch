@@ -77,7 +77,7 @@ import java.util.stream.StreamSupport;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+import static org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -115,13 +115,13 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final boolean local = request.paramAsBoolean("local", false);
-        TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
-        // TODO: Remove the if condition and statements inside after removing parameter 'master_timeout'.
+        TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
+        // Remove the if condition and statements inside after removing MASTER_ROLE.
         if (request.hasParam("master_timeout")) {
             if (request.hasParam("cluster_manager_timeout")) {
                 throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
             }
-            clusterManagerTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+            clusterManagerTimeout = request.paramAsTime("master_timeout", DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
         }
         final TimeValue clusterManagerNodeTimeout = clusterManagerTimeout;
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
@@ -217,7 +217,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(clusterManagerNodeTimeout);
+        request.clusterManagerNodeTimeout(clusterManagerNodeTimeout);
         request.names(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
 
         client.admin().indices().getSettings(request, listener);
@@ -236,7 +236,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(clusterManagerNodeTimeout);
+        request.clusterManagerNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().state(request, listener);
     }
@@ -254,7 +254,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(clusterManagerNodeTimeout);
+        request.clusterManagerNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().health(request, listener);
     }

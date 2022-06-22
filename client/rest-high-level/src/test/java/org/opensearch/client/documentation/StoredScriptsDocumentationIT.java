@@ -99,8 +99,8 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
             // end::get-stored-script-request
 
             // tag::get-stored-script-request-masterTimeout
-            request.masterNodeTimeout(TimeValue.timeValueSeconds(50)); // <1>
-            request.masterNodeTimeout("50s"); // <2>
+            request.clusterManagerNodeTimeout(TimeValue.timeValueSeconds(50)); // <1>
+            request.clusterManagerNodeTimeout("50s"); // <2>
             // end::get-stored-script-request-masterTimeout
 
             // tag::get-stored-script-execute
@@ -162,8 +162,8 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::delete-stored-script-request
 
         // tag::delete-stored-script-request-masterTimeout
-        deleteRequest.masterNodeTimeout(TimeValue.timeValueSeconds(50)); // <1>
-        deleteRequest.masterNodeTimeout("50s"); // <2>
+        deleteRequest.clusterManagerNodeTimeout(TimeValue.timeValueSeconds(50)); // <1>
+        deleteRequest.clusterManagerNodeTimeout("50s"); // <2>
         // end::delete-stored-script-request-masterTimeout
 
         // tag::delete-stored-script-request-timeout
@@ -234,8 +234,8 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
             // end::put-stored-script-timeout
 
             // tag::put-stored-script-masterTimeout
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.masterNodeTimeout("1m"); // <2>
+            request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.clusterManagerNodeTimeout("1m"); // <2>
             // end::put-stored-script-masterTimeout
         }
 

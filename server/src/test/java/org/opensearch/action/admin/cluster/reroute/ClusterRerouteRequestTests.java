@@ -132,7 +132,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
                 request.getCommands().commands().toArray(new AllocationCommand[0])
             );
             copy.dryRun(request.dryRun()).explain(request.explain()).timeout(request.timeout()).setRetryFailed(request.isRetryFailed());
-            copy.masterNodeTimeout(request.masterNodeTimeout());
+            copy.clusterManagerNodeTimeout(request.clusterManagerNodeTimeout());
             assertEquals(request, copy);
             assertEquals(copy, request); // Commutative
             assertEquals(request.hashCode(), copy.hashCode());
@@ -162,10 +162,10 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
             assertEquals(request.hashCode(), copy.hashCode());
 
             // Changing clusterManagerNodeTimeout makes requests not equal
-            copy.masterNodeTimeout(timeValueMillis(request.masterNodeTimeout().millis() + 1));
+            copy.clusterManagerNodeTimeout(timeValueMillis(request.clusterManagerNodeTimeout().millis() + 1));
             assertNotEquals(request, copy);
             assertNotEquals(request.hashCode(), copy.hashCode());
-            copy.masterNodeTimeout(request.masterNodeTimeout());
+            copy.clusterManagerNodeTimeout(request.clusterManagerNodeTimeout());
             assertEquals(request, copy);
             assertEquals(request.hashCode(), copy.hashCode());
 
@@ -231,8 +231,9 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
         if (original.isRetryFailed() || randomBoolean()) {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
-        if (false == original.masterNodeTimeout().equals(ClusterManagerNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
-            params.put("cluster_manager_timeout", original.masterNodeTimeout().toString());
+        if (false == original.clusterManagerNodeTimeout().equals(ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT)
+            || randomBoolean()) {
+            params.put("cluster_manager_timeout", original.clusterManagerNodeTimeout().toString());
         }
         if (original.getCommands() != null) {
             hasBody = true;

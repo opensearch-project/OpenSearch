@@ -148,7 +148,9 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
         clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.setRetryFailed(request.paramAsBoolean("retry_failed", clusterRerouteRequest.isRetryFailed()));
-        clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterRerouteRequest.masterNodeTimeout()));
+        clusterRerouteRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterRerouteRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(clusterRerouteRequest, request);
         request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, null));
         return clusterRerouteRequest;

@@ -31,8 +31,10 @@
 
 package org.opensearch.action.support.master.info;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.Writeable;
@@ -59,4 +61,11 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
+    @Deprecated
+    protected abstract void doMasterOperation(
+        Request request,
+        String[] concreteIndices,
+        ClusterState state,
+        ActionListener<Response> listener
+    );
 }

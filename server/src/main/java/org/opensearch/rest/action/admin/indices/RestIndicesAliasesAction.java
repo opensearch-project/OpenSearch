@@ -68,7 +68,9 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.masterNodeTimeout()));
+        indicesAliasesRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request);
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
         try (XContentParser parser = request.contentParser()) {
