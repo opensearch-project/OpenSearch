@@ -36,6 +36,8 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import groovy.util.Node;
 import groovy.util.NodeList;
+import groovy.xml.QName;
+
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.precommit.PomValidationPrecommitPlugin;
 import org.opensearch.gradle.util.Util;
@@ -146,9 +148,36 @@ public class PublishPlugin implements Plugin<Project> {
 
     private static void addScmInfo(XmlProvider xml) {
         Node root = xml.asNode();
-        root.appendNode("url", Util.urlFromOrigin(BuildParams.getGitOrigin()));
-        Node scmNode = root.appendNode("scm");
-        scmNode.appendNode("url", BuildParams.getGitOrigin());
+        Node url = null, scm = null;
+
+        for (final Object child : root.children()) {
+            if (child instanceof Node) {
+                final Node node = (Node) child;
+                if (node.name() instanceof QName) {
+                    final QName qname = (QName) node.name();
+                    if (qname.matches("url")) {
+                        url = node;
+                    } else if (qname.matches("scm")) {
+                        scm = node;
+                    }
+                } else if ("url".equals(node.name())) {
+                    url = node;
+                } else if ("scm".equals(node.name())) {
+                    scm = node;
+                }
+            }
+        }
+
+        // Only include URL section if it is not provided in the POM already
+        if (url == null) {
+            root.appendNode("url", Util.urlFromOrigin(BuildParams.getGitOrigin()));
+        }
+
+        // Only include SCM section if it is not provided in the POM already
+        if (scm == null) {
+            Node scmNode = root.appendNode("scm");
+            scmNode.appendNode("url", BuildParams.getGitOrigin());
+        }
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */
