@@ -82,10 +82,24 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         doClusterManagerOperation(request, concreteIndices, state, listener);
     }
 
+    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterInfoRequest, ClusterState, ActionListener)} */
+    @Deprecated
+    @Override
+    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
+        clusterManagerOperation(request, state, listener);
+    }
+
     protected abstract void doClusterManagerOperation(
         Request request,
         String[] concreteIndices,
         ClusterState state,
         ActionListener<Response> listener
     );
+
+    // Change the method to be concrete after deprecation so that existing class can override it while new class don't have to.
+    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #doClusterManagerOperation(ClusterInfoRequest, String[], ClusterState, ActionListener)} */
+    @Deprecated
+    protected void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener) {
+        doClusterManagerOperation(request, concreteIndices, state, listener);
+    }
 }
