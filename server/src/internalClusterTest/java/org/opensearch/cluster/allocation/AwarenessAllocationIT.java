@@ -364,6 +364,7 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
             .put("cluster.routing.allocation.load_awareness.skew_factor", "0.0")
             .put("cluster.routing.allocation.load_awareness.provisioned_capacity", Integer.toString(nodeCountPerAZ * 3))
+            .put("cluster.routing.allocation.allow_rebalance", "indices_primaries_active")
             .build();
 
         logger.info("--> starting a dedicated cluster manager node");
