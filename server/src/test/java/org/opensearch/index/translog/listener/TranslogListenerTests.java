@@ -108,6 +108,7 @@ public class TranslogListenerTests extends OpenSearchTestCase {
         );
 
         final List<TranslogEventListener> translogEventListeners = new LinkedList<>(Arrays.asList(listener, throwingListener, listener));
+        Collections.shuffle(translogEventListeners, random());
         TranslogEventListener compositeListener = new CompositeTranslogEventListener(translogEventListeners);
         expectThrows(RuntimeException.class, () -> compositeListener.onAfterTranslogRecovery());
         expectThrows(RuntimeException.class, () -> compositeListener.onAfterTranslogSync());
@@ -115,11 +116,11 @@ public class TranslogListenerTests extends OpenSearchTestCase {
         expectThrows(RuntimeException.class, () -> compositeListener.onFailure("reason", new RuntimeException("reason")));
         expectThrows(RuntimeException.class, () -> compositeListener.onTragicFailure(new AlreadyClosedException("reason")));
 
-        assertEquals(1, onBeginTranslogRecoveryInvoked.get());
-        assertEquals(1, onTranslogRecoveryInvoked.get());
-        assertEquals(1, onTranslogSyncInvoked.get());
-        assertEquals(1, onFailureInvoked.get());
-        assertEquals(1, onTragicFailureInvoked.get());
+        assertEquals(2, onBeginTranslogRecoveryInvoked.get());
+        assertEquals(2, onTranslogRecoveryInvoked.get());
+        assertEquals(2, onTranslogSyncInvoked.get());
+        assertEquals(2, onFailureInvoked.get());
+        assertEquals(2, onTragicFailureInvoked.get());
 
     }
 }
