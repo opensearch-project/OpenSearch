@@ -284,30 +284,9 @@ public class IndicesModule extends AbstractModule {
         bind(RetentionLeaseBackgroundSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseSyncer.class).asEagerSingleton();
         if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
-            bind(SegmentReplicationCheckpointPublisher.class).toProvider(CheckpointPublisherProvider.class).asEagerSingleton();
+            bind(SegmentReplicationCheckpointPublisher.class).asEagerSingleton();
         } else {
             bind(SegmentReplicationCheckpointPublisher.class).toInstance(SegmentReplicationCheckpointPublisher.EMPTY);
-        }
-    }
-
-    /**
-     * This provider is necessary while segment replication is behind a feature flag.
-     * We don't want to initialize a PublishCheckpointAction with the feature flag disabled.
-     *
-     * @opensearch.internal
-     */
-    public final static class CheckpointPublisherProvider implements Provider<SegmentReplicationCheckpointPublisher> {
-
-        private final PublishCheckpointAction action;
-
-        @Inject
-        public CheckpointPublisherProvider(PublishCheckpointAction action) {
-            this.action = action;
-        }
-
-        @Override
-        public SegmentReplicationCheckpointPublisher get() {
-            return new SegmentReplicationCheckpointPublisher(action);
         }
     }
 
