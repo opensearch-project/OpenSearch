@@ -108,7 +108,7 @@ public class TransportDeleteIndexTemplateAction extends TransportClusterManagerN
         final ActionListener<AcknowledgedResponse> listener
     ) {
         indexTemplateService.removeTemplates(
-            new MetadataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.clusterManagerNodeTimeout()),
+            new MetadataIndexTemplateService.RemoveRequest(request.name()).clusterManagerTimeout(request.clusterManagerNodeTimeout()),
             new MetadataIndexTemplateService.RemoveListener() {
                 @Override
                 public void onResponse(MetadataIndexTemplateService.RemoveResponse response) {

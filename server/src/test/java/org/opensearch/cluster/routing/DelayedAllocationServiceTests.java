@@ -556,7 +556,7 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
         }
 
         @Override
-        protected void assertClusterOrMasterStateThread() {
+        protected void assertClusterOrClusterManagerStateThread() {
             // do not check this in the unit tests
         }
 

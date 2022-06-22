@@ -296,7 +296,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         TimedClusterApplierService timedClusterApplierService = createTimedClusterService(false);
 
         AtomicBoolean isClusterManager = new AtomicBoolean();
-        timedClusterApplierService.addLocalNodeMasterListener(new LocalNodeMasterListener() {
+        timedClusterApplierService.addLocalNodeClusterManagerListener(new LocalNodeMasterListener() {
             @Override
             public void onClusterManager() {
                 isClusterManager.set(true);

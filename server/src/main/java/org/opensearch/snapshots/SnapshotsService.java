@@ -1181,7 +1181,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             userCreateSnapshotListener.onFailure(ExceptionsHelper.useOrSuppress(e, this.e));
         }
 
-        public void onNoLongerMaster() {
+        public void onNoLongerClusterManager() {
             userCreateSnapshotListener.onFailure(e);
         }
     }
@@ -2096,7 +2096,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 failSnapshotCompletionListeners(snapshot, failure);
                 failAllListenersOnMasterFailOver(new NotMasterException(source));
                 if (listener != null) {
-                    listener.onNoLongerMaster();
+                    listener.onNoLongerClusterManager();
                 }
             }
 
