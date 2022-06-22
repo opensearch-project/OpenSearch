@@ -11,11 +11,15 @@ package org.opensearch.extensions;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessControlException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -55,8 +59,26 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     public void testExtensionsDiscovery() throws Exception {
         Path extensionDir = createTempDir();
-        Path pluginDir1 = extensionDir.resolve("fake-extension-1");
-        Path pluginDir2 = extensionDir.resolve("fake-extension-2");
+
+        List<String> extensionsYmlLines = Arrays.asList(
+            "extensions:",
+            "   - name: firstExtension",
+            "     uniqueId: uniqueid1",
+            "     hostName: 'myIndependentPluginHost1'",
+            "     hostAddress: '127.0.0.0'",
+            "     port: '9300'",
+            "     version: '3.0.0'",
+            "   - name: secondExtension",
+            "     uniqueId: 'uniqueid2'",
+            "     hostName: 'myIndependentPluginHost2'",
+            "     hostAddress: '127.0.0.1'",
+            "     port: '9301'",
+            "     version: '2.0.0'"
+        );
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
+        Path pluginDir1 = extensionDir.resolve("firstExtension");
+        Path pluginDir2 = extensionDir.resolve("secondExtension");
 
         PluginTestUtil.writePluginProperties(
             pluginDir1,
@@ -136,7 +158,25 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testExtensionsInitialize() throws Exception {
-        Path extensionDir = createTempDir().resolve("extensions");
+        Path extensionDir = createTempDir();
+
+        List<String> extensionsYmlLines = Arrays.asList(
+            "extensions:",
+            "   - name: firstExtension",
+            "     uniqueId: uniqueid1",
+            "     hostName: 'myIndependentPluginHost1'",
+            "     hostAddress: '127.0.0.0'",
+            "     port: '9300'",
+            "     version: '3.0.0'",
+            "   - name: secondExtension",
+            "     uniqueId: 'uniqueid2'",
+            "     hostName: 'myIndependentPluginHost2'",
+            "     hostAddress: '127.0.0.1'",
+            "     port: '9301'",
+            "     version: '2.0.0'"
+        );
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
         Path pluginDir1 = extensionDir.resolve("fake-extension-1");
         Path pluginDir2 = extensionDir.resolve("fake-extension-2");
 
@@ -236,7 +276,25 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     public void testOnIndexModule() throws Exception {
 
-        Path extensionDir = createTempDir().resolve("extensions");
+        Path extensionDir = createTempDir();
+
+        List<String> extensionsYmlLines = Arrays.asList(
+            "extensions:",
+            "   - name: firstExtension",
+            "     uniqueId: uniqueid1",
+            "     hostName: 'myIndependentPluginHost1'",
+            "     hostAddress: '127.0.0.0'",
+            "     port: '9300'",
+            "     version: '3.0.0'",
+            "   - name: secondExtension",
+            "     uniqueId: 'uniqueid2'",
+            "     hostName: 'myIndependentPluginHost2'",
+            "     hostAddress: '127.0.0.1'",
+            "     port: '9301'",
+            "     version: '2.0.0'"
+        );
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
         Path pluginDir1 = extensionDir.resolve("fake-extension-1");
         Path pluginDir2 = extensionDir.resolve("fake-extension-2");
 

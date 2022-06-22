@@ -12,8 +12,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -103,53 +103,52 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             return;
         }
         List<Path> pluginDirs = PluginsService.findPluginDirs(extensionsPath);
-        logger.info("Hi");
 
         Set<Extension> extensions = new HashSet<Extension>();
-        logger.info(pluginDirs);
-        logger.info(Paths.get("").toAbsolutePath().toString());
         if (!pluginDirs.isEmpty()) {
             try {
-                extensions = readFromExtensionsYml("extensions.yml").getExtensions();
+                extensions = readFromExtensionsYml(extensionsPath.resolve("extensions.yml")).getExtensions();
             } catch (Exception e) {
-                e.printStackTrace();
                 throw new IllegalStateException("Could not read from extensions.yml");
             }
         }
-
         for (final Path plugin : pluginDirs) {
-            try {
-                PluginInfo pluginInfo = PluginInfo.readFromProperties(plugin);
-                logger.info("Plugin Info: " + pluginInfo);
-                String pluginName = pluginInfo.getName();
-                for (Extension extension : extensions) {
-                    if (extension.getName().equals(pluginName)) {
-                        extensionsSet.add(
-                            new DiscoveryExtension(
+            if (Files.isDirectory(plugin)) {
+                try {
+                    PluginInfo pluginInfo = PluginInfo.readFromProperties(plugin);
+                    String pluginName = pluginInfo.getName();
+                    for (Extension extension : extensions) {
+                        if (extension.getName().equals(pluginName)) {
+                            extensionsSet.add(
+                                new DiscoveryExtension(
+                                    extension.getName(),
+                                    extension.getUniqueId(),
+                                    // placeholder for ephemeral id, will change with POC discovery
+                                    extension.getUniqueId(),
+                                    extension.getHostName(),
+                                    extension.getHostAddress(),
+                                    new TransportAddress(TransportAddress.META_ADDRESS, Integer.parseInt(extension.getPort())),
+                                    new HashMap<String, String>(),
+                                    Version.fromString(extension.getVersion()),
+                                    pluginInfo
+                                )
+                            );
+                            DiscoveryNode extensionNode = new DiscoveryNode(
                                 extension.getName(),
-                                extension.getUniqueId(),
-                                // placeholder for ephemeral id, will change with POC discovery
-                                extension.getUniqueId(),
-                                extension.getHostName(),
-                                extension.getHostAddress(),
-                                new TransportAddress(TransportAddress.META_ADDRESS, Integer.parseInt(extension.getPort())),
-                                new HashMap<String, String>(),
-                                Version.fromString(extension.getVersion()),
-                                pluginInfo
-                            )
-                        );
-                        DiscoveryNode extensionNode = new DiscoveryNode(
-                            extension.getName(),
-                            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                            Version.fromString(extension.getVersion())
-                        );
-                        extensionsNodeSet.add(extensionNode);
-                        break;
+                                new TransportAddress(
+                                    InetAddress.getByName(extension.getHostAddress()),
+                                    Integer.parseInt(extension.getPort())
+                                ),
+                                Version.fromString(extension.getVersion())
+                            );
+                            extensionsNodeSet.add(extensionNode);
+                            break;
+                        }
                     }
-                }
 
-            } catch (final IOException e) {
-                throw new IllegalStateException("Could not load plugin descriptor " + plugin.getFileName(), e);
+                } catch (final IOException e) {
+                    throw new IllegalStateException("Could not load plugin descriptor " + plugin.getFileName(), e);
+                }
             }
         }
         logger.info("Loaded all extensions");
@@ -172,8 +171,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleResponse(PluginResponse response) {
-                logger.info("received {}", response);
-                logger.info("##################\n" + response.getName());
                 for (DiscoveryExtension extension : extensionsSet) {
                     if (extension.getName().equals(response.getName())) {
                         extensionsInitializedSet.add(extension);
@@ -314,10 +311,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    private static ExtensionsSettings readFromExtensionsYml(String filePath) throws Exception {
-        logger.info(Paths.get(filePath).toAbsolutePath().toString());
+    private static ExtensionsSettings readFromExtensionsYml(Path filePath) throws Exception {
         ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
-        InputStream input = ExtensionsOrchestrator.class.getResourceAsStream(filePath);
+        InputStream input = Files.newInputStream(filePath);
         ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
         return extensionSettings;
     }
