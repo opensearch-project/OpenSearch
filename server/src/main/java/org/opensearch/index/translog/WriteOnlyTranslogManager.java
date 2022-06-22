@@ -8,16 +8,13 @@
 
 package org.opensearch.index.translog;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 
 import java.io.IOException;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /***
@@ -28,26 +25,28 @@ import java.util.function.Supplier;
 public class WriteOnlyTranslogManager extends InternalTranslogManager {
 
     public WriteOnlyTranslogManager(
-        EngineConfig engineConfig,
+        TranslogConfig translogConfig,
+        LongSupplier primaryTermSupplier,
+        LongSupplier globalCheckpointSupplier,
+        TranslogDeletionPolicy translogDeletionPolicy,
         ShardId shardId,
         ReleasableLock readLock,
         Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier,
         String translogUUID,
         TranslogEventListener translogEventListener,
-        Runnable ensureOpen,
-        BiConsumer<String, Exception> failEngine,
-        Function<AlreadyClosedException, Boolean> failOnTragicEvent
+        Runnable ensureEngineOpen
     ) throws IOException {
         super(
-            engineConfig,
+            translogConfig,
+            primaryTermSupplier,
+            globalCheckpointSupplier,
+            translogDeletionPolicy,
             shardId,
             readLock,
             localCheckpointTrackerSupplier,
             translogUUID,
             translogEventListener,
-            ensureOpen,
-            failEngine,
-            failOnTragicEvent
+            ensureEngineOpen
         );
     }
 

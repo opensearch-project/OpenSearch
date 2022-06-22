@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog.listener;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.reflect.Proxy;
@@ -23,21 +24,33 @@ public class TranslogListenerTests extends OpenSearchTestCase {
         AtomicInteger onTranslogSyncInvoked = new AtomicInteger();
         AtomicInteger onTranslogRecoveryInvoked = new AtomicInteger();
         AtomicInteger onBeginTranslogRecoveryInvoked = new AtomicInteger();
+        AtomicInteger onFailureInvoked = new AtomicInteger();
+        AtomicInteger onTragicFailureInvoked = new AtomicInteger();
 
         TranslogEventListener listener = new TranslogEventListener() {
             @Override
-            public void onTranslogSync() {
+            public void onAfterTranslogSync() {
                 onTranslogSyncInvoked.incrementAndGet();
             }
 
             @Override
-            public void onTranslogRecovery() {
+            public void onAfterTranslogRecovery() {
                 onTranslogRecoveryInvoked.incrementAndGet();
             }
 
             @Override
             public void onBeginTranslogRecovery() {
                 onBeginTranslogRecoveryInvoked.incrementAndGet();
+            }
+
+            @Override
+            public void onFailure(String reason, Exception ex) {
+                onFailureInvoked.incrementAndGet();
+            }
+
+            @Override
+            public void onTragicFailure(AlreadyClosedException ex) {
+                onTragicFailureInvoked.incrementAndGet();
             }
         };
         TranslogEventListener throwingListener = (TranslogEventListener) Proxy.newProxyInstance(
@@ -55,12 +68,16 @@ public class TranslogListenerTests extends OpenSearchTestCase {
         }
         Collections.shuffle(translogEventListeners, random());
         TranslogEventListener compositeListener = new CompositeTranslogEventListener(translogEventListeners);
-        compositeListener.onTranslogRecovery();
-        compositeListener.onTranslogSync();
+        compositeListener.onAfterTranslogRecovery();
+        compositeListener.onAfterTranslogSync();
         compositeListener.onBeginTranslogRecovery();
+        compositeListener.onFailure("reason", new RuntimeException("reason"));
+        compositeListener.onTragicFailure(new AlreadyClosedException("reason"));
 
         assertEquals(2, onBeginTranslogRecoveryInvoked.get());
         assertEquals(2, onTranslogRecoveryInvoked.get());
         assertEquals(2, onTranslogSyncInvoked.get());
+        assertEquals(2, onFailureInvoked.get());
+        assertEquals(2, onTragicFailureInvoked.get());
     }
 }

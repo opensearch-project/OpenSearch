@@ -12,50 +12,32 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
-import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
-import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.seqno.ReplicationTracker;
-import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.store.Store;
-import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -64,13 +46,10 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
 public abstract class TranslogManagerTestCase extends OpenSearchTestCase {
@@ -110,18 +89,6 @@ public abstract class TranslogManagerTestCase extends OpenSearchTestCase {
             primaryTermSupplier,
             seqNo -> {}
         );
-    }
-
-    protected Store createStore() throws IOException {
-        return createStore(newDirectory());
-    }
-
-    protected Store createStore(final Directory directory) throws IOException {
-        return createStore(INDEX_SETTINGS, directory);
-    }
-
-    protected Store createStore(final IndexSettings indexSettings, final Directory directory) throws IOException {
-        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
     }
 
     private String create(Path path) throws IOException {
@@ -246,243 +213,5 @@ public abstract class TranslogManagerTestCase extends OpenSearchTestCase {
 
     protected static BytesArray bytesArray(String string) {
         return new BytesArray(string.getBytes(Charset.defaultCharset()));
-    }
-
-    public EngineConfig config(
-        IndexSettings indexSettings,
-        Store store,
-        Path translogPath,
-        MergePolicy mergePolicy,
-        ReferenceManager.RefreshListener refreshListener
-    ) {
-        return config(indexSettings, store, translogPath, mergePolicy, refreshListener, null, () -> SequenceNumbers.NO_OPS_PERFORMED);
-    }
-
-    public EngineConfig config(
-        IndexSettings indexSettings,
-        Store store,
-        Path translogPath,
-        MergePolicy mergePolicy,
-        ReferenceManager.RefreshListener refreshListener,
-        Sort indexSort,
-        LongSupplier globalCheckpointSupplier
-    ) {
-        return config(
-            indexSettings,
-            store,
-            translogPath,
-            mergePolicy,
-            refreshListener,
-            indexSort,
-            globalCheckpointSupplier,
-            globalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY
-        );
-    }
-
-    public EngineConfig config(
-        final IndexSettings indexSettings,
-        final Store store,
-        final Path translogPath,
-        final MergePolicy mergePolicy,
-        final ReferenceManager.RefreshListener refreshListener,
-        final Sort indexSort,
-        final LongSupplier globalCheckpointSupplier,
-        final Supplier<RetentionLeases> retentionLeasesSupplier
-    ) {
-        return config(
-            indexSettings,
-            store,
-            translogPath,
-            mergePolicy,
-            refreshListener,
-            null,
-            indexSort,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            new NoneCircuitBreakerService()
-        );
-    }
-
-    public EngineConfig config(
-        IndexSettings indexSettings,
-        Store store,
-        Path translogPath,
-        MergePolicy mergePolicy,
-        ReferenceManager.RefreshListener externalRefreshListener,
-        ReferenceManager.RefreshListener internalRefreshListener,
-        Sort indexSort,
-        @Nullable LongSupplier maybeGlobalCheckpointSupplier,
-        CircuitBreakerService breakerService
-    ) {
-        return config(
-            indexSettings,
-            store,
-            translogPath,
-            mergePolicy,
-            externalRefreshListener,
-            internalRefreshListener,
-            indexSort,
-            maybeGlobalCheckpointSupplier,
-            maybeGlobalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
-            breakerService
-        );
-    }
-
-    public EngineConfig config(
-        final IndexSettings indexSettings,
-        final Store store,
-        final Path translogPath,
-        final MergePolicy mergePolicy,
-        final ReferenceManager.RefreshListener externalRefreshListener,
-        final ReferenceManager.RefreshListener internalRefreshListener,
-        final Sort indexSort,
-        final @Nullable LongSupplier maybeGlobalCheckpointSupplier,
-        final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
-        final CircuitBreakerService breakerService
-    ) {
-        final IndexWriterConfig iwc = newIndexWriterConfig();
-        final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        final Engine.EventListener eventListener = new Engine.EventListener() {
-        }; // we don't need to notify anybody in this test
-        final List<ReferenceManager.RefreshListener> extRefreshListenerList = externalRefreshListener == null
-            ? emptyList()
-            : Collections.singletonList(externalRefreshListener);
-        final List<ReferenceManager.RefreshListener> intRefreshListenerList = internalRefreshListener == null
-            ? emptyList()
-            : Collections.singletonList(internalRefreshListener);
-        final LongSupplier globalCheckpointSupplier;
-        final Supplier<RetentionLeases> retentionLeasesSupplier;
-        if (maybeGlobalCheckpointSupplier == null) {
-            assert maybeRetentionLeasesSupplier == null;
-            final ReplicationTracker replicationTracker = new ReplicationTracker(
-                shardId,
-                allocationId.getId(),
-                indexSettings,
-                randomNonNegativeLong(),
-                SequenceNumbers.NO_OPS_PERFORMED,
-                update -> {},
-                () -> 0L,
-                (leases, listener) -> listener.onResponse(new ReplicationResponse()),
-                () -> SafeCommitInfo.EMPTY
-            );
-            globalCheckpointSupplier = replicationTracker;
-            retentionLeasesSupplier = replicationTracker::getRetentionLeases;
-        } else {
-            assert maybeRetentionLeasesSupplier != null;
-            globalCheckpointSupplier = maybeGlobalCheckpointSupplier;
-            retentionLeasesSupplier = maybeRetentionLeasesSupplier;
-        }
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            null,
-            store,
-            mergePolicy,
-            iwc.getAnalyzer(),
-            iwc.getSimilarity(),
-            new CodecService(null, logger),
-            eventListener,
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            extRefreshListenerList,
-            intRefreshListenerList,
-            indexSort,
-            breakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTerm,
-            tombstoneDocSupplier()
-        );
-    }
-
-    protected EngineConfig config(
-        EngineConfig config,
-        Store store,
-        Path translogPath,
-        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier
-    ) {
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            "test",
-            Settings.builder()
-                .put(config.getIndexSettings().getSettings())
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .build()
-        );
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            indexSettings,
-            config.getWarmer(),
-            store,
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            translogConfig,
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            tombstoneDocSupplier
-        );
-    }
-
-    /**
-     * Creates a tombstone document that only includes uid, seq#, term and version fields.
-     */
-    public static EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
-        return new EngineConfig.TombstoneDocSupplier() {
-            @Override
-            public ParsedDocument newDeleteTombstoneDoc(String id) {
-                final ParseContext.Document doc = new ParseContext.Document();
-                Field uidField = new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
-                doc.add(uidField);
-                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
-                doc.add(versionField);
-                SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-                doc.add(seqID.seqNo);
-                doc.add(seqID.seqNoDocValue);
-                doc.add(seqID.primaryTerm);
-                seqID.tombstoneField.setLongValue(1);
-                doc.add(seqID.tombstoneField);
-                return new ParsedDocument(
-                    versionField,
-                    seqID,
-                    id,
-                    null,
-                    Collections.singletonList(doc),
-                    new BytesArray("{}"),
-                    XContentType.JSON,
-                    null
-                );
-            }
-
-            @Override
-            public ParsedDocument newNoopTombstoneDoc(String reason) {
-                final ParseContext.Document doc = new ParseContext.Document();
-                SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-                doc.add(seqID.seqNo);
-                doc.add(seqID.seqNoDocValue);
-                doc.add(seqID.primaryTerm);
-                seqID.tombstoneField.setLongValue(1);
-                doc.add(seqID.tombstoneField);
-                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
-                doc.add(versionField);
-                BytesRef byteRef = new BytesRef(reason);
-                doc.add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
-                return new ParsedDocument(versionField, seqID, null, null, Collections.singletonList(doc), null, XContentType.JSON, null);
-            }
-        };
     }
 }
