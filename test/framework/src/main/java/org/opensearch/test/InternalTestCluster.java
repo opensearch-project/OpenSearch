@@ -1222,7 +1222,10 @@ public final class InternalTestCluster extends TestCluster {
                     .collect(Collectors.toList());
                 final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
                 // all nodes have a cluster-manager
-                assertTrue("Missing cluster-manager" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
+                assertTrue(
+                    "Missing cluster-manager" + debugString,
+                    states.stream().allMatch(cs -> cs.nodes().getClusterManagerNodeId() != null)
+                );
                 // all nodes have the same cluster-manager (in same term)
                 assertEquals(
                     "Not all cluster-managers in same term" + debugString,
@@ -1964,7 +1967,7 @@ public final class InternalTestCluster extends TestCluster {
     public String getMasterName(@Nullable String viaNode) {
         try {
             Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName();
+            return client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode().getName();
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);
             throw new RuntimeException("Can't get cluster-manager node " + e.getMessage(), e);

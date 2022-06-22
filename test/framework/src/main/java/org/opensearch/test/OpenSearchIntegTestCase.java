@@ -1100,7 +1100,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             clusterManagerClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
             Map<String, Object> clusterManagerStateMap = convertToMap(clusterManagerClusterState);
             int clusterManagerClusterStateSize = clusterManagerClusterState.toString().length();
-            String clusterManagerId = clusterManagerClusterState.nodes().getMasterNodeId();
+            String clusterManagerId = clusterManagerClusterState.nodes().getClusterManagerNodeId();
             for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
@@ -1112,7 +1112,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 // that the cluster-manager node matches the cluster-manager (otherwise there is no requirement for the cluster state to
                 // match)
                 if (clusterManagerClusterState.version() == localClusterState.version()
-                    && clusterManagerId.equals(localClusterState.nodes().getMasterNodeId())) {
+                    && clusterManagerId.equals(localClusterState.nodes().getClusterManagerNodeId())) {
                     try {
                         assertEquals(
                             "cluster state UUID does not match",

@@ -191,7 +191,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
                 DiscoveryNodes.builder()
                     .add(clusterManagerNode)
                     .localNodeId(clusterManagerNode.getId())
-                    .masterNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
                     .add(bwcNode)
             )
             .build();

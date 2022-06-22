@@ -69,7 +69,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                     .actionGet()
                     .getState()
                     .nodes()
-                    .getMasterNodeId(),
+                    .getClusterManagerNodeId(),
                 nullValue()
             );
             fail("should not be able to find cluster-manager");
@@ -87,7 +87,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(clusterManagerNodeName)
         );
@@ -100,7 +100,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(clusterManagerNodeName)
         );
@@ -119,7 +119,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                     .actionGet()
                     .getState()
                     .nodes()
-                    .getMasterNodeId(),
+                    .getClusterManagerNodeId(),
                 nullValue()
             );
             fail("should not be able to find cluster-manager");
@@ -140,7 +140,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(nextClusterManagerEligibleNodeName)
         );
@@ -153,7 +153,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(nextClusterManagerEligibleNodeName)
         );
@@ -173,7 +173,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                     .actionGet()
                     .getState()
                     .nodes()
-                    .getMasterNodeId(),
+                    .getClusterManagerNodeId(),
                 nullValue()
             );
             fail("should not be able to find cluster-manager");
@@ -191,7 +191,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(clusterManagerNodeName)
         );
@@ -204,7 +204,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(clusterManagerNodeName)
         );
@@ -220,7 +220,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(clusterManagerNodeName)
         );
@@ -233,7 +233,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(clusterManagerNodeName)
         );
@@ -246,7 +246,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(clusterManagerNodeName)
         );
@@ -264,7 +264,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                     .actionGet()
                     .getState()
                     .nodes()
-                    .getMasterNode()
+                    .getClusterManagerNode()
                     .getName(),
                 equalTo(nextClusterManagerEligableNodeName)
             );
@@ -277,7 +277,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                     .actionGet()
                     .getState()
                     .nodes()
-                    .getMasterNode()
+                    .getClusterManagerNode()
                     .getName(),
                 equalTo(nextClusterManagerEligableNodeName)
             );
@@ -292,7 +292,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(nextClusterManagerEligableNodeName)
         );
@@ -305,7 +305,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode()
+                .getClusterManagerNode()
                 .getName(),
             equalTo(nextClusterManagerEligableNodeName)
         );

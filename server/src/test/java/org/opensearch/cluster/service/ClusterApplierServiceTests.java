@@ -118,7 +118,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
                     DiscoveryNodes.builder()
                         .add(localNode)
                         .localNodeId(localNode.getId())
-                        .masterNodeId(makeClusterManager ? localNode.getId() : null)
+                        .clusterManagerNodeId(makeClusterManager ? localNode.getId() : null)
                 )
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                 .build()
@@ -310,20 +310,20 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
 
         ClusterState state = timedClusterApplierService.state();
         DiscoveryNodes nodes = state.nodes();
-        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes).clusterManagerNodeId(nodes.getLocalNodeId());
         state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
         setState(timedClusterApplierService, state);
         assertThat(isClusterManager.get(), is(true));
 
         nodes = state.nodes();
-        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
+        nodesBuilder = DiscoveryNodes.builder(nodes).clusterManagerNodeId(null);
         state = ClusterState.builder(state)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
             .nodes(nodesBuilder)
             .build();
         setState(timedClusterApplierService, state);
         assertThat(isClusterManager.get(), is(false));
-        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
+        nodesBuilder = DiscoveryNodes.builder(nodes).clusterManagerNodeId(nodes.getLocalNodeId());
         state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
         setState(timedClusterApplierService, state);
         assertThat(isClusterManager.get(), is(true));

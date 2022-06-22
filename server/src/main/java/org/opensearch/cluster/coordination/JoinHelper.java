@@ -156,16 +156,20 @@ public class JoinHelper {
                             + term
                             + "), there is a newer cluster-manager"
                     );
-                } else if (currentState.nodes().getMasterNodeId() == null && joiningTasks.stream().anyMatch(Task::isBecomeMasterTask)) {
-                    assert currentState.term() < term : "there should be at most one become cluster-manager task per election (= by term)";
-                    final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
-                        .term(term)
-                        .build();
-                    final Metadata metadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordinationMetadata).build();
-                    currentState = ClusterState.builder(currentState).metadata(metadata).build();
-                } else if (currentState.nodes().isLocalNodeElectedMaster()) {
-                    assert currentState.term() == term : "term should be stable for the same cluster-manager";
-                }
+                } else if (currentState.nodes().getClusterManagerNodeId() == null
+                    && joiningTasks.stream().anyMatch(Task::isBecomeMasterTask)) {
+                        assert currentState.term() < term
+                            : "there should be at most one become cluster-manager task per election (= by term)";
+                        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
+                            .term(term)
+                            .build();
+                        final Metadata metadata = Metadata.builder(currentState.metadata())
+                            .coordinationMetadata(coordinationMetadata)
+                            .build();
+                        currentState = ClusterState.builder(currentState).metadata(metadata).build();
+                    } else if (currentState.nodes().isLocalNodeElectedClusterManager()) {
+                        assert currentState.term() == term : "term should be stable for the same cluster-manager";
+                    }
                 return super.execute(currentState, joiningTasks);
             }
 

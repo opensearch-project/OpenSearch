@@ -617,7 +617,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     assertTrue(nodeId + " has been bootstrapped", clusterNode.coordinator.isInitialConfigurationSet());
                     assertThat(
                         nodeId + " has correct cluster-manager",
-                        clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
+                        clusterNode.getLastAppliedClusterState().nodes().getClusterManagerNode(),
                         equalTo(leader.getLocalNode())
                     );
                     assertThat(
@@ -634,7 +634,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(
                         nodeId + " has no cluster-manager",
-                        clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
+                        clusterNode.getLastAppliedClusterState().nodes().getClusterManagerNode(),
                         nullValue()
                     );
                     assertThat(
@@ -1291,7 +1291,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         // in this case, we know for sure that event was not processed by the system and will not change history
                         // remove event to help avoid bloated history and state space explosion in linearizability checker
                         history.remove(eventId);
@@ -1346,9 +1346,9 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                         }
 
                         @Override
-                        public void onNoLongerMaster(String source) {
+                        public void onNoLongerClusterManager(String source) {
                             logger.trace("no longer cluster-manager: [{}]", source);
-                            taskListener.onNoLongerMaster(source);
+                            taskListener.onNoLongerClusterManager(source);
                         }
 
                         @Override

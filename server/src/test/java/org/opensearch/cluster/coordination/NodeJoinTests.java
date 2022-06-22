@@ -336,17 +336,17 @@ public class NodeJoinTests extends OpenSearchTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
         assertFalse(isLocalNodeElectedMaster());
-        assertNull(coordinator.getStateForClusterManagerService().nodes().getMasterNodeId());
+        assertNull(coordinator.getStateForClusterManagerService().nodes().getClusterManagerNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture fut = joinNodeAsync(
             new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
         );
         assertEquals(Coordinator.Mode.LEADER, coordinator.getMode());
-        assertNull(coordinator.getStateForClusterManagerService().nodes().getMasterNodeId());
+        assertNull(coordinator.getStateForClusterManagerService().nodes().getClusterManagerNodeId());
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(fut.isDone());
         assertTrue(isLocalNodeElectedMaster());
-        assertTrue(coordinator.getStateForClusterManagerService().nodes().isLocalNodeElectedMaster());
+        assertTrue(coordinator.getStateForClusterManagerService().nodes().isLocalNodeElectedClusterManager());
     }
 
     public void testJoinWithHigherTermButBetterStateGetsRejected() {
@@ -746,7 +746,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             throw new RuntimeException(e);
         }
 
-        assertTrue(MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster());
+        assertTrue(MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedClusterManager());
         for (DiscoveryNode successfulNode : successfulNodes) {
             assertTrue(successfulNode + " joined cluster", clusterStateHasNode(successfulNode));
             assertFalse(successfulNode + " voted for cluster-manager", coordinator.missingJoinVoteFrom(successfulNode));
@@ -776,7 +776,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     private boolean isLocalNodeElectedMaster() {
-        return MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster();
+        return MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedClusterManager();
     }
 
     private boolean clusterStateHasNode(DiscoveryNode node) {

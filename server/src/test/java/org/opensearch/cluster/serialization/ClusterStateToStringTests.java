@@ -67,7 +67,7 @@ public class ClusterStateToStringTests extends OpenSearchAllocationTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node_foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT))
             .localNodeId("node_foo")
-            .masterNodeId("node_foo")
+            .clusterManagerNodeId("node_foo")
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))

@@ -123,7 +123,7 @@ public final class ConsistentSettingsService {
                     "no published hash for the consistent secure setting [{}] but it exists on the local node",
                     concreteSecureSetting.getKey()
                 );
-                if (state.nodes().isLocalNodeElectedMaster()) {
+                if (state.nodes().isLocalNodeElectedClusterManager()) {
                     throw new IllegalStateException(
                         "Master node cannot validate consistent setting. No published hash for ["
                             + concreteSecureSetting.getKey()
@@ -162,7 +162,7 @@ public final class ConsistentSettingsService {
                         concreteSecureSetting.getKey(),
                         computedSaltedHash
                     );
-                    if (state.nodes().isLocalNodeElectedMaster()) {
+                    if (state.nodes().isLocalNodeElectedClusterManager()) {
                         throw new IllegalStateException(
                             "Master node cannot validate consistent setting. The published hash ["
                                 + publishedHash

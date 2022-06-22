@@ -143,7 +143,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         if (joiningNodes.size() == 1 && joiningNodes.get(0).isFinishElectionTask()) {
             return results.successes(joiningNodes).build(currentState);
-        } else if (currentNodes.getMasterNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
+        } else if (currentNodes.getClusterManagerNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
             assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask) : "becoming a cluster-manager but election is not finished "
                 + joiningNodes;
             // use these joins to try and become the cluster-manager.
@@ -151,10 +151,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             // during the cluster state publishing guarantees that we have enough
             newState = becomeClusterManagerAndTrimConflictingNodes(currentState, joiningNodes);
             nodesChanged = true;
-        } else if (currentNodes.isLocalNodeElectedMaster() == false) {
+        } else if (currentNodes.isLocalNodeElectedClusterManager() == false) {
             logger.trace(
                 "processing node joins, but we are not the cluster-manager. current cluster-manager: {}",
-                currentNodes.getMasterNode()
+                currentNodes.getClusterManagerNode()
             );
             throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not cluster-manager for join request");
         } else {
@@ -163,7 +163,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
 
-        assert nodesBuilder.isLocalNodeElectedMaster();
+        assert nodesBuilder.isLocalNodeElectedClusterManager();
 
         Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
         Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
@@ -245,10 +245,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     protected ClusterState.Builder becomeClusterManagerAndTrimConflictingNodes(ClusterState currentState, List<Task> joiningNodes) {
-        assert currentState.nodes().getMasterNodeId() == null : currentState;
+        assert currentState.nodes().getClusterManagerNodeId() == null : currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
-        nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
+        nodesBuilder.clusterManagerNodeId(currentState.nodes().getLocalNodeId());
 
         for (final Task joinTask : joiningNodes) {
             if (joinTask.isBecomeMasterTask()) {
@@ -341,7 +341,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     @Override
-    public boolean runOnlyOnMaster() {
+    public boolean runOnlyOnClusterManager() {
         // we validate that we are allowed to change the cluster state during cluster state processing
         return false;
     }

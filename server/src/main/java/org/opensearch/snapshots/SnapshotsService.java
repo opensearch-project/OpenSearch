@@ -1120,7 +1120,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
 
                         @Override
-                        public void onNoLongerMaster(String source) {
+                        public void onNoLongerClusterManager(String source) {
                             // We are not longer a cluster-manager - we shouldn't try to do any cleanup
                             // The new cluster-manager will take care of it
                             logger.warn(
@@ -1309,7 +1309,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // We don't remove old cluster-manager when cluster-manager flips anymore. So, we need to check for change in
                 // cluster-manager
                 SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                final boolean newClusterManager = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+                final boolean newClusterManager = event.previousState().nodes().isLocalNodeElectedClusterManager() == false;
                 processExternalChanges(
                     newClusterManager || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)
@@ -2091,7 +2091,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public void onNoLongerMaster(String source) {
+            public void onNoLongerClusterManager(String source) {
                 failure.addSuppressed(new SnapshotException(snapshot, "no longer cluster-manager"));
                 failSnapshotCompletionListeners(snapshot, failure);
                 failAllListenersOnMasterFailOver(new NotMasterException(source));

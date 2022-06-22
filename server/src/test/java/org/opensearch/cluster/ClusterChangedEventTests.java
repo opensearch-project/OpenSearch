@@ -319,10 +319,10 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
         final DiscoveryNodes.Builder builderLocalIsMaster = DiscoveryNodes.builder();
         final DiscoveryNode node0 = newNode("node_0", Set.of(DiscoveryNodeRole.MASTER_ROLE));
         final DiscoveryNode node1 = newNode("node_1", Set.of(DiscoveryNodeRole.DATA_ROLE));
-        builderLocalIsMaster.add(node0).add(node1).masterNodeId(node0.getId()).localNodeId(node0.getId());
+        builderLocalIsMaster.add(node0).add(node1).clusterManagerNodeId(node0.getId()).localNodeId(node0.getId());
 
         final DiscoveryNodes.Builder builderLocalNotMaster = DiscoveryNodes.builder();
-        builderLocalNotMaster.add(node0).add(node1).masterNodeId(node0.getId()).localNodeId(node1.getId());
+        builderLocalNotMaster.add(node0).add(node1).clusterManagerNodeId(node0.getId()).localNodeId(node1.getId());
 
         ClusterState previousState = createSimpleClusterState();
         final Metadata metadata = createMetadata(initialIndices);
@@ -476,7 +476,7 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
             Set<DiscoveryNodeRole> roles = new HashSet<>();
             if (i == 0) {
                 // the cluster-manager node
-                builder.masterNodeId(nodeId);
+                builder.clusterManagerNodeId(nodeId);
                 roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
             } else if (i == 1) {
                 // the alternate cluster-manager node

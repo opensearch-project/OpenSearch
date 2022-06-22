@@ -1376,7 +1376,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 .map(node -> node.clusterService.state())
                 .collect(Collectors.toList());
             final Set<String> clusterManagerNodeIds = clusterStates.stream()
-                .map(clusterState -> clusterState.nodes().getMasterNodeId())
+                .map(clusterState -> clusterState.nodes().getClusterManagerNodeId())
                 .collect(Collectors.toSet());
             final Set<Long> terms = clusterStates.stream().map(ClusterState::term).collect(Collectors.toSet());
             final List<Long> versions = clusterStates.stream().map(ClusterState::version).distinct().collect(Collectors.toList());
@@ -1607,7 +1607,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
          * @return Cluster Manager Node
          */
         public TestClusterNode currentClusterManager(ClusterState state) {
-            TestClusterNode clusterManager = nodes.get(state.nodes().getMasterNode().getName());
+            TestClusterNode clusterManager = nodes.get(state.nodes().getClusterManagerNode().getName());
             assertNotNull(clusterManager);
             assertTrue(clusterManager.node.isMasterNode());
             return clusterManager;

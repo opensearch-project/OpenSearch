@@ -141,7 +141,7 @@ public class BatchedRerouteService implements RerouteService {
                 }
 
                 @Override
-                public void onNoLongerMaster(String source) {
+                public void onNoLongerClusterManager(String source) {
                     synchronized (mutex) {
                         if (pendingRerouteListeners == currentListeners) {
                             pendingRerouteListeners = null;

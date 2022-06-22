@@ -126,7 +126,11 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
         transportService.acceptIncomingRequests();
 
         final ClusterState.Builder builder = builder(new ClusterName("cluster")).nodes(
-            new Builder().add(localNode).add(otherNode1).add(otherNode2).localNodeId(localNode.getId()).masterNodeId(localNode.getId())
+            new Builder().add(localNode)
+                .add(otherNode1)
+                .add(otherNode2)
+                .localNodeId(localNode.getId())
+                .clusterManagerNodeId(localNode.getId())
         );
         builder.metadata(
             Metadata.builder()

@@ -280,7 +280,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return;
         }
 
-        DiscoveryNode clusterManagerNode = state.nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = state.nodes().getClusterManagerNode();
 
         // remove items from cache which are not in our routing table anymore and
         // resend failures that have not executed on cluster-manager yet
@@ -517,7 +517,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
                 if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(
-                        state.nodes().getMasterNode(),
+                        state.nodes().getClusterManagerNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(
                             indexMetadata.getIndex().getName(),
                             indexMetadata.getIndexUUID(),
@@ -564,7 +564,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     reason = "mapping update failed";
                     if (indexService.updateMapping(currentIndexMetadata, newIndexMetadata) && sendRefreshMapping) {
                         nodeMappingRefreshAction.nodeMappingRefresh(
-                            state.nodes().getMasterNode(),
+                            state.nodes().getClusterManagerNode(),
                             new NodeMappingRefreshAction.NodeMappingRefreshRequest(
                                 newIndexMetadata.getIndex().getName(),
                                 newIndexMetadata.getIndexUUID(),
@@ -690,15 +690,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     "{} cluster-manager marked shard as initializing, but shard has state [{}], resending shard started to {}",
                     shardRouting.shardId(),
                     state,
-                    nodes.getMasterNode()
+                    nodes.getClusterManagerNode()
                 );
             }
-            if (nodes.getMasterNode() != null) {
+            if (nodes.getClusterManagerNode() != null) {
                 shardStateAction.shardStarted(
                     shardRouting,
                     primaryTerm,
                     "master "
-                        + nodes.getMasterNode()
+                        + nodes.getClusterManagerNode()
                         + " marked shard as initializing, but shard state is ["
                         + state
                         + "], mark shard as started",

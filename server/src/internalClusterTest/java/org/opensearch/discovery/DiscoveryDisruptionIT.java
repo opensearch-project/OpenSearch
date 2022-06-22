@@ -71,7 +71,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         TransportService clusterManagerTranspotService = internalCluster().getInstance(
             TransportService.class,
-            discoveryNodes.getMasterNode().getName()
+            discoveryNodes.getClusterManagerNode().getName()
         );
 
         logger.info("blocking requests from non cluster-manager [{}] to cluster-manager [{}]", nonClusterManagerNode, clusterManagerNode);

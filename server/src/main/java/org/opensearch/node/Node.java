@@ -1129,7 +1129,7 @@ public class Node implements Closeable {
             ClusterState clusterState = clusterService.state();
             ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
 
-            if (clusterState.nodes().getMasterNodeId() == null) {
+            if (clusterState.nodes().getClusterManagerNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -1148,7 +1148,7 @@ public class Node implements Closeable {
                         logger.warn("timed out while waiting for initial discovery state - timeout: {}", initialStateTimeout);
                         latch.countDown();
                     }
-                }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
+                }, state -> state.nodes().getClusterManagerNodeId() != null, initialStateTimeout);
 
                 try {
                     latch.await();

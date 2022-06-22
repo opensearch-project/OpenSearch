@@ -182,7 +182,7 @@ public class ShardStateAction {
         final ActionListener<Void> listener
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
-        DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = currentState.nodes().getClusterManagerNode();
         Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
         if (clusterManagerNode == null) {
             logger.warn("no cluster-manager known for action [{}] for shard entry [{}]", actionName, request);
@@ -385,7 +385,7 @@ public class ShardStateAction {
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         logger.error("{} no longer cluster-manager while failing shard [{}]", request.shardId, request);
                         try {
                             channel.sendResponse(new NotMasterException(source));

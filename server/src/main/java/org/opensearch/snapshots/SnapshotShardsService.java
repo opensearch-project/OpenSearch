@@ -150,8 +150,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
             }
 
-            String previousClusterManagerNodeId = event.previousState().nodes().getMasterNodeId();
-            String currentMasterNodeId = event.state().nodes().getMasterNodeId();
+            String previousClusterManagerNodeId = event.previousState().nodes().getClusterManagerNodeId();
+            String currentMasterNodeId = event.state().nodes().getClusterManagerNodeId();
             if (currentMasterNodeId != null && currentMasterNodeId.equals(previousClusterManagerNodeId) == false) {
                 syncShardStatsOnNewMaster(event);
             }

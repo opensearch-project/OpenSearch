@@ -133,7 +133,7 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
 
     private static void addClusterStateApplier(ClusterService clusterService) {
         clusterService.addStateApplier(event -> {
-            if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false) {
+            if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedClusterManager() == false) {
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = event.state()
                     .custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
                 if (repositoryCleanupInProgress.hasCleanupInProgress() == false) {

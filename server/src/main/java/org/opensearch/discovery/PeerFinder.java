@@ -291,7 +291,7 @@ public abstract class PeerFinder {
         }
 
         logger.trace("probing cluster-manager nodes from cluster state: {}", lastAcceptedNodes);
-        for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getMasterNodes().values()) {
+        for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getClusterManagerNodes().values()) {
             startProbe(discoveryNodeObjectCursor.value.getAddress());
         }
 

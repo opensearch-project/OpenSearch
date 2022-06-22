@@ -136,7 +136,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 DiscoveryNodes.builder()
                     .add(localNode)
                     .localNodeId(localNode.getId())
-                    .masterNodeId(makeClusterManager ? localNode.getId() : null)
+                    .clusterManagerNodeId(makeClusterManager ? localNode.getId() : null)
             )
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
@@ -806,7 +806,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     Version.CURRENT
                 );
                 final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
-                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).clusterManagerNodeId(localNode.getId()))
                     .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                     .build();
                 final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
@@ -982,7 +982,9 @@ public class MasterServiceTests extends OpenSearchTestCase {
         ) {
 
             final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
-                .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+                .nodes(
+                    DiscoveryNodes.builder().add(node1).add(node2).add(node3).localNodeId(node1.getId()).clusterManagerNodeId(node1.getId())
+                )
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                 .build();
             final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
