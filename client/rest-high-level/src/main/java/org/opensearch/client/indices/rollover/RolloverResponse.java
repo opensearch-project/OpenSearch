@@ -32,7 +32,7 @@
 
 package org.opensearch.client.indices.rollover;
 
-import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.ShardsAcknowledgedResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.XContentParser;

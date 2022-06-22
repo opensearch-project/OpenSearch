@@ -41,7 +41,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.cluster.RemoteConnectionInfo;
 import org.opensearch.client.cluster.RemoteInfoRequest;
 import org.opensearch.client.cluster.RemoteInfoResponse;

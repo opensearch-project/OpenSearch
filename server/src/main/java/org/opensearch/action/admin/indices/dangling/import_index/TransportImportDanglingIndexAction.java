@@ -50,7 +50,7 @@ import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexRespon
 import org.opensearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.inject.Inject;

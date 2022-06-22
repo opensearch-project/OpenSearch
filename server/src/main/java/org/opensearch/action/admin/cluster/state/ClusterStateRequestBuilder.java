@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.state;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
@@ -42,7 +42,7 @@ import org.opensearch.common.unit.TimeValue;
  *
  * @opensearch.internal
  */
-public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+public class ClusterStateRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     ClusterStateRequest,
     ClusterStateResponse,
     ClusterStateRequestBuilder> {

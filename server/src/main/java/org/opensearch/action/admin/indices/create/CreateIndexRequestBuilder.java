@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;

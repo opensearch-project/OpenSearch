@@ -32,7 +32,7 @@
 
 package org.opensearch.repositories.gcs;
 
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;

@@ -33,7 +33,7 @@ package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -64,7 +64,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
+public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
 
     private final SystemIndices systemIndices;
@@ -112,7 +112,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
-    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
+    protected void clusterManagerOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices;
         // Switch to a context which will drop any deprecation warnings, because there may be indices resolved here which are not
         // returned in the final response. We'll add warnings back later if necessary in checkSystemIndexAccess.

@@ -39,7 +39,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -72,7 +72,7 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
+public class TransportClusterHealthAction extends TransportClusterManagerNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
@@ -118,14 +118,17 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
     @Override
-    protected final void masterOperation(ClusterHealthRequest request, ClusterState state, ActionListener<ClusterHealthResponse> listener)
-        throws Exception {
+    protected final void clusterManagerOperation(
+        ClusterHealthRequest request,
+        ClusterState state,
+        ActionListener<ClusterHealthResponse> listener
+    ) throws Exception {
         logger.warn("attempt to execute a cluster health operation without a task");
         throw new UnsupportedOperationException("task parameter is required for this operation");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final Task task,
         final ClusterHealthRequest request,
         final ClusterState unusedState,

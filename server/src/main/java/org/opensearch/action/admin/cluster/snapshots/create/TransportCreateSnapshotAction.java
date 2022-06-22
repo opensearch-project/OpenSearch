@@ -34,7 +34,7 @@ package org.opensearch.action.admin.cluster.snapshots.create;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -53,7 +53,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportCreateSnapshotAction extends TransportMasterNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
+public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -98,7 +98,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final CreateSnapshotRequest request,
         ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener

@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
@@ -39,16 +39,16 @@ import org.opensearch.cluster.ClusterState;
 public class TransportMasterNodeActionUtils {
 
     /**
-     * Allows to directly call {@link TransportMasterNodeAction#masterOperation(MasterNodeRequest, ClusterState, ActionListener)} which is
+     * Allows to directly call {@link TransportClusterManagerNodeAction#clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)} which is
      * a protected method.
      */
-    public static <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> void runClusterManagerOperation(
-        TransportMasterNodeAction<Request, Response> clusterManagerNodeAction,
+    public static <Request extends ClusterManagerNodeRequest<Request>, Response extends ActionResponse> void runClusterManagerOperation(
+        TransportClusterManagerNodeAction<Request, Response> clusterManagerNodeAction,
         Request request,
         ClusterState clusterState,
         ActionListener<Response> actionListener
     ) throws Exception {
         assert clusterManagerNodeAction.checkBlock(request, clusterState) == null;
-        clusterManagerNodeAction.masterOperation(request, clusterState, actionListener);
+        clusterManagerNodeAction.clusterManagerOperation(request, clusterState, actionListener);
     }
 }

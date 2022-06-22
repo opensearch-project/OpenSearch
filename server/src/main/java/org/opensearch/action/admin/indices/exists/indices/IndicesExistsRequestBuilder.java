@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.exists.indices;
 
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -40,7 +40,7 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+public class IndicesExistsRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     IndicesExistsRequest,
     IndicesExistsResponse,
     IndicesExistsRequestBuilder> {

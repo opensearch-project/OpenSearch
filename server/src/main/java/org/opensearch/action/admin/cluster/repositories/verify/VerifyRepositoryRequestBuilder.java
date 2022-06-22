@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.repositories.verify;
 
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -40,7 +40,7 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class VerifyRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<
+public class VerifyRepositoryRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     VerifyRepositoryRequest,
     VerifyRepositoryResponse,
     VerifyRepositoryRequestBuilder> {

@@ -100,7 +100,7 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.node.NodeClient;
