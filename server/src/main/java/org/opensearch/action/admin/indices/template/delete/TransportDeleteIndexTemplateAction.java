@@ -102,13 +102,13 @@ public class TransportDeleteIndexTemplateAction extends TransportClusterManagerN
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteIndexTemplateRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
         indexTemplateService.removeTemplates(
-            new MetadataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()),
+            new MetadataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.clusterManagerNodeTimeout()),
             new MetadataIndexTemplateService.RemoveListener() {
                 @Override
                 public void onResponse(MetadataIndexTemplateService.RemoveResponse response) {

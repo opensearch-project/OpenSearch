@@ -77,12 +77,12 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     }
 
     @Override
-    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
+    protected final void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        doMasterOperation(request, concreteIndices, state, listener);
+        doClusterManagerOperation(request, concreteIndices, state, listener);
     }
 
-    protected abstract void doMasterOperation(
+    protected abstract void doClusterManagerOperation(
         Request request,
         String[] concreteIndices,
         ClusterState state,

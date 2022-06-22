@@ -112,7 +112,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         }
 
         @Override
-        protected void masterOperation(CreateIndexRequest request, ClusterState state, ActionListener<CreateIndexResponse> finalListener) {
+        protected void clusterManagerOperation(
+            CreateIndexRequest request,
+            ClusterState state,
+            ActionListener<CreateIndexResponse> finalListener
+        ) {
             AtomicReference<String> indexNameRef = new AtomicReference<>();
             ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(response -> {
                 String indexName = indexNameRef.get();
@@ -144,7 +148,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         if (dataStreamTemplate != null) {
                             CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
                                 request.index(),
-                                request.masterNodeTimeout(),
+                                request.clusterManagerNodeTimeout(),
                                 request.timeout()
                             );
                             ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
@@ -157,7 +161,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 request.cause(),
                                 indexName,
                                 request.index()
-                            ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+                            ).ackTimeout(request.timeout()).masterNodeTimeout(request.clusterManagerNodeTimeout());
                             return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                         }
                     }

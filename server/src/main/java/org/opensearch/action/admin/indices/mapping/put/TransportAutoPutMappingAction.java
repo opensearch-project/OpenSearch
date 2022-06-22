@@ -107,7 +107,7 @@ public class TransportAutoPutMappingAction extends TransportClusterManagerNodeAc
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutMappingRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
