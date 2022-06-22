@@ -159,8 +159,8 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
 
     public ClusterHealthRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
-        if (masterNodeTimeout == DEFAULT_MASTER_NODE_TIMEOUT) {
-            masterNodeTimeout = timeout;
+        if (clusterManagerNodeTimeout == DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT) {
+            clusterManagerNodeTimeout = timeout;
         }
         return this;
     }

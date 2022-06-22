@@ -377,7 +377,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public TimeValue timeout() {
-                return request.masterNodeTimeout();
+                return request.clusterManagerNodeTimeout();
             }
         });
     }
@@ -541,7 +541,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public TimeValue timeout() {
-                return request.masterNodeTimeout();
+                return request.clusterManagerNodeTimeout();
             }
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
@@ -663,7 +663,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public TimeValue timeout() {
-                return request.masterNodeTimeout();
+                return request.clusterManagerNodeTimeout();
             }
         }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
     }
@@ -2321,7 +2321,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public TimeValue timeout() {
-                return request.masterNodeTimeout();
+                return request.clusterManagerNodeTimeout();
             }
         }, "delete snapshot", listener::onFailure);
     }
@@ -3654,7 +3654,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         @Override
-        protected void masterOperation(
+        protected void clusterManagerOperation(
             UpdateIndexShardSnapshotStatusRequest request,
             ClusterState state,
             ActionListener<UpdateIndexShardSnapshotStatusResponse> listener

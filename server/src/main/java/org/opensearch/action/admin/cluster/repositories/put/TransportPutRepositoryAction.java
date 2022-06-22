@@ -95,7 +95,7 @@ public class TransportPutRepositoryAction extends TransportClusterManagerNodeAct
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutRepositoryRequest request,
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

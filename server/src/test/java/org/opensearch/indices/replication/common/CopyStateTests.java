@@ -47,7 +47,15 @@ public class CopyStateTests extends IndexShardTestCase {
     );
 
     public void testCopyStateCreation() throws IOException {
-        CopyState copyState = new CopyState(createMockIndexShard());
+        final IndexShard mockIndexShard = createMockIndexShard();
+        ReplicationCheckpoint testCheckpoint = new ReplicationCheckpoint(
+            mockIndexShard.shardId(),
+            mockIndexShard.getOperationPrimaryTerm(),
+            0L,
+            mockIndexShard.getProcessedLocalCheckpoint(),
+            0L
+        );
+        CopyState copyState = new CopyState(testCheckpoint, mockIndexShard);
         ReplicationCheckpoint checkpoint = copyState.getCheckpoint();
         assertEquals(TEST_SHARD_ID, checkpoint.getShardId());
         // version was never set so this should be zero

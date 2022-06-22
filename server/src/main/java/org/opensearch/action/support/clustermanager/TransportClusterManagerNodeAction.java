@@ -117,13 +117,23 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
     protected abstract Response read(StreamInput in) throws IOException;
 
-    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
+    protected abstract void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+        throws Exception;
+
+    // Preserve the method so that o.o.action.support.master.info.TransportClusterInfoAction class
+    // can override masterOperation() for backwards compatibility.
+    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)} */
+    @Deprecated
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        clusterManagerOperation(request, state, listener);
+    };
 
     /**
      * Override this operation if access to the task parameter is needed
      */
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        masterOperation(request, state, listener);
+    protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
+        throws Exception {
+        clusterManagerOperation(request, state, listener);
     }
 
     protected boolean localExecute(Request request) {
@@ -201,7 +211,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             }
                         });
                         threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
+                            .execute(ActionRunnable.wrap(delegate, l -> clusterManagerOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
@@ -209,7 +219,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         retryOnMasterChange(clusterState, null);
                     } else {
                         DiscoveryNode clusterManagerNode = nodes.getMasterNode();
-                        final String actionName = getMasterActionName(clusterManagerNode);
+                        final String actionName = getClusterManagerActionName(clusterManagerNode);
                         transportService.sendRequest(
                             clusterManagerNode,
                             actionName,
@@ -248,7 +258,8 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
         private void retry(ClusterState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
             if (observer == null) {
-                final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
+                final long remainingTimeoutMS = request.clusterManagerNodeTimeout().millis() - (threadPool.relativeTimeInMillis()
+                    - startTime);
                 if (remainingTimeoutMS <= 0) {
                     logger.debug(() -> new ParameterizedMessage("timed out before retrying [{}] after failure", actionName), failure);
                     listener.onFailure(new ClusterManagerNotDiscoveredException(failure));
@@ -289,7 +300,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
      * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
      * This mainly for backwards compatibility should be used rarely
      */
-    protected String getMasterActionName(DiscoveryNode node) {
+    protected String getClusterManagerActionName(DiscoveryNode node) {
         return actionName;
     }
 }
