@@ -76,6 +76,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         final SegmentReplicationTarget spy = Mockito.spy(target);
         doAnswer(invocation -> {
+            // setting stage to REPLICATING so transition in markAsDone succeeds on listener completion
+            target.state().setStage(SegmentReplicationState.Stage.REPLICATING);
             final ActionListener<Void> listener = invocation.getArgument(0);
             listener.onResponse(null);
             return null;
@@ -98,7 +100,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
-                    assertEquals(SegmentReplicationState.Stage.INIT, state.getStage());
+                    assertEquals(SegmentReplicationState.Stage.REPLICATING, state.getStage());
                     assertEquals(expectedError, e.getCause());
                     assertTrue(sendShardFailure);
                 }
@@ -106,6 +108,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         final SegmentReplicationTarget spy = Mockito.spy(target);
         doAnswer(invocation -> {
+            // setting stage to REPLICATING so transition in markAsDone succeeds on listener completion
+            target.state().setStage(SegmentReplicationState.Stage.REPLICATING);
             final ActionListener<Void> listener = invocation.getArgument(0);
             listener.onFailure(expectedError);
             return null;
