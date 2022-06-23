@@ -258,7 +258,7 @@ public final class ConsistentSettingsService {
         }
 
         @Override
-        public void onClusterManager() {
+        public void onMaster() {
             clusterService.submitStateUpdateTask("publish-secure-settings-hashes", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -284,7 +284,7 @@ public final class ConsistentSettingsService {
         }
 
         @Override
-        public void offClusterManager() {
+        public void offMaster() {
             logger.trace("I am no longer cluster-manager, nothing to do");
         }
     }
