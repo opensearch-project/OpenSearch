@@ -67,7 +67,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     private final Path extensionsPath;
     final Set<DiscoveryExtension> extensionsSet;
     Set<DiscoveryExtension> extensionsInitializedSet;
-    final Set<DiscoveryNode> extensionsNodeSet;
     TransportService transportService;
 
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
@@ -76,7 +75,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.transportService = null;
         this.extensionsSet = new HashSet<DiscoveryExtension>();
         this.extensionsInitializedSet = new HashSet<DiscoveryExtension>();
-        this.extensionsNodeSet = new HashSet<DiscoveryNode>();
 
         /*
          * Now Discover extensions
@@ -133,15 +131,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                                     pluginInfo
                                 )
                             );
-                            DiscoveryNode extensionNode = new DiscoveryNode(
-                                extension.getName(),
-                                new TransportAddress(
-                                    InetAddress.getByName(extension.getHostAddress()),
-                                    Integer.parseInt(extension.getPort())
-                                ),
-                                Version.fromString(extension.getVersion())
-                            );
-                            extensionsNodeSet.add(extensionNode);
                             break;
                         }
                     }
@@ -155,7 +144,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     public void extensionsInitialize() {
-        for (DiscoveryNode extensionNode : extensionsNodeSet) {
+        for (DiscoveryNode extensionNode : extensionsSet) {
             extensionInitialize(extensionNode);
         }
     }
@@ -203,7 +192,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
-        for (DiscoveryNode extensionNode : extensionsNodeSet) {
+        for (DiscoveryNode extensionNode : extensionsSet) {
             onIndexModule(indexModule, extensionNode);
         }
     }
@@ -311,7 +300,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    private static ExtensionsSettings readFromExtensionsYml(Path filePath) throws Exception {
+    private ExtensionsSettings readFromExtensionsYml(Path filePath) throws Exception {
         ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
         InputStream input = Files.newInputStream(filePath);
         ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
