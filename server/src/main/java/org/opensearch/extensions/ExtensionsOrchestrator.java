@@ -116,7 +116,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensiontRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_LOCAL_NODE,
@@ -124,7 +124,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensiontRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_SETTINGS,
@@ -132,7 +132,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensiontRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
         );
     }
 
@@ -249,7 +249,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    TransportResponse handleExtensiontRequest(ExtensionRequest extensionRequest) {
+    TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) {
         // Read enum
         if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
             ExtensionClusterStateResponse clusterStateResponse = new ExtensionClusterStateResponse(clusterService);
