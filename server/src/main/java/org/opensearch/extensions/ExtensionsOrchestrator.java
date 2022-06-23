@@ -8,6 +8,7 @@
 
 package org.opensearch.extensions;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -107,7 +108,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             try {
                 extensions = readFromExtensionsYml(extensionsPath.resolve("extensions.yml")).getExtensions();
             } catch (Exception e) {
-                throw new IllegalStateException("Could not read from extensions.yml");
+                throw new IOException("Could not read from extensions.yml");
             }
         }
         for (final Path plugin : pluginDirs) {
@@ -117,26 +118,31 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                     String pluginName = pluginInfo.getName();
                     for (Extension extension : extensions) {
                         if (extension.getName().equals(pluginName)) {
-                            extensionsSet.add(
-                                new DiscoveryExtension(
-                                    extension.getName(),
-                                    extension.getUniqueId(),
-                                    // placeholder for ephemeral id, will change with POC discovery
-                                    extension.getUniqueId(),
-                                    extension.getHostName(),
-                                    extension.getHostAddress(),
-                                    new TransportAddress(TransportAddress.META_ADDRESS, Integer.parseInt(extension.getPort())),
-                                    new HashMap<String, String>(),
-                                    Version.fromString(extension.getVersion()),
-                                    pluginInfo
-                                )
-                            );
-                            break;
+                            try {
+                                extensionsSet.add(
+                                    new DiscoveryExtension(
+                                        extension.getName(),
+                                        extension.getUniqueId(),
+                                        // placeholder for ephemeral id, will change with POC discovery
+                                        extension.getUniqueId(),
+                                        extension.getHostName(),
+                                        extension.getHostAddress(),
+                                        new TransportAddress(TransportAddress.META_ADDRESS, Integer.parseInt(extension.getPort())),
+                                        new HashMap<String, String>(),
+                                        Version.fromString(extension.getVersion()),
+                                        pluginInfo
+                                    )
+                                ); 
+                                logger.debug("Loaded extension: " + extension);
+                                break;
+                            } catch (IllegalArgumentException e) {
+                                logger.error(e.toString());
+                            }
                         }
                     }
 
                 } catch (final IOException e) {
-                    throw new IllegalStateException("Could not load plugin descriptor " + plugin.getFileName(), e);
+                    throw new IOException("Could not load plugin descriptor " + plugin.getFileName(), e);
                 }
             }
         }
@@ -300,7 +306,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    private ExtensionsSettings readFromExtensionsYml(Path filePath) throws Exception {
+    private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
         InputStream input = Files.newInputStream(filePath);
         ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
