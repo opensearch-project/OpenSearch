@@ -210,15 +210,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
     }
 
-    public void testLatestReceivedCheckpoint() {
-        SegmentReplicationTargetService spy = spy(sut);
-        assertEquals(null, spy.getLatestReceivedCheckpoint(indexShard.shardId()));
-        spy.onNewCheckpoint(checkpoint, indexShard);
-        assertEquals(checkpoint, spy.getLatestReceivedCheckpoint(indexShard.shardId()));
-        spy.onNewCheckpoint(indexShard.getLatestReplicationCheckpoint(), indexShard);
-        assertEquals(indexShard.getLatestReplicationCheckpoint(), spy.getLatestReceivedCheckpoint(indexShard.shardId()));
-    }
-
     public void testBeforeIndexShardClosed_CancelsOngoingReplications() {
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,

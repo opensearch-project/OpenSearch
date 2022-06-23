@@ -51,7 +51,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final SegmentReplicationSourceFactory sourceFactory;
 
-    private static final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = new HashMap<>();
+    private final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = new HashMap<>();
 
     /**
      * The internal actions
@@ -88,7 +88,12 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
-    ReplicationCheckpoint getLatestReceivedCheckpoint(ShardId shardId) {
+    /**
+     * Returns the Latest checkpoint received by replica shard based on shard ID.
+     * Returns null if replica shard has not received a checkpoint before
+     * @param shardId      Shard Id of replica shard
+     */
+    private ReplicationCheckpoint getLatestReceivedCheckpoint(ShardId shardId) {
         if (latestReceivedCheckpoint.containsKey(shardId)) {
             return latestReceivedCheckpoint.get(shardId);
         }
@@ -102,6 +107,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * @param replicaShard      replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
+
+        // Checks if received checkpoint is already present and ahead then it replaces old received checkpoint
         if (getLatestReceivedCheckpoint(replicaShard.shardId()) != null) {
             if (receivedCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId()))) {
                 latestReceivedCheckpoint.replace(replicaShard.shardId(), receivedCheckpoint);
