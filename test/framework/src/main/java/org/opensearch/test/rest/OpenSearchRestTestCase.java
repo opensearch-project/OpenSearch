@@ -656,7 +656,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                     // Since the snapshots are shared within the cluster, another parallel run may delete all
                     // snapshots in the repository.
                     // For now we hack to prevent deletion of snapshots prefixed with "force_preserve"
-                    if (Version.CURRENT.onOrBefore(Version.V_2_1_0) && name.startsWith("force_preserve")) {
+                    if (name.startsWith("force_preserve")) {
                         continue;
                     }
                     if (SnapshotState.valueOf((String) snapshotInfo.get("state")).completed() == false) {
