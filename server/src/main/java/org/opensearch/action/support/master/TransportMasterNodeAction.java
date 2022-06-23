@@ -35,7 +35,6 @@ package org.opensearch.action.support.master;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -48,7 +47,7 @@ import org.opensearch.transport.TransportService;
  * A base class for operations that needs to be performed on the cluster-manager node.
  *
  * @opensearch.internal
- * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link ClusterManagerNodeRequest}
+ * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link TransportClusterManagerNodeAction}
  */
 @Deprecated
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends
