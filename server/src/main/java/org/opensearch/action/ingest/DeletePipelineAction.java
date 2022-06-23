@@ -33,7 +33,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Transport action to delete a pipeline

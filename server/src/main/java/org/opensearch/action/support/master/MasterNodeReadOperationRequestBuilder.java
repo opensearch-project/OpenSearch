@@ -34,9 +34,7 @@ package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.client.OpenSearchClient;
 
 /**
@@ -47,10 +45,10 @@ import org.opensearch.client.OpenSearchClient;
  */
 @Deprecated
 public abstract class MasterNodeReadOperationRequestBuilder<
-    Request extends ClusterManagerNodeReadRequest<Request>,
+    Request extends MasterNodeReadRequest<Request>,
     Response extends ActionResponse,
-    RequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>> extends
-    ClusterManagerNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>> extends
+    ClusterManagerNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
 
     protected MasterNodeReadOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

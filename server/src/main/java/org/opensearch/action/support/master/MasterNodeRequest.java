@@ -46,6 +46,8 @@ import java.io.IOException;
 @Deprecated
 public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ClusterManagerNodeRequest<Request> {
 
+    protected MasterNodeRequest() {}
+
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);
     }
