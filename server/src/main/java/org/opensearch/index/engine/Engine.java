@@ -81,6 +81,7 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
@@ -166,6 +167,8 @@ public abstract class Engine implements Closeable {
     public final EngineConfig config() {
         return engineConfig;
     }
+
+    public abstract TranslogManager translogManager();
 
     protected abstract SegmentInfos getLastCommittedSegmentInfos();
 
