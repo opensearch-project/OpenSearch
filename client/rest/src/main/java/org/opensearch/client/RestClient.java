@@ -956,7 +956,7 @@ public class RestClient implements Closeable {
         }
 
         /**
-         * A gzip compressing enrity doesn't worked with chunked encoding with sigv4
+         * A gzip compressing entity doesn't work with chunked encoding with sigv4
          *
          * @return false
          */
@@ -966,25 +966,18 @@ public class RestClient implements Closeable {
         }
 
         /**
-         * A gzip entity require to content length in http headers
+         * A gzip entity requires content length in http headers
          * as it doesn't work with chunked encoding for sigv4
          *
-         * @return content lenght of gzip entity
+         * @return content length of gzip entity
          */
         @Override
         public long getContentLength() {
-            long size = 0;
-            int chunk = 0;
-            byte[] buffer = new byte[1024];
-
-            try {
-                InputStream is = getContent();
-
-                while ((chunk = is.read(buffer)) != -1) {
-                    size += chunk;
-                }
-            } catch (Exception ex) {
-                throw new RuntimeException("failed to get compressed content lenght: " + ex.getMessage());
+            long size;
+            try (InputStream is = getContent()) {
+                size = is.readAllBytes().length;
+            } catch (IOException ex) {
+                size = -1L;
             }
 
             return size;
