@@ -96,7 +96,7 @@ public class TransportGetComponentTemplateAction extends TransportClusterManager
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         GetComponentTemplateAction.Request request,
         ClusterState state,
         ActionListener<GetComponentTemplateAction.Response> listener
