@@ -36,7 +36,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.client.node.NodeClient;
