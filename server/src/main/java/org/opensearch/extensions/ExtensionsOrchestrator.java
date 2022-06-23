@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.*;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -252,7 +253,11 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) {
         // Read enum
         if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
-            ExtensionClusterStateResponse clusterStateResponse = new ExtensionClusterStateResponse(clusterService);
+            ClusterStateResponse clusterStateResponse = new ClusterStateResponse(
+                clusterService.getClusterName(),
+                clusterService.state(),
+                false
+            );
             return clusterStateResponse;
         } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_LOCAL_NODE) {
             LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
