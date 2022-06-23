@@ -44,7 +44,7 @@ import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesRequ
 import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.opensearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
