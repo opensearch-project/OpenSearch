@@ -31,7 +31,6 @@
 
 package org.opensearch.action.support.master;
 
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -42,7 +41,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public abstract class AcknowledgedRequest<Request extends ClusterManagerNodeRequest<Request>> extends
+public abstract class AcknowledgedRequest<Request extends AcknowledgedRequest<Request>> extends
     org.opensearch.action.support.clustermanager.AcknowledgedRequest<Request> {
 
     protected AcknowledgedRequest() {
