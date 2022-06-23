@@ -81,7 +81,6 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexingOperationListener;
-import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
@@ -97,9 +96,6 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
-import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.threadpool.ThreadPool;
@@ -437,8 +433,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        final RepositoriesService repositoriesService
+        final SegmentReplicationCheckpointPublisher checkpointPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -512,19 +507,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             };
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
-            Directory remoteDirectory = null;
-            RemoteStoreRefreshListener remoteStoreRefreshListener = null;
+            Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
-                try {
-                    Repository repository = repositoriesService.repository(clusterService.state().metadata().clusterUUID());
-                    remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path, repository);
-                    remoteStoreRefreshListener = new RemoteStoreRefreshListener(directory, remoteDirectory);
-                } catch (RepositoryMissingException e) {
-                    throw new IllegalArgumentException(
-                        "Repository should be created before creating index with remote_store enabled setting",
-                        e
-                    );
-                }
+                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(
+                    clusterService.state().metadata().clusterUUID(),
+                    this.indexSettings,
+                    path
+                );
+                remoteStore = new Store(
+                    shardId,
+                    this.indexSettings,
+                    remoteDirectory,
+                    lock,
+                    new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
+                );
             }
 
             store = new Store(
@@ -557,7 +553,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 retentionLeaseSyncer,
                 circuitBreakerService,
                 this.indexSettings.isSegRepEnabled() && routing.primary() ? checkpointPublisher : null,
-                remoteStoreRefreshListener
+                remoteStore
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
