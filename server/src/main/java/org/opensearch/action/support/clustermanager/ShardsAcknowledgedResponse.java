@@ -32,6 +32,7 @@
 
 package org.opensearch.action.support.clustermanager;
 
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

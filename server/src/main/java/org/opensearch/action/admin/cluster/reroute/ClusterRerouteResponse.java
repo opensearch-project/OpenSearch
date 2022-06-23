@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.reroute;
 
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.common.io.stream.StreamInput;
