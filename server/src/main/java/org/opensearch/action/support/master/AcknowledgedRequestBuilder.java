@@ -43,7 +43,8 @@ import org.opensearch.common.unit.TimeValue;
 public abstract class AcknowledgedRequestBuilder<
     Request extends AcknowledgedRequest<Request>,
     Response extends AcknowledgedResponse,
-    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder<Request, Response, RequestBuilder> {
+    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends
+    org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder<Request, Response, RequestBuilder> {
 
     protected AcknowledgedRequestBuilder(OpenSearchClient client, ActionType action, Request request) {
         super(client, action, request);

@@ -33,11 +33,9 @@ package org.opensearch.action.support.master;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A response that indicates that a request has been acknowledged
@@ -56,5 +54,18 @@ public class AcknowledgedResponse extends org.opensearch.action.support.clusterm
 
     public AcknowledgedResponse(boolean acknowledged) {
         super(acknowledged);
+    }
+
+    /**
+     * A generic parser that simply parses the acknowledged flag
+     */
+    private static final ConstructingObjectParser<Boolean, Void> ACKNOWLEDGED_FLAG_PARSER = new ConstructingObjectParser<>(
+        "acknowledged_flag",
+        true,
+        args -> (Boolean) args[0]
+    );
+
+    public static AcknowledgedResponse fromXContent(XContentParser parser) throws IOException {
+        return new AcknowledgedResponse(ACKNOWLEDGED_FLAG_PARSER.apply(parser, null));
     }
 }
