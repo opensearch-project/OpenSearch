@@ -25,6 +25,7 @@
  * under the License.
  */
 
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
@@ -78,6 +79,7 @@ grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
+
 
 //// Everything else:
 
@@ -182,6 +184,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
 
-  // ZSTD and lz4-java permissions
-  permission java.lang.RuntimePermission "*";
+  // needed by zstd-jni and lz4-java
+  permission java.lang.RuntimePermission "loadLibrary.*";
 };
+
