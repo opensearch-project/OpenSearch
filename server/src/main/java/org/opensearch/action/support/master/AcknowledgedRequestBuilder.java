@@ -29,7 +29,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.clustermanager;
+package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.client.OpenSearchClient;
@@ -43,7 +43,7 @@ import org.opensearch.common.unit.TimeValue;
 public abstract class AcknowledgedRequestBuilder<
     Request extends AcknowledgedRequest<Request>,
     Response extends AcknowledgedResponse,
-    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends ClusterManagerNodeOperationRequestBuilder<
+    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends MasterNodeOperationRequestBuilder<
         Request,
         Response,
         RequestBuilder> {

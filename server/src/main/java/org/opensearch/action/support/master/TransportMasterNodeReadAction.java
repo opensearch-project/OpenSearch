@@ -34,7 +34,6 @@ package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -47,7 +46,7 @@ import org.opensearch.transport.TransportService;
  * Can also be executed on the local node if needed.
  *
  * @opensearch.internal
- * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link ClusterManagerNodeRequest}
+ * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link TransportClusterManagerNodeReadAction}
  */
 @Deprecated
 public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse> extends
