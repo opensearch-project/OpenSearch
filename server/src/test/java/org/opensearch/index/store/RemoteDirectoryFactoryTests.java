@@ -18,6 +18,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -33,11 +35,13 @@ import static org.mockito.Mockito.verify;
 
 public class RemoteDirectoryFactoryTests extends OpenSearchTestCase {
 
+    private RepositoriesService repositoriesService;
     private RemoteDirectoryFactory remoteDirectoryFactory;
 
     @Before
     public void setup() {
-        remoteDirectoryFactory = new RemoteDirectoryFactory();
+        repositoriesService = mock(RepositoriesService.class);
+        remoteDirectoryFactory = new RemoteDirectoryFactory(repositoriesService);
     }
 
     public void testNewDirectory() throws IOException {
@@ -52,14 +56,33 @@ public class RemoteDirectoryFactoryTests extends OpenSearchTestCase {
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
         when(blobContainer.listBlobs()).thenReturn(Collections.emptyMap());
 
-        Directory directory = remoteDirectoryFactory.newDirectory(indexSettings, shardPath, repository);
-        assertTrue(directory instanceof RemoteDirectory);
-        ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);
-        verify(blobStore).blobContainer(blobPathCaptor.capture());
-        BlobPath blobPath = blobPathCaptor.getValue();
-        assertEquals("foo/0/", blobPath.buildAsString());
+        when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
 
-        directory.listAll();
-        verify(blobContainer).listBlobs();
+        try (Directory directory = remoteDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)) {
+            assertTrue(directory instanceof RemoteDirectory);
+            ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);
+            verify(blobStore).blobContainer(blobPathCaptor.capture());
+            BlobPath blobPath = blobPathCaptor.getValue();
+            assertEquals("foo/0/", blobPath.buildAsString());
+
+            directory.listAll();
+            verify(blobContainer).listBlobs();
+            verify(repositoriesService).repository("remote_store_repository");
+        }
     }
+
+    public void testNewDirectoryRepositoryDoesNotExist() {
+        Settings settings = Settings.builder().build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
+        ShardPath shardPath = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
+
+        when(repositoriesService.repository("remote_store_repository")).thenThrow(new RepositoryMissingException("Missing"));
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> remoteDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)
+        );
+    }
+
 }

@@ -48,6 +48,8 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.Assertions;
@@ -305,7 +307,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final ReferenceManager.RefreshListener checkpointRefreshListener;
 
-    private final RemoteStoreRefreshListener remoteStoreRefreshListener;
+    private final Store remoteStore;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -329,7 +331,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final RemoteStoreRefreshListener remoteStoreRefreshListener
+        @Nullable final Store remoteStore
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -417,7 +419,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             this.checkpointRefreshListener = null;
         }
-        this.remoteStoreRefreshListener = remoteStoreRefreshListener;
+        this.remoteStore = remoteStore;
     }
 
     public ThreadPool getThreadPool() {
@@ -426,6 +428,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Store store() {
         return this.store;
+    }
+
+    public Store remoteStore() {
+        return this.remoteStore;
     }
 
     /**
@@ -3193,7 +3199,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate();
     }
 
-    private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
+    private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) throws IOException {
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {
             assert Thread.holdsLock(mutex) == false : "warming engine under mutex";
@@ -3205,8 +3211,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
-        if (remoteStoreRefreshListener != null && shardRouting.primary()) {
-            internalRefreshListener.add(remoteStoreRefreshListener);
+        if (remoteStore != null && shardRouting.primary()) {
+            Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+            internalRefreshListener.add(new RemoteStoreRefreshListener(store.directory(), remoteDirectory));
         }
         if (this.checkpointRefreshListener != null) {
             internalRefreshListener.add(checkpointRefreshListener);

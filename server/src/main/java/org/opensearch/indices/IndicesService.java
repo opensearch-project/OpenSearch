@@ -132,6 +132,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.RemoteDirectoryFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -265,6 +266,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final RemoteDirectoryFactory remoteDirectoryFactory;
 
     @Override
     protected void doStart() {
@@ -292,7 +294,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+        Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        RemoteDirectoryFactory remoteDirectoryFactory
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -386,6 +389,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
+        this.remoteDirectoryFactory = remoteDirectoryFactory;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -745,7 +749,8 @@ public class IndicesService extends AbstractLifecycleComponent
             indicesFieldDataCache,
             namedWriteableRegistry,
             this::isIdFieldDataEnabled,
-            valuesSourceRegistry
+            valuesSourceRegistry,
+            remoteDirectoryFactory
         );
     }
 
@@ -859,13 +864,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(
-            shardRouting,
-            globalCheckpointSyncer,
-            retentionLeaseSyncer,
-            checkpointPublisher,
-            repositoriesService
-        );
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
