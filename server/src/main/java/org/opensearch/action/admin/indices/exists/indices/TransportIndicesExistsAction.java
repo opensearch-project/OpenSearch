@@ -103,7 +103,7 @@ public class TransportIndicesExistsAction extends TransportClusterManagerNodeRea
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final IndicesExistsRequest request,
         final ClusterState state,
         final ActionListener<IndicesExistsResponse> listener
