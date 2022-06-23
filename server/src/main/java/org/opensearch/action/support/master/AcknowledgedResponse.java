@@ -32,8 +32,12 @@
 package org.opensearch.action.support.master;
 
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ObjectParser;
 
 import java.io.IOException;
+
+import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A response that indicates that a request has been acknowledged

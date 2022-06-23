@@ -55,7 +55,7 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
 
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
-    protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
+    protected static <T extends org.opensearch.action.support.master.AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
         objectParser.declareField(
             constructorArg(),
             (parser, context) -> parser.booleanValue(),
