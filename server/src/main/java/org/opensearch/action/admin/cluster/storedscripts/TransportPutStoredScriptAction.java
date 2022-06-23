@@ -90,11 +90,8 @@ public class TransportPutStoredScriptAction extends TransportClusterManagerNodeA
     }
 
     @Override
-    protected void clusterManagerOperation(
-        PutStoredScriptRequest request,
-        ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
+    protected void masterOperation(PutStoredScriptRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        throws Exception {
         scriptService.putStoredScript(clusterService, request, listener);
     }
 

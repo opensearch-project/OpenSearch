@@ -115,7 +115,7 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         DeleteDanglingIndexRequest deleteRequest,
         ClusterState state,
         ActionListener<AcknowledgedResponse> deleteListener

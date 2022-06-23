@@ -102,7 +102,7 @@ public class TransportDeleteComponentTemplateAction extends TransportClusterMana
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final DeleteComponentTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

@@ -95,7 +95,7 @@ public class TransportDeleteSnapshotAction extends TransportClusterManagerNodeAc
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final DeleteSnapshotRequest request,
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

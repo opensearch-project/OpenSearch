@@ -103,7 +103,7 @@ public class PutPipelineTransportAction extends TransportClusterManagerNodeActio
     }
 
     @Override
-    protected void clusterManagerOperation(PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+    protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear().addMetric(NodesInfoRequest.Metric.INGEST.metricName());
