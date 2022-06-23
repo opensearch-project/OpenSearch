@@ -456,7 +456,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         final int totalOps = this.totalOps.incrementAndGet();
         if (totalOps == expectedTotalOps) {
-            onPhaseDone();
+            try {
+                onPhaseDone();
+            } catch (final Exception ex) {
+                onPhaseFailure(this, "The phase has failed", ex);
+            }
         } else if (totalOps > expectedTotalOps) {
             throw new AssertionError(
                 "unexpected higher total ops [" + totalOps + "] compared to expected [" + expectedTotalOps + "]",
@@ -561,7 +565,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
         if (xTotalOps == expectedTotalOps) {
-            onPhaseDone();
+            try {
+                onPhaseDone();
+            } catch (final Exception ex) {
+                onPhaseFailure(this, "The phase has failed", ex);
+            }
         } else if (xTotalOps > expectedTotalOps) {
             throw new AssertionError(
                 "unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]",

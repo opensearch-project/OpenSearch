@@ -45,14 +45,17 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
@@ -350,5 +353,141 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
         assertThat(counts.get(noZoneNode), equalTo(2));
+    }
+
+    public void testThreeZoneOneReplicaWithForceZoneValueAndLoadAwareness() throws Exception {
+        int nodeCountPerAZ = 5;
+        int numOfShards = 30;
+        int numOfReplica = 1;
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.allocation.load_awareness.skew_factor", "0.0")
+            .put("cluster.routing.allocation.load_awareness.provisioned_capacity", Integer.toString(nodeCountPerAZ * 3))
+            .build();
+
+        logger.info("--> starting 15 nodes on zones 'a' & 'b' & 'c'");
+        List<String> nodes_in_zone_a = internalCluster().startNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+        );
+        List<String> nodes_in_zone_b = internalCluster().startNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
+        );
+        List<String> nodes_in_zone_c = internalCluster().startNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+        );
+
+        // Creating index with 30 primary and 1 replica
+        createIndex(
+            "test-1",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplica)
+                .build()
+        );
+
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setIndices("test-1")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3))
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .execute()
+            .actionGet();
+        assertFalse(health.isTimedOut());
+
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
+                }
+            }
+        }
+
+        assertThat(counts.size(), equalTo(nodeCountPerAZ * 3));
+        // All shards should be started
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(numOfShards * (numOfReplica + 1)));
+
+        // stopping half nodes in zone a
+        int nodesToStop = nodeCountPerAZ / 2;
+        List<Settings> nodeDataPathSettings = new ArrayList<>();
+        for (int i = 0; i < nodesToStop; i++) {
+            nodeDataPathSettings.add(internalCluster().dataPathSettings(nodes_in_zone_a.get(i)));
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes_in_zone_a.get(i)));
+        }
+
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setIndices("test-1")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 - nodesToStop))
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .execute()
+            .actionGet();
+        assertFalse(health.isTimedOut());
+
+        // Creating another index with 30 primary and 1 replica
+        createIndex(
+            "test-2",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplica)
+                .build()
+        );
+
+        health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setIndices("test-1", "test-2")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3 - nodesToStop))
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .execute()
+            .actionGet();
+        assertFalse(health.isTimedOut());
+
+        // Restarting the nodes back
+        for (int i = 0; i < nodesToStop; i++) {
+            internalCluster().startNode(
+                Settings.builder()
+                    .put("node.name", nodes_in_zone_a.get(i))
+                    .put(nodeDataPathSettings.get(i))
+                    .put(commonSettings)
+                    .put("node.attr.zone", "a")
+                    .build()
+            );
+        }
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+
+        health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setIndices("test-1", "test-2")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes(Integer.toString(nodeCountPerAZ * 3))
+            .setWaitForGreenStatus()
+            .setWaitForActiveShards(2 * numOfShards * (numOfReplica + 1))
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .execute()
+            .actionGet();
+        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+
+        // All shards should be started now and cluster health should be green
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2 * numOfShards * (numOfReplica + 1)));
+        assertThat(health.isTimedOut(), equalTo(false));
     }
 }

@@ -80,8 +80,8 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         GetRepositoriesRequest getRepositoriesRequest = getRepositoryRequest(repositories);
-        getRepositoriesRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.masterNodeTimeout())
+        getRepositoriesRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request);
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));

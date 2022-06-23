@@ -76,8 +76,8 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
-        clusterUpdateSettingsRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", clusterUpdateSettingsRequest.masterNodeTimeout())
+        clusterUpdateSettingsRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterUpdateSettingsRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(clusterUpdateSettingsRequest, request);
         Map<String, Object> source;

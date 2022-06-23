@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.get;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -67,7 +67,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
      *
      * @opensearch.internal
      */
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends ClusterManagerNodeReadRequest<Request> {
 
         @Nullable
         private String name;

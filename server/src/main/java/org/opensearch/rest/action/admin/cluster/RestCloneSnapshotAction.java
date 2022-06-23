@@ -76,7 +76,9 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
             request.param("target_snapshot"),
             XContentMapValues.nodeStringArrayValue(source.getOrDefault("indices", Collections.emptyList()))
         );
-        cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", cloneSnapshotRequest.masterNodeTimeout()));
+        cloneSnapshotRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", cloneSnapshotRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(cloneSnapshotRequest, request);
         cloneSnapshotRequest.indicesOptions(IndicesOptions.fromMap(source, cloneSnapshotRequest.indicesOptions()));
         return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));

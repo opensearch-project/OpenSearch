@@ -60,18 +60,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class MetadataNodesIT extends OpenSearchIntegTestCase {
     public void testMetaWrittenAlsoOnDataNode() throws Exception {
         // this test checks that index state is written on data only nodes if they have a shard allocated
-        String masterNode = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
         index("test", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen("test");
         assertIndexInMetaState(dataNode, "test");
-        assertIndexInMetaState(masterNode, "test");
+        assertIndexInMetaState(clusterManagerNode, "test");
     }
 
     public void testIndexFilesAreRemovedIfAllShardsFromIndexRemoved() throws Exception {
         // this test checks that the index data is removed from a data only node once all shards have been allocated away from it
-        String masterNode = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         List<String> nodeNames = internalCluster().startDataOnlyNodes(2);
         String node1 = nodeNames.get(0);
         String node2 = nodeNames.get(1);
@@ -90,8 +90,8 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
         Index resolveIndex = resolveIndex(index);
         assertIndexDirectoryExists(node1, resolveIndex);
         assertIndexDirectoryDeleted(node2, resolveIndex);
-        assertIndexInMetaState(masterNode, index);
-        assertIndexDirectoryDeleted(masterNode, resolveIndex);
+        assertIndexInMetaState(clusterManagerNode, index);
+        assertIndexDirectoryDeleted(clusterManagerNode, resolveIndex);
 
         logger.debug("relocating index...");
         client().admin()
@@ -104,8 +104,8 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
         assertIndexDirectoryExists(node2, resolveIndex);
-        assertIndexInMetaState(masterNode, index);
-        assertIndexDirectoryDeleted(masterNode, resolveIndex);
+        assertIndexInMetaState(clusterManagerNode, index);
+        assertIndexDirectoryDeleted(clusterManagerNode, resolveIndex);
 
         client().admin().indices().prepareDelete(index).get();
         assertIndexDirectoryDeleted(node1, resolveIndex);
@@ -114,7 +114,7 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMetaWrittenWhenIndexIsClosedAndMetaUpdated() throws Exception {
-        String masterNode = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         final String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
 
         final String index = "index";
@@ -123,7 +123,7 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
         ensureGreen();
         logger.info("--> wait for meta state written for index");
         assertIndexInMetaState(dataNode, index);
-        assertIndexInMetaState(masterNode, index);
+        assertIndexInMetaState(clusterManagerNode, index);
 
         logger.info("--> close index");
         client().admin().indices().prepareClose(index).get();

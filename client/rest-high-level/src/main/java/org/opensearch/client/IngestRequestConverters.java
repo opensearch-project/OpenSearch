@@ -54,7 +54,7 @@ final class IngestRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withMasterTimeout(getPipelineRequest.masterNodeTimeout());
+        parameters.withMasterTimeout(getPipelineRequest.clusterManagerNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }
@@ -67,7 +67,7 @@ final class IngestRequestConverters {
 
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(putPipelineRequest.timeout());
-        parameters.withMasterTimeout(putPipelineRequest.masterNodeTimeout());
+        parameters.withMasterTimeout(putPipelineRequest.clusterManagerNodeTimeout());
         request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(putPipelineRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -81,7 +81,7 @@ final class IngestRequestConverters {
 
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(deletePipelineRequest.timeout());
-        parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
+        parameters.withMasterTimeout(deletePipelineRequest.clusterManagerNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }

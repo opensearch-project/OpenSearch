@@ -37,7 +37,7 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
@@ -63,7 +63,7 @@ import static org.opensearch.ingest.IngestService.INGEST_ORIGIN;
  *
  * @opensearch.internal
  */
-public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPipelineRequest, AcknowledgedResponse> {
+public class PutPipelineTransportAction extends TransportClusterManagerNodeAction<PutPipelineRequest, AcknowledgedResponse> {
 
     private final IngestService ingestService;
     private final OriginSettingClient client;
@@ -103,7 +103,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     }
 
     @Override
-    protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+    protected void clusterManagerOperation(PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear().addMetric(NodesInfoRequest.Metric.INGEST.metricName());

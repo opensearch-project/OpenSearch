@@ -69,8 +69,8 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest(request.param("name"));
-        simulateIndexTemplateRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", simulateIndexTemplateRequest.masterNodeTimeout())
+        simulateIndexTemplateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", simulateIndexTemplateRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(simulateIndexTemplateRequest, request);
         if (request.hasContent()) {

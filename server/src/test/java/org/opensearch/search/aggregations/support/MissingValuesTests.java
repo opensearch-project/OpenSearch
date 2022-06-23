@@ -155,6 +155,11 @@ public class MissingValuesTests extends OpenSearchTestCase {
                     return NO_MORE_ORDS;
                 }
             }
+
+            @Override
+            public long docValueCount() {
+                return ords[doc].length;
+            }
         };
 
         final BytesRef existingMissing = RandomPicks.randomFrom(random(), values);
@@ -255,6 +260,11 @@ public class MissingValuesTests extends OpenSearchTestCase {
             @Override
             public BytesRef lookupOrd(long ord) throws IOException {
                 return values[Math.toIntExact(ord)];
+            }
+
+            @Override
+            public long docValueCount() {
+                throw new UnsupportedOperationException();
             }
 
             @Override

@@ -68,8 +68,8 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
         String id = request.param("id");
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(id);
         deleteStoredScriptRequest.timeout(request.paramAsTime("timeout", deleteStoredScriptRequest.timeout()));
-        deleteStoredScriptRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", deleteStoredScriptRequest.masterNodeTimeout())
+        deleteStoredScriptRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", deleteStoredScriptRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(deleteStoredScriptRequest, request);
 

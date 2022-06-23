@@ -38,6 +38,7 @@ import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -117,7 +118,7 @@ public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
 
     }
 
-    public void testUnknownRoleIsDistinctFromKnownRoles() {
+    public void testUnknownRoleIsDistinctFromKnownOrDynamicRoles() {
         for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.BUILT_IN_ROLES) {
             final DiscoveryNodeRole.UnknownRole unknownDataRole = new DiscoveryNodeRole.UnknownRole(
                 buildInRole.roleName(),
@@ -126,6 +127,15 @@ public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
             );
             assertNotEquals(buildInRole, unknownDataRole);
             assertNotEquals(buildInRole.toString(), unknownDataRole.toString());
+            final DiscoveryNodeRole.DynamicRole dynamicRole = new DiscoveryNodeRole.DynamicRole(
+                buildInRole.roleName(),
+                buildInRole.roleNameAbbreviation(),
+                buildInRole.canContainData()
+            );
+            assertNotEquals(buildInRole, dynamicRole);
+            assertNotEquals(buildInRole.toString(), dynamicRole.toString());
+            assertNotEquals(unknownDataRole, dynamicRole);
+            assertNotEquals(unknownDataRole.toString(), dynamicRole.toString());
         }
     }
 
@@ -137,5 +147,16 @@ public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
         assertTrue(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.isClusterManager());
         assertTrue(DiscoveryNodeRole.MASTER_ROLE.isClusterManager());
         assertFalse(randomFrom(DiscoveryNodeRole.DATA_ROLE.isClusterManager(), DiscoveryNodeRole.INGEST_ROLE.isClusterManager()));
+    }
+
+    public void testRoleNameIsCaseInsensitive() {
+        String roleName = "TestRole";
+        String roleNameAbbreviation = "T";
+        DiscoveryNodeRole unknownRole = new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, false);
+        assertEquals(roleName.toLowerCase(Locale.ROOT), unknownRole.roleName());
+        assertEquals(roleNameAbbreviation.toLowerCase(Locale.ROOT), unknownRole.roleNameAbbreviation());
+        DiscoveryNodeRole dynamicRole = new DiscoveryNodeRole.DynamicRole(roleName, roleNameAbbreviation, false);
+        assertEquals(roleName.toLowerCase(Locale.ROOT), dynamicRole.roleName());
+        assertEquals(roleNameAbbreviation.toLowerCase(Locale.ROOT), dynamicRole.roleNameAbbreviation());
     }
 }

@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.repositories.put;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -54,7 +54,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutRepositoryRequest, AcknowledgedResponse> {
+public class TransportPutRepositoryAction extends TransportClusterManagerNodeAction<PutRepositoryRequest, AcknowledgedResponse> {
 
     private final RepositoriesService repositoriesService;
 
@@ -95,7 +95,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutRepositoryRequest request,
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

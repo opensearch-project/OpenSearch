@@ -101,13 +101,13 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
                 break;
             case "masterTimeout":
                 expectedParams.put("timeout", "30s");
-                healthRequest.masterNodeTimeout(clusterManagerTimeout);
+                healthRequest.clusterManagerNodeTimeout(clusterManagerTimeout);
                 expectedParams.put("master_timeout", clusterManagerTimeout);
                 break;
             case "both":
                 healthRequest.timeout(timeout);
                 expectedParams.put("timeout", timeout);
-                healthRequest.masterNodeTimeout(timeout);
+                healthRequest.clusterManagerNodeTimeout(timeout);
                 expectedParams.put("master_timeout", timeout);
                 break;
             case "none":

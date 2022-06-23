@@ -68,8 +68,8 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
 
     public void testScheduling() {
         final DiscoveryNode discoveryNode = new DiscoveryNode("test", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNodes noMaster = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
-        final DiscoveryNodes localMaster = DiscoveryNodes.builder(noMaster).masterNodeId(discoveryNode.getId()).build();
+        final DiscoveryNodes noClusterManager = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
+        final DiscoveryNodes localClusterManager = DiscoveryNodes.builder(noClusterManager).masterNodeId(discoveryNode.getId()).build();
 
         final Settings.Builder settingsBuilder = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName());
         if (randomBoolean()) {
@@ -87,14 +87,14 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             }
         };
 
-        final MasterService masterService = new FakeThreadPoolMasterService(
+        final MasterService clusterManagerService = new FakeThreadPoolMasterService(
             "test",
-            "masterService",
+            "clusterManagerService",
             threadPool,
-            r -> { fail("master service should not run any tasks"); }
+            r -> { fail("cluster-manager service should not run any tasks"); }
         );
 
-        final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
+        final ClusterService clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(settings, clusterService, threadPool, client);
@@ -102,34 +102,34 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
         clusterInfoService.addListener(ignored -> {});
 
         clusterService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
-        clusterApplierService.setInitialState(ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build());
-        masterService.setClusterStatePublisher((clusterChangedEvent, publishListener, ackListener) -> fail("should not publish"));
-        masterService.setClusterStateSupplier(clusterApplierService::state);
+        clusterApplierService.setInitialState(ClusterState.builder(new ClusterName("cluster")).nodes(noClusterManager).build());
+        clusterManagerService.setClusterStatePublisher((clusterChangedEvent, publishListener, ackListener) -> fail("should not publish"));
+        clusterManagerService.setClusterStateSupplier(clusterApplierService::state);
         clusterService.start();
 
-        final AtomicBoolean becameMaster1 = new AtomicBoolean();
+        final AtomicBoolean becameClusterManager1 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
-            "become master 1",
-            () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
-            setFlagOnSuccess(becameMaster1)
+            "become cluster-manager 1",
+            () -> ClusterState.builder(new ClusterName("cluster")).nodes(localClusterManager).build(),
+            setFlagOnSuccess(becameClusterManager1)
         );
-        runUntilFlag(deterministicTaskQueue, becameMaster1);
+        runUntilFlag(deterministicTaskQueue, becameClusterManager1);
 
-        final AtomicBoolean failMaster1 = new AtomicBoolean();
+        final AtomicBoolean failClusterManager1 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
-            "fail master 1",
-            () -> ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build(),
-            setFlagOnSuccess(failMaster1)
+            "fail cluster-manager 1",
+            () -> ClusterState.builder(new ClusterName("cluster")).nodes(noClusterManager).build(),
+            setFlagOnSuccess(failClusterManager1)
         );
-        runUntilFlag(deterministicTaskQueue, failMaster1);
+        runUntilFlag(deterministicTaskQueue, failClusterManager1);
 
-        final AtomicBoolean becameMaster2 = new AtomicBoolean();
+        final AtomicBoolean becameClusterManager2 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
-            "become master 2",
-            () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
-            setFlagOnSuccess(becameMaster2)
+            "become cluster-manager 2",
+            () -> ClusterState.builder(new ClusterName("cluster")).nodes(localClusterManager).build(),
+            setFlagOnSuccess(becameClusterManager2)
         );
-        runUntilFlag(deterministicTaskQueue, becameMaster2);
+        runUntilFlag(deterministicTaskQueue, becameClusterManager2);
 
         for (int i = 0; i < 3; i++) {
             final int initialRequestCount = client.requestCount;
@@ -139,13 +139,13 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
         }
 
-        final AtomicBoolean failMaster2 = new AtomicBoolean();
+        final AtomicBoolean failClusterManager2 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
-            "fail master 2",
-            () -> ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build(),
-            setFlagOnSuccess(failMaster2)
+            "fail cluster-manager 2",
+            () -> ClusterState.builder(new ClusterName("cluster")).nodes(noClusterManager).build(),
+            setFlagOnSuccess(failClusterManager2)
         );
-        runUntilFlag(deterministicTaskQueue, failMaster2);
+        runUntilFlag(deterministicTaskQueue, failClusterManager2);
 
         runFor(deterministicTaskQueue, INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis());
         deterministicTaskQueue.runAllRunnableTasks();

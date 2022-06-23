@@ -87,7 +87,9 @@ public class RestGetSettingsAction extends BaseRestHandler {
             .includeDefaults(renderDefaults)
             .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
-        getSettingsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getSettingsRequest.masterNodeTimeout()));
+        getSettingsRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getSettingsRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(getSettingsRequest, request);
         return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestToXContentListener<>(channel));
     }

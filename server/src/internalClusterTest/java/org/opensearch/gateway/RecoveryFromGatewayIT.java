@@ -444,7 +444,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("field", "value3").endObject())
             .execute()
             .actionGet();
-        // TODO: remove once refresh doesn't fail immediately if there a master block:
+        // TODO: remove once refresh doesn't fail immediately if there a cluster-manager block:
         // https://github.com/elastic/elasticsearch/issues/9997
         // client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
         logger.info("--> refreshing all indices after indexing is complete");
@@ -664,7 +664,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     }
 
     public void testStartedShardFoundIfStateNotYetProcessed() throws Exception {
-        // nodes may need to report the shards they processed the initial recovered cluster state from the master
+        // nodes may need to report the shards they processed the initial recovered cluster state from the cluster-manager
         final String nodeName = internalCluster().startNode();
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
         final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(

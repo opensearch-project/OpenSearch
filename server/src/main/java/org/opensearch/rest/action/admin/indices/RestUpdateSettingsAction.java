@@ -75,7 +75,9 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
-        updateSettingsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", updateSettingsRequest.masterNodeTimeout()));
+        updateSettingsRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", updateSettingsRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(updateSettingsRequest, request);
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
         updateSettingsRequest.fromXContent(request.contentParser());

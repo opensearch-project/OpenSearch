@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.mapping.put;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -55,7 +55,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportAutoPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
+public class TransportAutoPutMappingAction extends TransportClusterManagerNodeAction<PutMappingRequest, AcknowledgedResponse> {
 
     private final MetadataMappingService metadataMappingService;
 
@@ -107,7 +107,7 @@ public class TransportAutoPutMappingAction extends TransportMasterNodeAction<Put
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutMappingRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

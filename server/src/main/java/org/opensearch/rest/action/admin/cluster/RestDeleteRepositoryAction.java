@@ -69,8 +69,8 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteRepositoryRequest deleteRepositoryRequest = deleteRepositoryRequest(request.param("repository"));
         deleteRepositoryRequest.timeout(request.paramAsTime("timeout", deleteRepositoryRequest.timeout()));
-        deleteRepositoryRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", deleteRepositoryRequest.masterNodeTimeout())
+        deleteRepositoryRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", deleteRepositoryRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(deleteRepositoryRequest, request);
         return channel -> client.admin().cluster().deleteRepository(deleteRepositoryRequest, new RestToXContentListener<>(channel));

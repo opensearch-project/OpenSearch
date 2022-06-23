@@ -98,7 +98,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
 
-    private MasterService masterService;
+    private MasterService clusterManagerService;
     private Coordinator coordinator;
     private DeterministicTaskQueue deterministicTaskQueue;
     private Transport transport;
@@ -117,7 +117,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        masterService.close();
+        clusterManagerService.close();
     }
 
     private static ClusterState initialState(DiscoveryNode localNode, long term, long version, VotingConfiguration config) {
@@ -138,61 +138,68 @@ public class NodeJoinTests extends OpenSearchTestCase {
             .build();
     }
 
-    private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState, NodeHealthService nodeHealthService) {
+    private void setupFakeClusterManagerServiceAndCoordinator(long term, ClusterState initialState, NodeHealthService nodeHealthService) {
         deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
             random()
         );
         final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
-        FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService(
+        FakeThreadPoolMasterService fakeClusterManagerService = new FakeThreadPoolMasterService(
             "test_node",
             "test",
             fakeThreadPool,
             deterministicTaskQueue::scheduleNow
         );
-        setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, fakeThreadPool, Randomness.get(), nodeHealthService);
-        fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+        setupClusterManagerServiceAndCoordinator(
+            term,
+            initialState,
+            fakeClusterManagerService,
+            fakeThreadPool,
+            Randomness.get(),
+            nodeHealthService
+        );
+        fakeClusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             coordinator.handlePublishRequest(new PublishRequest(event.state()));
             publishListener.onResponse(null);
         });
-        fakeMasterService.start();
+        fakeClusterManagerService.start();
     }
 
-    private void setupRealMasterServiceAndCoordinator(long term, ClusterState initialState) {
-        MasterService masterService = new MasterService(
+    private void setupRealClusterManagerServiceAndCoordinator(long term, ClusterState initialState) {
+        MasterService clusterManagerService = new MasterService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+        clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             clusterStateRef.set(event.state());
             publishListener.onResponse(null);
         });
-        setupMasterServiceAndCoordinator(
+        setupClusterManagerServiceAndCoordinator(
             term,
             initialState,
-            masterService,
+            clusterManagerService,
             threadPool,
             new Random(Randomness.get().nextLong()),
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
-        masterService.setClusterStateSupplier(clusterStateRef::get);
-        masterService.start();
+        clusterManagerService.setClusterStateSupplier(clusterStateRef::get);
+        clusterManagerService.start();
     }
 
-    private void setupMasterServiceAndCoordinator(
+    private void setupClusterManagerServiceAndCoordinator(
         long term,
         ClusterState initialState,
-        MasterService masterService,
+        MasterService clusterManagerService,
         ThreadPool threadPool,
         Random random,
         NodeHealthService nodeHealthService
     ) {
-        if (this.masterService != null || coordinator != null) {
+        if (this.clusterManagerService != null || coordinator != null) {
             throw new IllegalStateException("method setupMasterServiceAndCoordinator can only be called once");
         }
-        this.masterService = masterService;
+        this.clusterManagerService = clusterManagerService;
         CapturingTransport capturingTransport = new CapturingTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
@@ -224,7 +231,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             transportService,
             writableRegistry(),
             OpenSearchAllocationTestCase.createAllocationService(Settings.EMPTY),
-            masterService,
+            clusterManagerService,
             () -> new InMemoryPersistedState(term, initialState),
             r -> emptyList(),
             new NoOpClusterApplier(),
@@ -245,14 +252,14 @@ public class NodeJoinTests extends OpenSearchTestCase {
         return newNode(i, randomBoolean());
     }
 
-    protected DiscoveryNode newNode(int i, boolean master) {
+    protected DiscoveryNode newNode(int i, boolean clusterManager) {
         final Set<DiscoveryNodeRole> roles;
-        if (master) {
+        if (clusterManager) {
             roles = singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
         } else {
             roles = Collections.emptySet();
         }
-        final String prefix = master ? "master_" : "data_";
+        final String prefix = clusterManager ? "cluster_manager_" : "data_";
         return new DiscoveryNode(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }
 
@@ -323,7 +330,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(randomFrom(node0, node1))),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -347,7 +354,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node1)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -362,12 +369,12 @@ public class NodeJoinTests extends OpenSearchTestCase {
         assertFalse(isLocalNodeElectedMaster());
     }
 
-    public void testJoinWithHigherTermButBetterStateStillElectsMasterThroughSelfJoin() {
+    public void testJoinWithHigherTermButBetterStateStillElectsClusterManagerThroughSelfJoin() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -384,7 +391,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -404,7 +411,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -426,7 +433,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node2 = newNode(2, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node2)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -458,7 +465,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -481,7 +488,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             "knownNodeName"
         );
 
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             buildStateWithVotingConfigExclusion(initialNode, initialTerm, initialVersion, votingConfigExclusion),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -507,7 +514,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         );
 
         assertTrue(
-            MasterServiceTests.discoveryState(masterService)
+            MasterServiceTests.discoveryState(clusterManagerService)
                 .getVotingConfigExclusions()
                 .stream()
                 .anyMatch(
@@ -583,7 +590,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -604,7 +611,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node1)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -626,27 +633,31 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     public void testConcurrentJoining() {
-        List<DiscoveryNode> masterNodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
+        List<DiscoveryNode> clusterManagerNodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
             .mapToObj(nodeId -> newNode(nodeId, true))
             .collect(Collectors.toList());
-        List<DiscoveryNode> otherNodes = IntStream.rangeClosed(masterNodes.size() + 1, masterNodes.size() + 1 + randomIntBetween(0, 5))
-            .mapToObj(nodeId -> newNode(nodeId, false))
-            .collect(Collectors.toList());
-        List<DiscoveryNode> allNodes = Stream.concat(masterNodes.stream(), otherNodes.stream()).collect(Collectors.toList());
+        List<DiscoveryNode> otherNodes = IntStream.rangeClosed(
+            clusterManagerNodes.size() + 1,
+            clusterManagerNodes.size() + 1 + randomIntBetween(0, 5)
+        ).mapToObj(nodeId -> newNode(nodeId, false)).collect(Collectors.toList());
+        List<DiscoveryNode> allNodes = Stream.concat(clusterManagerNodes.stream(), otherNodes.stream()).collect(Collectors.toList());
 
-        DiscoveryNode localNode = masterNodes.get(0);
+        DiscoveryNode localNode = clusterManagerNodes.get(0);
         VotingConfiguration votingConfiguration = new VotingConfiguration(
-            randomValueOtherThan(singletonList(localNode), () -> randomSubsetOf(randomIntBetween(1, masterNodes.size()), masterNodes))
-                .stream()
-                .map(DiscoveryNode::getId)
-                .collect(Collectors.toSet())
+            randomValueOtherThan(
+                singletonList(localNode),
+                () -> randomSubsetOf(randomIntBetween(1, clusterManagerNodes.size()), clusterManagerNodes)
+            ).stream().map(DiscoveryNode::getId).collect(Collectors.toSet())
         );
 
         logger.info("Voting configuration: {}", votingConfiguration);
 
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupRealMasterServiceAndCoordinator(initialTerm, initialState(localNode, initialTerm, initialVersion, votingConfiguration));
+        setupRealClusterManagerServiceAndCoordinator(
+            initialTerm,
+            initialState(localNode, initialTerm, initialVersion, votingConfiguration)
+        );
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
         // we need at least a quorum of voting nodes with a correct term and worse state
@@ -735,10 +746,10 @@ public class NodeJoinTests extends OpenSearchTestCase {
             throw new RuntimeException(e);
         }
 
-        assertTrue(MasterServiceTests.discoveryState(masterService).nodes().isLocalNodeElectedMaster());
+        assertTrue(MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster());
         for (DiscoveryNode successfulNode : successfulNodes) {
             assertTrue(successfulNode + " joined cluster", clusterStateHasNode(successfulNode));
-            assertFalse(successfulNode + " voted for master", coordinator.missingJoinVoteFrom(successfulNode));
+            assertFalse(successfulNode + " voted for cluster-manager", coordinator.missingJoinVoteFrom(successfulNode));
         }
     }
 
@@ -749,7 +760,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = new DiscoveryNode("master1", "1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         long initialTerm = 1;
         long initialVersion = 1;
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -765,10 +776,10 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     private boolean isLocalNodeElectedMaster() {
-        return MasterServiceTests.discoveryState(masterService).nodes().isLocalNodeElectedMaster();
+        return MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster();
     }
 
     private boolean clusterStateHasNode(DiscoveryNode node) {
-        return node.equals(MasterServiceTests.discoveryState(masterService).nodes().get(node.getId()));
+        return node.equals(MasterServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
     }
 }

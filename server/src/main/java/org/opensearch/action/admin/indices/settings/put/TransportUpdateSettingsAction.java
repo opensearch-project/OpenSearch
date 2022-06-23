@@ -38,7 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -60,7 +60,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportUpdateSettingsAction extends TransportMasterNodeAction<UpdateSettingsRequest, AcknowledgedResponse> {
+public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAction<UpdateSettingsRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
@@ -116,7 +116,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final UpdateSettingsRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -128,7 +128,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
             .settings(request.settings())
             .setPreserveExisting(request.isPreserveExisting())
             .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
+            .masterNodeTimeout(request.clusterManagerNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override

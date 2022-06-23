@@ -80,7 +80,7 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(request.param("name"));
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
-        getRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRequest.masterNodeTimeout()));
+        getRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRequest.clusterManagerNodeTimeout()));
         parseDeprecatedMasterTimeoutParameter(getRequest, request);
 
         final boolean implicitAll = getRequest.name() == null;

@@ -95,16 +95,16 @@ public class RestGetMappingAction extends BaseRestHandler {
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
-        TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", getMappingsRequest.masterNodeTimeout());
-        // TODO: Remove the if condition and statements inside after removing parameter 'master_timeout'.
+        TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", getMappingsRequest.clusterManagerNodeTimeout());
+        // Remove the if condition and statements inside after removing MASTER_ROLE.
         if (request.hasParam("master_timeout")) {
             if (request.hasParam("cluster_manager_timeout")) {
                 throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
             }
-            clusterManagerTimeout = request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout());
+            clusterManagerTimeout = request.paramAsTime("master_timeout", getMappingsRequest.clusterManagerNodeTimeout());
         }
         final TimeValue timeout = clusterManagerTimeout;
-        getMappingsRequest.masterNodeTimeout(timeout);
+        getMappingsRequest.clusterManagerNodeTimeout(timeout);
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestActionListener<GetMappingsResponse>(channel) {
 

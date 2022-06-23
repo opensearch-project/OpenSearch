@@ -263,7 +263,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
 
         if (randomBoolean()) {
             String timeout = randomTimeValue();
-            restoreSnapshotRequest.masterNodeTimeout(timeout);
+            restoreSnapshotRequest.clusterManagerNodeTimeout(timeout);
             expectedParams.put("master_timeout", timeout);
         }
 

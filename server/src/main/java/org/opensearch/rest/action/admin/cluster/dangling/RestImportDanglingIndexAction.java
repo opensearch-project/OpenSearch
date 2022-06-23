@@ -74,7 +74,7 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
         );
 
         importRequest.timeout(request.paramAsTime("timeout", importRequest.timeout()));
-        importRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", importRequest.masterNodeTimeout()));
+        importRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", importRequest.clusterManagerNodeTimeout()));
         parseDeprecatedMasterTimeoutParameter(importRequest, request);
 
         return channel -> client.admin()

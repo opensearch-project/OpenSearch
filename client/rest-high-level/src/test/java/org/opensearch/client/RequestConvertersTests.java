@@ -61,7 +61,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.RequestConverters.EndpointBuilder;
@@ -2105,8 +2105,8 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         }
     }
 
-    static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
-        setRandomMasterTimeout(request::masterNodeTimeout, expectedParams);
+    static void setRandomMasterTimeout(ClusterManagerNodeRequest<?> request, Map<String, String> expectedParams) {
+        setRandomMasterTimeout(request::clusterManagerNodeTimeout, expectedParams);
     }
 
     static void setRandomMasterTimeout(TimedRequest request, Map<String, String> expectedParams) {
@@ -2122,7 +2122,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             setter.accept(masterTimeout);
             expectedParams.put("master_timeout", masterTimeout);
         } else {
-            expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
+            expectedParams.put("master_timeout", ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT.getStringRep());
         }
     }
 

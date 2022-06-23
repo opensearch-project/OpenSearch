@@ -586,7 +586,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         );
     }
 
-    // scenario when handling a publish request from a master that we already received a newer state from
+    // scenario when handling a publish request from a cluster-manager that we already received a newer state from
     public void testHandlePublishRequestWithSameTermButOlderOrSameVersion() {
         VotingConfiguration initialConfig = VotingConfiguration.of(node1);
         ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
@@ -613,7 +613,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         );
     }
 
-    // scenario when handling a publish request from a fresh master
+    // scenario when handling a publish request from a fresh cluster-manager
     public void testHandlePublishRequestWithTermHigherThanLastAcceptedTerm() {
         VotingConfiguration initialConfig = VotingConfiguration.of(node1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
@@ -845,7 +845,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
         assertFalse(
             voteCollection.addVote(
-                new DiscoveryNode("master-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
+                new DiscoveryNode("cluster-manager-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
             )
         );
         assertTrue(voteCollection.isEmpty());

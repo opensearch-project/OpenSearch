@@ -73,7 +73,7 @@ public class IndicesAliasesRequestTests extends OpenSearchTestCase {
         }
 
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomTimeValue());
+            request.clusterManagerNodeTimeout(randomTimeValue());
         }
         for (int i = 0; i < numItems; i++) {
             request.addAliasAction(randomAliasAction());

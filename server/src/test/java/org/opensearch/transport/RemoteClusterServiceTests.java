@@ -553,11 +553,11 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
         final Settings settings = Settings.EMPTY;
         final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         final Settings data = nonMasterNode();
-        final Settings dedicatedMaster = clusterManagerOnlyNode();
+        final Settings dedicatedClusterManager = clusterManagerOnlyNode();
         try (
-            MockTransportService c1N1 = startTransport("cluster_1_node_1", knownNodes, Version.CURRENT, dedicatedMaster);
+            MockTransportService c1N1 = startTransport("cluster_1_node_1", knownNodes, Version.CURRENT, dedicatedClusterManager);
             MockTransportService c1N2 = startTransport("cluster_1_node_2", knownNodes, Version.CURRENT, data);
-            MockTransportService c2N1 = startTransport("cluster_2_node_1", knownNodes, Version.CURRENT, dedicatedMaster);
+            MockTransportService c2N1 = startTransport("cluster_2_node_1", knownNodes, Version.CURRENT, dedicatedClusterManager);
             MockTransportService c2N2 = startTransport("cluster_2_node_2", knownNodes, Version.CURRENT, data)
         ) {
             final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
