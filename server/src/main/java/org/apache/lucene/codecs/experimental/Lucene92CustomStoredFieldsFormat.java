@@ -21,7 +21,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 
 /** Stored field format used by plugaable codec */
-public class Lucene90CustomStoredFieldsFormat extends StoredFieldsFormat {
+public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
 
     private static final int ZSTD_BLOCK_LENGTH = 10 * 48 * 1024;
     private static final int LZ4_NATIVE_BLOCK_LENGTH = 10 * 8 * 1024;
@@ -36,15 +36,15 @@ public class Lucene90CustomStoredFieldsFormat extends StoredFieldsFormat {
 
     private final Lucene92CustomCodec.Mode mode;
 
-    public static final String MODE_KEY = Lucene90CustomStoredFieldsFormat.class.getSimpleName() + ".mode";
+    public static final String MODE_KEY = Lucene92CustomStoredFieldsFormat.class.getSimpleName() + ".mode";
 
     /** default constructor */
-    public Lucene90CustomStoredFieldsFormat() {
+    public Lucene92CustomStoredFieldsFormat() {
         this(Lucene92CustomCodec.Mode.LZ4_NATIVE, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
     }
 
     /** Stored fields format with specified compression algo. */
-    public Lucene90CustomStoredFieldsFormat(Lucene92CustomCodec.Mode mode, int compressionLevel) {
+    public Lucene92CustomStoredFieldsFormat(Lucene92CustomCodec.Mode mode, int compressionLevel) {
         this.mode = Objects.requireNonNull(mode);
         ZSTD_MODE = new ZstdCompressionMode(compressionLevel);
         ZSTD_MODE_NO_DICT = new ZstdNoDictCompressionMode(compressionLevel);

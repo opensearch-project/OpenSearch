@@ -54,7 +54,7 @@ import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.apache.lucene.codecs.experimental.Lucene92CustomCodec;
-import org.apache.lucene.codecs.experimental.Lucene90CustomStoredFieldsFormat;
+import org.apache.lucene.codecs.experimental.Lucene92CustomStoredFieldsFormat;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -123,7 +123,7 @@ public class CodecTests extends OpenSearchTestCase {
         iw.close();
         DirectoryReader ir = DirectoryReader.open(dir);
         SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
-        String v = sr.getSegmentInfo().info.getAttribute(Lucene90CustomStoredFieldsFormat.MODE_KEY);
+        String v = sr.getSegmentInfo().info.getAttribute(Lucene92CustomStoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
         assertEquals(expected, Lucene92CustomCodec.Mode.valueOf(v));
         ir.close();

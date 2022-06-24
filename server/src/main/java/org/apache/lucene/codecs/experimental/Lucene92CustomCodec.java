@@ -52,17 +52,17 @@ public class Lucene92CustomCodec extends FilterCodec {
                     "Invalid compression level"
                 );
 
-                this.storedFieldsFormat = new Lucene90CustomStoredFieldsFormat(Mode.ZSTD, compressionLevel);
+                this.storedFieldsFormat = new Lucene92CustomStoredFieldsFormat(Mode.ZSTD, compressionLevel);
                 break;
             case ZSTD_NO_DICT:
                 if (compressionLevel < ZSTD_MIN_CLEVEL || compressionLevel > ZSTD_MAX_CLEVEL) throw new IllegalArgumentException(
                     "Invalid compression level"
                 );
 
-                this.storedFieldsFormat = new Lucene90CustomStoredFieldsFormat(Mode.ZSTD_NO_DICT, compressionLevel);
+                this.storedFieldsFormat = new Lucene92CustomStoredFieldsFormat(Mode.ZSTD_NO_DICT, compressionLevel);
                 break;
             case LZ4_NATIVE:
-                this.storedFieldsFormat = new Lucene90CustomStoredFieldsFormat(Mode.LZ4_NATIVE, compressionLevel);
+                this.storedFieldsFormat = new Lucene92CustomStoredFieldsFormat(Mode.LZ4_NATIVE, compressionLevel);
                 break;
             default:
                 throw new IllegalArgumentException("Chosen compression mode does not exist");
