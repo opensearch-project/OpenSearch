@@ -44,7 +44,9 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.index.mapper.FieldTypeTestCase.MOCK_QSC_DISALLOW_EXPENSIVE;
@@ -390,6 +392,98 @@ public class DenseVectorFieldTypeTests extends OpenSearchSingleNodeTestCase {
             mapperExceptionInvalidMaxConnections.getMessage(),
             "unknown parameter [my_field] on mapper [field] of type [dense_vector]"
         );
+    }
+
+    public void testExceedMaxNumberOfAlgorithmParams() throws Exception {
+        Map<String, Integer> algorithmParams = new HashMap<>();
+        IntStream.range(0, 100).forEach(number -> algorithmParams.put("param" + number, randomInt(Integer.MAX_VALUE)));
+        XContentBuilder mappingInvalidAlgorithm = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject(FIELD_NAME)
+            .field("type", DENSE_VECTOR_TYPE_NAME)
+            .field("dimension", DIMENSION)
+            .field("knn", Map.of("metric", METRIC_L2, "algorithm", Map.of("name", ALGORITHM_HNSW, "parameters", algorithmParams)))
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        final MapperParsingException mapperExceptionInvalidAlgorithm = expectThrows(
+            MapperParsingException.class,
+            () -> parser.parse("type", new CompressedXContent(Strings.toString(mappingInvalidAlgorithm)))
+        );
+        assertEquals(
+            mapperExceptionInvalidAlgorithm.getMessage(),
+            "Invalid number of parameters for [algorithm], max allowed is [50] but given [100]"
+        );
+    }
+
+    public void testInvalidVectorNumberFormat() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject(FIELD_NAME)
+            .field("type", DENSE_VECTOR_TYPE_NAME)
+            .field("dimension", 1)
+            .field("knn", Map.of())
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        final MapperParsingException mapperExceptionStringAsVectorValue = expectThrows(
+            MapperParsingException.class,
+            () -> parser.parse("type", new CompressedXContent(Strings.toString(mapping)))
+                .parse(source(b -> b.field(FIELD_NAME, "some malicious script content")))
+        );
+        assertEquals(
+            mapperExceptionStringAsVectorValue.getMessage(),
+            "failed to parse field [field] of type [dense_vector] in document with id '1'. Preview of field's value: 'some malicious script content'"
+        );
+
+        final MapperParsingException mapperExceptionInfinityVectorValue = expectThrows(
+            MapperParsingException.class,
+            () -> parser.parse("type", new CompressedXContent(Strings.toString(mapping)))
+                .parse(source(b -> b.field(FIELD_NAME, new Float[] { Float.POSITIVE_INFINITY })))
+        );
+        assertEquals(
+            mapperExceptionInfinityVectorValue.getMessage(),
+            "failed to parse field [field] of type [dense_vector] in document with id '1'. Preview of field's value: 'Infinity'"
+        );
+
+        final MapperParsingException mapperExceptionNullVectorValue = expectThrows(
+            MapperParsingException.class,
+            () -> parser.parse("type", new CompressedXContent(Strings.toString(mapping)))
+                .parse(source(b -> b.field(FIELD_NAME, new Float[] { null })))
+        );
+        assertEquals(
+            mapperExceptionNullVectorValue.getMessage(),
+            "failed to parse field [field] of type [dense_vector] in document with id '1'. Preview of field's value: 'null'"
+        );
+    }
+
+    public void testNullVectorValue() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject(FIELD_NAME)
+            .field("type", DENSE_VECTOR_TYPE_NAME)
+            .field("dimension", DIMENSION)
+            .field("knn", Map.of())
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        parser.parse("type", new CompressedXContent(Strings.toString(mapping))).parse(source(b -> b.field(FIELD_NAME, (Float) null)));
+
+        parser.parse("type", new CompressedXContent(Strings.toString(mapping))).parse(source(b -> b.field(FIELD_NAME, VECTOR)));
+
+        parser.parse("type", new CompressedXContent(Strings.toString(mapping))).parse(source(b -> b.field(FIELD_NAME, (Float) null)));
     }
 
     public void testValueDisplay() {

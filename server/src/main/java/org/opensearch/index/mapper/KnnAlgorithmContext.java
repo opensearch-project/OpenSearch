@@ -55,6 +55,8 @@ public class KnnAlgorithmContext implements ToXContentFragment, Writeable {
     private final Method method;
     private final Map<String, Object> parameters;
 
+    private static final int MAX_NUMBER_OF_ALGORITHM_PARAMETERS = 50;
+
     public KnnAlgorithmContext(Method method, Map<String, Object> parameters) {
         this.method = method;
         this.parameters = parameters;
@@ -109,7 +111,16 @@ public class KnnAlgorithmContext implements ToXContentFragment, Writeable {
                     }
                     return v;
                 }));
-
+                if (parameters.size() > MAX_NUMBER_OF_ALGORITHM_PARAMETERS) {
+                    throw new MapperParsingException(
+                        String.format(
+                            Locale.ROOT,
+                            "Invalid number of parameters for [algorithm], max allowed is [%d] but given [%d]",
+                            MAX_NUMBER_OF_ALGORITHM_PARAMETERS,
+                            parameters.size()
+                        )
+                    );
+                }
             } else {
                 throw new MapperParsingException(String.format(Locale.ROOT, "Invalid parameter %s for [algorithm]", key));
             }
