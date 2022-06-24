@@ -44,9 +44,16 @@ setup:
              string_field: foo
 
 ---
-"Basic test":
+"Basic 2.x test":
+
+  - skip:
+      version: "3.0.0 -"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
 
   - do:
+      node_selector:
+        version: "- 2.9.99"
       search:
         rest_total_hits_as_int: true
         body:
@@ -77,7 +84,58 @@ setup:
   - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
 
+---
+"Basic 3.x test":
+
+  - skip:
+      version: "- 2.9.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
   - do:
+      node_selector:
+        version: "3.0.0 -"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_int:
+              percentiles:
+                field: int_field
+            percentiles_double:
+              percentiles:
+                field: double_field
+
+  - match:  { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 151.0 }
+  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 151.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
+
+---
+"Compression test":
+
+  - skip:
+      version: "- 2.9.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "3.0.0 -"
       search:
         rest_total_hits_as_int: true
         body:
@@ -93,31 +151,36 @@ setup:
                 tdigest:
                   compression: 200
 
-
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
 
   - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
   - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
 
   - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
   - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_double.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_double.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 151.0 }
   - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
-
 
 ---
 "Only aggs test":
 
+  - skip:
+      version: "- 2.9.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
   - do:
+      node_selector:
+        version: "3.0.0 -"
       search:
         rest_total_hits_as_int: true
         body:
@@ -135,26 +198,31 @@ setup:
 
   - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
   - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
 
   - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
   - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_double.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_double.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 151.0 }
   - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
-
-
 
 ---
 "Filtered test":
 
+  - skip:
+      version: "- 2.9.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
   - do:
+      node_selector:
+        version: "3.0.0 -"
       search:
         rest_total_hits_as_int: true
         body:
@@ -177,17 +245,17 @@ setup:
 
   - match:  { aggregations.percentiles_int.values.1\.0: 51.0 }
   - match:  { aggregations.percentiles_int.values.5\.0: 51.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 63.5 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 51.0 }
   - match:  { aggregations.percentiles_int.values.50\.0: 101.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 138.5 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
 
   - match:  { aggregations.percentiles_double.values.1\.0: 51.0 }
   - match:  { aggregations.percentiles_double.values.5\.0: 51.0 }
-  - match:  { aggregations.percentiles_double.values.25\.0: 63.5 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 51.0 }
   - match:  { aggregations.percentiles_double.values.50\.0: 101.0 }
-  - match:  { aggregations.percentiles_double.values.75\.0: 138.5 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 151.0 }
   - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
 
@@ -234,7 +302,14 @@ setup:
 ---
 "Metadata test":
 
+  - skip:
+      version: "- 2.9.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
   - do:
+      node_selector:
+        version: "3.0.0 -"
       search:
         rest_total_hits_as_int: true
         body:
@@ -252,9 +327,9 @@ setup:
 
   - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
   - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
   - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
 
@@ -319,7 +394,14 @@ setup:
 ---
 "Explicit Percents test":
 
+  - skip:
+      version: "- 2.9.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
   - do:
+      node_selector:
+        version: "3.0.0 -"
       search:
         rest_total_hits_as_int: true
         body:
@@ -338,17 +420,24 @@ setup:
   - length: { hits.hits: 4 }
 
   - match: { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match: { aggregations.percentiles_int.values.25\.0: 26.0 }
-  - match: { aggregations.percentiles_int.values.50\.0: 76.0 }
+  - match: { aggregations.percentiles_int.values.25\.0: 51.0 }
+  - match: { aggregations.percentiles_int.values.50\.0: 101.0 }
 
   - match: { aggregations.percentiles_double.values.5\.0: 1.0 }
-  - match: { aggregations.percentiles_double.values.25\.0: 26.0 }
-  - match: { aggregations.percentiles_double.values.50\.0: 76.0 }
+  - match: { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match: { aggregations.percentiles_double.values.50\.0: 101.0 }
 
 ---
 "Non-keyed test":
 
+  - skip:
+      version: "- 2.9.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
   - do:
+      node_selector:
+        version: "3.0.0 -"
       search:
         rest_total_hits_as_int: true
         body:
@@ -366,6 +455,6 @@ setup:
   - match:  { aggregations.percentiles_int.values.0.key:  5.0 }
   - match:  { aggregations.percentiles_int.values.0.value:  1.0 }
   - match:  { aggregations.percentiles_int.values.1.key:  25.0 }
-  - match:  { aggregations.percentiles_int.values.1.value:  26.0 }
+  - match:  { aggregations.percentiles_int.values.1.value:  51.0 }
   - match:  { aggregations.percentiles_int.values.2.key:  50.0 }
-  - match:  { aggregations.percentiles_int.values.2.value:  76.0 }
+  - match:  { aggregations.percentiles_int.values.2.value:  101.0 }
