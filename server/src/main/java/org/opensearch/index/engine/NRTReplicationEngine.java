@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -62,7 +61,7 @@ public class NRTReplicationEngine extends Engine {
         super(engineConfig);
         store.incRef();
         NRTReplicationReaderManager readerManager = null;
-        AtomicReference<TranslogManager> translogManagerRef = new AtomicReference<>();
+        TranslogManager translogManagerRef = null;
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             readerManager = new NRTReplicationReaderManager(OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId));
@@ -75,39 +74,37 @@ public class NRTReplicationEngine extends Engine {
             this.readerManager.addListener(completionStatsCache);
             final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
             final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
-            translogManagerRef.set(
-                new WriteOnlyTranslogManager(
-                    engineConfig.getTranslogConfig(),
-                    engineConfig.getPrimaryTermSupplier(),
-                    engineConfig.getGlobalCheckpointSupplier(),
-                    getTranslogDeletionPolicy(engineConfig),
-                    shardId,
-                    readLock,
-                    this::getLocalCheckpointTracker,
-                    translogUUID,
-                    new TranslogEventListener() {
-                        @Override
-                        public void onFailure(String reason, Exception ex) {
-                            failEngine(reason, ex);
-                        }
+            translogManagerRef = new WriteOnlyTranslogManager(
+                engineConfig.getTranslogConfig(),
+                engineConfig.getPrimaryTermSupplier(),
+                engineConfig.getGlobalCheckpointSupplier(),
+                getTranslogDeletionPolicy(engineConfig),
+                shardId,
+                readLock,
+                this::getLocalCheckpointTracker,
+                translogUUID,
+                new TranslogEventListener() {
+                    @Override
+                    public void onFailure(String reason, Exception ex) {
+                        failEngine(reason, ex);
+                    }
 
-                        @Override
-                        public void onAfterTranslogSync() {
-                            try {
-                                translogManagerRef.get().getTranslog(false).trimUnreferencedReaders();
-                            } catch (IOException ex) {
-                                throw new TranslogException(shardId, "failed to trim unreferenced translog readers", ex);
-                            }
+                    @Override
+                    public void onAfterTranslogSync() {
+                        try {
+                            translogManager.getTranslog(false).trimUnreferencedReaders();
+                        } catch (IOException ex) {
+                            throw new TranslogException(shardId, "failed to trim unreferenced translog readers", ex);
                         }
-                    },
-                    this::ensureOpen
-                )
+                    }
+                },
+                this
             );
-            this.translogManager = translogManagerRef.get();
+            this.translogManager = translogManagerRef;
         } catch (IOException e) {
             Translog translog = null;
-            if (translogManagerRef.get() != null) {
-                translog = translogManagerRef.get().getTranslog(false);
+            if (translogManagerRef != null) {
+                translog = translogManagerRef.getTranslog(false);
             }
             IOUtils.closeWhileHandlingException(store::decRef, readerManager, translog);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);

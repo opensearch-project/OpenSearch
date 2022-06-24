@@ -80,7 +80,10 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.*;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
