@@ -119,7 +119,7 @@ dependencies {
   api "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
-  api 'com.tdunning:t-digest:3.2'
+  api 'com.tdunning:t-digest:3.3'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.12'
 
