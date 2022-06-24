@@ -79,4 +79,5 @@ public class DeletePitInfo extends TransportResponse implements Writeable, ToXCo
         builder.endObject();
         return builder;
     }
+
 }
