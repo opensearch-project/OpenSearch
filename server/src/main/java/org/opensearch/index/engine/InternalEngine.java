@@ -291,7 +291,7 @@ public class InternalEngine extends Engine {
                     readLock,
                     () -> getLocalCheckpointTracker(),
                     translogUUID,
-                    new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener)),
+                    new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId),
                     this::ensureOpen
                 );
                 this.translogManager = translogManagerRef;

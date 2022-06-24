@@ -9,6 +9,8 @@
 package org.opensearch.index.translog.listener;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.reflect.Proxy;
@@ -57,7 +59,10 @@ public class TranslogListenerTests extends OpenSearchTestCase {
 
         final List<TranslogEventListener> translogEventListeners = new ArrayList<>(Arrays.asList(listener, listener));
         Collections.shuffle(translogEventListeners, random());
-        TranslogEventListener compositeListener = new CompositeTranslogEventListener(translogEventListeners);
+        TranslogEventListener compositeListener = new CompositeTranslogEventListener(
+            translogEventListeners,
+            new ShardId(new Index("indexName", "indexUuid"), 123)
+        );
         compositeListener.onAfterTranslogRecovery();
         compositeListener.onAfterTranslogSync();
         compositeListener.onBeginTranslogRecovery();
@@ -113,7 +118,10 @@ public class TranslogListenerTests extends OpenSearchTestCase {
 
         final List<TranslogEventListener> translogEventListeners = new LinkedList<>(Arrays.asList(listener, throwingListener, listener));
         Collections.shuffle(translogEventListeners, random());
-        TranslogEventListener compositeListener = new CompositeTranslogEventListener(translogEventListeners);
+        TranslogEventListener compositeListener = new CompositeTranslogEventListener(
+            translogEventListeners,
+            new ShardId(new Index("indexName", "indexUuid"), 123)
+        );
         expectThrows(RuntimeException.class, () -> compositeListener.onAfterTranslogRecovery());
         expectThrows(RuntimeException.class, () -> compositeListener.onAfterTranslogSync());
         expectThrows(RuntimeException.class, () -> compositeListener.onBeginTranslogRecovery());
