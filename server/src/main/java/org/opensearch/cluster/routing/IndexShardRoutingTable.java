@@ -43,7 +43,6 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +55,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
@@ -81,6 +81,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     final List<ShardRouting> assignedShards;
     final Set<String> allAllocationIds;
     final boolean allShardsStarted;
+    AtomicInteger lastSelectedShardWRR;
 
     private volatile Map<AttributesKey, AttributesRoutings> activeShardsByAttributes = emptyMap();
     private volatile Map<AttributesKey, AttributesRoutings> initializingShardsByAttributes = emptyMap();
@@ -96,6 +97,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = Collections.unmodifiableList(shards);
+        this.lastSelectedShardWRR = new AtomicInteger(-2);
 
         ShardRouting primary = null;
         List<ShardRouting> replicas = new ArrayList<>();
@@ -290,6 +292,44 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         List<ShardRouting> rankedInitializingShards = rankShardsAndUpdateStats(allInitializingShards, collector, nodeSearchCounts);
         ordered.addAll(rankedInitializingShards);
         return new PlainShardIterator(shardId, ordered);
+    }
+
+    public ShardIterator activeInitializingShardsWRR(List<String> weightsWRR, DiscoveryNodes nodes) {
+        final int seed = shuffler.nextSeed();
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size());
+        // TODO : Handle initializing shards
+        List<WeightedRoundRobin.Entity<ShardRouting>> weightedShards = calculateShardWeight(activeShards, weightsWRR, nodes);
+        lastSelectedShardWRR.getAndIncrement();
+        WeightedRoundRobin<ShardRouting> wrr = new WeightedRoundRobin<>(-1);
+        List<WeightedRoundRobin.Entity<ShardRouting>> wrrShards = wrr.orderEntities(weightedShards);
+
+        for (WeightedRoundRobin.Entity<ShardRouting> shardRouting : wrrShards) {
+            ordered.add(shardRouting.getTarget());
+        }
+        return new PlainShardIterator(shardId, shuffler.shuffle(ordered, seed));
+    }
+
+    private List<WeightedRoundRobin.Entity<ShardRouting>> calculateShardWeight(
+        List<ShardRouting> activeShards,
+        List<String> weightsWRR,
+        DiscoveryNodes nodes
+    ) {
+
+        Map<String, Double> zoneWeightMap = new HashMap<>();
+        // TODO: Store weights in settings as map Or create a new api for weights
+        for (String val : weightsWRR) {
+            String zone = val.split(":")[0];
+            String weight = val.split(":")[1];
+            zoneWeightMap.put(zone, Double.parseDouble(weight));
+        }
+        List<WeightedRoundRobin.Entity<ShardRouting>> weightedShards = new ArrayList<>();
+        for (ShardRouting shard : shards) {
+            shard.currentNodeId();
+            DiscoveryNode node = nodes.get(shard.currentNodeId());
+            String attVal = node.getAttributes().get("zone");
+            weightedShards.add(new WeightedRoundRobin.Entity<>(zoneWeightMap.get(attVal), shard));
+        }
+        return weightedShards;
     }
 
     private static Set<String> getAllNodeIds(final List<ShardRouting> shards) {
