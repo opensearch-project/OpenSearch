@@ -8,10 +8,8 @@
 
 package org.opensearch.extensions;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -132,7 +130,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                                         Version.fromString(extension.getVersion()),
                                         pluginInfo
                                     )
-                                ); 
+                                );
                                 logger.debug("Loaded extension: " + extension);
                                 break;
                             } catch (IllegalArgumentException e) {

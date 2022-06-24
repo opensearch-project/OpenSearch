@@ -247,7 +247,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         orchestrator.setTransportService(transportService);
 
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsOrchestrator.class))) {
-        
+
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "Transport Connect Exception 2",
