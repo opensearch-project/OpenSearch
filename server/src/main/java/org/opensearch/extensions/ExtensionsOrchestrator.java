@@ -8,6 +8,19 @@
 
 package org.opensearch.extensions;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
@@ -23,11 +36,12 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.PluginRequest;
 import org.opensearch.discovery.PluginResponse;
+import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleNameResponse;
 import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
-import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.node.ReportingService;
@@ -37,16 +51,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * The main class for Plugin Extensibility
@@ -60,26 +64,22 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
     private final Path extensionsPath;
-    final List<DiscoveryExtension> extensionsSet;
+    final Set<DiscoveryExtension> extensionsSet;
+    Set<DiscoveryExtension> extensionsInitializedSet;
     TransportService transportService;
-    final DiscoveryNode extensionNode;
 
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
         this.transportService = null;
-        this.extensionsSet = new ArrayList<DiscoveryExtension>();
+        this.extensionsSet = new HashSet<DiscoveryExtension>();
+        this.extensionsInitializedSet = new HashSet<DiscoveryExtension>();
 
         /*
          * Now Discover extensions
          */
         extensionsDiscovery();
 
-        this.extensionNode = new DiscoveryNode(
-            "node_extension",
-            new TransportAddress(InetAddress.getByName("127.0.0.1"), 4532),
-            Version.CURRENT
-        );
     }
 
     public void setTransportService(TransportService transportService) {
@@ -99,61 +99,61 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
         }
-        for (final Path plugin : PluginsService.findPluginDirs(extensionsPath)) {
+        List<Path> pluginDirs = PluginsService.findPluginDirs(extensionsPath);
+
+        Set<Extension> extensions = new HashSet<Extension>();
+        if (!pluginDirs.isEmpty()) {
             try {
-                PluginInfo pluginInfo = PluginInfo.readFromProperties(plugin);
-
-                // TODO: Add unit tests for commented section below
-
-                /**
+                extensions = readFromExtensionsYml(extensionsPath.resolve("extensions.yml")).getExtensions();
+            } catch (Exception e) {
+                throw new IOException("Could not read from extensions.yml");
+            }
+        }
+        for (final Path plugin : pluginDirs) {
+            if (Files.isDirectory(plugin)) {
                 try {
-                    List<Extension> extensions = readFromExtensionsYml(extensionsPath.toString()).getExtensions();
-                    for(Extension extension : extensions) {
-                        extensionsSet.add(
-                            new DiscoveryExtension(
-                                extension.getName(),
-                                "id",
-                                extension.getEphemeralId(),
-                                extension.getHostName(),
-                                extension.getHostAddress(),
-                                new TransportAddress(TransportAddress.META_ADDRESS, Integer.parseInt(extension.getPort())),
-                                null,
-                                Version.fromString(extension.getVersion()),
-                                pluginInfo
-                    )
-                );
+                    PluginInfo pluginInfo = PluginInfo.readFromProperties(plugin);
+                    String pluginName = pluginInfo.getName();
+                    for (Extension extension : extensions) {
+                        if (extension.getName().equals(pluginName)) {
+                            try {
+                                extensionsSet.add(
+                                    new DiscoveryExtension(
+                                        extension.getName(),
+                                        extension.getUniqueId(),
+                                        // placeholder for ephemeral id, will change with POC discovery
+                                        extension.getUniqueId(),
+                                        extension.getHostName(),
+                                        extension.getHostAddress(),
+                                        new TransportAddress(TransportAddress.META_ADDRESS, Integer.parseInt(extension.getPort())),
+                                        new HashMap<String, String>(),
+                                        Version.fromString(extension.getVersion()),
+                                        pluginInfo
+                                    )
+                                );
+                                logger.debug("Loaded extension: " + extension);
+                                break;
+                            } catch (IllegalArgumentException e) {
+                                logger.error(e.toString());
+                            }
+                        }
                     }
-                } catch (Exception e) {
-                    //ignore
+
+                } catch (final IOException e) {
+                    throw new IOException("Could not load plugin descriptor " + plugin.getFileName(), e);
                 }
-                */
-
-                /*
-                 * TODO: Read from extensions.yml
-                 * https://github.com/opensearch-project/OpenSearch/issues/3084
-                 */
-                extensionsSet.add(
-                    new DiscoveryExtension(
-                        "myfirstextension",
-                        "id",
-                        "extensionId",
-                        "hostName",
-                        "0.0.0.0",
-                        new TransportAddress(TransportAddress.META_ADDRESS, 9301),
-                        null,
-                        Version.CURRENT,
-                        pluginInfo
-                    )
-                );
-
-            } catch (final IOException e) {
-                throw new IllegalStateException("Could not load plugin descriptor " + plugin.getFileName(), e);
             }
         }
         logger.info("Loaded all extensions");
     }
 
     public void extensionsInitialize() {
+        for (DiscoveryNode extensionNode : extensionsSet) {
+            extensionInitialize(extensionNode);
+        }
+    }
+
+    private void extensionInitialize(DiscoveryNode extensionNode) {
 
         final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
 
@@ -164,7 +164,12 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleResponse(PluginResponse response) {
-                logger.info("received {}", response);
+                for (DiscoveryExtension extension : extensionsSet) {
+                    if (extension.getName().equals(response.getName())) {
+                        extensionsInitializedSet.add(extension);
+                        break;
+                    }
+                }
             }
 
             @Override
@@ -182,7 +187,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new PluginRequest(extensionNode, extensionsSet),
+                new PluginRequest(extensionNode, new ArrayList<DiscoveryExtension>(extensionsSet)),
                 pluginResponseHandler
             );
         } catch (Exception e) {
@@ -191,6 +196,12 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
+        for (DiscoveryNode extensionNode : extensionsSet) {
+            onIndexModule(indexModule, extensionNode);
+        }
+    }
+
+    private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
@@ -293,9 +304,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    public static ExtensionsSettings readFromExtensionsYml(String filePath) throws Exception {
+    private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
-        InputStream input = ExtensionsOrchestrator.class.getResourceAsStream(filePath);
+        InputStream input = Files.newInputStream(filePath);
         ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
         return extensionSettings;
     }

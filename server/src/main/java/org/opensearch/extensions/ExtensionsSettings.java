@@ -8,8 +8,8 @@
 
 package org.opensearch.extensions;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * List of extension configurations from extension.yml
@@ -18,10 +18,10 @@ import java.util.List;
  */
 public class ExtensionsSettings {
 
-    private List<Extension> extensions;
+    private Set<Extension> extensions;
 
     public ExtensionsSettings() {
-        extensions = new ArrayList<Extension>();
+        extensions = new HashSet<Extension>();
     }
 
     /**
@@ -32,7 +32,7 @@ public class ExtensionsSettings {
     public static class Extension {
 
         private String name;
-        private String ephemeralId;
+        private String uniqueId;
         private String hostName;
         private String hostAddress;
         private String port;
@@ -40,7 +40,7 @@ public class ExtensionsSettings {
 
         public Extension() {
             name = "";
-            ephemeralId = "";
+            uniqueId = "";
             hostName = "";
             hostAddress = "";
             port = "";
@@ -55,12 +55,12 @@ public class ExtensionsSettings {
             this.name = name;
         }
 
-        public String getEphemeralId() {
-            return ephemeralId;
+        public String getUniqueId() {
+            return uniqueId;
         }
 
-        public void setEphemeralId(String ephemeralId) {
-            this.ephemeralId = ephemeralId;
+        public void setUniqueId(String uniqueId) {
+            this.uniqueId = uniqueId;
         }
 
         public String getHostName() {
@@ -97,8 +97,8 @@ public class ExtensionsSettings {
 
         @Override
         public String toString() {
-            return "Extension [ephemeralId="
-                + ephemeralId
+            return "Extension [uniqueId="
+                + uniqueId
                 + ", hostAddress="
                 + hostAddress
                 + ", hostName="
@@ -114,11 +114,11 @@ public class ExtensionsSettings {
 
     }
 
-    public List<Extension> getExtensions() {
+    public Set<Extension> getExtensions() {
         return extensions;
     }
 
-    public void setExtensions(List<Extension> extensions) {
+    public void setExtensions(Set<Extension> extensions) {
         this.extensions = extensions;
     }
 
