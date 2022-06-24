@@ -113,7 +113,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         Settings settings = Settings.builder().build();
-        ExtensionsOrchestrator orchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         Set<DiscoveryExtension> expectedExtensionsSet = new HashSet<DiscoveryExtension>();
 
@@ -144,13 +144,14 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 PluginInfo.readFromProperties(pluginDir2)
             )
         );
-        assertEquals(expectedExtensionsSet, orchestrator.extensionsSet);
+        assertEquals(expectedExtensionsSet, extensionsOrchestrator.extensionsSet);
     }
 
     public void testNonAccessibleDirectory() throws Exception {
         Settings settings = Settings.builder().put("node.name", "my-node").build();
         ;
         AccessControlException e = expectThrows(
+
             AccessControlException.class,
             () -> new ExtensionsOrchestrator(settings, PathUtils.get(""))
         );
@@ -213,7 +214,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         Settings settings = Settings.builder().put("cluster.name", "test").build();
-        ExtensionsOrchestrator orchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
         MockNioTransport transport = new MockNioTransport(
@@ -244,7 +245,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        orchestrator.setTransportService(transportService);
+        extensionsOrchestrator.setTransportService(transportService);
 
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsOrchestrator.class))) {
 
@@ -257,7 +258,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             );
 
-            orchestrator.extensionsInitialize();
+            extensionsOrchestrator.extensionsInitialize();
 
             transportService.close();
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
@@ -325,7 +326,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        ExtensionsOrchestrator orchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
         MockNioTransport transport = new MockNioTransport(
@@ -356,7 +357,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        orchestrator.setTransportService(transportService);
+        extensionsOrchestrator.setTransportService(transportService);
 
         Environment environment = TestEnvironment.newEnvironment(settings);
         AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
@@ -395,7 +396,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             );
 
-            orchestrator.onIndexModule(indexModule);
+            extensionsOrchestrator.onIndexModule(indexModule);
 
             transportService.close();
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
