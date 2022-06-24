@@ -463,8 +463,11 @@ final class StoreRecovery {
             for (String file : remoteDirectory.listAll()) {
                 storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
             }
-            indexShard.recoveryState().getIndex().setFileDetailsComplete();
+            // This creates empty trans-log for now
             // ToDo: Add code to restore remote trans-log
+            bootstrap(indexShard, store);
+            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            indexShard.recoveryState().getIndex().setFileDetailsComplete();
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
