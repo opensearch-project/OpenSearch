@@ -44,10 +44,6 @@ opensearchplugin {
   classname 'org.opensearch.repositories.s3.S3RepositoryPlugin'
 }
 
-versions << [
-  'aws': '1.11.749'
-]
-
 dependencies {
   api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
@@ -240,7 +236,7 @@ testClusters.yamlRestTest {
     setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture', '80')}" }, IGNORE_VALUE
     setting 's3.client.integration_test_temporary.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-session-token', '80')}" }, IGNORE_VALUE
     setting 's3.client.integration_test_ec2.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
-    setting 's3.client.integration_test_eks.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}" }, IGNORE_VALUE    
+    setting 's3.client.integration_test_eks.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}" }, IGNORE_VALUE
     setting 's3.client.integration_test_eks.region', { "us-east-2" }, IGNORE_VALUE
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
@@ -386,7 +382,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'com.amazonaws.services.kms.model.EncryptRequest',
   'com.amazonaws.services.kms.model.EncryptResult',
   'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
-  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult',
+  'com.amazonaws.services.kms.AWSKMSClientBuilder'
 )
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
