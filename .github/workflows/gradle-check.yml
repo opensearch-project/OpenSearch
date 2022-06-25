@@ -31,6 +31,8 @@ jobs:
                  --data '{"pr_from_sha": "${{ env.pr_from_sha }}", "pr_from_clone_url": "${{ env.pr_from_clone_url }}", "pr_to_clone_url": "${{ env.pr_to_clone_url }}", "pr_title": "${{ env.pr_title }}", "pr_number": "${{ env.pr_number }}"}' \
                  'https://build.ci.opensearch.org/generic-webhook-trigger/invoke')
 
+            echo $JENKINS_REQ
+
             QUEUE_URL=$(echo $JENKINS_REQ | jq --raw-output '.jobs."gradle-check".url')
             echo QUEUE_URL $QUEUE_URL
             echo "wait for jenkins to start workflow" && sleep 15
