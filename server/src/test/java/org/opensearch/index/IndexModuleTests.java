@@ -234,7 +234,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             writableRegistry(),
             () -> false,
             null,
-            new RemoteDirectoryFactory(repositoriesService)
+            new RemoteDirectoryFactory(() -> repositoriesService)
         );
     }
 

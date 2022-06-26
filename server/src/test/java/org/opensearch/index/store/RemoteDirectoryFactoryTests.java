@@ -27,6 +27,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -35,13 +36,16 @@ import static org.mockito.Mockito.verify;
 
 public class RemoteDirectoryFactoryTests extends OpenSearchTestCase {
 
+    private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private RepositoriesService repositoriesService;
     private RemoteDirectoryFactory remoteDirectoryFactory;
 
     @Before
     public void setup() {
+        repositoriesServiceSupplier = mock(Supplier.class);
         repositoriesService = mock(RepositoriesService.class);
-        remoteDirectoryFactory = new RemoteDirectoryFactory(repositoriesService);
+        when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
+        remoteDirectoryFactory = new RemoteDirectoryFactory(repositoriesServiceSupplier);
     }
 
     public void testNewDirectory() throws IOException {
