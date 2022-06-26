@@ -98,7 +98,6 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
-import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -112,7 +111,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -174,7 +172,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final ScheduledThreadPoolExecutor remoteSegmentsDeleteScheduler;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -279,7 +276,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         updateFsyncTaskIfNecessary();
-        this.remoteSegmentsDeleteScheduler = new Scheduler.SafeScheduledThreadPoolExecutor(Runtime.getRuntime().availableProcessors());
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
@@ -386,7 +382,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     globalCheckpointTask,
                     retentionLeaseSyncTask
                 );
-                remoteSegmentsDeleteScheduler.shutdown();
             }
         }
     }

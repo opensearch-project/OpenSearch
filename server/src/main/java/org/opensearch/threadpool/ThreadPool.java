@@ -107,6 +107,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
         public static final String SYSTEM_READ = "system_read";
         public static final String SYSTEM_WRITE = "system_write";
+        public static final String REMOTE_STORE = "remote_store";
     }
 
     /**
@@ -171,6 +172,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.SEARCH_THROTTLED, ThreadPoolType.RESIZABLE);
         map.put(Names.SYSTEM_READ, ThreadPoolType.FIXED);
         map.put(Names.SYSTEM_WRITE, ThreadPoolType.FIXED);
+        map.put(Names.REMOTE_STORE, ThreadPoolType.FIXED);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -232,6 +234,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(Names.SYSTEM_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, false));
         builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, false));
+        builders.put(Names.REMOTE_STORE, new FixedExecutorBuilder(settings, Names.REMOTE_STORE, halfProcMaxAt5, 1000, false));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {

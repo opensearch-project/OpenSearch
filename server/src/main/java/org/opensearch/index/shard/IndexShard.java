@@ -3213,7 +3213,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (remoteStore != null && shardRouting.primary()) {
             Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
-            internalRefreshListener.add(new RemoteStoreRefreshListener(store.directory(), remoteDirectory));
+            internalRefreshListener.add(new RemoteStoreRefreshListener(this, store.directory(), remoteDirectory));
         }
         if (this.checkpointRefreshListener != null) {
             internalRefreshListener.add(checkpointRefreshListener);
