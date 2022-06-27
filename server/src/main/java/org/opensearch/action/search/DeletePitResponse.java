@@ -58,7 +58,7 @@ public class DeletePitResponse extends ActionResponse implements StatusToXConten
 
     @Override
     public RestStatus status() {
-        if(deletePitResults.isEmpty()) return NOT_FOUND;
+        if (deletePitResults.isEmpty()) return NOT_FOUND;
         return OK;
     }
 

@@ -228,7 +228,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         // since first phase temporary keep alive is set at 1 second in this test file
         // and create pit request keep alive is less than that, keep alive is set to 1 second, (max of 2 keep alives)
         // so reader context will clear up after 1 second
-        Thread.sleep(1000);
+        Thread.sleep(1200);
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {

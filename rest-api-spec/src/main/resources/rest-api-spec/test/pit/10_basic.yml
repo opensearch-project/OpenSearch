@@ -1,4 +1,7 @@
 "Create PIT, Search with PIT ID and Delete":
+  - skip:
+      version: " - 2.9.99"
+      reason: "mode to be introduced later than 3.0"
   - do:
       indices.create:
         index: test_pit
@@ -88,6 +91,9 @@
 
 ---
 "Delete all":
+  - skip:
+      version: " - 2.9.99"
+      reason: "mode to be introduced later than 3.0"
   - do:
       indices.create:
         index: test_pit
@@ -124,6 +130,5 @@
   - match: {pits.0.succeeded: true }
 
   - do:
+      catch: missing
       delete_all_pits: { }
-
-  - match: { pits: []}
