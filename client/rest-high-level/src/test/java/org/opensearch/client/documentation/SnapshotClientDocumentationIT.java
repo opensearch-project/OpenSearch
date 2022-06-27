@@ -52,7 +52,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;

@@ -42,7 +42,7 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;

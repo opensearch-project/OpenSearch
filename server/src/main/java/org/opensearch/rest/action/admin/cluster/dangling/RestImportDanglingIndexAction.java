@@ -40,7 +40,7 @@ import java.io.IOException;
 import java.util.List;
 
 import org.opensearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;

@@ -35,7 +35,7 @@ package org.opensearch.repositories.blobstore;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;

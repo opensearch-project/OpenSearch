@@ -41,7 +41,7 @@ import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.bytes.BytesReference;

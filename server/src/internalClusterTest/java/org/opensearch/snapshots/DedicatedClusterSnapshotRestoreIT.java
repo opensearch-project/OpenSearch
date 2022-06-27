@@ -48,7 +48,7 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;

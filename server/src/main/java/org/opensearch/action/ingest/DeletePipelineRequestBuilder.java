@@ -33,7 +33,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 
 /**

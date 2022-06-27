@@ -124,7 +124,7 @@ import org.opensearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
 

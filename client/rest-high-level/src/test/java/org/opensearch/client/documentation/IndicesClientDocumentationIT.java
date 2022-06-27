@@ -63,7 +63,7 @@ import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
 import org.opensearch.client.GetAliasesResponse;
 import org.opensearch.client.RequestOptions;

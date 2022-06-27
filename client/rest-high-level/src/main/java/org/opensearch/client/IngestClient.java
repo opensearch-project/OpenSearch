@@ -39,7 +39,7 @@ import org.opensearch.action.ingest.GetPipelineResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 
 import java.io.IOException;
 import java.util.Collections;

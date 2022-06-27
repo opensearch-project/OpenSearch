@@ -52,7 +52,7 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.indices.AnalyzeRequest;
 import org.opensearch.client.indices.AnalyzeResponse;
 import org.opensearch.client.indices.CloseIndexRequest;
