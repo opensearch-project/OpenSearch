@@ -1,0 +1,71 @@
+name: Jenkins Gradle Check
+on: [pull_request]
+
+jobs:
+  gradle-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+    steps:
+      - name: Setup environment variables
+        run: |
+            echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+            echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+            echo "pr_to_clone_url=$(jq --raw-output .pull_request.base.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+            echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+            echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+
+      - name: Trigger jenkins workflow to run gradle check
+        run: |
+            echo "${{ env.pr_to_clone_url }} PR: ${{ env.pr_number }}"
+            echo "Raise from ${{ env.pr_from_clone_url }} ${{ env.pr_from_sha }}"
+            echo "PR Title: ${{ env.pr_title }}"
+            JENKINS_URL="https://build.ci.opensearch.org"
+            TIMEPASS=0
+            TIMEOUT=7200
+            RESULT="null"
+
+            echo "Trigger Jenkins workflows"
+            JENKINS_REQ=$(curl -s -XPOST \
+                 -H "Authorization: Bearer ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }}" \
+                 -H "Content-Type: application/json" \
+                 --data '{"pr_from_sha": "${{ env.pr_from_sha }}", "pr_from_clone_url": "${{ env.pr_from_clone_url }}", "pr_to_clone_url": "${{ env.pr_to_clone_url }}", "pr_title": "${{ env.pr_title }}", "pr_number": "${{ env.pr_number }}"}' \
+                 'https://build.ci.opensearch.org/generic-webhook-trigger/invoke')
+
+            QUEUE_URL=$(echo $JENKINS_REQ | jq --raw-output '.jobs."gradle-check".url')
+            echo QUEUE_URL $QUEUE_URL
+            echo "wait for jenkins to start workflow" && sleep 15
+
+            echo "Check if queue exist in Jenkins after triggering"
+            if [ -z "$QUEUE_URL" ] || [ "$QUEUE_URL" != "null" ]; then
+                WORKFLOW_URL=$(curl -s -XGET ${JENKINS_URL}/${QUEUE_URL}api/json | jq --raw-output .executable.url)
+                echo WORKFLOW_URL $WORKFLOW_URL
+
+                echo "Use queue information to find build number in Jenkins if available"
+                if [ -z "$WORKFLOW_URL" ] || [ "$WORKFLOW_URL" != "null" ]; then
+
+                    RUNNING="true"
+
+                    echo "Waiting for Jenkins to complete the run"
+                    while [ "$RUNNING" = "true" ] && [ "$TIMEPASS" -le "$TIMEOUT" ]; do
+                        echo "Still running, wait for another 30 seconds before checking again, max timeout $TIMEOUT"
+                        echo "Jenkins Workflow Url: $WORKFLOW_URL"
+                        TIMEPASS=$(( TIMEPASS + 30 )) && echo time pass: $TIMEPASS
+                        sleep 30
+                        RUNNING=$(curl -s -XGET ${WORKFLOW_URL}api/json | jq --raw-output .building)
+                    done
+
+                    echo "Complete the run, checking results now......"
+                    RESULT=$(curl -s -XGET ${WORKFLOW_URL}api/json | jq --raw-output .result)
+
+                fi
+            fi
+
+            echo "Please check jenkins url for logs: $WORKFLOW_URL"
+
+            if [ "$RESULT" != "SUCCESS" ]; then
+                echo "Result: $RESULT"
+                exit 1
+            else
+                echo "Result: $RESULT"
+                echo 0
+            fi
