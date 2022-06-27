@@ -41,9 +41,9 @@ import org.opensearch.common.unit.TimeValue;
  * @opensearch.internal
  */
 public abstract class AcknowledgedRequestBuilder<
-        Request extends AcknowledgedRequest<Request>,
-        Response extends AcknowledgedResponse,
-        RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends MasterNodeOperationRequestBuilder<
+    Request extends AcknowledgedRequest<Request>,
+    Response extends AcknowledgedResponse,
+    RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends MasterNodeOperationRequestBuilder<
         Request,
         Response,
         RequestBuilder> {

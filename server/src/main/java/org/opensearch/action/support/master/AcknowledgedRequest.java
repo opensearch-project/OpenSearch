@@ -47,7 +47,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
  * @opensearch.internal
  */
 public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
-        implements
+    implements
         AckedRequest {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
