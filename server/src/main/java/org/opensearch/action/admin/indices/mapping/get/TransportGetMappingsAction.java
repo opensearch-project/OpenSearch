@@ -88,7 +88,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     }
 
     @Override
-    protected void doClusterManagerOperation(
+    protected void doMasterOperation(
         final GetMappingsRequest request,
         String[] concreteIndices,
         final ClusterState state,

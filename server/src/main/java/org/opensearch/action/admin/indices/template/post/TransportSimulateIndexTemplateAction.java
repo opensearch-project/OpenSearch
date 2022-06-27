@@ -127,7 +127,7 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         SimulateIndexTemplateRequest request,
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener
