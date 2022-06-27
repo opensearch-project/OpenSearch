@@ -44,7 +44,7 @@ import org.opensearch.action.ingest.SimulateDocumentVerboseResult;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
 import org.opensearch.action.ingest.SimulateProcessorResult;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
@@ -101,8 +101,8 @@ public class IngestClientDocumentationIT extends OpenSearchRestHighLevelClientTe
             // end::put-pipeline-request-timeout
 
             // tag::put-pipeline-request-masterTimeout
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.masterNodeTimeout("1m"); // <2>
+            request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.clusterManagerNodeTimeout("1m"); // <2>
             // end::put-pipeline-request-masterTimeout
 
             // tag::put-pipeline-execute
@@ -169,8 +169,8 @@ public class IngestClientDocumentationIT extends OpenSearchRestHighLevelClientTe
             // end::get-pipeline-request
 
             // tag::get-pipeline-request-masterTimeout
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.masterNodeTimeout("1m"); // <2>
+            request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.clusterManagerNodeTimeout("1m"); // <2>
             // end::get-pipeline-request-masterTimeout
 
             // tag::get-pipeline-execute
@@ -244,8 +244,8 @@ public class IngestClientDocumentationIT extends OpenSearchRestHighLevelClientTe
             // end::delete-pipeline-request-timeout
 
             // tag::delete-pipeline-request-masterTimeout
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.masterNodeTimeout("1m"); // <2>
+            request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.clusterManagerNodeTimeout("1m"); // <2>
             // end::delete-pipeline-request-masterTimeout
 
             // tag::delete-pipeline-execute

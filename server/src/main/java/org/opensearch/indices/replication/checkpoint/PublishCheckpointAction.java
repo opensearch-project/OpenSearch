@@ -28,6 +28,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -52,6 +53,8 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     public static final String ACTION_NAME = "indices:admin/publishCheckpoint";
     protected static Logger logger = LogManager.getLogger(PublishCheckpointAction.class);
 
+    private final SegmentReplicationTargetService replicationService;
+
     @Inject
     public PublishCheckpointAction(
         Settings settings,
@@ -60,7 +63,8 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         IndicesService indicesService,
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        SegmentReplicationTargetService targetService
     ) {
         super(
             settings,
@@ -75,6 +79,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             PublishCheckpointRequest::new,
             ThreadPool.Names.REFRESH
         );
+        this.replicationService = targetService;
     }
 
     @Override
@@ -165,7 +170,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         ActionListener.completeWith(listener, () -> {
             logger.trace("Checkpoint received on replica {}", request);
             if (request.getCheckpoint().getShardId().equals(replica.shardId())) {
-                replica.onNewCheckpoint(request);
+                replicationService.onNewCheckpoint(request.getCheckpoint(), replica);
             }
             return new ReplicaResult();
         });

@@ -115,7 +115,7 @@ public class ReplicationCheckpoint implements Writeable {
      * Checks if other is aheadof current replication point by comparing segmentInfosVersion. Returns true for null
      */
     public boolean isAheadOf(@Nullable ReplicationCheckpoint other) {
-        return other == null || segmentInfosVersion > other.getSegmentInfosVersion();
+        return other == null || segmentInfosVersion > other.getSegmentInfosVersion() || primaryTerm > other.getPrimaryTerm();
     }
 
     @Override

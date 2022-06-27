@@ -36,7 +36,7 @@ import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -306,7 +306,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
                                     .endObject()
                                     .endObject()
                             )
-                            .setMasterNodeTimeout(TimeValue.timeValueMinutes(5))
+                            .setClusterManagerNodeTimeout(TimeValue.timeValueMinutes(5))
                             .get();
 
                         assertThat(response.isAcknowledged(), equalTo(true));

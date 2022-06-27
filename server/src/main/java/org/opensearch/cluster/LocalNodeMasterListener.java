@@ -42,21 +42,21 @@ public interface LocalNodeMasterListener extends ClusterStateListener {
     /**
      * Called when local node is elected to be the cluster-manager
      */
-    void onClusterManager();
+    void onMaster();
 
     /**
      * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
      */
-    void offClusterManager();
+    void offMaster();
 
     @Override
     default void clusterChanged(ClusterChangedEvent event) {
         final boolean wasClusterManager = event.previousState().nodes().isLocalNodeElectedMaster();
         final boolean isClusterManager = event.localNodeMaster();
         if (wasClusterManager == false && isClusterManager) {
-            onClusterManager();
+            onMaster();
         } else if (wasClusterManager && isClusterManager == false) {
-            offClusterManager();
+            offMaster();
         }
     }
 }

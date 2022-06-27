@@ -38,7 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -115,7 +115,7 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteIndexRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -127,7 +127,7 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
         }
 
         DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
+            .masterNodeTimeout(request.clusterManagerNodeTimeout())
             .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
 
         deleteIndexService.deleteIndices(deleteRequest, new ActionListener<ClusterStateUpdateResponse>() {
