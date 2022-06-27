@@ -32,19 +32,86 @@
 
 package org.opensearch.action.support.master;
 
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
+
+import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Transport response for shard acknowledgements
  *
  * @opensearch.internal
  */
-public abstract class ShardsAcknowledgedResponse extends org.opensearch.action.support.clustermanager.ShardsAcknowledgedResponse {
+public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
+
+    protected static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
+
+    protected static <T extends ShardsAcknowledgedResponse> void declareAcknowledgedAndShardsAcknowledgedFields(
+            ConstructingObjectParser<T, Void> objectParser
+    ) {
+        declareAcknowledgedField(objectParser);
+        objectParser.declareField(
+                constructorArg(),
+                (parser, context) -> parser.booleanValue(),
+                SHARDS_ACKNOWLEDGED,
+                ObjectParser.ValueType.BOOLEAN
+        );
+    }
+
+    private final boolean shardsAcknowledged;
 
     protected ShardsAcknowledgedResponse(StreamInput in, boolean readShardsAcknowledged) throws IOException {
-        super(in, readShardsAcknowledged);
+        super(in);
+        if (readShardsAcknowledged) {
+            this.shardsAcknowledged = in.readBoolean();
+        } else {
+            this.shardsAcknowledged = false;
+        }
+    }
+
+    protected ShardsAcknowledgedResponse(boolean acknowledged, boolean shardsAcknowledged) {
+        super(acknowledged);
+        assert acknowledged || shardsAcknowledged == false; // if it's not acknowledged, then shards acked should be false too
+        this.shardsAcknowledged = shardsAcknowledged;
+    }
+
+    /**
+     * Returns true if the requisite number of shards were started before
+     * returning from the index creation operation. If {@link #isAcknowledged()}
+     * is false, then this also returns false.
+     */
+    public boolean isShardsAcknowledged() {
+        return shardsAcknowledged;
+    }
+
+    protected void writeShardsAcknowledged(StreamOutput out) throws IOException {
+        out.writeBoolean(shardsAcknowledged);
+    }
+
+    @Override
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+        builder.field(SHARDS_ACKNOWLEDGED.getPreferredName(), isShardsAcknowledged());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (super.equals(o)) {
+            ShardsAcknowledgedResponse that = (ShardsAcknowledgedResponse) o;
+            return isShardsAcknowledged() == that.isShardsAcknowledged();
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), isShardsAcknowledged());
     }
 
 }
