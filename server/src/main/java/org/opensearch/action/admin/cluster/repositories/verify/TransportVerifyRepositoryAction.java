@@ -95,7 +95,7 @@ public class TransportVerifyRepositoryAction extends TransportClusterManagerNode
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final VerifyRepositoryRequest request,
         ClusterState state,
         final ActionListener<VerifyRepositoryResponse> listener
