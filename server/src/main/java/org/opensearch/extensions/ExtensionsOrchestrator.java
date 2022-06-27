@@ -238,11 +238,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
-<<<<<<< HEAD
-                new PluginRequest(extensionNode, new ArrayList<DiscoveryExtension>(extensionsSet)),
-=======
-                new PluginRequest(transportService.getLocalNode(), extensionsSet),
->>>>>>> Integrated cluster state for createComponent
+                new PluginRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsSet)),
                 pluginResponseHandler
             );
         } catch (Exception e) {
