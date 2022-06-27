@@ -3210,7 +3210,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
-        if (remoteStore != null && shardRouting.primary()) {
+        if (isRemoteStoreEnabled()) {
             Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
             internalRefreshListener.add(new RemoteStoreRefreshListener(store.directory(), remoteDirectory));
         }
@@ -3243,6 +3243,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             tombstoneDocSupplier(),
             indexSettings.isSegRepEnabled() && shardRouting.primary() == false
         );
+    }
+
+    private boolean isRemoteStoreEnabled() {
+        return (remoteStore != null && shardRouting.primary());
     }
 
     /**
