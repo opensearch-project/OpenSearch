@@ -136,7 +136,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final SnapshotsStatusRequest request,
         final ClusterState state,
         final ActionListener<SnapshotsStatusResponse> listener

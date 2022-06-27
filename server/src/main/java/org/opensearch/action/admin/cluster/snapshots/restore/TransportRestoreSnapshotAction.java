@@ -102,7 +102,7 @@ public class TransportRestoreSnapshotAction extends TransportClusterManagerNodeA
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final RestoreSnapshotRequest request,
         final ClusterState state,
         final ActionListener<RestoreSnapshotResponse> listener

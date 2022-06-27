@@ -96,7 +96,7 @@ public class TransportGetIndexTemplatesAction extends TransportClusterManagerNod
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         GetIndexTemplatesRequest request,
         ClusterState state,
         ActionListener<GetIndexTemplatesResponse> listener
