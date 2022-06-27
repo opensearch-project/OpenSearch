@@ -106,7 +106,7 @@ public class TransportPutComponentTemplateAction extends TransportClusterManager
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final PutComponentTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

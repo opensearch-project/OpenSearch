@@ -173,7 +173,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         }
 
         @Override
-        protected void clusterManagerOperation(
+        protected void masterOperation(
             final UpdateInternalOrPrivateAction.Request request,
             final ClusterState state,
             final ActionListener<UpdateInternalOrPrivateAction.Response> listener

@@ -112,11 +112,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         }
 
         @Override
-        protected void clusterManagerOperation(
-            CreateIndexRequest request,
-            ClusterState state,
-            ActionListener<CreateIndexResponse> finalListener
-        ) {
+        protected void masterOperation(CreateIndexRequest request, ClusterState state, ActionListener<CreateIndexResponse> finalListener) {
             AtomicReference<String> indexNameRef = new AtomicReference<>();
             ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(response -> {
                 String indexName = indexNameRef.get();
