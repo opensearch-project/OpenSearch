@@ -75,6 +75,7 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
@@ -287,7 +288,7 @@ final class DefaultSearchContext extends SearchContext {
             }
         }
 
-        if (sliceBuilder != null) {
+        if (sliceBuilder != null && scrollContext() != null) {
             int sliceLimit = indexService.getIndexSettings().getMaxSlicesPerScroll();
             int numSlices = sliceBuilder.getMax();
             if (numSlices > sliceLimit) {
@@ -299,6 +300,23 @@ final class DefaultSearchContext extends SearchContext {
                         + sliceLimit
                         + "]. This limit can be set by changing the ["
                         + IndexSettings.MAX_SLICES_PER_SCROLL.getKey()
+                        + "] index level setting."
+                );
+            }
+        }
+
+        if (sliceBuilder != null && readerContext != null && readerContext instanceof PitReaderContext) {
+            int sliceLimit = indexService.getIndexSettings().getMaxSlicesPerPit();
+            int numSlices = sliceBuilder.getMax();
+            if (numSlices > sliceLimit) {
+                throw new IllegalArgumentException(
+                    "The number of slices ["
+                        + numSlices
+                        + "] is too large. It must "
+                        + "be less than ["
+                        + sliceLimit
+                        + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_SLICES_PER_PIT.getKey()
                         + "] index level setting."
                 );
             }

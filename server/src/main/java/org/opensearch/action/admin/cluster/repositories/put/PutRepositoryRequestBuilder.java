@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.repositories.put;
 
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;

@@ -38,7 +38,7 @@ import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptReque
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;

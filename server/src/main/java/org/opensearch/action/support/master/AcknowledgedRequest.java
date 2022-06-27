@@ -31,14 +31,10 @@
 
 package org.opensearch.action.support.master;
 
-import org.opensearch.cluster.ack.AckedRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
-
-import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * Abstract class that allows to mark action requests that support acknowledgements.
@@ -46,60 +42,14 @@ import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
  *
  * @opensearch.internal
  */
-public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
-    implements
-        AckedRequest {
+public abstract class AcknowledgedRequest<Request extends ClusterManagerNodeRequest<Request>> extends
+    org.opensearch.action.support.master.AcknowledgedRequest<Request> {
 
-    public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
-
-    protected TimeValue timeout = DEFAULT_ACK_TIMEOUT;
-
-    protected AcknowledgedRequest() {}
+    protected AcknowledgedRequest() {
+        super();
+    }
 
     protected AcknowledgedRequest(StreamInput in) throws IOException {
         super(in);
-        this.timeout = in.readTimeValue();
     }
-
-    /**
-     * Allows to set the timeout
-     * @param timeout timeout as a string (e.g. 1s)
-     * @return the request itself
-     */
-    @SuppressWarnings("unchecked")
-    public final Request timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, this.timeout, getClass().getSimpleName() + ".timeout");
-        return (Request) this;
-    }
-
-    /**
-     * Allows to set the timeout
-     * @param timeout timeout as a {@link TimeValue}
-     * @return the request itself
-     */
-    @SuppressWarnings("unchecked")
-    public final Request timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return (Request) this;
-    }
-
-    /**
-     * Returns the current timeout
-     * @return the current timeout as a {@link TimeValue}
-     */
-    public final TimeValue timeout() {
-        return timeout;
-    }
-
-    @Override
-    public TimeValue ackTimeout() {
-        return timeout;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeTimeValue(timeout);
-    }
-
 }
