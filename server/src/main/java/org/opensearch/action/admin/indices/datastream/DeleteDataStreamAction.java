@@ -39,7 +39,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -192,7 +192,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
             clusterService.submitStateUpdateTask(
                 "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.names) + "]",
@@ -200,7 +200,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
                     @Override
                     public TimeValue timeout() {
-                        return request.masterNodeTimeout();
+                        return request.clusterManagerNodeTimeout();
                     }
 
                     @Override

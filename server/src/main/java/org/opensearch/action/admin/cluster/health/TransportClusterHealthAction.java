@@ -118,14 +118,17 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
     }
 
     @Override
-    protected final void masterOperation(ClusterHealthRequest request, ClusterState state, ActionListener<ClusterHealthResponse> listener)
-        throws Exception {
+    protected final void clusterManagerOperation(
+        ClusterHealthRequest request,
+        ClusterState state,
+        ActionListener<ClusterHealthResponse> listener
+    ) throws Exception {
         logger.warn("attempt to execute a cluster health operation without a task");
         throw new UnsupportedOperationException("task parameter is required for this operation");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final Task task,
         final ClusterHealthRequest request,
         final ClusterState unusedState,

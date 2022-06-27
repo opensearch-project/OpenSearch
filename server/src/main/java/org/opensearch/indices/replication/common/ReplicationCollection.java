@@ -236,6 +236,16 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     }
 
     /**
+     * check if a shard is currently replicating
+     *
+     * @param shardId      shardId for which to check if replicating
+     * @return true if shard is currently replicating
+     */
+    public boolean isShardReplicating(ShardId shardId) {
+        return onGoingTargetEvents.values().stream().anyMatch(t -> t.indexShard.shardId().equals(shardId));
+    }
+
+    /**
      * a reference to {@link ReplicationTarget}, which implements {@link AutoCloseable}. closing the reference
      * causes {@link ReplicationTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link ReplicationRef#close()} is called.

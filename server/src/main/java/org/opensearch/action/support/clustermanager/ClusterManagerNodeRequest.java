@@ -46,40 +46,77 @@ import java.io.IOException;
  */
 public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNodeRequest<Request>> extends ActionRequest {
 
-    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+    public static final TimeValue DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
-    protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
+    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT} */
+    @Deprecated
+    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+
+    protected TimeValue clusterManagerNodeTimeout = DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+
+    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout} */
+    @Deprecated
+    protected TimeValue masterNodeTimeout = clusterManagerNodeTimeout;
 
     protected ClusterManagerNodeRequest() {}
 
     protected ClusterManagerNodeRequest(StreamInput in) throws IOException {
         super(in);
-        masterNodeTimeout = in.readTimeValue();
+        clusterManagerNodeTimeout = in.readTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeTimeValue(masterNodeTimeout);
+        out.writeTimeValue(clusterManagerNodeTimeout);
     }
 
     /**
      * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
      */
     @SuppressWarnings("unchecked")
-    public final Request masterNodeTimeout(TimeValue timeout) {
-        this.masterNodeTimeout = timeout;
+    public final Request clusterManagerNodeTimeout(TimeValue timeout) {
+        this.clusterManagerNodeTimeout = timeout;
         return (Request) this;
     }
 
     /**
      * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout(TimeValue)}
      */
-    public final Request masterNodeTimeout(String timeout) {
-        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
+    @SuppressWarnings("unchecked")
+    @Deprecated
+    public final Request masterNodeTimeout(TimeValue timeout) {
+        return clusterManagerNodeTimeout(timeout);
     }
 
+    /**
+     * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
+     */
+    public final Request clusterManagerNodeTimeout(String timeout) {
+        return clusterManagerNodeTimeout(
+            TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".clusterManagerNodeTimeout")
+        );
+    }
+
+    /**
+     * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout(String)}
+     */
+    @Deprecated
+    public final Request masterNodeTimeout(String timeout) {
+        return clusterManagerNodeTimeout(timeout);
+    }
+
+    public final TimeValue clusterManagerNodeTimeout() {
+        return this.clusterManagerNodeTimeout;
+    }
+
+    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout()} */
+    @Deprecated
     public final TimeValue masterNodeTimeout() {
-        return this.masterNodeTimeout;
+        return clusterManagerNodeTimeout();
     }
 }

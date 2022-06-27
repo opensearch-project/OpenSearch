@@ -122,7 +122,7 @@ public class TransportGetSnapshotsAction extends TransportClusterManagerNodeActi
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final GetSnapshotsRequest request,
         final ClusterState state,
         final ActionListener<GetSnapshotsResponse> listener

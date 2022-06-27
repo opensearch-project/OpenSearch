@@ -52,26 +52,9 @@ public class PublishTests extends GradleUnitTestCase {
 
     @Test
     public void testZipPublish() throws IOException, XmlPullParserException {
-        Project project = ProjectBuilder.builder().build();
         String zipPublishTask = "publishPluginZipPublicationToZipStagingRepository";
-        // Apply the opensearch.pluginzip plugin
-        project.getPluginManager().apply("opensearch.pluginzip");
-        // Check if the plugin has been applied to the project
-        assertTrue(project.getPluginManager().hasPlugin("opensearch.pluginzip"));
-        // Check if the project has the task from class PublishToMavenRepository after plugin apply
-        assertNotNull(project.getTasks().withType(PublishToMavenRepository.class));
-        // Create a mock bundlePlugin task
-        Zip task = project.getTasks().create("bundlePlugin", Zip.class);
-        Publish.configMaven(project);
-        // Check if the main task publishPluginZipPublicationToZipStagingRepository exists after plugin apply
-        assertTrue(project.getTasks().getNames().contains(zipPublishTask));
-        assertNotNull("Task to generate: ", project.getTasks().getByName(zipPublishTask));
-        // Run Gradle functional tests, but calling a build.gradle file, that resembles the plugin publish behavior
+        prepareProjectForPublishTask(zipPublishTask);
 
-        // Create a sample plugin zip file
-        File sampleZip = new File(projectDir.getRoot(), "sample-plugin.zip");
-        Files.createFile(sampleZip.toPath());
-        writeString(projectDir.newFile("settings.gradle"), "");
         // Generate the build.gradle file
         String buildFileContent = "apply plugin: 'maven-publish' \n"
             + "apply plugin: 'java' \n"
@@ -118,6 +101,105 @@ public class PublishTests extends GradleUnitTestCase {
             )
         );
         assertEquals(model.getGroupId(), "org.opensearch.plugin");
+    }
+
+    @Test
+    public void testZipPublishWithPom() throws IOException, XmlPullParserException {
+        String zipPublishTask = "publishPluginZipPublicationToZipStagingRepository";
+        Project project = prepareProjectForPublishTask(zipPublishTask);
+
+        // Generate the build.gradle file
+        String buildFileContent = "apply plugin: 'maven-publish' \n"
+            + "apply plugin: 'java' \n"
+            + "publishing {\n"
+            + "  repositories {\n"
+            + "       maven {\n"
+            + "          url = 'local-staging-repo/'\n"
+            + "          name = 'zipStaging'\n"
+            + "        }\n"
+            + "  }\n"
+            + "   publications {\n"
+            + "         pluginZip(MavenPublication) {\n"
+            + "             groupId = 'org.opensearch.plugin' \n"
+            + "             artifactId = 'sample-plugin' \n"
+            + "             version = '2.0.0.0' \n"
+            + "             artifact('sample-plugin.zip') \n"
+            + "             pom {\n"
+            + "                name = 'sample-plugin'\n"
+            + "                description = 'sample-description'\n"
+            + "                licenses {\n"
+            + "                    license {\n"
+            + "                        name = \"The Apache License, Version 2.0\"\n"
+            + "                        url = \"http://www.apache.org/licenses/LICENSE-2.0.txt\"\n"
+            + "                    }\n"
+            + "                }\n"
+            + "                developers {\n"
+            + "                    developer {\n"
+            + "                        name = 'opensearch'\n"
+            + "                        url = 'https://github.com/opensearch-project/OpenSearch'\n"
+            + "                    }\n"
+            + "                }\n"
+            + "                url = 'https://github.com/opensearch-project/OpenSearch'\n"
+            + "                scm {\n"
+            + "                    url = 'https://github.com/opensearch-project/OpenSearch'\n"
+            + "                }\n"
+            + "            }"
+            + "         }\n"
+            + "   }\n"
+            + "}";
+        writeString(projectDir.newFile("build.gradle"), buildFileContent);
+        // Execute the task publishPluginZipPublicationToZipStagingRepository
+        List<String> allArguments = new ArrayList<String>();
+        allArguments.add("build");
+        allArguments.add(zipPublishTask);
+        GradleRunner runner = GradleRunner.create();
+        runner.forwardOutput();
+        runner.withPluginClasspath();
+        runner.withArguments(allArguments);
+        runner.withProjectDir(projectDir.getRoot());
+        BuildResult result = runner.build();
+        // Check if task publishMavenzipPublicationToZipstagingRepository has ran well
+        assertEquals(SUCCESS, result.task(":" + zipPublishTask).getOutcome());
+        // check if the zip has been published to local staging repo
+        assertTrue(
+            new File(projectDir.getRoot(), "local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.zip")
+                .exists()
+        );
+        assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
+        // Parse the maven file and validate the groupID to org.opensearch.plugin
+        MavenXpp3Reader reader = new MavenXpp3Reader();
+        Model model = reader.read(
+            new FileReader(
+                new File(projectDir.getRoot(), "local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.pom")
+            )
+        );
+        assertEquals(model.getGroupId(), "org.opensearch.plugin");
+        assertEquals(model.getUrl(), "https://github.com/opensearch-project/OpenSearch");
+    }
+
+    protected Project prepareProjectForPublishTask(String zipPublishTask) throws IOException {
+        Project project = ProjectBuilder.builder().build();
+
+        // Apply the opensearch.pluginzip plugin
+        project.getPluginManager().apply("opensearch.pluginzip");
+        // Check if the plugin has been applied to the project
+        assertTrue(project.getPluginManager().hasPlugin("opensearch.pluginzip"));
+        // Check if the project has the task from class PublishToMavenRepository after plugin apply
+        assertNotNull(project.getTasks().withType(PublishToMavenRepository.class));
+        // Create a mock bundlePlugin task
+        Zip task = project.getTasks().create("bundlePlugin", Zip.class);
+        Publish.configMaven(project);
+        // Check if the main task publishPluginZipPublicationToZipStagingRepository exists after plugin apply
+        assertTrue(project.getTasks().getNames().contains(zipPublishTask));
+        assertNotNull("Task to generate: ", project.getTasks().getByName(zipPublishTask));
+        // Run Gradle functional tests, but calling a build.gradle file, that resembles the plugin publish behavior
+
+        // Create a sample plugin zip file
+        File sampleZip = new File(projectDir.getRoot(), "sample-plugin.zip");
+        Files.createFile(sampleZip.toPath());
+        writeString(projectDir.newFile("settings.gradle"), "");
+
+        return project;
     }
 
     private void writeString(File file, String string) throws IOException {
