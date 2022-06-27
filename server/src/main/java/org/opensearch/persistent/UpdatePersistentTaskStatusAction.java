@@ -213,7 +213,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
 
         @Override
-        protected final void clusterManagerOperation(
+        protected final void masterOperation(
             final Request request,
             final ClusterState state,
             final ActionListener<PersistentTaskResponse> listener

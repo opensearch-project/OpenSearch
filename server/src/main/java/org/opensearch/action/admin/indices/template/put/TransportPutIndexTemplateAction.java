@@ -106,7 +106,7 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final PutIndexTemplateRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

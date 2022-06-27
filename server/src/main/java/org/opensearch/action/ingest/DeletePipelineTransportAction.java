@@ -88,7 +88,7 @@ public class DeletePipelineTransportAction extends TransportClusterManagerNodeAc
     }
 
     @Override
-    protected void clusterManagerOperation(DeletePipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+    protected void masterOperation(DeletePipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         ingestService.delete(request, listener);
     }

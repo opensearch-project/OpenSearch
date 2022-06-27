@@ -313,7 +313,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
 
         @Override
-        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
             List<Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
             for (DataStream dataStream : dataStreams) {
