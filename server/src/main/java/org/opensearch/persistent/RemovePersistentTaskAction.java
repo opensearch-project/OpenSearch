@@ -181,7 +181,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
 
         @Override
-        protected final void clusterManagerOperation(
+        protected final void masterOperation(
             final Request request,
             ClusterState state,
             final ActionListener<PersistentTaskResponse> listener

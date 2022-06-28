@@ -105,8 +105,10 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         }, tdigest -> {
             assertEquals(7L, tdigest.state.size());
             assertEquals(7L, tdigest.state.centroidCount());
-            assertEquals(4.5d, tdigest.percentile(75), 0.0d);
-            assertEquals("4.5", tdigest.percentileAsString(75));
+            assertEquals(5.0d, tdigest.percentile(75), 0.0d);
+            assertEquals("5.0", tdigest.percentileAsString(75));
+            assertEquals(3.0d, tdigest.percentile(71), 0.0d);
+            assertEquals("3.0", tdigest.percentileAsString(71));
             assertEquals(2.0d, tdigest.percentile(50), 0.0d);
             assertEquals("2.0", tdigest.percentileAsString(50));
             assertEquals(1.0d, tdigest.percentile(22), 0.0d);
@@ -126,11 +128,11 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 0)));
         }, tdigest -> {
             assertEquals(tdigest.state.size(), 7L);
-            assertEquals(tdigest.state.centroidCount(), 7L);
+            assertTrue(tdigest.state.centroidCount() <= 7L);
             assertEquals(8.0d, tdigest.percentile(100), 0.0d);
             assertEquals("8.0", tdigest.percentileAsString(100));
-            assertEquals(6.98d, tdigest.percentile(88), 0.0d);
-            assertEquals("6.98", tdigest.percentileAsString(88));
+            assertEquals(8.0d, tdigest.percentile(88), 0.0d);
+            assertEquals("8.0", tdigest.percentileAsString(88));
             assertEquals(1.0d, tdigest.percentile(33), 0.0d);
             assertEquals("1.0", tdigest.percentileAsString(33));
             assertEquals(1.0d, tdigest.percentile(25), 0.0d);
@@ -157,7 +159,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(4L, tdigest.state.centroidCount());
             assertEquals(2.0d, tdigest.percentile(100), 0.0d);
             assertEquals(1.0d, tdigest.percentile(50), 0.0d);
-            assertEquals(0.5d, tdigest.percentile(25), 0.0d);
+            assertEquals(1.0d, tdigest.percentile(25), 0.0d);
             assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
 

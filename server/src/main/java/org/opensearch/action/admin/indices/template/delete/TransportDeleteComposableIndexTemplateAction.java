@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -102,7 +102,7 @@ public class TransportDeleteComposableIndexTemplateAction extends TransportClust
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final DeleteComposableIndexTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

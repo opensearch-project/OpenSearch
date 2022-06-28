@@ -254,7 +254,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
         }
 
         @Override
-        protected final void clusterManagerOperation(
+        protected final void masterOperation(
             final Request request,
             ClusterState state,
             final ActionListener<PersistentTaskResponse> listener
