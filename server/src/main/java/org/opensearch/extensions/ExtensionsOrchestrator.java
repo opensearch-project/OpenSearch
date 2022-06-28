@@ -98,7 +98,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
         this.clusterService = null;
 
-
         /*
          * Now Discover extensions
          */
