@@ -140,7 +140,7 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final CloseIndexRequest request,
         final ClusterState state,
         final ActionListener<CloseIndexResponse> listener
@@ -149,7 +149,7 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final Task task,
         final CloseIndexRequest request,
         final ClusterState state,

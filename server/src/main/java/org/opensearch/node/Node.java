@@ -38,6 +38,8 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
@@ -936,6 +938,15 @@ public class Node implements Closeable {
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService));
                     if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
+                        b.bind(SegmentReplicationTargetService.class)
+                            .toInstance(
+                                new SegmentReplicationTargetService(
+                                    threadPool,
+                                    recoverySettings,
+                                    transportService,
+                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                                )
+                            );
                         b.bind(SegmentReplicationSourceService.class)
                             .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
                     }

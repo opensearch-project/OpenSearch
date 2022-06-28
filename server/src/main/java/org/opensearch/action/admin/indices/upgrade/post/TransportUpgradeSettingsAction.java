@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -102,7 +102,7 @@ public class TransportUpgradeSettingsAction extends TransportClusterManagerNodeA
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final UpgradeSettingsRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

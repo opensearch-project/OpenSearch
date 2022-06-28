@@ -62,11 +62,6 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     }
 
     @Deprecated
-    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
-        clusterManagerOperation(request, state, listener);
-    }
-
-    @Deprecated
     protected abstract void doMasterOperation(
         Request request,
         String[] concreteIndices,

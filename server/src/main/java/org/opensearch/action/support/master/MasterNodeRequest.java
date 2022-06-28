@@ -34,7 +34,6 @@ package org.opensearch.action.support.master;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -47,30 +46,9 @@ import java.io.IOException;
 @Deprecated
 public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ClusterManagerNodeRequest<Request> {
 
-    @Deprecated
-    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
-
-    @Deprecated
-    protected TimeValue masterNodeTimeout = clusterManagerNodeTimeout;
+    protected MasterNodeRequest() {}
 
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);
-    }
-
-    /**
-     * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
-     */
-    @SuppressWarnings("unchecked")
-    @Deprecated
-    public final Request masterNodeTimeout(TimeValue timeout) {
-        return clusterManagerNodeTimeout(timeout);
-    }
-
-    /**
-     * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
-     */
-    @Deprecated
-    public final Request masterNodeTimeout(String timeout) {
-        return clusterManagerNodeTimeout(timeout);
     }
 }

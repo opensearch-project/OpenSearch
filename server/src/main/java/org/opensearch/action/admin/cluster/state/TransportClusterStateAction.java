@@ -115,7 +115,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final ClusterStateRequest request,
         final ClusterState state,
         final ActionListener<ClusterStateResponse> listener

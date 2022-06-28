@@ -117,7 +117,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  *
  * @opensearch.internal
  */
-public abstract class Engine implements Closeable {
+public abstract class Engine implements LifecycleAware, Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";  // TODO: remove sync_id in 3.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
@@ -173,6 +173,7 @@ public abstract class Engine implements Closeable {
      * Return the latest active SegmentInfos from the engine.
      * @return {@link SegmentInfos}
      */
+    @Nullable
     protected abstract SegmentInfos getLatestSegmentInfos();
 
     /**
@@ -847,7 +848,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected final void ensureOpen() {
+    public final void ensureOpen() {
         ensureOpen(null);
     }
 
