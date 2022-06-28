@@ -92,7 +92,7 @@ public class NRTReplicationEngine extends Engine {
                     @Override
                     public void onAfterTranslogSync() {
                         try {
-                            translogManager.getTranslog(false).trimUnreferencedReaders();
+                            translogManager.getTranslog().trimUnreferencedReaders();
                         } catch (IOException ex) {
                             throw new TranslogException(shardId, "failed to trim unreferenced translog readers", ex);
                         }
@@ -104,7 +104,7 @@ public class NRTReplicationEngine extends Engine {
         } catch (IOException e) {
             Translog translog = null;
             if (translogManagerRef != null) {
-                translog = translogManagerRef.getTranslog(false);
+                translog = translogManagerRef.getTranslog();
             }
             IOUtils.closeWhileHandlingException(store::decRef, readerManager, translog);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -158,7 +158,7 @@ public class NRTReplicationEngine extends Engine {
     public IndexResult index(Index index) throws IOException {
         ensureOpen();
         IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
-        final Translog.Location location = translogManager.getTranslog(false).add(new Translog.Index(index, indexResult));
+        final Translog.Location location = translogManager.getTranslog().add(new Translog.Index(index, indexResult));
         indexResult.setTranslogLocation(location);
         indexResult.setTook(System.nanoTime() - index.startTime());
         indexResult.freeze();
@@ -170,7 +170,7 @@ public class NRTReplicationEngine extends Engine {
     public DeleteResult delete(Delete delete) throws IOException {
         ensureOpen();
         DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
-        final Translog.Location location = translogManager.getTranslog(false).add(new Translog.Delete(delete, deleteResult));
+        final Translog.Location location = translogManager.getTranslog().add(new Translog.Delete(delete, deleteResult));
         deleteResult.setTranslogLocation(location);
         deleteResult.setTook(System.nanoTime() - delete.startTime());
         deleteResult.freeze();
@@ -182,7 +182,7 @@ public class NRTReplicationEngine extends Engine {
     public NoOpResult noOp(NoOp noOp) throws IOException {
         ensureOpen();
         NoOpResult noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
-        final Translog.Location location = translogManager.getTranslog(false)
+        final Translog.Location location = translogManager.getTranslog()
             .add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
         noOpResult.setTranslogLocation(location);
         noOpResult.setTook(System.nanoTime() - noOp.startTime());
@@ -249,7 +249,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
-        return translogManager.getTranslog(false).getLastSyncedGlobalCheckpoint();
+        return translogManager.getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
     @Override
@@ -317,7 +317,7 @@ public class NRTReplicationEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                IOUtils.close(readerManager, translogManager().getTranslog(false), store::decRef);
+                IOUtils.close(readerManager, translogManager().getTranslog(), store::decRef);
             } catch (Exception e) {
                 logger.warn("failed to close engine", e);
             } finally {
@@ -354,7 +354,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
-        final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getTranslog(false).getDeletionPolicy();
+        final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getTranslog().getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
     }

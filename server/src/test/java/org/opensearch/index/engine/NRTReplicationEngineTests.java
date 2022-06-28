@@ -91,7 +91,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                 assertEquals(getDocIds(engine, true), docs);
             }
-            assertEngineCleanedUp(nrtEngine, nrtEngine.translogManager().getTranslog(true));
+            assertEngineCleanedUp(nrtEngine, nrtEngine.translogManager().getTranslog());
         }
     }
 
@@ -136,7 +136,8 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
             Set<Long> seqNos = operations.stream().map(Engine.Operation::seqNo).collect(Collectors.toSet());
 
-            try (Translog.Snapshot snapshot = nrtEngine.translogManager().getTranslog(true).newSnapshot()) {
+            nrtEngine.ensureOpen();
+            try (Translog.Snapshot snapshot = nrtEngine.translogManager().getTranslog().newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(operations.size()));
                 assertThat(
                     TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),
@@ -149,11 +150,11 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             assertMatchingSegmentsAndCheckpoints(nrtEngine, primaryInfos);
 
             assertEquals(
-                nrtEngine.translogManager().getTranslog(true).getGeneration().translogFileGeneration,
-                engine.translogManager().getTranslog(true).getGeneration().translogFileGeneration
+                nrtEngine.translogManager().getTranslog().getGeneration().translogFileGeneration,
+                engine.translogManager().getTranslog().getGeneration().translogFileGeneration
             );
 
-            try (Translog.Snapshot snapshot = nrtEngine.translogManager().getTranslog(true).newSnapshot()) {
+            try (Translog.Snapshot snapshot = nrtEngine.translogManager().getTranslog().newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(operations.size()));
                 assertThat(
                     TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),
@@ -167,7 +168,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 expectedDocCount = test.count(Queries.newMatchAllQuery());
                 assertSearcherHits(nrtEngine, expectedDocCount);
             }
-            assertEngineCleanedUp(nrtEngine, nrtEngine.translogManager().getTranslog(true));
+            assertEngineCleanedUp(nrtEngine, nrtEngine.translogManager().getTranslog());
         }
     }
 
@@ -186,7 +187,8 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             );
             applyOperations(nrtEngine, operations);
             Set<Long> seqNos = operations.stream().map(Engine.Operation::seqNo).collect(Collectors.toSet());
-            try (Translog.Snapshot snapshot = nrtEngine.translogManager().getTranslog(true).newSnapshot()) {
+            nrtEngine.ensureOpen();
+            try (Translog.Snapshot snapshot = nrtEngine.translogManager().getTranslog().newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(operations.size()));
                 assertThat(
                     TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),

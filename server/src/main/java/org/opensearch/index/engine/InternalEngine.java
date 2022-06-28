@@ -301,7 +301,7 @@ public class InternalEngine extends Engine {
                     logger,
                     translogDeletionPolicy,
                     softDeletesPolicy,
-                    translogManager.getTranslog(false)::getLastSyncedGlobalCheckpoint
+                    translogManager.getTranslog()::getLastSyncedGlobalCheckpoint
                 );
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
@@ -335,7 +335,7 @@ public class InternalEngine extends Engine {
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(
-                SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getTranslog(false).getMaxSeqNo())
+                SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getTranslog().getMaxSeqNo())
             );
             if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
                 try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
@@ -355,7 +355,7 @@ public class InternalEngine extends Engine {
             if (success == false) {
                 Translog translog = null;
                 if (translogManagerRef != null) {
-                    translog = translogManagerRef.getTranslog(false);
+                    translog = translogManagerRef.getTranslog();
                 }
                 IOUtils.closeWhileHandlingException(writer, translog, internalReaderManager, externalReaderManager, scheduler);
                 if (isClosed.get() == false) {
@@ -390,7 +390,7 @@ public class InternalEngine extends Engine {
             lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
         return new SoftDeletesPolicy(
-            translogManager.getTranslog(false)::getLastSyncedGlobalCheckpoint,
+            translogManager.getTranslog()::getLastSyncedGlobalCheckpoint,
             lastMinRetainedSeqNo,
             engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
             engineConfig.retentionLeasesSupplier()
@@ -560,7 +560,7 @@ public class InternalEngine extends Engine {
             if (combinedDeletionPolicy.hasUnreferencedCommits()) {
                 indexWriter.deleteUnusedFiles();
             }
-            translogManager.getTranslog(false).trimUnreferencedReaders();
+            translogManager.getTranslog().trimUnreferencedReaders();
         } catch (IOException ex) {
             throw new TranslogException(shardId, "Failed to execute index deletion policy on translog synced", ex);
         }
@@ -652,7 +652,7 @@ public class InternalEngine extends Engine {
                         // the update call doesn't need the consistency since it's source only + _parent but parent can go away in 7.0
                         if (versionValue.getLocation() != null) {
                             try {
-                                Translog.Operation operation = translogManager.getTranslog(false).readOperation(versionValue.getLocation());
+                                Translog.Operation operation = translogManager.getTranslog().readOperation(versionValue.getLocation());
                                 if (operation != null) {
                                     // in the case of a already pruned translog generation we might get null here - yet very unlikely
                                     final Translog.Index index = (Translog.Index) operation;
@@ -957,7 +957,7 @@ public class InternalEngine extends Engine {
                 if (index.origin().isFromTranslog() == false) {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
-                        location = translogManager.getTranslog(false).add(new Translog.Index(index, indexResult));
+                        location = translogManager.getTranslog().add(new Translog.Index(index, indexResult));
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
                         final NoOp noOp = new NoOp(
@@ -1397,7 +1397,7 @@ public class InternalEngine extends Engine {
                 }
             }
             if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
-                final Translog.Location location = translogManager.getTranslog(false).add(new Translog.Delete(delete, deleteResult));
+                final Translog.Location location = translogManager.getTranslog().add(new Translog.Delete(delete, deleteResult));
                 deleteResult.setTranslogLocation(location);
             }
             localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
@@ -1724,7 +1724,7 @@ public class InternalEngine extends Engine {
                 }
                 noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
                 if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
-                    final Translog.Location location = translogManager.getTranslog(false)
+                    final Translog.Location location = translogManager.getTranslog()
                         .add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                     noOpResult.setTranslogLocation(location);
                 }
@@ -1826,10 +1826,10 @@ public class InternalEngine extends Engine {
         final long localCheckpointOfLastCommit = Long.parseLong(
             lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
-        final long translogGenerationOfLastCommit = translogManager.getTranslog(false)
+        final long translogGenerationOfLastCommit = translogManager.getTranslog()
             .getMinGenerationForSeqNo(localCheckpointOfLastCommit + 1).translogFileGeneration;
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        if (translogManager.getTranslog(false).sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
+        if (translogManager.getTranslog().sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
             return false;
         }
         /*
@@ -1847,7 +1847,7 @@ public class InternalEngine extends Engine {
          *
          * This method is to maintain translog only, thus IndexWriter#hasUncommittedChanges condition is not considered.
          */
-        final long translogGenerationOfNewCommit = translogManager.getTranslog(false)
+        final long translogGenerationOfNewCommit = translogManager.getTranslog()
             .getMinGenerationForSeqNo(localCheckpointTracker.getProcessedCheckpoint() + 1).translogFileGeneration;
         return translogGenerationOfLastCommit < translogGenerationOfNewCommit
             || localCheckpointTracker.getProcessedCheckpoint() == localCheckpointTracker.getMaxSeqNo();
@@ -1889,9 +1889,9 @@ public class InternalEngine extends Engine {
                     )) {
                     translogManager.ensureCanFlush();
                     try {
-                        translogManager.getTranslog(false).rollGeneration();
+                        translogManager.getTranslog().rollGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        commitIndexWriter(indexWriter, translogManager.getTranslog(false));
+                        commitIndexWriter(indexWriter, translogManager.getTranslog());
                         logger.trace("finished commit for flush");
 
                         // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
@@ -1904,7 +1904,7 @@ public class InternalEngine extends Engine {
 
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
-                        translogManager.getTranslog(false).trimUnreferencedReaders();
+                        translogManager.getTranslog().trimUnreferencedReaders();
                     } catch (AlreadyClosedException e) {
                         failOnTragicEvent(e);
                         throw e;
@@ -2121,17 +2121,16 @@ public class InternalEngine extends Engine {
             }
             failEngine("already closed by tragic event on the index writer", tragicException);
             engineFailed = true;
-        } else if (translogManager.getTranslog(false).isOpen() == false
-            && translogManager.getTranslog(false).getTragicException() != null) {
-                failEngine("already closed by tragic event on the translog", translogManager.getTranslog(false).getTragicException());
-                engineFailed = true;
-            } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
-                // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
-                // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
-                throw new AssertionError("Unexpected AlreadyClosedException", ex);
-            } else {
-                engineFailed = false;
-            }
+        } else if (translogManager.getTranslog().isOpen() == false && translogManager.getTranslog().getTragicException() != null) {
+            failEngine("already closed by tragic event on the translog", translogManager.getTranslog().getTragicException());
+            engineFailed = true;
+        } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
+            // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
+            // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
+            throw new AssertionError("Unexpected AlreadyClosedException", ex);
+        } else {
+            engineFailed = false;
+        }
         return engineFailed;
     }
 
@@ -2148,13 +2147,12 @@ public class InternalEngine extends Engine {
             return failOnTragicEvent((AlreadyClosedException) e);
         } else if (e != null
             && ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
-                || (translogManager.getTranslog(false).isOpen() == false
-                    && translogManager.getTranslog(false).getTragicException() == e))) {
-                        // this spot on - we are handling the tragic event exception here so we have to fail the engine
-                        // right away
-                        failEngine(source, e);
-                        return true;
-                    }
+                || (translogManager.getTranslog().isOpen() == false && translogManager.getTranslog().getTragicException() == e))) {
+                    // this spot on - we are handling the tragic event exception here so we have to fail the engine
+                    // right away
+                    failEngine(source, e);
+                    return true;
+                }
         return false;
     }
 
@@ -2251,7 +2249,7 @@ public class InternalEngine extends Engine {
                     logger.warn("Failed to close ReaderManager", e);
                 }
                 try {
-                    IOUtils.close(translogManager.getTranslog(false));
+                    IOUtils.close(translogManager.getTranslog());
                 } catch (Exception e) {
                     logger.warn("Failed to close translog", e);
                 }
@@ -2586,7 +2584,7 @@ public class InternalEngine extends Engine {
             // the setting will be re-interpreted if it's set to true
             updateAutoIdTimestamp(Long.MAX_VALUE, true);
         }
-        final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getTranslog(false).getDeletionPolicy();
+        final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getTranslog().getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
         softDeletesPolicy.setRetentionOperations(softDeletesRetentionOps);
@@ -2602,7 +2600,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
-        return translogManager.getTranslog(false).getLastSyncedGlobalCheckpoint();
+        return translogManager.getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
     @Override

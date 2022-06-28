@@ -309,11 +309,14 @@ public class InternalTranslogManager implements TranslogManager {
 
     /**
      * Returns the the translog instance
-     * @param ensureOpen check if the engine is open
      * @return the {@link Translog} instance
      */
     @Override
-    public Translog getTranslog(boolean ensureOpen) {
+    public Translog getTranslog() {
+        return translog;
+    }
+
+    private Translog getTranslog(boolean ensureOpen) {
         if (ensureOpen) {
             this.engineLifeCycleAware.ensureOpen();
         }
