@@ -127,7 +127,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final ResizeRequest resizeRequest,
         final ClusterState state,
         final ActionListener<ResizeResponse> listener

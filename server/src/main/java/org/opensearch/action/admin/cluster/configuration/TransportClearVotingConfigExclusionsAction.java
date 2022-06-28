@@ -101,7 +101,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportCluster
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         ClearVotingConfigExclusionsRequest request,
         ClusterState initialState,
         ActionListener<ClearVotingConfigExclusionsResponse> listener

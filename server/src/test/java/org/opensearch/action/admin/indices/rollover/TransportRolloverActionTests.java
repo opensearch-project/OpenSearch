@@ -298,7 +298,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(500L);
         rolloverRequest.dryRun(true);
-        transportRolloverAction.clusterManagerOperation(mock(Task.class), rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(mock(Task.class), rolloverRequest, stateBefore, future);
 
         RolloverResponse response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
@@ -314,7 +314,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(300L);
         rolloverRequest.dryRun(true);
-        transportRolloverAction.clusterManagerOperation(mock(Task.class), rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(mock(Task.class), rolloverRequest, stateBefore, future);
 
         response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));

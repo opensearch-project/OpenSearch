@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.template.put;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -106,7 +106,7 @@ public class TransportPutComponentTemplateAction extends TransportClusterManager
     }
 
     @Override
-    protected void clusterManagerOperation(
+    protected void masterOperation(
         final PutComponentTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
