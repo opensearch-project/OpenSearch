@@ -328,10 +328,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         super.tearDown();
         try {
             if (engine != null && engine.isClosed.get() == false) {
-                assertEngineCleanedUp(engine, engine.translogManager().getTranslog(true));
+                engine.ensureOpen();
+                assertEngineCleanedUp(engine, engine.translogManager().getTranslog());
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
-                assertEngineCleanedUp(replicaEngine, replicaEngine.translogManager().getTranslog(true));
+                replicaEngine.ensureOpen();
+                assertEngineCleanedUp(replicaEngine, replicaEngine.translogManager().getTranslog());
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
@@ -1480,7 +1482,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     public static Translog getTranslog(Engine engine) {
         assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
-        return internalEngine.translogManager().getTranslog(true);
+        internalEngine.ensureOpen();
+        return internalEngine.translogManager().getTranslog();
     }
 
     /**

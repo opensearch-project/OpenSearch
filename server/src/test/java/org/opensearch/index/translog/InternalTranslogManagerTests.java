@@ -56,7 +56,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 Engine.Index index = indexForDoc(doc);
                 Engine.IndexResult indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), i, true);
                 tracker.markSeqNoAsProcessed(i);
-                translogManager.getTranslog(false).add(new Translog.Index(index, indexResult));
+                translogManager.getTranslog().add(new Translog.Index(index, indexResult));
                 translogManager.rollTranslogGeneration();
             }
             long maxSeqNo = tracker.getMaxSeqNo();
@@ -64,7 +64,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertEquals(maxSeqNo + 1, translogManager.getTranslogStats().estimatedNumberOfOperations());
 
             translogManager.syncTranslog();
-            translogManager.getTranslog(false).close();
+            translogManager.getTranslog().close();
             translogManager = new InternalTranslogManager(
                 new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
                 primaryTerm,
@@ -103,7 +103,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertTrue(onTranslogRecoveryInvoked.get());
 
         } finally {
-            translogManager.getTranslog(false).close();
+            translogManager.getTranslog().close();
         }
     }
 
@@ -131,7 +131,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 Engine.Index index = indexForDoc(doc);
                 Engine.IndexResult indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), i, true);
                 tracker.markSeqNoAsProcessed(i);
-                translogManager.getTranslog(false).add(new Translog.Index(index, indexResult));
+                translogManager.getTranslog().add(new Translog.Index(index, indexResult));
                 translogManager.rollTranslogGeneration();
             }
             long maxSeqNo = tracker.getMaxSeqNo();
@@ -139,7 +139,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertEquals(maxSeqNo + 1, translogManager.getTranslogStats().estimatedNumberOfOperations());
 
             translogManager.syncTranslog();
-            translogManager.getTranslog(false).close();
+            translogManager.getTranslog().close();
             translogManager = new InternalTranslogManager(
                 new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
                 primaryTerm,
@@ -164,7 +164,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertEquals(maxSeqNo + 1, opsRecovered.get());
             assertEquals(maxSeqNo + 1, opsRecoveredFromTranslog);
         } finally {
-            translogManager.getTranslog(false).close();
+            translogManager.getTranslog().close();
         }
     }
 
@@ -192,7 +192,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 Engine.Index index = indexForDoc(doc);
                 Engine.IndexResult indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), i, true);
                 tracker.markSeqNoAsProcessed(i);
-                translogManager.getTranslog(false).add(new Translog.Index(index, indexResult));
+                translogManager.getTranslog().add(new Translog.Index(index, indexResult));
             }
             long maxSeqNo = tracker.getMaxSeqNo();
             assertEquals(maxSeqNo + 1, translogManager.getTranslogStats().getUncommittedOperations());
@@ -202,7 +202,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManager.rollTranslogGeneration();
             translogManager.trimOperationsFromTranslog(primaryTerm.get(), NO_OPS_PERFORMED); // trim everything in translog
 
-            translogManager.getTranslog(false).close();
+            translogManager.getTranslog().close();
             translogManager = new InternalTranslogManager(
                 new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
                 primaryTerm,
@@ -227,7 +227,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertEquals(0, opsRecovered.get());
             assertEquals(0, opsRecoveredFromTranslog);
         } finally {
-            translogManager.getTranslog(false).close();
+            translogManager.getTranslog().close();
         }
     }
 
@@ -253,7 +253,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                     @Override
                     public void onAfterTranslogSync() {
                         try {
-                            translogManagerAtomicReference.get().getTranslog(false).trimUnreferencedReaders();
+                            translogManagerAtomicReference.get().getTranslog().trimUnreferencedReaders();
                             syncListenerInvoked.set(true);
                         } catch (IOException ex) {
                             fail("Failed due to " + ex);
@@ -265,15 +265,15 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManagerAtomicReference.set(translogManager);
             Engine.Index index = indexForDoc(doc);
             Engine.IndexResult indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), 1, false);
-            translogManager.getTranslog(false).add(new Translog.Index(index, indexResult));
+            translogManager.getTranslog().add(new Translog.Index(index, indexResult));
 
             translogManager.syncTranslog();
 
-            assertThat(translogManager.getTranslog(true).currentFileGeneration(), equalTo(2L));
-            assertThat(translogManager.getTranslog(true).getMinFileGeneration(), equalTo(2L));
+            assertThat(translogManager.getTranslog().currentFileGeneration(), equalTo(2L));
+            assertThat(translogManager.getTranslog().getMinFileGeneration(), equalTo(2L));
             assertTrue(syncListenerInvoked.get());
         } finally {
-            translogManager.getTranslog(false).close();
+            translogManager.getTranslog().close();
         }
     }
 }
