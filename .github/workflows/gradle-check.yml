@@ -1,5 +1,7 @@
-name: Jenkins Gradle Check
-on: [pull_request]
+name: Gradle Check (Jenkins)
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 jobs:
   gradle-check:
