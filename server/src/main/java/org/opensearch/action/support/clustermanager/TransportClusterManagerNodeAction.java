@@ -117,23 +117,13 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
     protected abstract Response read(StreamInput in) throws IOException;
 
-    protected abstract void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
-        throws Exception;
-
-    // Preserve the method so that o.o.action.support.master.info.TransportClusterInfoAction class
-    // can override masterOperation() for backwards compatibility.
-    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)} */
-    @Deprecated
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        clusterManagerOperation(request, state, listener);
-    };
+    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
 
     /**
      * Override this operation if access to the task parameter is needed
      */
-    protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
-        throws Exception {
-        clusterManagerOperation(request, state, listener);
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        masterOperation(request, state, listener);
     }
 
     protected boolean localExecute(Request request) {
@@ -211,7 +201,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             }
                         });
                         threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> clusterManagerOperation(task, request, clusterState, l)));
+                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
@@ -302,5 +292,16 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
      */
     protected String getClusterManagerActionName(DiscoveryNode node) {
         return actionName;
+    }
+
+    /**
+     * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
+     * This mainly for backwards compatibility should be used rarely
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #getClusterManagerActionName(DiscoveryNode)}
+     */
+    @Deprecated
+    protected String getMasterActionName(DiscoveryNode node) {
+        return getClusterManagerActionName(node);
     }
 }

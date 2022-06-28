@@ -282,6 +282,8 @@ public class IndicesModule extends AbstractModule {
         bind(RetentionLeaseSyncer.class).asEagerSingleton();
         if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
             bind(SegmentReplicationCheckpointPublisher.class).asEagerSingleton();
+        } else {
+            bind(SegmentReplicationCheckpointPublisher.class).toInstance(SegmentReplicationCheckpointPublisher.EMPTY);
         }
     }
 

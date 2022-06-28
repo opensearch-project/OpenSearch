@@ -23,6 +23,7 @@ import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RecoveryTransportRequest;
@@ -50,6 +51,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     protected final AtomicBoolean finished = new AtomicBoolean();
     private final ShardId shardId;
     protected final IndexShard indexShard;
+    protected final Store store;
     protected final ReplicationListener listener;
     protected final Logger logger;
     protected final CancellableThreads cancellableThreads;
@@ -59,7 +61,9 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     protected abstract void onDone();
 
-    protected abstract void onCancel(String reason);
+    protected void onCancel(String reason) {
+        cancellableThreads.cancel(reason);
+    }
 
     public abstract ReplicationState state();
 
@@ -84,9 +88,11 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         this.id = ID_GENERATOR.incrementAndGet();
         this.stateIndex = stateIndex;
         this.indexShard = indexShard;
+        this.store = indexShard.store();
         this.shardId = indexShard.shardId();
         // make sure the store is not released until we are done.
         this.cancellableThreads = new CancellableThreads();
+        store.incRef();
     }
 
     public long getId() {
@@ -117,6 +123,11 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     public IndexShard indexShard() {
         ensureRefCount();
         return indexShard;
+    }
+
+    public Store store() {
+        ensureRefCount();
+        return store;
     }
 
     public ShardId shardId() {
@@ -266,4 +277,8 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         int totalTranslogOps,
         ActionListener<Void> listener
     );
+
+    protected void closeInternal() {
+        store.decRef();
+    }
 }

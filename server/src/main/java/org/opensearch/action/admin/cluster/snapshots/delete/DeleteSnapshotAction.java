@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.snapshots.delete;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Delete snapshot action

@@ -53,7 +53,8 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
-        assertEquals(state.centroidCount(), values.length);
+        // the number of centroids is defined as <= the number of samples inserted
+        assertTrue(state.centroidCount() <= values.length);
         return new InternalTDigestPercentiles(name, percents, state, keyed, format, metadata);
     }
 

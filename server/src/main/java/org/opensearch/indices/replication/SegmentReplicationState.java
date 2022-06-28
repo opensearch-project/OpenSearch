@@ -27,7 +27,9 @@ public class SegmentReplicationState implements ReplicationState {
     public enum Stage {
         DONE((byte) 0),
 
-        INIT((byte) 1);
+        INIT((byte) 1),
+
+        REPLICATING((byte) 2);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
 
@@ -56,29 +58,58 @@ public class SegmentReplicationState implements ReplicationState {
         }
     }
 
-    public SegmentReplicationState() {
-        this.stage = Stage.INIT;
-    }
-
     private Stage stage;
+    private final ReplicationLuceneIndex index;
+    private final ReplicationTimer timer;
+
+    public SegmentReplicationState(ReplicationLuceneIndex index) {
+        stage = Stage.INIT;
+        this.index = index;
+        timer = new ReplicationTimer();
+        timer.start();
+    }
 
     @Override
     public ReplicationLuceneIndex getIndex() {
-        // TODO
-        return null;
+        return index;
     }
 
     @Override
     public ReplicationTimer getTimer() {
-        // TODO
-        return null;
+        return timer;
     }
 
     public Stage getStage() {
         return stage;
     }
 
+    protected void validateAndSetStage(Stage expected, Stage next) {
+        if (stage != expected) {
+            assert false : "can't move replication to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])";
+            throw new IllegalStateException(
+                "can't move replication to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])"
+            );
+        }
+        stage = next;
+    }
+
     public void setStage(Stage stage) {
-        this.stage = stage;
+        switch (stage) {
+            case INIT:
+                this.stage = Stage.INIT;
+                getIndex().reset();
+                break;
+            case REPLICATING:
+                validateAndSetStage(Stage.INIT, stage);
+                getIndex().start();
+                break;
+            case DONE:
+                validateAndSetStage(Stage.REPLICATING, stage);
+                getIndex().stop();
+                getTimer().stop();
+                break;
+            default:
+                throw new IllegalArgumentException("unknown SegmentReplicationState.Stage [" + stage + "]");
+        }
     }
 }

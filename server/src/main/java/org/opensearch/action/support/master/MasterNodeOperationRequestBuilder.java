@@ -35,9 +35,7 @@ package org.opensearch.action.support.master;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.unit.TimeValue;
 
 /**
  * Base request builder for cluster-manager node operations
@@ -47,30 +45,12 @@ import org.opensearch.common.unit.TimeValue;
  */
 @Deprecated
 public abstract class MasterNodeOperationRequestBuilder<
-    Request extends ClusterManagerNodeRequest<Request>,
+    Request extends MasterNodeRequest<Request>,
     Response extends ActionResponse,
     RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>> extends
     ClusterManagerNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
     protected MasterNodeOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
-    }
-
-    /**
-     * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
-     */
-    @SuppressWarnings("unchecked")
-    @Deprecated
-    public final RequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        return setClusterManagerNodeTimeout(timeout);
-    }
-
-    /**
-     * Sets the cluster-manager node timeout in case the cluster-manager has not yet been discovered.
-     */
-    @SuppressWarnings("unchecked")
-    @Deprecated
-    public final RequestBuilder setMasterNodeTimeout(String timeout) {
-        return setClusterManagerNodeTimeout(timeout);
     }
 }
