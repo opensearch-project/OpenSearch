@@ -96,6 +96,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.transportService = null;
         this.extensionsList = new ArrayList<DiscoveryExtension>();
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
+        this.clusterService = null;
+
 
         /*
          * Now Discover extensions
@@ -187,7 +189,11 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                     logger.error(e.toString());
                 }
             }
-            logger.info("Loaded all extensions");
+            if (!extensionsList.isEmpty()) {
+                logger.info("Loaded all extensions");
+            } else {
+                logger.info("No extensions were loaded");
+            }
         } else {
             logger.info("Extensions.yml file is not present.  No extensions will be loaded.");
         }
