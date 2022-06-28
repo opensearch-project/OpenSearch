@@ -506,7 +506,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(reader, shard, IndexService.this.indexSettings);
                 }
             };
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+
             Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
                 Directory remoteDirectory = remoteDirectoryFactory.newDirectory(
@@ -523,6 +523,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 );
             }
 
+            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
             store = new Store(
                 shardId,
                 this.indexSettings,

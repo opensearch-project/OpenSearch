@@ -1644,7 +1644,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
+                    // Closing remoteStore as a part of IndexShard close. null check is handled by IOUtils
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions, remoteStore);
                     indexShardOperationPermits.close();
                 }
             }
