@@ -205,7 +205,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         verify(spy, times(1)).onNewCheckpoint(eq(anotherNewCheckpoint), any());
         SegmentReplicationTargetService.SegmentReplicationListener listener = captor.getValue();
         listener.onDone(new SegmentReplicationState(new ReplicationLuceneIndex()));
-        verify(spy, times(2)).onNewCheckpoint(eq(anotherNewCheckpoint), any());
+        doNothing().when(spy).onNewCheckpoint(any(), any());
+        verify(spy, timeout(0).times(2)).onNewCheckpoint(eq(anotherNewCheckpoint), any());
         closeShard(indexShard, false);
 
     }

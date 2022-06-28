@@ -89,18 +89,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     }
 
     /**
-     * Returns the Latest checkpoint received by replica shard based on shard ID.
-     * Returns null if replica shard has not received a checkpoint before
-     * @param shardId      Shard Id of replica shard
-     */
-    private ReplicationCheckpoint getLatestReceivedCheckpoint(ShardId shardId) {
-        if (latestReceivedCheckpoint.containsKey(shardId)) {
-            return latestReceivedCheckpoint.get(shardId);
-        }
-        return null;
-    }
-
-    /**
      * Invoked when a new checkpoint is received from a primary shard.
      * It checks if a new checkpoint should be processed or not and starts replication if needed.
      * @param receivedCheckpoint       received checkpoint that is checked for processing
@@ -109,7 +97,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
 
         // Checks if received checkpoint is already present and ahead then it replaces old received checkpoint
-        if (getLatestReceivedCheckpoint(replicaShard.shardId()) != null) {
+        if (latestReceivedCheckpoint.get(replicaShard.shardId()) != null) {
             if (receivedCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId()))) {
                 latestReceivedCheckpoint.replace(replicaShard.shardId(), receivedCheckpoint);
             }
@@ -131,8 +119,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 public void onReplicationDone(SegmentReplicationState state) {
                     // if we received a checkpoint during the copy event that is ahead of this
                     // try and process it.
-                    if (getLatestReceivedCheckpoint(replicaShard.shardId()).isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
-                        onNewCheckpoint(getLatestReceivedCheckpoint(replicaShard.shardId()), replicaShard);
+                    if (latestReceivedCheckpoint.get(replicaShard.shardId()).isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
+                        threadPool.generic()
+                            .execute(() -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard));
                     }
                 }
 
