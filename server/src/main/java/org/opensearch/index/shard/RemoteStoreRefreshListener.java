@@ -20,7 +20,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -28,7 +30,12 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
-import java.util.*;
+import java.util.Set;
+import java.util.Map;
+import java.util.Comparator;
+import java.util.Collection;
+import java.util.Optional;
+import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -49,8 +56,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
     private final ConcurrentHashMap<String, StoreFileMetadata> segmentsUploadedToRemoteStore;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
-    public RemoteStoreRefreshListener(IndexShard indexShard, Directory storeDirectory, Directory remoteDirectory)
-        throws IOException {
+    public RemoteStoreRefreshListener(IndexShard indexShard, Directory storeDirectory, Directory remoteDirectory) throws IOException {
         this.indexShard = indexShard;
         this.storeDirectory = storeDirectory;
         this.remoteDirectory = remoteDirectory;
@@ -60,9 +66,10 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
     }
 
     // Visible for testing
-    ConcurrentHashMap<String, StoreFileMetadata> readRemoteSegmentsMetadata(Directory storeDirectory, Directory remoteDirectory) throws IOException {
+    ConcurrentHashMap<String, StoreFileMetadata> readRemoteSegmentsMetadata(Directory storeDirectory, Directory remoteDirectory)
+        throws IOException {
         ConcurrentHashMap<String, StoreFileMetadata> remoteSegmentsMetadata = new ConcurrentHashMap<>();
-        for(String segmentFile: remoteDirectory.listAll()) {
+        for (String segmentFile : remoteDirectory.listAll()) {
             try {
                 String checksum = getChecksumOfLocalFile(segmentFile);
                 StoreFileMetadata segmentFileMetadata = new StoreFileMetadata(
@@ -73,7 +80,10 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                 );
                 remoteSegmentsMetadata.put(segmentFile, segmentFileMetadata);
             } catch (IOException e) {
-                logger.info("Error reading checksum of segment file {}. This can happen if segmentFile does not exist anymore in local", segmentFile);
+                logger.info(
+                    "Error reading checksum of segment file {}. This can happen if segmentFile does not exist anymore in local",
+                    segmentFile
+                );
             }
         }
         return remoteSegmentsMetadata;
@@ -109,7 +119,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
         Optional<Integer> lastGeneration = allRefreshedSegmentInfos.stream()
             .map(file -> Integer.parseInt(file.substring(REFRESHED_SEGMENTINFOS_FILENAME.length()), Character.MAX_RADIX))
             .max(Comparator.naturalOrder());
-        if(lastGeneration.isEmpty()) {
+        if (lastGeneration.isEmpty()) {
             logger.info("{}_N is yet to be uploaded to the remote store", REFRESHED_SEGMENTINFOS_FILENAME);
             return;
         }
@@ -119,14 +129,16 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                 SegmentInfos segmentInfos = SegmentInfos.readCommit(remoteDirectory, input, lastGeneration.get());
                 refreshedSegmentFiles = segmentInfos.files(true);
             } catch (EOFException | NoSuchFileException | FileNotFoundException e) {
-                throw new CorruptIndexException(
-                    "Unexpected file read error while reading index.", input, e);
+                throw new CorruptIndexException("Unexpected file read error while reading index.", input, e);
             }
         }
 
-        Arrays.stream(remoteDirectory.listAll())
+        Set<String> localFiles = Set.of(storeDirectory.listAll());
+
+        remoteSegments.stream()
             .filter(file -> !refreshedSegmentFiles.contains(file))
             .filter(file -> !allRefreshedSegmentInfos.contains(file))
+            .filter(file -> !localFiles.contains(file))
             .forEach(file -> {
                 try {
                     remoteDirectory.deleteFile(file);
@@ -162,13 +174,16 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
     public void afterRefresh(boolean didRefresh) throws IOException {
         if (didRefresh) {
             try {
-                SegmentInfos segmentInfos = indexShard.getSegmentInfosSnapshot().get();
-                Set<String> localFiles = (Set<String>) segmentInfos.files(true);
-                boolean uploadStatus = uploadNewSegments(localFiles);
-                if (uploadStatus) {
-                    uploadRemoteSegmentsMetadata(segmentInfos);
+                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
+                    SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+                    Set<String> localFiles = (Set<String>) segmentInfos.files(true);
+                    boolean uploadStatus = uploadNewSegments(localFiles);
+                    if (uploadStatus) {
+                        uploadRemoteSegmentsMetadata(segmentInfos);
+                    }
+                } catch (EngineException e) {
+                    logger.warn("Exception while reading SegmentInfosSnapshot", e);
                 }
-
             } catch (IOException e) {
                 // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
                 // in the next refresh. This should not affect durability of the indexed data after remote trans-log integration.
@@ -181,34 +196,40 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
     synchronized boolean uploadNewSegments(Set<String> localFiles) throws IOException {
         AtomicBoolean newSegmentsUploaded = new AtomicBoolean(false);
         AtomicBoolean uploadSuccess = new AtomicBoolean(true);
-        localFiles.stream().filter(file -> !EXCLUDE_FILES.contains(file)).filter(file -> !file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME)).forEach(file -> {
-            try {
-                String checksum = getChecksumOfLocalFile(file);
-                StoreFileMetadata storeFileMetadata = segmentsUploadedToRemoteStore.get(file);
-                if (storeFileMetadata != null && storeFileMetadata.checksum().equals(checksum)) {
-                    return;
-                }
-                newSegmentsUploaded.set(true);
+        localFiles.stream()
+            .filter(file -> !EXCLUDE_FILES.contains(file))
+            .filter(file -> !file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME))
+            .forEach(file -> {
                 try {
-                    remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
-                    StoreFileMetadata newFileMetadata = new StoreFileMetadata(
-                        file,
-                        storeDirectory.fileLength(file),
-                        checksum,
-                        org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion
-                    );
-                    segmentsUploadedToRemoteStore.put(file, newFileMetadata);
-                } catch (NoSuchFileException e) {
-                    logger.info("The file {} does not exist anymore. It can happen in case of temp files", file);
-                } catch (IOException e) {
-                    uploadSuccess.set(false);
-                    // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
-                    logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", file), e);
+                    String checksum = getChecksumOfLocalFile(file);
+                    StoreFileMetadata storeFileMetadata = segmentsUploadedToRemoteStore.get(file);
+                    if (storeFileMetadata != null && storeFileMetadata.checksum().equals(checksum)) {
+                        return;
+                    }
+                    newSegmentsUploaded.set(true);
+                    try {
+                        remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+                        StoreFileMetadata newFileMetadata = new StoreFileMetadata(
+                            file,
+                            storeDirectory.fileLength(file),
+                            checksum,
+                            org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion
+                        );
+                        segmentsUploadedToRemoteStore.put(file, newFileMetadata);
+                    } catch (NoSuchFileException e) {
+                        logger.info("The file {} does not exist anymore. It can happen in case of temp files", file);
+                    } catch (IOException e) {
+                        uploadSuccess.set(false);
+                        // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
+                        logger.warn(
+                            () -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", file),
+                            e
+                        );
+                    }
+                } catch (Exception e) {
+                    logger.info("Exception while uploading segment file {} to remote store", file);
                 }
-            } catch (Exception e) {
-                logger.info("Exception while uploading segment file {} to remote store", file);
-            }
-        });
+            });
 
         return newSegmentsUploaded.get() && uploadSuccess.get();
     }
@@ -221,8 +242,8 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
 
     // Visible for testing
     synchronized void uploadRemoteSegmentsMetadata(SegmentInfos segmentInfos) throws IOException {
-        for(String segmentFile: segmentInfos.files(true)) {
-            if(!segmentsUploadedToRemoteStore.containsKey(segmentFile)) {
+        for (String segmentFile : segmentInfos.files(true)) {
+            if (!segmentsUploadedToRemoteStore.containsKey(segmentFile)) {
                 logger.info("Skipping uploading refreshed_segments_N file as not all the corresponding segment files are uploaded");
                 return;
             }
@@ -230,8 +251,11 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
         String segmentInfosFileName = REFRESHED_SEGMENTINFOS_FILENAME + segmentInfos.getGeneration();
         try {
             storeDirectory.deleteFile(segmentInfosFileName);
-        } catch(NoSuchFileException e) {
-            logger.info("File {} is missing in local filesystem. This can happen for a very first refresh of the shard", segmentInfosFileName);
+        } catch (NoSuchFileException e) {
+            logger.info(
+                "File {} is missing in local filesystem. This can happen for a very first refresh of the shard",
+                segmentInfosFileName
+            );
         }
         IndexOutput indexOutput = storeDirectory.createOutput(segmentInfosFileName, IOContext.DEFAULT);
         segmentInfos.write(indexOutput);

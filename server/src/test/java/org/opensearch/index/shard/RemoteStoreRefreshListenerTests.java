@@ -8,33 +8,44 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.IndexNotFoundException;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.tests.util.TestUtil;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.store.IOContext;
 import org.junit.After;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.Map;
 import java.util.Set;
-import java.util.List;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.startsWith;
+import static org.mockito.Mockito.doThrow;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.REFRESHED_SEGMENTINFOS_FILENAME;
 
 public class RemoteStoreRefreshListenerTests extends OpenSearchTestCase {
@@ -42,274 +53,264 @@ public class RemoteStoreRefreshListenerTests extends OpenSearchTestCase {
     private Directory storeDirectory;
     private Directory remoteDirectory;
 
-    private List<IndexInput> openedInputs;
-
     private RemoteStoreRefreshListener remoteStoreRefreshListener;
 
-    public void setup(Set<String> remoteFiles, Set<String> localFiles) throws IOException {
+    public void setup(int numberOfDocuments) throws IOException {
         indexShard = mock(IndexShard.class);
         storeDirectory = newDirectory();
         remoteDirectory = mock(Directory.class);
 
+        if (numberOfDocuments > 0) {
+            writeDocsToLocalDirectory(storeDirectory, numberOfDocuments);
+        }
         ThreadPool threadPool = mock(ThreadPool.class);
         when(indexShard.getThreadPool()).thenReturn(threadPool);
+
         GatedCloseable<SegmentInfos> segmentInfosWrapper = mock(GatedCloseable.class);
-        SegmentInfos segmentInfos = mock(SegmentInfos.class);
-        when(segmentInfosWrapper.get()).thenReturn(segmentInfos);
-        when(indexShard.getSegmentInfosSnapshot()).thenReturn(segmentInfosWrapper);
-
-        openedInputs = new ArrayList<>();
-        writeSegmentFilesToDir(localFiles);
-
-        IndexOutput output = storeDirectory.createOutput(REFRESHED_SEGMENTINFOS_FILENAME, IOContext.DEFAULT);
-        for (String remoteFile : remoteFiles) {
-            StoreFileMetadata storeFileMetadata;
-            if (localFiles.contains(remoteFile)) {
-                IndexInput indexInput = storeDirectory.openInput(remoteFile, IOContext.DEFAULT);
-                storeFileMetadata = new StoreFileMetadata(
-                    remoteFile,
-                    storeDirectory.fileLength(remoteFile),
-                    Long.toString(CodecUtil.retrieveChecksum(indexInput)),
-                    org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion
-                );
-                openedInputs.add(indexInput);
-            } else {
-                storeFileMetadata = new StoreFileMetadata(
-                    remoteFile,
-                    scaledRandomIntBetween(10, 100),
-                    Long.toString(scaledRandomIntBetween(10, 100)),
-                    org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion
-                );
+        when(segmentInfosWrapper.get()).thenAnswer(x -> {
+            try {
+                return SegmentInfos.readLatestCommit(storeDirectory);
+            } catch (IndexNotFoundException e) {
+                throw (new EngineException(new ShardId("a", "b", 0), "Error"));
             }
-            writeMetadata(output, storeFileMetadata);
-        }
-        output.close();
-
-        if (remoteFiles.isEmpty()) {
-            when(remoteDirectory.openInput(REFRESHED_SEGMENTINFOS_FILENAME, IOContext.READ)).thenThrow(
-                new NoSuchFileException(REFRESHED_SEGMENTINFOS_FILENAME)
-            );
-        } else {
-            IndexInput indexInput = storeDirectory.openInput(REFRESHED_SEGMENTINFOS_FILENAME, IOContext.READ);
-            when(remoteDirectory.openInput(REFRESHED_SEGMENTINFOS_FILENAME, IOContext.READ)).thenReturn(indexInput);
-            openedInputs.add(indexInput);
-        }
-        when(remoteDirectory.listAll()).thenReturn(remoteFiles.toArray(new String[0]));
+        });
+        when(indexShard.getSegmentInfosSnapshot()).thenReturn(segmentInfosWrapper);
+        when(remoteDirectory.listAll()).thenReturn(new String[0]);
 
         remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, storeDirectory, remoteDirectory);
+    }
+
+    private void writeDocsToLocalDirectory(Directory storeDirectory, int numberOfFiles) throws IOException {
+        IndexWriter writer = new IndexWriter(
+            storeDirectory,
+            new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+        );
+        for (int i = 0; i < numberOfFiles; i++) {
+            Document document = new Document();
+            document.add(new StringField("field" + i, "value" + i, Field.Store.NO));
+            writer.addDocument(document);
+        }
+        writer.commit();
+        writer.close();
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        for (IndexInput indexInput : openedInputs) {
-            indexInput.close();
-        }
         storeDirectory.close();
     }
 
-    private void writeSegmentFilesToDir(Set<String> files) throws IOException {
-        for (String file : files) {
-            IndexOutput output = storeDirectory.createOutput(file, IOContext.DEFAULT);
-            int iters = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < iters; i++) {
-                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
-                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-            }
-            CodecUtil.writeFooter(output);
-            output.close();
+    public void testReadRemoteSegmentsMetadata() throws IOException {
+        setup(3);
+
+        String[] localFiles = storeDirectory.listAll();
+        String[] remoteFiles = new String[localFiles.length + 1];
+        int i = 0;
+        for (String file : localFiles) {
+            remoteFiles[i] = file;
+            i++;
         }
+        remoteFiles[i] = "random_segment";
+        when(remoteDirectory.listAll()).thenReturn(remoteFiles);
+
+        ConcurrentHashMap<String, StoreFileMetadata> actualMetadata = remoteStoreRefreshListener.readRemoteSegmentsMetadata(
+            storeDirectory,
+            remoteDirectory
+        );
+        for (Map.Entry<String, StoreFileMetadata> entry : actualMetadata.entrySet()) {
+            String file = entry.getKey();
+            StoreFileMetadata fileMetadata = entry.getValue();
+            assertEquals(file, fileMetadata.name());
+            assertEquals(storeDirectory.fileLength(file), fileMetadata.length());
+            try (IndexInput indexInput = storeDirectory.openInput(file, IOContext.DEFAULT)) {
+                assertEquals(CodecUtil.retrieveChecksum(indexInput), Long.parseLong(fileMetadata.checksum()));
+            }
+        }
+        assertFalse(actualMetadata.containsKey("random_segment"));
     }
 
-    private void writeMetadata(IndexOutput indexOutput, StoreFileMetadata storeFileMetadata) throws IOException {
-        indexOutput.writeString(storeFileMetadata.name());
-        indexOutput.writeVLong(storeFileMetadata.length());
-        indexOutput.writeString(storeFileMetadata.checksum());
-        indexOutput.writeString(storeFileMetadata.writtenBy().toString());
+    public void testDeleteStaleSegmentsNoPriorRefresh() throws IOException {
+        setup(4);
+        when(remoteDirectory.listAll()).thenReturn(storeDirectory.listAll());
+
+        remoteStoreRefreshListener.deleteStaleSegments();
+
+        verify(remoteDirectory, times(0)).openChecksumInput(any(), any());
+    }
+
+    public void testDeleteStaleSegmentsPostRefreshNoDelete() throws IOException {
+        setup(4);
+
+        remoteStoreRefreshListener.afterRefresh(true);
+        when(remoteDirectory.listAll()).thenReturn(storeDirectory.listAll());
+        for (String file : storeDirectory.listAll()) {
+            when(remoteDirectory.openChecksumInput(file, IOContext.READ)).thenAnswer(
+                i -> storeDirectory.openChecksumInput(file, IOContext.READ)
+            );
+        }
+        remoteStoreRefreshListener.deleteStaleSegments();
+
+        verify(remoteDirectory, times(0)).openChecksumInput(startsWith(REFRESHED_SEGMENTINFOS_FILENAME), eq(IOContext.DEFAULT));
+        verify(remoteDirectory, times(0)).deleteFile(any());
+    }
+
+    public void testDeleteStaleSegmentsPostRefreshDelete() throws IOException {
+        setup(4);
+        remoteStoreRefreshListener.afterRefresh(true);
+        writeDocsToLocalDirectory(storeDirectory, 3);
+        remoteStoreRefreshListener.afterRefresh(true);
+        writeDocsToLocalDirectory(storeDirectory, 5);
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        String[] localFiles = storeDirectory.listAll();
+        String[] remoteFiles = new String[localFiles.length + 1];
+        int i = 0;
+        for (String file : localFiles) {
+            remoteFiles[i] = file;
+            i++;
+        }
+        remoteFiles[i] = "random_segment";
+        when(remoteDirectory.listAll()).thenReturn(remoteFiles);
+
+        for (String file : storeDirectory.listAll()) {
+            when(remoteDirectory.openChecksumInput(file, IOContext.READ)).thenAnswer(
+                j -> storeDirectory.openChecksumInput(file, IOContext.READ)
+            );
+        }
+        remoteStoreRefreshListener.deleteStaleSegments();
+
+        verify(remoteDirectory, times(0)).openChecksumInput(startsWith(REFRESHED_SEGMENTINFOS_FILENAME), eq(IOContext.DEFAULT));
+        verify(remoteDirectory, times(1)).deleteFile("random_segment");
+        verify(remoteDirectory, times(1)).deleteFile(REFRESHED_SEGMENTINFOS_FILENAME + 1);
+        verify(remoteDirectory, times(1)).deleteFile(REFRESHED_SEGMENTINFOS_FILENAME + 2);
     }
 
     public void testAfterRefreshFalse() throws IOException {
-        setup(Set.of(), Set.of());
+        setup(0);
 
         remoteStoreRefreshListener.afterRefresh(false);
 
+        verify(indexShard, times(0)).getSegmentInfosSnapshot();
         verify(remoteDirectory, times(0)).copyFrom(any(), any(), any(), any());
         verify(remoteDirectory, times(0)).copyFrom(eq(storeDirectory), any(), any(), eq(IOContext.DEFAULT));
         assertEquals(Set.of(), remoteStoreRefreshListener.getUploadedSegments().keySet());
     }
 
-    /*
     public void testAfterRefreshTrueNoLocalFiles() throws IOException {
-        setup(Set.of(), Set.of());
+        setup(0);
 
         remoteStoreRefreshListener.afterRefresh(true);
 
+        verify(indexShard).getSegmentInfosSnapshot();
         verify(remoteDirectory, times(0)).copyFrom(any(), any(), any(), any());
-        verify(remoteDirectory, times(0)).copyFrom(storeDirectory, REMOTE_SEGMENTS_METADATA, REMOTE_SEGMENTS_METADATA, IOContext.DEFAULT);
         assertEquals(Set.of(), remoteStoreRefreshListener.getUploadedSegments().keySet());
     }
 
     public void testAfterRefreshOnlyUploadFiles() throws IOException {
-        setup(Set.of(), Set.of("0.si", "0.cfs", "0.cfe", "write.lock"));
+        setup(3);
 
         remoteStoreRefreshListener.afterRefresh(true);
 
-        verify(remoteDirectory).copyFrom(storeDirectory, "0.si", "0.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "0.cfs", "0.cfs", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "0.cfe", "0.cfe", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, REMOTE_SEGMENTS_METADATA, REMOTE_SEGMENTS_METADATA, IOContext.DEFAULT);
-        assertEquals(Set.of("0.si", "0.cfs", "0.cfe"), remoteStoreRefreshListener.getUploadedSegments().keySet());
+        Set<String> localFiles = Arrays.stream(storeDirectory.listAll())
+            .filter(file -> !file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME))
+            .collect(Collectors.toSet());
+        for (String file : localFiles) {
+            verify(remoteDirectory).copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+        }
+        assertEquals(localFiles, remoteStoreRefreshListener.getUploadedSegments().keySet());
+        verify(remoteDirectory).copyFrom(
+            eq(storeDirectory),
+            startsWith(REFRESHED_SEGMENTINFOS_FILENAME),
+            startsWith(REFRESHED_SEGMENTINFOS_FILENAME),
+            eq(IOContext.DEFAULT)
+        );
     }
 
     public void testAfterRefreshUploadWithExistingRemoteFiles() throws IOException {
-        setup(Set.of("0.si", "0.cfs"), Set.of("1.si", "1.cfs", "1.cfe"));
-
+        setup(3);
         remoteStoreRefreshListener.afterRefresh(true);
 
-        verify(remoteDirectory).copyFrom(storeDirectory, "1.si", "1.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "1.cfs", "1.cfs", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "1.cfe", "1.cfe", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, REMOTE_SEGMENTS_METADATA, REMOTE_SEGMENTS_METADATA, IOContext.DEFAULT);
-        assertEquals(Set.of("0.si", "0.cfs", "1.si", "1.cfs", "1.cfe"), remoteStoreRefreshListener.getUploadedSegments().keySet());
+        Set<String> filesAfterFirstCommit = Arrays.stream(storeDirectory.listAll())
+            .filter(file -> !file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME))
+            .collect(Collectors.toSet());
+        for (String file : filesAfterFirstCommit) {
+            verify(remoteDirectory).copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+        }
+        assertEquals(filesAfterFirstCommit, remoteStoreRefreshListener.getUploadedSegments().keySet());
+
+        writeDocsToLocalDirectory(storeDirectory, 4);
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        Set<String> filesAfterSecondCommit = Arrays.stream(storeDirectory.listAll())
+            .filter(file -> !file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME))
+            .collect(Collectors.toSet());
+        filesAfterSecondCommit.add("segments_1");
+
+        filesAfterSecondCommit.stream().filter(file -> !filesAfterFirstCommit.contains(file)).forEach(file -> {
+            try {
+                verify(remoteDirectory).copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        assertEquals(filesAfterSecondCommit, remoteStoreRefreshListener.getUploadedSegments().keySet());
+        verify(remoteDirectory, times(2)).copyFrom(
+            eq(storeDirectory),
+            startsWith(REFRESHED_SEGMENTINFOS_FILENAME),
+            startsWith(REFRESHED_SEGMENTINFOS_FILENAME),
+            eq(IOContext.DEFAULT)
+        );
     }
 
     public void testAfterRefreshNoUpload() throws IOException {
-        setup(Set.of("0.si", "0.cfs"), Set.of("0.si"));
+        setup(3);
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        Set<String> filesAfterFirstCommit = Arrays.stream(storeDirectory.listAll())
+            .filter(file -> !file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME))
+            .collect(Collectors.toSet());
+        assertEquals(filesAfterFirstCommit, remoteStoreRefreshListener.getUploadedSegments().keySet());
 
         remoteStoreRefreshListener.afterRefresh(true);
 
-        verify(remoteDirectory, times(0)).copyFrom(any(), any(), any(), any());
-        verify(remoteDirectory, times(0)).copyFrom(storeDirectory, REMOTE_SEGMENTS_METADATA, REMOTE_SEGMENTS_METADATA, IOContext.DEFAULT);
-        assertEquals(Set.of("0.si", "0.cfs"), remoteStoreRefreshListener.getUploadedSegments().keySet());
+        assertEquals(filesAfterFirstCommit, remoteStoreRefreshListener.getUploadedSegments().keySet());
+        for (String file : filesAfterFirstCommit) {
+            verify(remoteDirectory, times(1)).copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+        }
+        verify(remoteDirectory, times(1)).copyFrom(
+            eq(storeDirectory),
+            startsWith(REFRESHED_SEGMENTINFOS_FILENAME),
+            startsWith(REFRESHED_SEGMENTINFOS_FILENAME),
+            eq(IOContext.DEFAULT)
+        );
     }
 
     public void testAfterRefreshPartialUpload() throws IOException {
-        setup(Set.of("0.si", "0.cfs"), Set.of("0.si", "1.si", "1.cfs"));
+        setup(3);
 
+        Set<String> segmentsWithException = new HashSet<>();
+        for (String file : storeDirectory.listAll()) {
+            if (randomBoolean()) {
+                segmentsWithException.add(file);
+                doThrow(new NoSuchFileException("Not Found")).when(remoteDirectory).copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+            }
+        }
         remoteStoreRefreshListener.afterRefresh(true);
 
-        verify(remoteDirectory).copyFrom(storeDirectory, "1.si", "1.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "1.cfs", "1.cfs", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, REMOTE_SEGMENTS_METADATA, REMOTE_SEGMENTS_METADATA, IOContext.DEFAULT);
-        assertEquals(Set.of("0.si", "0.cfs", "1.si", "1.cfs"), remoteStoreRefreshListener.getUploadedSegments().keySet());
-    }
-
-    public void testDeleteStaleSegmentsNoStale() throws IOException {
-        setup(Set.of("0.si", "0.cfs", REMOTE_SEGMENTS_METADATA), Set.of("0.si", "1.si", "0.cfs"));
-
-        remoteStoreRefreshListener.deleteStaleSegments(Set.of("0.si", "1.si", "0.cfs"));
-
-        verify(remoteDirectory, times(0)).deleteFile(any());
-        assertEquals(Set.of("0.si", "0.cfs", REMOTE_SEGMENTS_METADATA), remoteStoreRefreshListener.getUploadedSegments().keySet());
-    }
-
-    public void testDeleteStaleSegmentsFewStale() throws IOException {
-        setup(Set.of("0.si", "0.cfs"), Set.of("0.si", "1.si", "1.cfs"));
-
-        remoteStoreRefreshListener.deleteStaleSegments(Set.of("0.si", "1.si", "1.cfs"));
-
-        verify(remoteDirectory).deleteFile("0.cfs");
-        assertEquals(Set.of("0.si"), remoteStoreRefreshListener.getUploadedSegments().keySet());
-    }
-
-    public void testDeleteStaleSegmentsAllStale() throws IOException {
-        setup(Set.of("0.si", "0.cfs", REMOTE_SEGMENTS_METADATA), Set.of("2.si", "1.si", "1.cfs"));
-
-        remoteStoreRefreshListener.deleteStaleSegments(Set.of("2.si", "1.si", "1.cfs"));
-
-        verify(remoteDirectory).deleteFile("0.cfs");
-        verify(remoteDirectory).deleteFile("0.si");
-        verify(remoteDirectory, times(0)).deleteFile(REMOTE_SEGMENTS_METADATA);
-        assertEquals(Set.of(REMOTE_SEGMENTS_METADATA), remoteStoreRefreshListener.getUploadedSegments().keySet());
-    }
-
-    public void testDeleteStaleSegmentsException() throws IOException {
-        setup(Set.of("0.si", "0.cfs", "0.cfe"), Set.of("2.si", "1.si", "1.cfs"));
-        doThrow(new IOException()).when(remoteDirectory).deleteFile("0.cfs");
-
-        remoteStoreRefreshListener.deleteStaleSegments(Set.of("2.si", "1.si", "1.cfs"));
-
-        verify(remoteDirectory).deleteFile("0.cfs");
-        verify(remoteDirectory).deleteFile("0.si");
-        verify(remoteDirectory).deleteFile("0.cfs");
-        assertEquals(Set.of("0.cfs"), remoteStoreRefreshListener.getUploadedSegments().keySet());
-    }
-
-    public void testSchedulerFlow() throws IOException {
-        setup(Set.of(), Set.of("0.si", "1.si", "2.si", "3.si", "4.si", "write.lock"));
-
-        // First Refresh
-        remoteStoreRefreshListener.afterRefresh(true);
-        verify(remoteDirectory).copyFrom(storeDirectory, "0.si", "0.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "1.si", "1.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "2.si", "2.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "3.si", "3.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "4.si", "4.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, REMOTE_SEGMENTS_METADATA, REMOTE_SEGMENTS_METADATA, IOContext.DEFAULT);
-
-        assertEquals(Set.of("0.si", "1.si", "2.si", "3.si", "4.si"), remoteStoreRefreshListener.getUploadedSegments().keySet());
-        Map<String, StoreFileMetadata> metadata = remoteStoreRefreshListener.readRemoteSegmentsMetadata(storeDirectory);
-        assertEquals(Set.of("0.si", "1.si", "2.si", "3.si", "4.si"), metadata.keySet());
-
-        // Second Refresh
-        when(remoteDirectory.listAll()).thenReturn(remoteStoreRefreshListener.getUploadedSegments().keySet().toArray(new String[0]));
-        writeSegmentFilesToDir(Set.of("5.si", "6.si", "7.si"));
-        storeDirectory.deleteFile("0.si");
-        storeDirectory.deleteFile("1.si");
-        storeDirectory.deleteFile("2.si");
-
-        remoteStoreRefreshListener.afterRefresh(true);
-
-        verify(remoteDirectory).copyFrom(storeDirectory, "5.si", "5.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "6.si", "6.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "7.si", "7.si", IOContext.DEFAULT);
-
+        for (String file : Arrays.stream(storeDirectory.listAll())
+            .filter(file -> !file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME))
+            .collect(Collectors.toSet())) {
+            verify(remoteDirectory, times(1)).copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+        }
         assertEquals(
-            Set.of("0.si", "1.si", "2.si", "3.si", "4.si", "5.si", "6.si", "7.si"),
+            Stream.of(storeDirectory.listAll()).filter(file -> !segmentsWithException.contains(file)).collect(Collectors.toSet()),
             remoteStoreRefreshListener.getUploadedSegments().keySet()
         );
-        metadata = remoteStoreRefreshListener.readRemoteSegmentsMetadata(storeDirectory);
-        assertEquals(Set.of("3.si", "4.si", "5.si", "6.si", "7.si"), metadata.keySet());
-
-        // Schedule flow
-        when(remoteDirectory.listAll()).thenReturn(remoteStoreRefreshListener.getUploadedSegments().keySet().toArray(new String[0]));
-        writeSegmentFilesToDir(Set.of("8.si", "9.si", "10.si"));
-        storeDirectory.deleteFile("3.si");
-        storeDirectory.deleteFile("6.si");
-
-        Set<String> localFiles = Set.of("4.si", "5.si", "7.si", "8.si", "9.si", "10.si");
-
-        // Scheduler flow - upload new segments
-        remoteStoreRefreshListener.uploadNewSegments(localFiles);
-
-        verify(remoteDirectory).copyFrom(storeDirectory, "8.si", "8.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "9.si", "9.si", IOContext.DEFAULT);
-        verify(remoteDirectory).copyFrom(storeDirectory, "10.si", "10.si", IOContext.DEFAULT);
-        assertEquals(
-            Set.of("0.si", "1.si", "2.si", "3.si", "4.si", "5.si", "6.si", "7.si", "8.si", "9.si", "10.si"),
-            remoteStoreRefreshListener.getUploadedSegments().keySet()
+        verify(remoteDirectory, times(0)).copyFrom(
+            eq(storeDirectory),
+            startsWith(REFRESHED_SEGMENTINFOS_FILENAME),
+            startsWith(REFRESHED_SEGMENTINFOS_FILENAME),
+            eq(IOContext.DEFAULT)
         );
-        metadata = remoteStoreRefreshListener.readRemoteSegmentsMetadata(storeDirectory);
-        assertEquals(Set.of("3.si", "4.si", "5.si", "6.si", "7.si"), metadata.keySet());
-
-        // Scheduler flow - delete stale segments
-        when(remoteDirectory.listAll()).thenReturn(remoteStoreRefreshListener.getUploadedSegments().keySet().toArray(new String[0]));
-        remoteStoreRefreshListener.deleteStaleSegments(localFiles);
-
-        verify(remoteDirectory).deleteFile("0.si");
-        verify(remoteDirectory).deleteFile("1.si");
-        verify(remoteDirectory).deleteFile("2.si");
-        verify(remoteDirectory).deleteFile("3.si");
-        verify(remoteDirectory).deleteFile("6.si");
-        assertEquals(Set.of("4.si", "5.si", "7.si", "8.si", "9.si", "10.si"), remoteStoreRefreshListener.getUploadedSegments().keySet());
-        metadata = remoteStoreRefreshListener.readRemoteSegmentsMetadata(storeDirectory);
-        assertEquals(Set.of("3.si", "4.si", "5.si", "6.si", "7.si"), metadata.keySet());
-
-        remoteStoreRefreshListener.uploadRemoteSegmentsMetadata(localFiles);
-
-        assertEquals(Set.of("4.si", "5.si", "7.si", "8.si", "9.si", "10.si"), remoteStoreRefreshListener.getUploadedSegments().keySet());
-        metadata = remoteStoreRefreshListener.readRemoteSegmentsMetadata(storeDirectory);
-        assertEquals(Set.of("4.si", "5.si", "7.si", "8.si", "9.si", "10.si"), metadata.keySet());
     }
-     */
 }
