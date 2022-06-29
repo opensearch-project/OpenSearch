@@ -2688,20 +2688,29 @@ public class IndexShardTests extends IndexShardTestCase {
             storeDirectory.deleteFile(file);
         }
 
+        Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) target.remoteStore().directory()).getDelegate()).getDelegate();
+        ((BaseDirectoryWrapper) remoteDirectory).setCheckIndexOnClose(false);
+
+        for (String file : remoteDirectory.listAll()) {
+            if (file.equals("extra0")) {
+                remoteDirectory.deleteFile(file);
+            }
+        }
+
+        target.remoteStore().incRef();
         target = reinitShard(target, routing);
 
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         target.markAsRecovering("remote_store", new RecoveryState(routing, localNode, null));
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         target.restoreFromRemoteStore(future);
-        assertTrue(future.actionGet());
+        target.remoteStore().decRef();
 
+        assertTrue(future.actionGet());
         assertDocs(target, "1", "2");
 
-        ((BaseDirectoryWrapper) target.getRemoteStoreRefreshListener().getRemoteDirectory()).setCheckIndexOnClose(false);
         storeDirectory = ((FilterDirectory) ((FilterDirectory) target.store().directory()).getDelegate()).getDelegate();
         ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
-        target.getRemoteStoreRefreshListener().getRemoteDirectory().close();
         closeShards(target);
     }
 

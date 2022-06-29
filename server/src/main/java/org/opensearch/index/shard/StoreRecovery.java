@@ -439,32 +439,33 @@ final class StoreRecovery {
     }
 
     private void recoverFromRemoteStore(IndexShard indexShard) throws IndexShardRecoveryException {
-        indexShard.preRecovery();
-        indexShard.prepareForIndexRecovery();
-        if (indexShard.getRemoteStoreRefreshListener() == null) {
+        final Store remoteStore = indexShard.remoteStore();
+        if (remoteStore == null) {
             throw new IndexShardRecoveryException(
                 indexShard.shardId(),
                 "Remote store is not enabled for this index",
                 new IllegalArgumentException()
             );
         }
-        final Directory remoteDirectory = indexShard.getRemoteStoreRefreshListener().getRemoteDirectory();
+        indexShard.preRecovery();
+        indexShard.prepareForIndexRecovery();
+        final Directory remoteDirectory = remoteStore.directory();
         final Store store = indexShard.store();
         final Directory storeDirectory = store.directory();
         store.incRef();
+        remoteStore.incRef();
         try {
+            // Cleaning up local directory before copying file from remote directory.
+            // This is done to make sure we start with clean slate.
+            // ToDo: Check if we can copy only missing files
             for (String file : storeDirectory.listAll()) {
                 storeDirectory.deleteFile(file);
             }
-        } catch (IOException e) {
-            throw new IndexShardRecoveryException(indexShard.shardId, "Exception while recovering from remote store", e);
-        }
-        try {
             for (String file : remoteDirectory.listAll()) {
                 storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
             }
             // This creates empty trans-log for now
-            // ToDo: Add code to restore remote trans-log
+            // ToDo: Add code to restore from remote trans-log
             bootstrap(indexShard, store);
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             indexShard.recoveryState().getIndex().setFileDetailsComplete();
@@ -474,8 +475,10 @@ final class StoreRecovery {
             indexShard.postRecovery("post recovery from remote_store");
         } catch (IOException e) {
             throw new IndexShardRecoveryException(indexShard.shardId, "Exception while recovering from remote store", e);
+        } finally {
+            store.decRef();
+            remoteStore.decRef();
         }
-        store.decRef();
     }
 
     /**

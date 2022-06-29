@@ -392,7 +392,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         @Nullable EngineFactory engineFactory,
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
-        RemoteStoreRefreshListener remoteStoreRefreshListener,
+        Store remoteStore,
         IndexingOperationListener... listeners
     ) throws IOException {
         // add node id as name to settings for proper logging
@@ -410,7 +410,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             globalCheckpointSyncer,
             retentionLeaseSyncer,
             EMPTY_EVENT_LISTENER,
-            remoteStoreRefreshListener,
+            remoteStore,
             listeners
         );
     }
@@ -438,7 +438,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
-        RemoteStoreRefreshListener remoteStoreRefreshListener,
+        Store remoteStore,
         IndexingOperationListener... listeners
     ) throws IOException {
         return newShard(
@@ -453,7 +453,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             retentionLeaseSyncer,
             indexEventListener,
             SegmentReplicationCheckpointPublisher.EMPTY,
-            remoteStoreRefreshListener,
+            remoteStore,
             listeners
         );
     }
@@ -482,7 +482,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable RemoteStoreRefreshListener remoteStoreRefreshListener,
+        @Nullable Store remoteStore,
         IndexingOperationListener... listeners
     ) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
@@ -510,12 +510,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Collections.emptyList(),
                 clusterSettings
             );
-            if (remoteStoreRefreshListener == null && indexSettings.isRemoteStoreEnabled()) {
+            if (remoteStore == null && indexSettings.isRemoteStoreEnabled()) {
                 ShardId shardId = shardPath.getShardId();
                 NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(createTempDir());
                 ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
-                Directory remoteDirectory = newFSDirectory(remoteShardPath.resolveIndex());
-                remoteStoreRefreshListener = new RemoteStoreRefreshListener(store.directory(), remoteDirectory);
+                storeProvider = is -> createStore(is, remoteShardPath);
+                remoteStore = storeProvider.apply(indexSettings);
             }
             indexShard = new IndexShard(
                 routing,
@@ -539,7 +539,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 retentionLeaseSyncer,
                 breakerService,
                 checkpointPublisher,
-                remoteStoreRefreshListener
+                remoteStore
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -581,7 +581,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             current.indexSettings.getIndexMetadata(),
             current.engineFactory,
             current.engineConfigFactory,
-            current.getRemoteStoreRefreshListener(),
+            current.remoteStore(),
             listeners
         );
     }
@@ -600,7 +600,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata indexMetadata,
         EngineFactory engineFactory,
         EngineConfigFactory engineConfigFactory,
-        RemoteStoreRefreshListener remoteStoreRefreshListener,
+        Store remoteStore,
         IndexingOperationListener... listeners
     ) throws IOException {
         closeShards(current);
@@ -615,7 +615,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             current.getGlobalCheckpointSyncer(),
             current.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER,
-            remoteStoreRefreshListener,
+            remoteStore,
             listeners
         );
     }

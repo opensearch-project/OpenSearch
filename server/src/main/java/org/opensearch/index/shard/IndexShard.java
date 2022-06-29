@@ -469,10 +469,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.shardFieldData;
     }
 
-    public RemoteStoreRefreshListener getRemoteStoreRefreshListener() {
-        return this.remoteStoreRefreshListener;
-    }
-
     public boolean isSystem() {
         return indexSettings.getIndexMetadata().isSystem();
     }

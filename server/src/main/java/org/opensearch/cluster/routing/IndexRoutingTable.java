@@ -453,6 +453,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
                 "restore_source[remote_store]"
             );
+            assert indexMetadata.getIndex().equals(index);
+            if (!shards.isEmpty()) {
+                throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
+            }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);

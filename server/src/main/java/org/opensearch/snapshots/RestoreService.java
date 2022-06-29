@@ -227,6 +227,14 @@ public class RestoreService implements ClusterStateApplier {
                         logger.warn("Remote store restore is not supported for non-existent index. Skipping: {}", index);
                         continue;
                     }
+                    if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
+                        throw new IllegalStateException(
+                            "cannot restore index ["
+                                + index
+                                + "] because an open index "
+                                + "with same name already exists in the cluster. Close the existing index"
+                        );
+                    }
                     if (currentIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE, false)) {
                         IndexId indexId = new IndexId(index, currentIndexMetadata.getIndexUUID());
 
@@ -239,7 +247,7 @@ public class RestoreService implements ClusterStateApplier {
                         indicesToBeRestored.add(index);
                         totalShards += currentIndexMetadata.getNumberOfShards();
                     } else {
-                        logger.warn("Remote store is not enable for index: {}", index);
+                        logger.warn("Remote store is not enabled for index: {}", index);
                     }
                 }
 
