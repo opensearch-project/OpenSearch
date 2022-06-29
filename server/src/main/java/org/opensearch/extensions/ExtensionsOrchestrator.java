@@ -155,8 +155,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         if (Files.exists(extensionsPath.resolve("extensions.yml"))) {
             try {
                 extensions = readFromExtensionsYml(extensionsPath.resolve("extensions.yml")).getExtensions();
-            } catch (Exception e) {
-                throw new IOException("Could not read from extensions.yml\n " + e);
+            } catch (IOException e) {
+                throw new IOException("Could not read from extensions.yml", e);
             }
             for (Extension extension : extensions) {
                 try {
