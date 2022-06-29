@@ -16,5 +16,10 @@ jobs:
             echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
             echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
 
+      - name: Checkout tools repo
+        uses: actions/checkout@v2
+        with:
+          repository: opensearch-project/opensearch-build
+          ref: opensearch-gradle-check-fix6a
       - name: Trigger jenkins workflow to run gradle check
         run: bash scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }}
