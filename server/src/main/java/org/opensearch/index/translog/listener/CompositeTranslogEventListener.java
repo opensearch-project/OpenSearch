@@ -11,8 +11,9 @@ package org.opensearch.index.translog.listener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.TranslogException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,9 +28,11 @@ import java.util.List;
 public final class CompositeTranslogEventListener implements TranslogEventListener {
 
     private final List<TranslogEventListener> listeners;
+    private final ShardId shardId;
     private final Logger logger = LogManager.getLogger(CompositeTranslogEventListener.class);
 
-    public CompositeTranslogEventListener(Collection<TranslogEventListener> listeners) {
+    public CompositeTranslogEventListener(Collection<TranslogEventListener> listeners, ShardId shardId) {
+        this.shardId = shardId;
         for (TranslogEventListener listener : listeners) {
             if (listener == null) {
                 throw new IllegalArgumentException("listeners must be non-null");
@@ -49,7 +52,7 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 exceptionList.add(ex);
             }
         }
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
+        maybeThrowTranslogExceptionAndSuppress(exceptionList);
     }
 
     @Override
@@ -63,7 +66,7 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 exceptionList.add(ex);
             }
         }
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
+        maybeThrowTranslogExceptionAndSuppress(exceptionList);
     }
 
     @Override
@@ -77,7 +80,7 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 exceptionList.add(ex);
             }
         }
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
+        maybeThrowTranslogExceptionAndSuppress(exceptionList);
     }
 
     @Override
@@ -91,20 +94,16 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 exceptionList.add(ex);
             }
         }
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
+        maybeThrowTranslogExceptionAndSuppress(exceptionList);
     }
 
-    @Override
-    public void onTragicFailure(AlreadyClosedException e) {
-        List<Exception> exceptionList = new ArrayList<>(listeners.size());
-        for (TranslogEventListener listener : listeners) {
-            try {
-                listener.onTragicFailure(e);
-            } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("failed to invoke onTragicFailure listener"), ex);
-                exceptionList.add(ex);
-            }
+    private <T extends Throwable> void maybeThrowTranslogExceptionAndSuppress(List<T> exceptions) {
+        T main = null;
+        for (T ex : exceptions) {
+            main = ExceptionsHelper.useOrSuppress(main, ex);
         }
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
+        if (main != null) {
+            throw new TranslogException(shardId, "Error while executing translog event listener", main);
+        }
     }
 }
