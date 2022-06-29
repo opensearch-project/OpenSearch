@@ -10,18 +10,28 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexCommit;
+import org.opensearch.action.StepListener;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.ThreadedActionListener;
+import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.common.CopyState;
@@ -33,6 +43,9 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.opensearch.index.seqno.ReplicationTracker.getPeerRecoveryRetentionLeaseId;
+import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
 /**
  * Service class that handles segment replication requests from replica shards.
@@ -54,6 +67,7 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
      */
     public static class Actions {
 
+        public static final String PREPARE_SHARD = "internal:index/shard/replication/prepare_shard";
         public static final String GET_CHECKPOINT_INFO = "internal:index/shard/replication/get_checkpoint_info";
         public static final String GET_SEGMENT_FILES = "internal:index/shard/replication/get_segment_files";
     }
@@ -68,6 +82,20 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
+        transportService.registerRequestHandler(
+            Actions.PREPARE_SHARD,
+            ThreadPool.Names.GENERIC,
+            PrepareShardRequest::new,
+            (request, channel, task) -> {
+                final ShardId shardId = request.getShardId();
+                final IndexService indexService = indicesService.indexService(shardId.getIndex());
+                final IndexShard indexShard = indexService.getShard(shardId.id());
+                try (final GatedCloseable<IndexCommit> safeIndexCommit = indexShard.acquireSafeIndexCommit()) {
+                    final String translogUUID = safeIndexCommit.get().getUserData().get(TRANSLOG_UUID_KEY);
+                    channel.sendResponse(new PrepareShardResponse(translogUUID));
+                }
+            }
+        );
         transportService.registerRequestHandler(
             Actions.GET_CHECKPOINT_INFO,
             ThreadPool.Names.GENERIC,
@@ -100,15 +128,63 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
                 new AtomicLong(0),
                 (throttleTime) -> {}
             );
-            final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-            channel.sendResponse(
-                new CheckpointInfoResponse(
-                    copyState.getCheckpoint(),
-                    copyState.getMetadataSnapshot(),
-                    copyState.getInfosBytes(),
-                    copyState.getPendingDeleteFiles()
-                )
-            );
+            ShardId shardId = request.getCheckpoint().getShardId();
+            final IndexService indexService = indicesService.indexService(shardId.getIndex());
+            final IndexShard indexShard = indexService.getShard(shardId.id());
+            final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
+            if (indexShard.getRetentionLeases().contains(getPeerRecoveryRetentionLeaseId(request.getTargetNode().getId())) == false) {
+                RunUnderPrimaryPermit.run(
+                    () -> indexShard.cloneLocalPeerRecoveryRetentionLease(
+                        request.getTargetNode().getId(),
+                        new ThreadedActionListener<>(
+                            logger,
+                            indexShard.getThreadPool(),
+                            ThreadPool.Names.GENERIC,
+                            addRetentionLeaseStep,
+                            false
+                        )
+                    ),
+                    "Add retention lease step",
+                    indexShard,
+                    new CancellableThreads(),
+                    logger
+                );
+            } else {
+                addRetentionLeaseStep.onResponse(new ReplicationResponse());
+            }
+            addRetentionLeaseStep.whenComplete(r -> {
+                RunUnderPrimaryPermit.run(
+                    () -> indexShard.initiateTracking(request.getTargetAllocationId()),
+                    shardId + " initiating tracking of " + request.getTargetAllocationId(),
+                    indexShard,
+                    new CancellableThreads(),
+                    logger
+                );
+                indexShard.refresh("Recovering new shard");
+                final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+                channel.sendResponse(
+                    new CheckpointInfoResponse(
+                        copyState.getCheckpoint(),
+                        copyState.getMetadataSnapshot(),
+                        copyState.getInfosBytes(),
+                        copyState.getPendingDeleteFiles()
+                    )
+                );
+            }, (e) -> {
+                try {
+                    channel.sendResponse(e);
+                } catch (IOException ex) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "Failed to send error response for action [{}] and request [{}]",
+                            Actions.GET_CHECKPOINT_INFO,
+                            request
+                        ),
+                        ex
+                    );
+                }
+            });
+
         }
     }
 

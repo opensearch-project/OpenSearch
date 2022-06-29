@@ -80,6 +80,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
@@ -120,6 +121,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final PeerRecoveryTargetService recoveryTargetService;
+    private final SegmentReplicationTargetService segmentReplicationTargetService;
     private final ShardStateAction shardStateAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
@@ -148,6 +150,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final PeerRecoveryTargetService recoveryTargetService,
+        final SegmentReplicationTargetService segmentReplicationTargetService,
         final ShardStateAction shardStateAction,
         final NodeMappingRefreshAction nodeMappingRefreshAction,
         final RepositoriesService repositoriesService,
@@ -166,6 +169,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             threadPool,
             checkpointPublisher,
             recoveryTargetService,
+            segmentReplicationTargetService,
             shardStateAction,
             nodeMappingRefreshAction,
             repositoriesService,
@@ -186,6 +190,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ThreadPool threadPool,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final PeerRecoveryTargetService recoveryTargetService,
+        final SegmentReplicationTargetService segmentReplicationTargetService,
         final ShardStateAction shardStateAction,
         final NodeMappingRefreshAction nodeMappingRefreshAction,
         final RepositoriesService repositoriesService,
@@ -198,11 +203,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
-        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
+        this.buildInIndexListener = Arrays.asList(
+            peerRecoverySourceService,
+            recoveryTargetService,
+            segmentReplicationTargetService,
+            searchService,
+            snapshotShardsService
+        );
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.recoveryTargetService = recoveryTargetService;
+        this.segmentReplicationTargetService = segmentReplicationTargetService;
         this.shardStateAction = shardStateAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
         this.repositoriesService = repositoriesService;
@@ -634,6 +646,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 checkpointPublisher,
                 recoveryTargetService,
                 new RecoveryListener(shardRouting, primaryTerm, this),
+                segmentReplicationTargetService,
                 repositoriesService,
                 failedShardHandler,
                 globalCheckpointSyncer,
@@ -992,6 +1005,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             SegmentReplicationCheckpointPublisher checkpointPublisher,
             PeerRecoveryTargetService recoveryTargetService,
             RecoveryListener recoveryListener,
+            SegmentReplicationTargetService segmentReplicationTargetService,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,
             Consumer<ShardId> globalCheckpointSyncer,

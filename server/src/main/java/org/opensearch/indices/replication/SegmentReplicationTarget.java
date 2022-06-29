@@ -10,6 +10,7 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.SegmentInfos;
@@ -53,6 +54,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private final ReplicationCheckpoint checkpoint;
     private final SegmentReplicationSource source;
     private final SegmentReplicationState state;
+    private final boolean isEmptyShard;
     protected final MultiFileWriter multiFileWriter;
 
     public SegmentReplicationTarget(
@@ -66,6 +68,15 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         this.source = source;
         this.state = new SegmentReplicationState(stateIndex);
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);
+        final List<String> files;
+        try {
+            files = Arrays.asList(store.directory().listAll());
+        } catch (IOException e) {
+            final OpenSearchException ex = new OpenSearchException("Unable to read directory", e);
+            fail(ex, true);
+            throw ex;
+        }
+        this.isEmptyShard = files.stream().noneMatch((f -> f.startsWith(IndexFileNames.SEGMENTS)));
     }
 
     @Override
@@ -142,7 +153,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         // Get list of files to copy from this checkpoint.
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
-        checkpointInfoListener.whenComplete(checkpointInfo -> getFiles(checkpointInfo, getFilesListener), listener::onFailure);
+        checkpointInfoListener.whenComplete(checkpointInfo -> { getFiles(checkpointInfo, getFilesListener); }, listener::onFailure);
         getFilesListener.whenComplete(
             response -> finalizeReplication(checkpointInfoListener.result(), finalizeListener),
             listener::onFailure
@@ -163,8 +174,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         if (diff.different.isEmpty() == false) {
             getFilesListener.onFailure(
                 new IllegalStateException(
-                    new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId())
-                        .getFormattedMessage()
+                    new ParameterizedMessage(
+                        "Shard {} has local copies of segments that differ from the primary {}",
+                        indexShard.shardId(),
+                        diff.different
+                    ).getFormattedMessage()
                 )
             );
         }
@@ -252,7 +266,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     Store.MetadataSnapshot getMetadataSnapshot() throws IOException {
-        if (indexShard.getSegmentInfosSnapshot() == null) {
+        if (isEmptyShard) {
             return Store.MetadataSnapshot.EMPTY;
         }
         return store.getMetadata(indexShard.getSegmentInfosSnapshot().get());

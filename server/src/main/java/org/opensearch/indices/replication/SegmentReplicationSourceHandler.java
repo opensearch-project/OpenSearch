@@ -141,7 +141,16 @@ class SegmentReplicationSourceHandler {
             resources.add(transfer);
             transfer.start();
 
+            final String targetAllocationId = request.getTargetAllocationId();
+
             sendFileStep.whenComplete(r -> {
+                RunUnderPrimaryPermit.run(
+                    () -> shard.markAllocationIdAsInSync(targetAllocationId, request.getCheckpoint().getSeqNo()),
+                    shard.shardId() + " marking " + targetAllocationId + " as in sync",
+                    shard,
+                    cancellableThreads,
+                    logger
+                );
                 try {
                     future.onResponse(new GetSegmentFilesResponse(List.of(storeFileMetadata)));
                 } finally {
@@ -151,6 +160,7 @@ class SegmentReplicationSourceHandler {
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
         }
+
     }
 
     /**

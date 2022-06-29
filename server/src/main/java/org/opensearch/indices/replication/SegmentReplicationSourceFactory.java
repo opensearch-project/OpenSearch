@@ -39,11 +39,11 @@ public class SegmentReplicationSourceFactory {
 
     public SegmentReplicationSource get(IndexShard shard) {
         return new PrimaryShardReplicationSource(
-            clusterService.localNode(),
+            shard.recoveryState().getTargetNode(),
             shard.routingEntry().allocationId().getId(),
             transportService,
             recoverySettings,
-            getPrimaryNode(shard.shardId())
+            shard.recoveryState().getSourceNode()
         );
     }
 

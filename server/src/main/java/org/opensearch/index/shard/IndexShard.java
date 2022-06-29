@@ -125,6 +125,7 @@ import org.opensearch.index.get.ShardGetService;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -164,6 +165,7 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.repositories.RepositoriesService;
@@ -2063,6 +2065,41 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Segrep specific method.
+     * This method will take a lucene changes snapshot of the current in-memory segmentInfos, starting
+     * from the last commit point's checkpoint.  It then replays those operations onto the shard so that they are
+     * written into the translog.
+     */
+    public void recoverTranslogFromLuceneChangesSnapshot() {
+        assert indexSettings.isSegRepEnabled() && shardRouting.primary() == false;
+            long startingSeqNo;
+            try {
+                final MetadataSnapshot metadata = store.getMetadata();
+                startingSeqNo = Long.parseLong(metadata.getCommitUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            } catch (IOException e) {
+                throw new OpenSearchException("fail", e);
+            }
+            try(
+                final Translog.Snapshot snapshot = getEngine().newChangesSnapshot("replication", startingSeqNo, Long.MAX_VALUE, false, true)) {
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    Engine.Result result = applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
+                    if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+                        throw new MapperException("mapping updates are not allowed [" + operation + "]");
+                    }
+                    if (result.getFailure() != null) {
+                        if (Assertions.ENABLED && result.getFailure() instanceof MapperException == false) {
+                            throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
+                        }
+                        ExceptionsHelper.reThrowIfNotNull(result.getFailure());
+                    }
+                }
+            } catch (Throwable e) {
+                logger.error("Error creating snapshot", e);
+            }
+    }
+
+    /**
      * Returns {@code true} if this shard can ignore a recovery attempt made to it (since the already doing/done it)
      */
     public boolean ignoreRecoveryAttempt() {
@@ -2981,6 +3018,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RecoveryState recoveryState,
         PeerRecoveryTargetService recoveryTargetService,
         RecoveryListener recoveryListener,
+        SegmentReplicationTargetService segmentReplicationTargetService,
         RepositoriesService repositoriesService,
         Consumer<MappingMetadata> mappingUpdateConsumer,
         IndicesService indicesService
@@ -3010,8 +3048,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case PEER:
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
-                    recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
+                    if (indexSettings.isSegRepEnabled()) {
+                        // Start a "Recovery" using segment replication. This ensures the shard is tracked by the primary
+                        // and started with the latest set of segments.
+                        segmentReplicationTargetService.recoverShard(this, recoveryState.getSourceNode(), recoveryListener);
+                    } else {
+                        recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
+                    }
                 } catch (Exception e) {
+                    logger.error("Fail", e);
                     failShard("corrupted preexisting index", e);
                     recoveryListener.onFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                 }

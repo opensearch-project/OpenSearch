@@ -140,6 +140,7 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -852,6 +853,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final PeerRecoveryTargetService recoveryTargetService,
         final RecoveryListener recoveryListener,
+        final SegmentReplicationTargetService segmentReplicationTargetService,
         final RepositoriesService repositoriesService,
         final Consumer<IndexShard.ShardFailure> onShardFailure,
         final Consumer<ShardId> globalCheckpointSyncer,
@@ -866,16 +868,24 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
         indexShard.addShardFailureCallback(onShardFailure);
-        indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
-            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                : "mapping update consumer only required by local shards recovery";
-            client.admin()
-                .indices()
-                .preparePutMapping()
-                .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                .setSource(mapping.source().string(), XContentType.JSON)
-                .get();
-        }, this);
+        indexShard.startRecovery(
+            recoveryState,
+            recoveryTargetService,
+            recoveryListener,
+            segmentReplicationTargetService,
+            repositoriesService,
+            mapping -> {
+                assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                    : "mapping update consumer only required by local shards recovery";
+                client.admin()
+                    .indices()
+                    .preparePutMapping()
+                    .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
+                    .setSource(mapping.source().string(), XContentType.JSON)
+                    .get();
+            },
+            this
+        );
         return indexShard;
     }
 

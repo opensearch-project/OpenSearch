@@ -11,15 +11,30 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionListenerResponseHandler;
+import org.opensearch.action.StepListener;
+import org.opensearch.action.support.RetryableAction;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
@@ -27,11 +42,19 @@ import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.SendRequestTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.PREPARE_SHARD;
 
 /**
  * Service class that orchestrates replication events on replicas.
@@ -48,6 +71,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
     private final SegmentReplicationSourceFactory sourceFactory;
+    private final TransportService transportService;
 
     /**
      * The internal actions
@@ -68,6 +92,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         this.recoverySettings = recoverySettings;
         this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
         this.sourceFactory = sourceFactory;
+        this.transportService = transportService;
 
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
@@ -87,8 +112,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     /**
      * Invoked when a new checkpoint is received from a primary shard.
      * It checks if a new checkpoint should be processed or not and starts replication if needed.
-     * @param receivedCheckpoint       received checkpoint that is checked for processing
-     * @param replicaShard      replica shard on which checkpoint is received
+     *
+     * @param receivedCheckpoint received checkpoint that is checked for processing
+     * @param replicaShard       replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
         if (onGoingReplications.isShardReplicating(replicaShard.shardId())) {
@@ -115,6 +141,89 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             });
 
         }
+    }
+
+    public void recoverShard(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryListener recoveryListener) throws IOException {
+        indexShard.prepareForIndexRecovery();
+        final Store store = indexShard.store();
+        StepListener<PrepareShardResponse> listener = new StepListener<>();
+        final boolean isEmptyReplica = store.directory().listAll().length == 0;
+        if (isEmptyReplica) {
+            final TimeValue initialDelay = TimeValue.timeValueMillis(200);
+            final TimeValue timeout = recoverySettings.internalActionRetryTimeout();
+            final RetryableAction retryableAction = new RetryableAction(logger, threadPool, initialDelay, timeout, listener) {
+                @Override
+                public void tryAction(ActionListener listener) {
+                    transportService.sendRequest(
+                        sourceNode,
+                        PREPARE_SHARD,
+                        new PrepareShardRequest(indexShard.shardId()),
+                        TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
+                        new ActionListenerResponseHandler<>(listener, PrepareShardResponse::new)
+                    );
+                }
+
+                @Override
+                public boolean shouldRetry(Exception e) {
+                    if (e instanceof ConnectTransportException) {
+                        return true;
+                    } else if (e instanceof SendRequestTransportException) {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        return cause instanceof ConnectTransportException;
+                    } else if (e instanceof RemoteTransportException) {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        return cause instanceof CircuitBreakingException
+                            || cause instanceof OpenSearchRejectedExecutionException
+                            || cause instanceof DelayRecoveryException;
+                    }
+                    return false;
+                }
+            };
+            retryableAction.run();
+        } else {
+            listener.onResponse(null);
+        }
+        listener.whenComplete(r -> {
+            // if the shard has no files, create an empty store. This will create a Segments_N file, but it will be overwritten
+            // on the first copy event.
+            if (isEmptyReplica) {
+                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+                final String uuid = r.getUuid();
+                Translog.createEmptyTranslog(
+                    indexShard.shardPath().resolveTranslog(),
+                    indexShard.shardId(),
+                    SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    indexShard.getPendingPrimaryTerm(),
+                    uuid,
+                    FileChannel::open
+                );
+                store.associateIndexWithNewTranslog(uuid);
+            }
+            // start the shard.
+            indexShard.persistRetentionLeases();
+            indexShard.maybeCheckIndex();
+            indexShard.recoveryState().setStage(RecoveryState.Stage.TRANSLOG);
+            indexShard.openEngineAndSkipTranslogRecovery();
+            if (isEmptyReplica) {
+                // wipe the index, this ensures any segments_N created in the steps above is wiped.
+                Lucene.cleanLuceneIndex(indexShard.store().directory());
+            }
+            startReplication(indexShard.getLatestReplicationCheckpoint(), indexShard, new SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {
+                    indexShard.recoveryState().getIndex().setFileDetailsComplete();
+                    indexShard.finalizeRecovery();
+                    indexShard.recoverTranslogFromLuceneChangesSnapshot();
+                    indexShard.postRecovery("Shard setup complete.");
+                    recoveryListener.onDone(indexShard.recoveryState());
+                }
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    recoveryListener.onFailure(indexShard.recoveryState(), e, sendShardFailure);
+                }
+            });
+        }, e -> { recoveryListener.onFailure(indexShard.recoveryState(), new OpenSearchException(e), true); });
     }
 
     public void startReplication(

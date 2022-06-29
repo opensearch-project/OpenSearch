@@ -214,7 +214,29 @@ public class NRTReplicationEngine extends Engine {
         boolean requiredFullRange,
         boolean accurateCount
     ) throws IOException {
-        throw new UnsupportedOperationException("Not implemented");
+        ensureOpen();
+        Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+        try {
+            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
+                searcher,
+                LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
+                fromSeqNo,
+                toSeqNo,
+                requiredFullRange,
+                accurateCount
+            );
+            searcher = null;
+            return snapshot;
+        } catch (Exception e) {
+            try {
+                maybeFailEngine("acquire changes snapshot", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        } finally {
+            IOUtils.close(searcher);
+        }
     }
 
     @Override
