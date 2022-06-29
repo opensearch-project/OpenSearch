@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentMap;
 public class Throttler<T> {
     protected ConcurrentMap<T, AdjustableSemaphore> semaphores = new ConcurrentHashMap<T, AdjustableSemaphore>();
 
-    private boolean throttlingEnabled;
+    private volatile boolean throttlingEnabled;
 
     public Throttler(final boolean throttlingEnabled) {
         this.throttlingEnabled = throttlingEnabled;
