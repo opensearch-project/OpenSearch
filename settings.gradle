@@ -13,6 +13,13 @@ plugins {
   id "com.gradle.enterprise" version "3.10.1"
 }
 
+buildCache {
+  local {
+    enabled = true
+    removeUnusedEntriesAfterDays = 14
+  }
+}
+
 rootProject.name = "OpenSearch"
 
 include 'doc-tools'
