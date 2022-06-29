@@ -1432,10 +1432,10 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
         assertThat(searchService.getActiveContexts(), equalTo(1));
         DeletePitResponse deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
-        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSucceeded());
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
         // assert true for reader context not found
         deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
-        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSucceeded());
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
         // adding this assert to showcase behavior difference
         assertFalse(searchService.freeReaderContext(future.actionGet()));
     }

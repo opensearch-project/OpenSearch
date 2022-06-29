@@ -56,6 +56,7 @@ public class CreatePitController {
     private final Task task;
     private final ActionListener<CreatePitResponse> listener;
     private final CreatePitRequest request;
+    private final PitService pitService;
     private static final Logger logger = LogManager.getLogger(CreatePitController.class);
     public static final Setting<TimeValue> PIT_INIT_KEEP_ALIVE = Setting.positiveTimeSetting(
         "pit.init.keep_alive",
@@ -70,7 +71,8 @@ public class CreatePitController {
         TransportSearchAction transportSearchAction,
         NamedWriteableRegistry namedWriteableRegistry,
         Task task,
-        ActionListener<CreatePitResponse> listener
+        ActionListener<CreatePitResponse> listener,
+        PitService pitService
     ) {
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
@@ -79,6 +81,7 @@ public class CreatePitController {
         this.task = task;
         this.listener = listener;
         this.request = request;
+        this.pitService = pitService;
     }
 
     /**
@@ -263,14 +266,19 @@ public class CreatePitController {
             @Override
             public void onResponse(DeletePitResponse response) {
                 // this is invoke and forget call
+                final StringBuilder failedPitsStringBuilder = new StringBuilder();
+                response.getDeletePitResults()
+                    .stream()
+                    .filter(r -> !r.isSuccessful())
+                    .forEach(r -> failedPitsStringBuilder.append(r.getPitId()).append(","));
+                logger.warn(() -> new ParameterizedMessage("Failed to delete PIT IDs {}", failedPitsStringBuilder.toString()));
                 if (!logger.isDebugEnabled()) return;
-                for (DeletePitInfo deletePitInfo : response.getDeletePitResults()) {
-                    if (!deletePitInfo.isSucceeded()) {
-                        logger.debug(() -> new ParameterizedMessage("Failed to delete PIT ID {}", deletePitInfo.getPitId()));
-                    } else {
-                        logger.debug(() -> new ParameterizedMessage("Deleted PIT with ID {}", deletePitInfo.getPitId()));
-                    }
-                }
+                final StringBuilder successfulPitsStringBuilder = new StringBuilder();
+                response.getDeletePitResults()
+                    .stream()
+                    .filter(r -> r.isSuccessful())
+                    .forEach(r -> successfulPitsStringBuilder.append(r.getPitId()).append(","));
+                logger.debug(() -> new ParameterizedMessage("Deleted PIT with IDs {}", successfulPitsStringBuilder.toString()));
             }
 
             @Override
@@ -284,6 +292,6 @@ public class CreatePitController {
             contextIdsForNode.add(new PitSearchContextIdForNode(pitId, context));
             nodeToContextsMap.put(context.getNode(), contextIdsForNode);
         }
-        SearchUtils.deletePitContexts(nodeToContextsMap, deleteListener, clusterService.state(), searchTransportService);
+        pitService.deletePitContexts(nodeToContextsMap, deleteListener);
     }
 }

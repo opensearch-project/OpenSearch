@@ -60,7 +60,7 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         pitIds.add(pitResponse.getId());
         DeletePitRequest deletePitRequest = new DeletePitRequest(pitIds);
         DeletePitResponse deletePitResponse = execute(deletePitRequest, highLevelClient()::deletePit, highLevelClient()::deletePitAsync);
-        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSucceeded());
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
         assertTrue(deletePitResponse.getDeletePitResults().get(0).getPitId().equals(pitResponse.getId()));
     }
 
@@ -79,7 +79,7 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
             highLevelClient()::deleteAllPitsAsync
         );
         for (DeletePitInfo deletePitInfo : deletePitResponse.getDeletePitResults()) {
-            assertTrue(deletePitInfo.isSucceeded());
+            assertTrue(deletePitInfo.isSuccessful());
         }
     }
 }

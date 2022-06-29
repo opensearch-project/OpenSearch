@@ -37,7 +37,7 @@ public class DeletePitResponseTests extends OpenSearchTestCase {
             deletePitResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         assertEquals(true, deletePitResponse.getDeletePitResults().get(0).getPitId().equals("pitId"));
-        assertEquals(true, deletePitResponse.getDeletePitResults().get(0).isSucceeded());
+        assertEquals(true, deletePitResponse.getDeletePitResults().get(0).isSuccessful());
     }
 
     public void testDeletePitResponseToAndFromXContent() throws IOException {
@@ -50,8 +50,8 @@ public class DeletePitResponseTests extends OpenSearchTestCase {
             parsedResponse = DeletePitResponse.fromXContent(parser);
         }
         assertEquals(
-            originalResponse.getDeletePitResults().get(0).isSucceeded(),
-            parsedResponse.getDeletePitResults().get(0).isSucceeded()
+            originalResponse.getDeletePitResults().get(0).isSuccessful(),
+            parsedResponse.getDeletePitResults().get(0).isSuccessful()
         );
         assertEquals(originalResponse.getDeletePitResults().get(0).getPitId(), parsedResponse.getDeletePitResults().get(0).getPitId());
         BytesReference parsedBytes = XContentHelper.toXContent(parsedResponse, xContentType, randomBoolean());
