@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -1595,13 +1596,19 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             160,
             LegacyESVersion.V_7_10_0
         ),
+        REPLICATION_FAILED_EXCEPTION(
+            org.opensearch.indices.replication.common.ReplicationFailedException.class,
+            org.opensearch.indices.replication.common.ReplicationFailedException::new,
+            161,
+            V_2_1_0
+        ),
         /**
          * TODO: Change the version number of check as per version in which this change will be merged.
          */
         MASTER_TASK_THROTTLED_EXCEPTION(
             org.opensearch.cluster.service.MasterTaskThrottlingException.class,
             org.opensearch.cluster.service.MasterTaskThrottlingException::new,
-            161,
+            162,
             Version.V_3_0_0
         );
 

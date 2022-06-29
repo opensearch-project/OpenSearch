@@ -74,7 +74,7 @@ public final class RetryableTransportClient {
         executeRetryableAction(action, request, options, actionListener, reader);
     }
 
-    <T extends TransportResponse> void executeRetryableAction(
+    public <T extends TransportResponse> void executeRetryableAction(
         String action,
         TransportRequest request,
         TransportRequestOptions options,

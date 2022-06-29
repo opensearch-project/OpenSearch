@@ -38,7 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -64,7 +64,7 @@ import java.util.Collections;
  *
  * @opensearch.internal
  */
-public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
+public class TransportCloseIndexAction extends TransportClusterManagerNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
@@ -163,7 +163,10 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
         final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId()).ackTimeout(
             request.timeout()
-        ).masterNodeTimeout(request.masterNodeTimeout()).waitForActiveShards(request.waitForActiveShards()).indices(concreteIndices);
+        )
+            .masterNodeTimeout(request.clusterManagerNodeTimeout())
+            .waitForActiveShards(request.waitForActiveShards())
+            .indices(concreteIndices);
         indexStateService.closeIndices(closeRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
             logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);

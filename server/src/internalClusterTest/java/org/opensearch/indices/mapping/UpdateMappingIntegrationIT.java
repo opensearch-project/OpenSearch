@@ -306,7 +306,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
                                     .endObject()
                                     .endObject()
                             )
-                            .setMasterNodeTimeout(TimeValue.timeValueMinutes(5))
+                            .setClusterManagerNodeTimeout(TimeValue.timeValueMinutes(5))
                             .get();
 
                         assertThat(response.isAcknowledged(), equalTo(true));

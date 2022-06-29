@@ -38,7 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -60,7 +60,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenIndexRequest, OpenIndexResponse> {
+public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<OpenIndexRequest, OpenIndexResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportOpenIndexAction.class);
 
@@ -125,7 +125,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
             return;
         }
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
+            .masterNodeTimeout(request.clusterManagerNodeTimeout())
             .indices(concreteIndices)
             .waitForActiveShards(request.waitForActiveShards());
 

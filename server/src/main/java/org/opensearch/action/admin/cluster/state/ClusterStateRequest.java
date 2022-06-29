@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.state;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -48,7 +48,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
+public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
 

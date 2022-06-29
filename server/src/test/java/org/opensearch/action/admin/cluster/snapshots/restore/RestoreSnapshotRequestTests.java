@@ -105,7 +105,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         instance.waitForCompletion(randomBoolean());
 
         if (randomBoolean()) {
-            instance.masterNodeTimeout(randomTimeValue());
+            instance.clusterManagerNodeTimeout(randomTimeValue());
         }
 
         if (randomBoolean()) {
@@ -145,7 +145,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         // properties are restored from the original (in the actual REST action this is restored from the
         // REST path and request parameters).
         RestoreSnapshotRequest processed = new RestoreSnapshotRequest(original.repository(), original.snapshot());
-        processed.masterNodeTimeout(original.masterNodeTimeout());
+        processed.clusterManagerNodeTimeout(original.clusterManagerNodeTimeout());
         processed.waitForCompletion(original.waitForCompletion());
 
         processed.source(map);
