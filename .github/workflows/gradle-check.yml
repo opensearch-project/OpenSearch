@@ -18,4 +18,3 @@ jobs:
 
       - name: Trigger jenkins workflow to run gradle check
         run: bash scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }}
-
