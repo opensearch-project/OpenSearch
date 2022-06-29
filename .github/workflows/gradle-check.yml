@@ -19,7 +19,30 @@ jobs:
       - name: Checkout opensearch-build repo
         uses: actions/checkout@v2
         with:
-          repository: peterzhuamazon/opensearch-build
-          ref: opensearch-gradle-check-fix6a
+          repository: opensearch-project/opensearch-build
+          ref: main
+
       - name: Trigger jenkins workflow to run gradle check
-        run: bash scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN_TEST }}
+        run: bash scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
+
+      - name: Upload Coverage Report
+        uses: codecov/codecov-action@v2
+        with:
+          files: ./codeCoverage.xml
+
+      - name: Setup Result Status
+        if: always()
+        run: |
+            WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
+            RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+            echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
+            echo "result=$RESULT" >> $GITHUB_ENV
+
+      - name: Create comment
+        if: always()
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+              Gradle Check (Jenkins) Completed with ${{ env.result }}: ${{ env.workflow_url }}
+              (Re-commit to this PR or restart github action to run gradle check again)
