@@ -92,7 +92,9 @@ public class RestClientCompressionTests extends RestClientTestCase {
         }
     }
 
-    /** Read all bytes of an input stream and close it. */
+    /**
+     * Read all bytes of an input stream and close it.
+     */
     private static byte[] readAll(InputStream in) throws IOException {
         byte[] buffer = new byte[1024];
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -104,15 +106,16 @@ public class RestClientCompressionTests extends RestClientTestCase {
         return bos.toByteArray();
     }
 
-    private RestClient createClient(boolean enableCompression) {
+    private RestClient createClient(boolean enableCompression, boolean chunkedEnabled) {
         InetSocketAddress address = httpServer.getAddress();
         return RestClient.builder(new HttpHost(address.getHostString(), address.getPort(), "http"))
             .setCompressionEnabled(enableCompression)
+            .setChunkedTransferEncodingEnabled(chunkedEnabled)
             .build();
     }
 
     public void testCompressingClientWithContentLengthSync() throws Exception {
-        RestClient restClient = createClient(true);
+        RestClient restClient = createClient(true, false);
 
         Request request = new Request("POST", "/");
         request.setEntity(new StringEntity("compressing client", ContentType.TEXT_PLAIN));
@@ -129,9 +132,7 @@ public class RestClientCompressionTests extends RestClientTestCase {
 
     public void testCompressingClientContentLengthAsync() throws Exception {
         InetSocketAddress address = httpServer.getAddress();
-        RestClient restClient = RestClient.builder(new HttpHost(address.getHostString(), address.getPort(), "http"))
-            .setCompressionEnabled(true)
-            .build();
+        RestClient restClient = createClient(true, false);
 
         Request request = new Request("POST", "/");
         request.setEntity(new StringEntity("compressing client", ContentType.TEXT_PLAIN));
