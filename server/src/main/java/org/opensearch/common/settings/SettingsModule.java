@@ -179,6 +179,30 @@ public class SettingsModule implements Module {
         binder.bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
+    public void registerNodeSetting(Setting<?> setting) {
+        if (setting.hasNodeScope()) {
+            Setting<?> existingSetting = nodeSettings.get(setting.getKey());
+            if (existingSetting != null) {
+                throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+            }
+            if (setting.isConsistent()) {
+                if (setting instanceof Setting.AffixSetting<?>) {
+                    if (((Setting.AffixSetting<?>) setting).getConcreteSettingForNamespace("_na_") instanceof SecureSetting<?>) {
+                        consistentSettings.add(setting);
+                    } else {
+                        throw new IllegalArgumentException("Invalid consistent secure setting [" + setting.getKey() + "]");
+                    }
+                } else if (setting instanceof SecureSetting<?>) {
+                    consistentSettings.add(setting);
+                } else {
+                    throw new IllegalArgumentException("Invalid consistent secure setting [" + setting.getKey() + "]");
+                }
+            }
+            nodeSettings.put(setting.getKey(), setting);
+            clusterSettings.registerSetting(setting);
+        }
+    }
+
     /**
      * Registers a new setting. This method should be used by plugins in order to expose any custom settings the plugin defines.
      * Unless a setting is registered the setting is unusable. If a setting is never the less specified the node will reject

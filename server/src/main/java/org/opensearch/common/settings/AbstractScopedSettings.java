@@ -122,7 +122,7 @@ public abstract class AbstractScopedSettings {
             }
         }
         this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
-        this.keySettings = Collections.unmodifiableMap(keySettings);
+        this.keySettings = keySettings;
     }
 
     protected void validateSettingKey(Setting<?> setting) {
@@ -142,6 +142,11 @@ public abstract class AbstractScopedSettings {
         keySettings = other.keySettings;
         settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
         settingUpdaters.addAll(other.settingUpdaters);
+    }
+
+    protected void registerSetting(Setting<?> setting) {
+        logger.info("Registered new Setting key:" + setting.getKey() + " value: " + setting);
+        keySettings.put(setting.getKey(), setting);
     }
 
     /**
@@ -843,6 +848,7 @@ public abstract class AbstractScopedSettings {
                 toRemove.add(key);
                 // we don't set changed here it's set after we apply deletes below if something actually changed
             } else if (get(key) == null) {
+                logger.error("$SARAT$ key " + key);
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
                 get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation

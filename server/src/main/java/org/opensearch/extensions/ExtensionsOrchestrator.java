@@ -35,7 +35,9 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.PluginRequest;
 import org.opensearch.discovery.PluginResponse;
@@ -89,15 +91,46 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     final Set<DiscoveryExtension> extensionsSet;
     Set<DiscoveryExtension> extensionsInitializedSet;
     TransportService transportService;
+<<<<<<< HEAD
     ClusterService clusterService;
+=======
+    final DiscoveryNode extensionNode;
+    SettingsModule settingsModule;
+    boolean isSet;
+
+<<<<<<< HEAD
+    public static final Setting<Boolean> FILTER_BY_BACKEND_ROLES = Setting
+        .boolSetting(
+            "plugins.anomaly_detection.filter_by_backend_roles",
+            false,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
+
+>>>>>>> 5d49a8d42ca (Initial Draft for dynamic registering of settings)
+=======
+    public static final Setting<Boolean> FILTER_BY_BACKEND_ROLES = Setting.boolSetting(
+        "plugins.anomaly_detection.filter_by_backend_roles",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+>>>>>>> 3f2d04fb533 (Fixing spotless)
 
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
         this.transportService = null;
+<<<<<<< HEAD
         this.extensionsSet = new HashSet<DiscoveryExtension>();
         this.extensionsInitializedSet = new HashSet<DiscoveryExtension>();
         this.clusterService = null;
+=======
+        this.settingsModule = null;
+        this.extensionsSet = new ArrayList<DiscoveryExtension>();
+        this.isSet = false;
+
+>>>>>>> 5d49a8d42ca (Initial Draft for dynamic registering of settings)
         /*
          * Now Discover extensions
          */
@@ -107,6 +140,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     public void setTransportService(TransportService transportService) {
         this.transportService = transportService;
+    }
+
+    public void setSettingsModule(SettingsModule settingsModule) {
+        this.settingsModule = settingsModule;
     }
 
     public void setClusterService(ClusterService clusterService) {
@@ -273,6 +310,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
+        if (!isSet) {
+            settingsModule.registerNodeSetting(FILTER_BY_BACKEND_ROLES);
+            isSet = true;
+        } else {
+            logger.info("Filter by backendroles " + settingsModule.getClusterSettings().get(FILTER_BY_BACKEND_ROLES));
+        }
+
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
 

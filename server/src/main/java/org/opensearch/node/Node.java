@@ -764,7 +764,11 @@ public class Node implements Closeable {
              *  This seems like a chicken and egg problem.
              */
             this.extensionsOrchestrator.setTransportService(transportService);
+<<<<<<< HEAD
             this.extensionsOrchestrator.setClusterService(clusterService);
+=======
+            this.extensionsOrchestrator.setSettingsModule(settingsModule);
+>>>>>>> 5d49a8d42ca (Initial Draft for dynamic registering of settings)
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(

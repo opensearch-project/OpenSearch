@@ -162,6 +162,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
+    public void registerSetting(Setting<?> setting) {
+        super.registerSetting(setting);
+    }
+
     private static final class LoggingSettingUpdater implements SettingUpdater<Settings> {
         final Predicate<String> loggerPredicate = Loggers.LOG_LEVEL_SETTING::match;
         private final Settings settings;
