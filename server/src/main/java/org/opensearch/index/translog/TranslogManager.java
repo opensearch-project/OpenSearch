@@ -96,10 +96,9 @@ public interface TranslogManager {
 
     /**
      * Returns the instance of the translog with a precondition
-     * @param ensureOpen check if the engine is open
      * @return the translog instance
      */
-    Translog getTranslog(boolean ensureOpen);
+    Translog getTranslog();
 
     /**
      * Checks if the translog has a pending recovery
