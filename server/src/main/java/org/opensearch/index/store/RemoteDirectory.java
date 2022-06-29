@@ -94,11 +94,12 @@ public final class RemoteDirectory extends Directory {
     }
 
     /**
-     * Closes the directory by deleting all the files in this directory
+     * Closes the remote directory. Currently, it is a no-op.
+     * If remote directory maintains a state in future, we need to clean it before closing the directory
      */
     @Override
     public void close() throws IOException {
-        blobContainer.delete();
+        // Do nothing
     }
 
     /**
