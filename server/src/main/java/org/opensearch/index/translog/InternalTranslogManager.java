@@ -81,11 +81,11 @@ public class InternalTranslogManager implements TranslogManager {
             translog.rollGeneration();
             translog.trimUnreferencedReaders();
         } catch (AlreadyClosedException e) {
-            translogEventListener.onTragicFailure(e);
+            translogEventListener.onFailure("translog roll generation failed", e);
             throw e;
         } catch (Exception e) {
             try {
-                translogEventListener.onFailure("translog trimming failed", e);
+                translogEventListener.onFailure("translog roll generation failed", e);
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
@@ -204,15 +204,15 @@ public class InternalTranslogManager implements TranslogManager {
             engineLifeCycleAware.ensureOpen();
             translog.trimUnreferencedReaders();
         } catch (AlreadyClosedException e) {
-            translogEventListener.onTragicFailure(e);
+            translogEventListener.onFailure("translog trimming unreferenced translog failed", e);
             throw e;
         } catch (Exception e) {
             try {
-                translogEventListener.onFailure("translog trimming failed", e);
+                translogEventListener.onFailure("translog trimming unreferenced translog failed", e);
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
-            throw new TranslogException(shardId, "failed to trim translog", e);
+            throw new TranslogException(shardId, "failed to trim unreferenced translog translog", e);
         }
     }
 
@@ -237,7 +237,7 @@ public class InternalTranslogManager implements TranslogManager {
             engineLifeCycleAware.ensureOpen();
             translog.trimOperations(belowTerm, aboveSeqNo);
         } catch (AlreadyClosedException e) {
-            translogEventListener.onTragicFailure(e);
+            translogEventListener.onFailure("translog operations trimming failed", e);
             throw e;
         } catch (Exception e) {
             try {

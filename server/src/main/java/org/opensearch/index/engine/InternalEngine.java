@@ -275,12 +275,11 @@ public class InternalEngine extends Engine {
 
                     @Override
                     public void onFailure(String reason, Exception ex) {
-                        failEngine(reason, ex);
-                    }
-
-                    @Override
-                    public void onTragicFailure(AlreadyClosedException ex) {
-                        failOnTragicEvent(ex);
+                        if (ex instanceof AlreadyClosedException) {
+                            failOnTragicEvent((AlreadyClosedException) ex);
+                        } else {
+                            failEngine(reason, ex);
+                        }
                     }
                 };
                 translogManagerRef = new InternalTranslogManager(

@@ -11,7 +11,6 @@ package org.opensearch.index.translog.listener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.TranslogException;
@@ -92,20 +91,6 @@ public final class CompositeTranslogEventListener implements TranslogEventListen
                 listener.onFailure(reason, e);
             } catch (Exception ex) {
                 logger.warn(() -> new ParameterizedMessage("failed to invoke onFailure listener"), ex);
-                exceptionList.add(ex);
-            }
-        }
-        maybeThrowTranslogExceptionAndSuppress(exceptionList);
-    }
-
-    @Override
-    public void onTragicFailure(AlreadyClosedException e) {
-        List<Exception> exceptionList = new ArrayList<>(listeners.size());
-        for (TranslogEventListener listener : listeners) {
-            try {
-                listener.onTragicFailure(e);
-            } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("failed to invoke onTragicFailure listener"), ex);
                 exceptionList.add(ex);
             }
         }
