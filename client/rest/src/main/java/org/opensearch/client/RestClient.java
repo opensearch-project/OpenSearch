@@ -131,6 +131,7 @@ public class RestClient implements Closeable {
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
+    private final boolean chunkedTransferEncodingEnabled;
 
     RestClient(
         CloseableHttpAsyncClient client,
@@ -142,6 +143,20 @@ public class RestClient implements Closeable {
         boolean strictDeprecationMode,
         boolean compressionEnabled
     ) {
+        this(client, defaultHeaders, nodes, pathPrefix, failureListener, nodeSelector, strictDeprecationMode, compressionEnabled, true);
+    }
+
+    RestClient(
+        CloseableHttpAsyncClient client,
+        Header[] defaultHeaders,
+        List<Node> nodes,
+        String pathPrefix,
+        FailureListener failureListener,
+        NodeSelector nodeSelector,
+        boolean strictDeprecationMode,
+        boolean compressionEnabled,
+        boolean chunkedTransferEncodingEnabled
+    ) {
         this.client = client;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
@@ -149,6 +164,7 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
+        this.chunkedTransferEncodingEnabled = chunkedTransferEncodingEnabled;
         setNodes(nodes);
     }
 
@@ -583,36 +599,51 @@ public class RestClient implements Closeable {
         }
     }
 
-    private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity, boolean compressionEnabled) {
+    private static HttpRequestBase createHttpRequest(
+        String method,
+        URI uri,
+        HttpEntity entity,
+        boolean compressionEnabled,
+        boolean chunkedTransferEncodingEnabled
+    ) {
         switch (method.toUpperCase(Locale.ROOT)) {
             case HttpDeleteWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpDeleteWithEntity(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpDeleteWithEntity(uri), entity, compressionEnabled, chunkedTransferEncodingEnabled);
             case HttpGetWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpGetWithEntity(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpGetWithEntity(uri), entity, compressionEnabled, chunkedTransferEncodingEnabled);
             case HttpHead.METHOD_NAME:
-                return addRequestBody(new HttpHead(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpHead(uri), entity, compressionEnabled, chunkedTransferEncodingEnabled);
             case HttpOptions.METHOD_NAME:
-                return addRequestBody(new HttpOptions(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpOptions(uri), entity, compressionEnabled, chunkedTransferEncodingEnabled);
             case HttpPatch.METHOD_NAME:
-                return addRequestBody(new HttpPatch(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpPatch(uri), entity, compressionEnabled, chunkedTransferEncodingEnabled);
             case HttpPost.METHOD_NAME:
                 HttpPost httpPost = new HttpPost(uri);
-                addRequestBody(httpPost, entity, compressionEnabled);
+                addRequestBody(httpPost, entity, compressionEnabled, chunkedTransferEncodingEnabled);
                 return httpPost;
             case HttpPut.METHOD_NAME:
-                return addRequestBody(new HttpPut(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpPut(uri), entity, compressionEnabled, chunkedTransferEncodingEnabled);
             case HttpTrace.METHOD_NAME:
-                return addRequestBody(new HttpTrace(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpTrace(uri), entity, compressionEnabled, chunkedTransferEncodingEnabled);
             default:
                 throw new UnsupportedOperationException("http method not supported: " + method);
         }
     }
 
-    private static HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity, boolean compressionEnabled) {
+    private static HttpRequestBase addRequestBody(
+        HttpRequestBase httpRequest,
+        HttpEntity entity,
+        boolean compressionEnabled,
+        boolean chunkedTransferEncodingEnabled
+    ) {
         if (entity != null) {
             if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
                 if (compressionEnabled) {
-                    entity = new ContentCompressingEntity(entity);
+                    if (chunkedTransferEncodingEnabled) {
+                        entity = new ContentCompressingChunkedEntity(entity);
+                    } else {
+                        entity = new ContentCompressingEntity(entity);
+                    }
                 }
                 ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(entity);
             } else {
@@ -782,7 +813,13 @@ public class RestClient implements Closeable {
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
-            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled);
+            this.httpRequest = createHttpRequest(
+                request.getMethod(),
+                uri,
+                request.getEntity(),
+                compressionEnabled,
+                chunkedTransferEncodingEnabled
+            );
             this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
             setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
@@ -930,6 +967,30 @@ public class RestClient implements Closeable {
             return new RuntimeException(exception.getMessage(), exception);
         }
         return new RuntimeException("error while performing request", exception);
+    }
+
+    /**
+     * A gzip compressing entity that also implements {@code getContent()}.
+     */
+    public static class ContentCompressingChunkedEntity extends GzipCompressingEntity {
+
+        /**
+         * Creates a {@link ContentCompressingChunkedEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         */
+        public ContentCompressingChunkedEntity(HttpEntity entity) {
+            super(entity);
+        }
+
+        @Override
+        public InputStream getContent() throws IOException {
+            ByteArrayInputOutputStream out = new ByteArrayInputOutputStream(1024);
+            try (GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
+                wrappedEntity.writeTo(gzipOut);
+            }
+            return out.asInput();
+        }
     }
 
     /**
