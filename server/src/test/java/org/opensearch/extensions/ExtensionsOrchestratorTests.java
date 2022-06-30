@@ -10,6 +10,7 @@ package org.opensearch.extensions;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -27,9 +28,14 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterSettingsResponse;
+import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
@@ -144,7 +150,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     public void testNonAccessibleDirectory() throws Exception {
         Settings settings = Settings.builder().put("node.name", "my-node").build();
-        ;
         AccessControlException e = expectThrows(
 
             AccessControlException.class,
@@ -278,6 +283,121 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
             mockLogAppender.assertAllExpectationsMatched();
         }
+    }
+
+    public void testHandleExtensionRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+
+        List<String> extensionsYmlLines = Arrays.asList(
+            "extensions:",
+            "   - name: firstExtension",
+            "     uniqueId: uniqueid1",
+            "     hostName: 'myIndependentPluginHost1'",
+            "     hostAddress: '127.0.0.0'",
+            "     port: '9300'",
+            "     version: '3.0.0'",
+            "   - name: secondExtension",
+            "     uniqueId: 'uniqueid2'",
+            "     hostName: 'myIndependentPluginHost2'",
+            "     hostAddress: '127.0.0.1'",
+            "     port: '9301'",
+            "     version: '2.0.0'"
+        );
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
+        Path pluginDir1 = extensionDir.resolve("fake-extension-1");
+
+        PluginTestUtil.writePluginProperties(
+            pluginDir1,
+            "description",
+            "fake desc",
+            "name",
+            "firstExtension",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakeExtensions"
+        );
+
+        final ClusterService clusterService = mock(ClusterService.class);
+        Settings settings = Settings.builder().put("node.name", "my-node").build();
+        ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+        ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
+        MockNioTransport transport = new MockNioTransport(
+            settings,
+            Version.CURRENT,
+            threadPool,
+            new NetworkService(Collections.emptyList()),
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NoneCircuitBreakerService()
+        );
+        TransportService transportService = new MockTransportService(
+            settings,
+            transport,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (boundAddress) -> new DiscoveryNode(
+                "test_node",
+                "test_node",
+                boundAddress.publishAddress(),
+                emptyMap(),
+                emptySet(),
+                Version.CURRENT
+            ),
+            null,
+            Collections.emptySet()
+        );
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        transportService.registerRequestHandler(
+            ExtensionsOrchestrator.REQUEST_EXTENSION_CLUSTER_STATE,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ExtensionRequest::new,
+            (request, channel, task) -> {
+                channel.sendResponse(new ClusterStateResponse(clusterName, null, false));
+                assertNotNull(extensionsOrchestrator.handleExtensionRequest(request));
+            }
+        );
+
+        transportService.registerRequestHandler(
+            ExtensionsOrchestrator.REQUEST_EXTENSION_CLUSTER_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ExtensionRequest::new,
+            (request, channel, task) -> {
+                channel.sendResponse(new ClusterSettingsResponse(clusterService));
+                assertNotNull(extensionsOrchestrator.handleExtensionRequest(request));
+            }
+        );
+
+        transportService.registerRequestHandler(
+            ExtensionsOrchestrator.REQUEST_EXTENSION_LOCAL_NODE,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ExtensionRequest::new,
+            (request, channel, task) -> {
+                channel.sendResponse(new LocalNodeResponse(clusterService));
+                assertNotNull(extensionsOrchestrator.handleExtensionRequest(request));
+            }
+        );
+
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
+
+    public void testExtensionRequest() throws Exception {
+        ExtensionRequest extensionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
+        assertEquals(extensionRequest.getRequestType(), ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
     }
 
     public void testOnIndexModule() throws Exception {
