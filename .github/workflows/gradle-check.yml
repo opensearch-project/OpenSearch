@@ -37,6 +37,7 @@ jobs:
             echo "result=$RESULT" >> $GITHUB_ENV
 
       - name: Upload Coverage Report
+        if: success()
         uses: codecov/codecov-action@v2
         with:
           files: ./codeCoverage.xml
@@ -47,7 +48,7 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              Gradle Check (Jenkins) Run Completed with:
+              ### Gradle Check (Jenkins) Run Completed with:
               * **RESULT:** ${{ env.result }} :white_check_mark:
               * **URL:** ${{ env.workflow_url }}
               * **CommitID:** ${{ env.pr_from_sha }}
@@ -59,7 +60,7 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              Gradle Check (Jenkins) Run Completed with:
+              ### Gradle Check (Jenkins) Run Completed with:
               * **RESULT:** ${{ env.result }} :x:
               * **URL:** ${{ env.workflow_url }}
               * **CommitID:** ${{ env.pr_from_sha }}
