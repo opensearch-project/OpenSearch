@@ -55,13 +55,13 @@ public class NRTReplicationEngine extends Engine {
     private final NRTReplicationReaderManager readerManager;
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
-    private final TranslogManager translogManager;
+    private final WriteOnlyTranslogManager translogManager;
 
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
         store.incRef();
         NRTReplicationReaderManager readerManager = null;
-        TranslogManager translogManagerRef = null;
+        WriteOnlyTranslogManager translogManagerRef = null;
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             readerManager = new NRTReplicationReaderManager(OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId));
@@ -92,7 +92,7 @@ public class NRTReplicationEngine extends Engine {
                     @Override
                     public void onAfterTranslogSync() {
                         try {
-                            translogManager.getTranslog().trimUnreferencedReaders();
+                            translogManager.trimUnreferencedReaders();
                         } catch (IOException ex) {
                             throw new TranslogException(shardId, "failed to trim unreferenced translog readers", ex);
                         }
@@ -102,11 +102,7 @@ public class NRTReplicationEngine extends Engine {
             );
             this.translogManager = translogManagerRef;
         } catch (IOException e) {
-            Translog translog = null;
-            if (translogManagerRef != null) {
-                translog = translogManagerRef.getTranslog();
-            }
-            IOUtils.closeWhileHandlingException(store::decRef, readerManager, translog);
+            IOUtils.closeWhileHandlingException(store::decRef, readerManager, translogManagerRef);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
         }
     }
@@ -158,7 +154,7 @@ public class NRTReplicationEngine extends Engine {
     public IndexResult index(Index index) throws IOException {
         ensureOpen();
         IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
-        final Translog.Location location = translogManager.getTranslog().add(new Translog.Index(index, indexResult));
+        final Translog.Location location = translogManager.add(new Translog.Index(index, indexResult));
         indexResult.setTranslogLocation(location);
         indexResult.setTook(System.nanoTime() - index.startTime());
         indexResult.freeze();
@@ -170,7 +166,7 @@ public class NRTReplicationEngine extends Engine {
     public DeleteResult delete(Delete delete) throws IOException {
         ensureOpen();
         DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
-        final Translog.Location location = translogManager.getTranslog().add(new Translog.Delete(delete, deleteResult));
+        final Translog.Location location = translogManager.add(new Translog.Delete(delete, deleteResult));
         deleteResult.setTranslogLocation(location);
         deleteResult.setTook(System.nanoTime() - delete.startTime());
         deleteResult.freeze();
@@ -182,8 +178,7 @@ public class NRTReplicationEngine extends Engine {
     public NoOpResult noOp(NoOp noOp) throws IOException {
         ensureOpen();
         NoOpResult noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
-        final Translog.Location location = translogManager.getTranslog()
-            .add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+        final Translog.Location location = translogManager.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
         noOpResult.setTranslogLocation(location);
         noOpResult.setTook(System.nanoTime() - noOp.startTime());
         noOpResult.freeze();
@@ -249,7 +244,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
-        return translogManager.getTranslog().getLastSyncedGlobalCheckpoint();
+        return translogManager.getLastSyncedGlobalCheckpoint();
     }
 
     @Override
@@ -317,7 +312,7 @@ public class NRTReplicationEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                IOUtils.close(readerManager, translogManager().getTranslog(), store::decRef);
+                IOUtils.close(readerManager, translogManager, store::decRef);
             } catch (Exception e) {
                 logger.warn("failed to close engine", e);
             } finally {
@@ -354,7 +349,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
-        final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getTranslog().getDeletionPolicy();
+        final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
     }

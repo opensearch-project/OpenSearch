@@ -13,11 +13,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
@@ -31,7 +33,7 @@ import java.util.stream.Stream;
  *
  * @opensearch.internal
  */
-public class InternalTranslogManager implements TranslogManager {
+public class InternalTranslogManager implements TranslogManager, Closeable {
 
     private final ReleasableLock readLock;
     private final LifecycleAware engineLifeCycleAware;
@@ -39,6 +41,7 @@ public class InternalTranslogManager implements TranslogManager {
     private final Translog translog;
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     private final TranslogEventListener translogEventListener;
+    private final Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier;
     private static final Logger logger = LogManager.getLogger(InternalTranslogManager.class);
 
     public InternalTranslogManager(
@@ -57,6 +60,7 @@ public class InternalTranslogManager implements TranslogManager {
         this.readLock = readLock;
         this.engineLifeCycleAware = engineLifeCycleAware;
         this.translogEventListener = translogEventListener;
+        this.localCheckpointTrackerSupplier = localCheckpointTrackerSupplier;
         Translog translog = openTranslog(translogConfig, primaryTermSupplier, translogDeletionPolicy, globalCheckpointSupplier, seqNo -> {
             final LocalCheckpointTracker tracker = localCheckpointTrackerSupplier.get();
             assert tracker != null || getTranslog(true).isOpen() == false;
@@ -280,6 +284,26 @@ public class InternalTranslogManager implements TranslogManager {
     }
 
     /**
+     * Reads operations from the translog
+     * @param location
+     * @return
+     * @throws IOException
+     */
+    public Translog.Operation readOperation(Translog.Location location) throws IOException {
+        return translog.readOperation(location);
+    }
+
+    /**
+     * Adds operations to the translog
+     * @param operation
+     * @return
+     * @throws IOException
+     */
+    public Translog.Location add(Translog.Operation operation) throws IOException {
+        return translog.add(operation);
+    }
+
+    /**
      * Do not replay translog operations, but make the engine be ready.
      */
     @Override
@@ -288,7 +312,14 @@ public class InternalTranslogManager implements TranslogManager {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    private Translog openTranslog(
+    private Translog getTranslog(boolean ensureOpen) {
+        if (ensureOpen) {
+            this.engineLifeCycleAware.ensureOpen();
+        }
+        return translog;
+    }
+
+    protected Translog openTranslog(
         TranslogConfig translogConfig,
         LongSupplier primaryTermSupplier,
         TranslogDeletionPolicy translogDeletionPolicy,
@@ -308,18 +339,119 @@ public class InternalTranslogManager implements TranslogManager {
     }
 
     /**
-     * Returns the the translog instance
-     * @return the {@link Translog} instance
+     * Retrieves last synced global checkpoint
+     * @return last synced global checkpoint
      */
-    @Override
-    public Translog getTranslog() {
-        return translog;
+    public long getLastSyncedGlobalCheckpoint() {
+        return translog.getLastSyncedGlobalCheckpoint();
     }
 
-    private Translog getTranslog(boolean ensureOpen) {
-        if (ensureOpen) {
-            this.engineLifeCycleAware.ensureOpen();
+    /**
+     * Retrieves the max seq no
+     * @return max seq no
+     */
+    public long getMaxSeqNo() {
+        return translog.getMaxSeqNo();
+    }
+
+    /**
+     * Trims unreferenced translog generations by asking {@link TranslogDeletionPolicy} for the minimum
+     * required generation
+     */
+    public void trimUnreferencedReaders() throws IOException {
+        translog.trimUnreferencedReaders();
+    }
+
+    /**
+     * Retrieves the translog deletion policy
+     * @return TranslogDeletionPolicy
+     */
+    public TranslogDeletionPolicy getDeletionPolicy() {
+        return translog.getDeletionPolicy();
+    }
+
+    /**
+     * Retrieves the underlying translog tragic exception
+     * @return
+     */
+    public Exception getTragicExceptionIfClosed() {
+        return translog.isOpen() == false ? translog.getTragicException() : null;
+    }
+
+    /**
+     *
+     * @param localCheckpointOfLastCommit
+     * @param flushThreshold
+     * @return if the translog should be flushed
+     */
+    public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
+        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
+            localCheckpointOfLastCommit + 1
+        ).translogFileGeneration;
+        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
+            return false;
         }
-        return translog;
+        /*
+         * We flush to reduce the size of uncommitted translog but strictly speaking the uncommitted size won't always be
+         * below the flush-threshold after a flush. To avoid getting into an endless loop of flushing, we only enable the
+         * periodically flush condition if this condition is disabled after a flush. The condition will change if the new
+         * commit points to the later generation the last commit's(eg. gen-of-last-commit < gen-of-new-commit)[1].
+         *
+         * When the local checkpoint equals to max_seqno, and translog-gen of the last commit equals to translog-gen of
+         * the new commit, we know that the last generation must contain operations because its size is above the flush
+         * threshold and the flush-threshold is guaranteed to be higher than an empty translog by the setting validation.
+         * This guarantees that the new commit will point to the newly rolled generation. In fact, this scenario only
+         * happens when the generation-threshold is close to or above the flush-threshold; otherwise we have rolled
+         * generations as the generation-threshold was reached, then the first condition (eg. [1]) is already satisfied.
+         *
+         * This method is to maintain translog only, thus IndexWriter#hasUncommittedChanges condition is not considered.
+         */
+        final long translogGenerationOfNewCommit = translog.getMinGenerationForSeqNo(
+            localCheckpointTrackerSupplier.get().getProcessedCheckpoint() + 1
+        ).translogFileGeneration;
+        return translogGenerationOfLastCommit < translogGenerationOfNewCommit
+            || localCheckpointTrackerSupplier.get().getProcessedCheckpoint() == localCheckpointTrackerSupplier.get().getMaxSeqNo();
+    }
+
+    /**
+     *
+     * @return
+     */
+    public String getTranslogUUID() {
+        return translog.getTranslogUUID();
+    }
+
+    /**
+     *
+     * @param fromSeqNo
+     * @param toSeqNo
+     * @return
+     * @throws IOException
+     */
+    public Translog.Snapshot newSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
+        return translog.newSnapshot(fromSeqNo, toSeqNo, false);
+    }
+
+    public Translog.TranslogGeneration getGeneration() {
+        return translog.getGeneration();
+    }
+
+    /**
+     * Returns the generation of the current transaction log.
+     */
+    public long currentFileGeneration() {
+        return translog.currentFileGeneration();
+    }
+
+    /**
+     * Returns the minimum file generation referenced by the translog
+     */
+    public long getMinFileGeneration() {
+        return translog.getMinFileGeneration();
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.closeWhileHandlingException(translog);
     }
 }

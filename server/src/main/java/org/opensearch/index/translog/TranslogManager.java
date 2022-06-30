@@ -95,12 +95,6 @@ public interface TranslogManager {
     void skipTranslogRecovery();
 
     /**
-     * Returns the instance of the translog with a precondition
-     * @return the translog instance
-     */
-    Translog getTranslog();
-
-    /**
      * Checks if the translog has a pending recovery
      */
     void ensureCanFlush();

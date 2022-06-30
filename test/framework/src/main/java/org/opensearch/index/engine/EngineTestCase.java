@@ -111,8 +111,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.*;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
@@ -329,20 +328,26 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         try {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.ensureOpen();
-                assertEngineCleanedUp(engine, engine.translogManager().getTranslog());
+                assertEngineCleanedUp(engine, assertAndGetInternalTranslogManager(engine.translogManager()).getDeletionPolicy());
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.ensureOpen();
-                assertEngineCleanedUp(replicaEngine, replicaEngine.translogManager().getTranslog());
+                assertEngineCleanedUp(replicaEngine, assertAndGetInternalTranslogManager(replicaEngine.translogManager()).getDeletionPolicy());
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
         }
     }
 
-    protected void assertEngineCleanedUp(Engine engine, Translog translog) throws Exception {
+    protected InternalTranslogManager assertAndGetInternalTranslogManager(final TranslogManager translogManager) {
+        assert translogManager instanceof InternalTranslogManager : "expected InternalTranslogManager, got: " + translogManager.getClass();
+        InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
+        return internalTranslogManager;
+    }
+
+    protected void assertEngineCleanedUp(Engine engine, TranslogDeletionPolicy translogDeletionPolicy) throws Exception {
         if (engine.isClosed.get() == false) {
-            translog.getDeletionPolicy().assertNoOpenTranslogRefs();
+            translogDeletionPolicy.assertNoOpenTranslogRefs();
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
             assertNoInFlightDocuments(engine);
             assertMaxSeqNoInCommitUserData(engine);
