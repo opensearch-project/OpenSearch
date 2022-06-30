@@ -269,8 +269,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 
             translogManager.syncTranslog();
 
-            assertThat(translogManager.currentFileGeneration(), equalTo(2L));
-            assertThat(translogManager.getMinFileGeneration(), equalTo(2L));
+            assertThat(translogManager.getTranslog().currentFileGeneration(), equalTo(2L));
+            assertThat(translogManager.getTranslog().getMinFileGeneration(), equalTo(2L));
             assertTrue(syncListenerInvoked.get());
         } finally {
             translogManager.close();

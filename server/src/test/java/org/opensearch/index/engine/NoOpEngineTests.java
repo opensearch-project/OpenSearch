@@ -222,7 +222,7 @@ public class NoOpEngineTests extends EngineTestCase {
         }
         // prevent translog from trimming so we can test trimUnreferencedFiles in NoOpEngine.
         engine.ensureOpen();
-        final Translog.Snapshot snapshot = assertAndGetInternalTranslogManager(engine.translogManager()).newSnapshot(0, Long.MAX_VALUE);
+        final Translog.Snapshot snapshot = assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().newSnapshot();
         engine.flush(true, true);
         engine.close();
 

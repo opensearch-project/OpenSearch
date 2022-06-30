@@ -332,7 +332,10 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.ensureOpen();
-                assertEngineCleanedUp(replicaEngine, assertAndGetInternalTranslogManager(replicaEngine.translogManager()).getDeletionPolicy());
+                assertEngineCleanedUp(
+                    replicaEngine,
+                    assertAndGetInternalTranslogManager(replicaEngine.translogManager()).getDeletionPolicy()
+                );
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
@@ -1488,7 +1491,11 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
         internalEngine.ensureOpen();
-        return internalEngine.translogManager().getTranslog();
+        TranslogManager translogManager = internalEngine.translogManager();
+        assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
+            + engine.getClass();
+        InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
+        return internalTranslogManager.getTranslog();
     }
 
     /**

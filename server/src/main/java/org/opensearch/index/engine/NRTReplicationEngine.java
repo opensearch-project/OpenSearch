@@ -25,7 +25,6 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
-import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.listener.TranslogEventListener;
@@ -39,8 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
-import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
 
 /**
  * This is an {@link Engine} implementation intended for replica shards when Segment Replication
@@ -371,25 +368,5 @@ public class NRTReplicationEngine extends Engine {
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
         return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
-    }
-
-    private Translog openTranslog(
-        EngineConfig engineConfig,
-        TranslogDeletionPolicy translogDeletionPolicy,
-        LongSupplier globalCheckpointSupplier,
-        LongConsumer persistedSequenceNumberConsumer
-    ) throws IOException {
-        final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        final Map<String, String> userData = lastCommittedSegmentInfos.getUserData();
-        final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
-        // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-        return new Translog(
-            translogConfig,
-            translogUUID,
-            translogDeletionPolicy,
-            globalCheckpointSupplier,
-            engineConfig.getPrimaryTermSupplier(),
-            persistedSequenceNumberConsumer
-        );
     }
 }

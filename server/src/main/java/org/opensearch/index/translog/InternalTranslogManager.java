@@ -312,6 +312,11 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
+    // visible for testing
+    public Translog getTranslog() {
+        return translog;
+    }
+
     private Translog getTranslog(boolean ensureOpen) {
         if (ensureOpen) {
             this.engineLifeCycleAware.ensureOpen();
@@ -372,7 +377,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
 
     /**
      * Retrieves the underlying translog tragic exception
-     * @return
+     * @return the tragic exception
      */
     public Exception getTragicExceptionIfClosed() {
         return translog.isOpen() == false ? translog.getTragicException() : null;
@@ -411,43 +416,6 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         ).translogFileGeneration;
         return translogGenerationOfLastCommit < translogGenerationOfNewCommit
             || localCheckpointTrackerSupplier.get().getProcessedCheckpoint() == localCheckpointTrackerSupplier.get().getMaxSeqNo();
-    }
-
-    /**
-     *
-     * @return
-     */
-    public String getTranslogUUID() {
-        return translog.getTranslogUUID();
-    }
-
-    /**
-     *
-     * @param fromSeqNo
-     * @param toSeqNo
-     * @return
-     * @throws IOException
-     */
-    public Translog.Snapshot newSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
-        return translog.newSnapshot(fromSeqNo, toSeqNo, false);
-    }
-
-    public Translog.TranslogGeneration getGeneration() {
-        return translog.getGeneration();
-    }
-
-    /**
-     * Returns the generation of the current transaction log.
-     */
-    public long currentFileGeneration() {
-        return translog.currentFileGeneration();
-    }
-
-    /**
-     * Returns the minimum file generation referenced by the translog
-     */
-    public long getMinFileGeneration() {
-        return translog.getMinFileGeneration();
     }
 
     @Override
