@@ -47,7 +47,10 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              Gradle Check (Jenkins) Completed with **RESULT: ${{ env.result }}** :white_check_mark: : ${{ env.workflow_url }}
+              Gradle Check (Jenkins) Run Completed with:
+              * **RESULT:** ${{ env.result }} :white_check_mark:
+              * **URL:** ${{ env.workflow_url }}
+              * **CommitID:** ${{ env.pr_from_sha }}
               (Re-commit to this PR or restart github action to run gradle check again)
 
       - name: Create Comment Failure
@@ -56,5 +59,8 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              Gradle Check (Jenkins) Completed with **RESULT: ${{ env.result }}** :x: : ${{ env.workflow_url }}
+              Gradle Check (Jenkins) Run Completed with:
+              * **RESULT:** ${{ env.result }} :x:
+              * **URL:** ${{ env.workflow_url }}
+              * **CommitID:** ${{ env.pr_from_sha }}
               (Re-commit to this PR or restart github action to run gradle check again)
