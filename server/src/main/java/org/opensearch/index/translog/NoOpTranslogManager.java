@@ -93,7 +93,7 @@ public class NoOpTranslogManager implements TranslogManager {
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws TranslogException {}
 
     @Override
-    public Translog getTranslog(boolean ensureOpen) {
+    public Translog getTranslog() {
         return null;
     }
 

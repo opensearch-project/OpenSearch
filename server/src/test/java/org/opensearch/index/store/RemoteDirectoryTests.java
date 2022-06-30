@@ -109,18 +109,6 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         assertThrows(NoSuchFileException.class, () -> remoteDirectory.openInput("segment_1", IOContext.DEFAULT));
     }
 
-    public void testClose() throws IOException {
-        remoteDirectory.close();
-
-        verify(blobContainer).delete();
-    }
-
-    public void testCloseIOException() throws IOException {
-        when(blobContainer.delete()).thenThrow(new IOException("Error while writing to blob store"));
-
-        assertThrows(IOException.class, () -> remoteDirectory.close());
-    }
-
     public void testFileLength() throws IOException {
         Map<String, BlobMetadata> fileInfo = new HashMap<>();
         fileInfo.put("segment_1", new PlainBlobMetadata("segment_1", 100));

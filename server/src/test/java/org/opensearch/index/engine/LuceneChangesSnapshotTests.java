@@ -226,7 +226,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 engine.refresh("test");
             }
             if (rarely()) {
-                engine.rollTranslogGeneration();
+                engine.translogManager().rollTranslogGeneration();
             }
             if (rarely()) {
                 engine.flush();
@@ -300,11 +300,12 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             this.leader = leader;
             this.isDone = isDone;
             this.readLatch = readLatch;
+            this.engine = createEngine(createStore(), createTempDir());
             this.translogHandler = new TranslogHandler(
                 xContentRegistry(),
-                IndexSettingsModule.newIndexSettings(shardId.getIndexName(), leader.engineConfig.getIndexSettings().getSettings())
+                IndexSettingsModule.newIndexSettings(shardId.getIndexName(), leader.engineConfig.getIndexSettings().getSettings()),
+                engine
             );
-            this.engine = createEngine(createStore(), createTempDir());
         }
 
         void pullOperations(InternalEngine follower) throws IOException {
@@ -315,7 +316,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 long batchSize = randomLongBetween(0, 100);
                 long toSeqNo = Math.min(fromSeqNo + batchSize, leaderCheckpoint);
                 try (Translog.Snapshot snapshot = leader.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean())) {
-                    translogHandler.run(follower, snapshot);
+                    translogHandler.run(snapshot);
                 }
             }
         }

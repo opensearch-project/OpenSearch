@@ -45,7 +45,10 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogException;
+import org.opensearch.index.translog.NoOpTranslogManager;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 
@@ -60,7 +63,7 @@ import java.util.function.Function;
  * required in order to have an engine. All attempts to do something (search,
  * index, get), throw {@link UnsupportedOperationException}. However, NoOpEngine
  * allows to trim any existing translog files through the usage of the
- * {{@link #trimUnreferencedTranslogFiles()}} method.
+ * {{@link TranslogManager#trimUnreferencedTranslogFiles()}} method.
  *
  * @opensearch.internal
  */
@@ -153,52 +156,78 @@ public final class NoOpEngine extends ReadOnlyEngine {
      * This implementation will trim existing translog files using a {@link TranslogDeletionPolicy}
      * that retains nothing but the last translog generation from safe commit.
      */
-    @Override
-    public void trimUnreferencedTranslogFiles() {
-        final Store store = this.engineConfig.getStore();
-        store.incRef();
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-            if (commits.size() == 1 && translogStats.getTranslogSizeInBytes() > translogStats.getUncommittedSizeInBytes()) {
-                final Map<String, String> commitUserData = getLastCommittedSegmentInfos().getUserData();
-                final String translogUuid = commitUserData.get(Translog.TRANSLOG_UUID_KEY);
-                if (translogUuid == null) {
-                    throw new IllegalStateException("commit doesn't contain translog unique id");
+    public TranslogManager translogManager() {
+        try {
+            return new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
+                @Override
+                public void close() {}
+
+                @Override
+                public int totalOperations() {
+                    return 0;
                 }
-                final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-                final long localCheckpoint = Long.parseLong(commitUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                final TranslogDeletionPolicy translogDeletionPolicy = new DefaultTranslogDeletionPolicy(-1, -1, 0);
-                translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
-                try (
-                    Translog translog = new Translog(
-                        translogConfig,
-                        translogUuid,
-                        translogDeletionPolicy,
-                        engineConfig.getGlobalCheckpointSupplier(),
-                        engineConfig.getPrimaryTermSupplier(),
-                        seqNo -> {}
-                    )
-                ) {
-                    translog.trimUnreferencedReaders();
-                    // refresh the translog stats
-                    this.translogStats = translog.stats();
-                    assert translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
-                        + " current gen "
-                        + translog.currentFileGeneration()
-                        + " != min gen "
-                        + translog.getMinFileGeneration();
+
+                @Override
+                public Translog.Operation next() {
+                    return null;
                 }
-            }
-        } catch (final Exception e) {
-            try {
-                failEngine("translog trimming failed", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new EngineException(shardId, "failed to trim translog", e);
-        } finally {
-            store.decRef();
+
+            }) {
+                /**
+                 * This implementation will trim existing translog files using a {@link TranslogDeletionPolicy}
+                 * that retains nothing but the last translog generation from safe commit.
+                 */
+                @Override
+                public void trimUnreferencedTranslogFiles() throws TranslogException {
+                    final Store store = engineConfig.getStore();
+                    store.incRef();
+                    try (ReleasableLock ignored = readLock.acquire()) {
+                        ensureOpen();
+                        final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+                        if (commits.size() == 1 && translogStats.getTranslogSizeInBytes() > translogStats.getUncommittedSizeInBytes()) {
+                            final Map<String, String> commitUserData = getLastCommittedSegmentInfos().getUserData();
+                            final String translogUuid = commitUserData.get(Translog.TRANSLOG_UUID_KEY);
+                            if (translogUuid == null) {
+                                throw new IllegalStateException("commit doesn't contain translog unique id");
+                            }
+                            final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
+                            final long localCheckpoint = Long.parseLong(commitUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                            final TranslogDeletionPolicy translogDeletionPolicy = new DefaultTranslogDeletionPolicy(-1, -1, 0);
+                            translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
+                            try (
+                                Translog translog = new Translog(
+                                    translogConfig,
+                                    translogUuid,
+                                    translogDeletionPolicy,
+                                    engineConfig.getGlobalCheckpointSupplier(),
+                                    engineConfig.getPrimaryTermSupplier(),
+                                    seqNo -> {}
+                                )
+                            ) {
+                                translog.trimUnreferencedReaders();
+                                // refresh the translog stats
+                                translogStats = translog.stats();
+                                assert translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
+                                    + " current gen "
+                                    + translog.currentFileGeneration()
+                                    + " != min gen "
+                                    + translog.getMinFileGeneration();
+                            }
+                        }
+                    } catch (final Exception e) {
+                        try {
+                            failEngine("translog trimming failed", e);
+                        } catch (Exception inner) {
+                            e.addSuppressed(inner);
+                        }
+                        throw new EngineException(shardId, "failed to trim translog", e);
+                    } finally {
+                        store.decRef();
+                    }
+                }
+            };
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
         }
     }
 }
