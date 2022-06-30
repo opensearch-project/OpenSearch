@@ -149,11 +149,7 @@ public abstract class AbstractScopedSettings {
             Setting<?> overlappingSetting = findOverlappingSetting(setting, complexMatchers);
             if (overlappingSetting != null) {
                 throw new IllegalArgumentException(
-                    "complex setting key: ["
-                        + setting.getKey()
-                        + "] overlaps existing setting key: ["
-                        + overlappingSetting.getKey()
-                        + "]"
+                    "complex setting key: [" + setting.getKey() + "] overlaps existing setting key: [" + overlappingSetting.getKey() + "]"
                 );
             }
             complexMatchers.putIfAbsent(setting.getKey(), setting);

@@ -185,11 +185,11 @@ public class SettingsModule implements Module {
             if (setting.hasNodeScope()) {
                 clusterSettings.registerSetting(setting);
             }
-            if(setting.hasIndexScope()) {
+            if (setting.hasIndexScope()) {
                 indexScopedSettings.registerSetting(setting);
             }
-            logger.info("Registered new Setting: " + setting.getKey() +  " successfully ");
-        } catch(Exception e) {
+            logger.info("Registered new Setting: " + setting.getKey() + " successfully ");
+        } catch (Exception e) {
             logger.error("Could not register setting " + setting.getKey());
         }
     }
