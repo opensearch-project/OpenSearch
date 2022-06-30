@@ -33,11 +33,18 @@
 package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.lucene.search.function.Functions;
 
 import java.io.IOException;
 
+/**
+ * Foundation builder for an exponential decay
+ *
+ * @opensearch.internal
+ */
 public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<ExponentialDecayFunctionBuilder> {
     public static final String NAME = "exp";
     public static final ScoreFunctionParser<ExponentialDecayFunctionBuilder> PARSER = new DecayFunctionParser<>(
@@ -45,12 +52,27 @@ public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<Expone
     );
     public static final DecayFunction EXP_DECAY_FUNCTION = new ExponentialDecayScoreFunction();
 
+    public ExponentialDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, @Nullable String functionName) {
+        super(fieldName, origin, scale, offset, functionName);
+    }
+
     public ExponentialDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset) {
         super(fieldName, origin, scale, offset);
     }
 
     public ExponentialDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
         super(fieldName, origin, scale, offset, decay);
+    }
+
+    public ExponentialDecayFunctionBuilder(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay,
+        @Nullable String functionName
+    ) {
+        super(fieldName, origin, scale, offset, decay, functionName);
     }
 
     ExponentialDecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
@@ -74,6 +96,11 @@ public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<Expone
         return EXP_DECAY_FUNCTION;
     }
 
+    /**
+     * Exponential decay
+     *
+     * @opensearch.internal
+     */
     private static final class ExponentialDecayScoreFunction implements DecayFunction {
 
         @Override
@@ -82,8 +109,11 @@ public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<Expone
         }
 
         @Override
-        public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match((float) evaluate(value, scale), "exp(- " + valueExpl + " * " + -1 * scale + ")");
+        public Explanation explainFunction(String valueExpl, double value, double scale, @Nullable String functionName) {
+            return Explanation.match(
+                (float) evaluate(value, scale),
+                "exp(- " + valueExpl + " * " + -1 * scale + Functions.nameOrEmptyArg(functionName) + ")"
+            );
         }
 
         @Override

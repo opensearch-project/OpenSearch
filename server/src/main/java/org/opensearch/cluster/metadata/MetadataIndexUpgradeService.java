@@ -64,6 +64,8 @@ import java.util.Set;
  * to upgrade the existing index metadata to the latest version of the cluster. It typically
  * occurs during cluster upgrade, when dangling indices are imported into the cluster or indices
  * are restored from a repository.
+ *
+ * @opensearch.internal
  */
 public class MetadataIndexUpgradeService {
 
@@ -93,7 +95,7 @@ public class MetadataIndexUpgradeService {
     }
 
     /**
-     * Checks that the index can be upgraded to the current version of the master node.
+     * Checks that the index can be upgraded to the current version of the cluster-manager node.
      *
      * <p>
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index

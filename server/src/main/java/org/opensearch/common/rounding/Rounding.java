@@ -47,6 +47,8 @@ import java.util.Objects;
  * A strategy for rounding long values.
  *
  * Use the java based Rounding class where applicable
+ *
+ * @opensearch.internal
  */
 @Deprecated
 public abstract class Rounding implements Writeable {
@@ -81,6 +83,11 @@ public abstract class Rounding implements Writeable {
         return new Builder(interval);
     }
 
+    /**
+     * Builder for rounding
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final DateTimeUnit unit;
@@ -118,6 +125,11 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    /**
+     * Rounding time units
+     *
+     * @opensearch.internal
+     */
     static class TimeUnitRounding extends Rounding {
 
         static final byte ID = 1;
@@ -284,6 +296,11 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    /**
+     * Rounding time intervals
+     *
+     * @opensearch.internal
+     */
     static class TimeIntervalRounding extends Rounding {
 
         static final byte ID = 2;
@@ -409,6 +426,11 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    /**
+     * Rounding streams
+     *
+     * @opensearch.internal
+     */
     public static class Streams {
 
         public static void write(Rounding rounding, StreamOutput out) throws IOException {

@@ -53,11 +53,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 public class MetadataIT extends OpenSearchIntegTestCase {
 
     public void testMetadataSetOnAggregationResult() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "name", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("name", "type=keyword").get());
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);
-            builders[i] = client().prepareIndex("idx", "type")
+            builders[i] = client().prepareIndex("idx")
                 .setSource(jsonBuilder().startObject().field("name", name).field("value", randomInt()).endObject());
         }
         indexRandom(true, builders);

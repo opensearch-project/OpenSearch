@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.shards;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -45,8 +45,12 @@ import java.util.EnumSet;
 
 /**
  * Request for {@link IndicesShardStoresAction}
+ *
+ * @opensearch.internal
  */
-public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShardStoresRequest> implements IndicesRequest.Replaceable {
+public class IndicesShardStoresRequest extends ClusterManagerNodeReadRequest<IndicesShardStoresRequest>
+    implements
+        IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpand();

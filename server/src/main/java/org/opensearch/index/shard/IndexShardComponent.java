@@ -34,6 +34,11 @@ package org.opensearch.index.shard;
 
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Base interface for an IndexShard
+ *
+ * @opensearch.internal
+ */
 public interface IndexShardComponent {
 
     ShardId shardId();

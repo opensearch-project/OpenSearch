@@ -52,7 +52,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomInt;
 
 public class FakeThreadPoolMasterService extends MasterService {
@@ -116,7 +116,7 @@ public class FakeThreadPoolMasterService extends MasterService {
             onTaskAvailableToRun.accept(new Runnable() {
                 @Override
                 public String toString() {
-                    return "master service scheduling next task";
+                    return "cluster-manager service scheduling next task";
                 }
 
                 @Override
@@ -125,7 +125,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                     assert waitForPublish == false;
                     assert scheduledNextTask;
                     final int taskIndex = randomInt(pendingTasks.size() - 1);
-                    logger.debug("next master service task: choosing task {} of {}", taskIndex, pendingTasks.size());
+                    logger.debug("next cluster-manager service task: choosing task {} of {}", taskIndex, pendingTasks.size());
                     final Runnable task = pendingTasks.remove(taskIndex);
                     taskInProgress = true;
                     scheduledNextTask = false;

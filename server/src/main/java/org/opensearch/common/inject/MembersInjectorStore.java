@@ -45,6 +45,8 @@ import java.util.Set;
  * Members injectors by type.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class MembersInjectorStore {
     private final InjectorImpl injector;

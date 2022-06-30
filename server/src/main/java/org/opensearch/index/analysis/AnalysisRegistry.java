@@ -67,6 +67,8 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * An internal registry for tokenizer, token filter, char filter and analyzer.
  * This class exists per node and allows to create per-index {@link IndexAnalyzers} via {@link #build(IndexSettings)}
+ *
+ * @opensearch.internal
  */
 public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
@@ -568,6 +570,11 @@ public final class AnalysisRegistry implements Closeable {
         return type;
     }
 
+    /**
+     * Internal prebuilt analysis class
+     *
+     * @opensearch.internal
+     */
     private static class PrebuiltAnalysis implements Closeable {
 
         final Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;

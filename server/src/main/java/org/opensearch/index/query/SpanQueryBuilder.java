@@ -37,9 +37,16 @@ import org.opensearch.common.xcontent.XContentParser;
 
 /**
  * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries.
+ *
+ * @opensearch.internal
  */
 public interface SpanQueryBuilder extends QueryBuilder {
 
+    /**
+     * Utility for span query builders
+     *
+     * @opensearch.internal
+     */
     class SpanQueryBuilderUtil {
         private SpanQueryBuilderUtil() {
             // utility class

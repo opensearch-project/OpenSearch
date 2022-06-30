@@ -45,6 +45,11 @@ import org.opensearch.common.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport response for obtaining OpenSearch Node Stats
+ *
+ * @opensearch.internal
+ */
 public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements ToXContentFragment {
 
     public NodesStatsResponse(StreamInput in) throws IOException {

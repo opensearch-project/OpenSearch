@@ -96,7 +96,7 @@ public class TransportTwoNodesSearchIT extends OpenSearchIntegTestCase {
 
         client().admin()
             .indices()
-            .create(createIndexRequest("test").settings(settingsBuilder).mapping("type", "foo", "type=geo_point"))
+            .create(createIndexRequest("test").settings(settingsBuilder).simpleMapping("foo", "type=geo_point"))
             .actionGet();
 
         ensureGreen();
@@ -109,7 +109,7 @@ public class TransportTwoNodesSearchIT extends OpenSearchIntegTestCase {
     }
 
     private void index(String id, String nameValue, int age) throws IOException {
-        client().index(Requests.indexRequest("test").type("type").id(id).source(source(id, nameValue, age))).actionGet();
+        client().index(Requests.indexRequest("test").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {

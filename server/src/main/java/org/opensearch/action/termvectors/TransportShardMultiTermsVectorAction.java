@@ -50,6 +50,11 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Performs the multi term shard level get operation.
+ *
+ * @opensearch.internal
+ */
 public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<
     MultiTermVectorsShardRequest,
     MultiTermVectorsShardResponse> {

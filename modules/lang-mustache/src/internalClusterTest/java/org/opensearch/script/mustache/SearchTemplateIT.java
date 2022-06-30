@@ -68,8 +68,8 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
     @Before
     public void setup() throws IOException {
         createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
-        client().prepareIndex("test", "type", "2").setSource(jsonBuilder().startObject().field("text", "value2").endObject()).get();
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("text", "value2").endObject()).get();
         client().admin().indices().prepareRefresh().get();
     }
 
@@ -185,20 +185,22 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(
-            new SearchRequest("test").types("type")
-        ).setScript("testTemplate").setScriptType(ScriptType.STORED).setScriptParams(templateParams).get();
+        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+            .setScript("testTemplate")
+            .setScriptType(ScriptType.STORED)
+            .setScriptParams(templateParams)
+            .get();
         assertHitCount(searchResponse.getResponse(), 4);
 
         assertAcked(client().admin().cluster().prepareDeleteStoredScript("testTemplate"));
@@ -227,25 +229,27 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         assertAcked(client().admin().cluster().preparePutStoredScript().setId("3").setContent(new BytesArray(script), XContentType.JSON));
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(
-            new SearchRequest().indices("test").types("type")
-        ).setScript("1a").setScriptType(ScriptType.STORED).setScriptParams(templateParams).get();
+        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
+            .setScript("1a")
+            .setScriptType(ScriptType.STORED)
+            .setScriptParams(templateParams)
+            .get();
         assertHitCount(searchResponse.getResponse(), 4);
 
         expectThrows(
             ResourceNotFoundException.class,
-            () -> new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test").types("type"))
+            () -> new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
                 .setScript("1000")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(templateParams)
@@ -253,7 +257,7 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         );
 
         templateParams.put("fieldParam", "bar");
-        searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test").types("type"))
+        searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
             .setScript("2")
             .setScriptType(ScriptType.STORED)
             .setScriptParams(templateParams)
@@ -266,9 +270,7 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         createIndex("testindex");
         ensureGreen("testindex");
 
-        client().prepareIndex("testindex", "test", "1")
-            .setSource(jsonBuilder().startObject().field("searchtext", "dev1").endObject())
-            .get();
+        client().prepareIndex("testindex").setId("1").setSource(jsonBuilder().startObject().field("searchtext", "dev1").endObject()).get();
         client().admin().indices().prepareRefresh().get();
 
         int iterations = randomIntBetween(2, 11);
@@ -304,7 +306,7 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex").types("test"))
+                () -> new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
                     .setScript("git01")
                     .setScriptType(ScriptType.STORED)
                     .setScriptParams(templateParams)
@@ -320,9 +322,11 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
                     .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), XContentType.JSON)
             );
 
-            SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(
-                new SearchRequest("testindex").types("test")
-            ).setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams).get();
+            SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
+                .setScript("git01")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(templateParams)
+                .get();
             assertHitCount(searchResponse.getResponse(), 1);
         }
     }
@@ -348,11 +352,11 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
             client().admin().cluster().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON)
         );
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
@@ -360,9 +364,11 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         String[] fieldParams = { "foo", "bar" };
         arrayTemplateParams.put("fieldParam", fieldParams);
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(
-            new SearchRequest("test").types("type")
-        ).setScript("4").setScriptType(ScriptType.STORED).setScriptParams(arrayTemplateParams).get();
+        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+            .setScript("4")
+            .setScriptType(ScriptType.STORED)
+            .setScriptParams(arrayTemplateParams)
+            .get();
         assertHitCount(searchResponse.getResponse(), 5);
     }
 

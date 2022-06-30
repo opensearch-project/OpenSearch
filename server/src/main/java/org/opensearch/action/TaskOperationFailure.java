@@ -52,6 +52,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
  * Information about task operation failures
  *
  * The class is final due to serialization limitations
+ *
+ * @opensearch.internal
  */
 public final class TaskOperationFailure implements Writeable, ToXContentFragment {
     private static final String TASK_ID = "task_id";

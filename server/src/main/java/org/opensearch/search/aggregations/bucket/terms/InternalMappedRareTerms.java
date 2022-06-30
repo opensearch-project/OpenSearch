@@ -53,6 +53,11 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Implementation of mapped rare terms
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>, B extends InternalRareTerms.Bucket<B>> extends
     InternalRareTerms<A, B> {
 

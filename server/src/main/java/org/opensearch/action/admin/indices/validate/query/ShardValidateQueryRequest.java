@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.indices.validate.query;
 
+import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastShardRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.query.QueryBuilder;
@@ -45,11 +45,12 @@ import java.util.Objects;
 
 /**
  * Internal validate request executed directly against a specific index shard.
+ *
+ * @opensearch.internal
  */
 public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
     private QueryBuilder query;
-    private String[] types = Strings.EMPTY_ARRAY;
     private boolean explain;
     private boolean rewrite;
     private long nowInMillis;
@@ -58,12 +59,12 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     public ShardValidateQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-
-        int typesSize = in.readVInt();
-        if (typesSize > 0) {
-            types = new String[typesSize];
-            for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            int typesSize = in.readVInt();
+            if (typesSize > 0) {
+                for (int i = 0; i < typesSize; i++) {
+                    in.readString();
+                }
             }
         }
         filteringAliases = new AliasFilter(in);
@@ -75,7 +76,6 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     public ShardValidateQueryRequest(ShardId shardId, AliasFilter filteringAliases, ValidateQueryRequest request) {
         super(shardId, request);
         this.query = request.query();
-        this.types = request.types();
         this.explain = request.explain();
         this.rewrite = request.rewrite();
         this.filteringAliases = Objects.requireNonNull(filteringAliases, "filteringAliases must not be null");
@@ -84,10 +84,6 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
     public QueryBuilder query() {
         return query;
-    }
-
-    public String[] types() {
-        return this.types;
     }
 
     public boolean explain() {
@@ -110,9 +106,8 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeNamedWriteable(query);
-        out.writeVInt(types.length);
-        for (String type : types) {
-            out.writeString(type);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeVInt(0); // no types to filter
         }
         filteringAliases.writeTo(out);
         out.writeBoolean(explain);

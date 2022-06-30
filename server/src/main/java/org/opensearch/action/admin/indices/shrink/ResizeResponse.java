@@ -41,6 +41,8 @@ import java.io.IOException;
 
 /**
  * A response for a resize index action, either shrink or split index.
+ *
+ * @opensearch.internal
  */
 public final class ResizeResponse extends CreateIndexResponse {
 

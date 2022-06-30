@@ -42,7 +42,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of stats agg
+ *
+ * @opensearch.internal
+ */
 public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
+    /**
+     * The metrics for the internal stats
+     *
+     * @opensearch.internal
+     */
     enum Metrics {
 
         count,
@@ -190,6 +200,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         return new InternalStats(name, count, kahanSummation.value(), min, max, format, getMetadata());
     }
 
+    /**
+     * Fields for stats agg
+     *
+     * @opensearch.internal
+     */
     static class Fields {
         public static final String COUNT = "count";
         public static final String MIN = "min";

@@ -91,7 +91,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends OpenSearchIntegTest
         }
     }
 
-    public void testFailPipelineCreationProcessorNotInstalledOnMasterNode() throws Exception {
+    public void testFailPipelineCreationProcessorNotInstalledOnClusterManagerNode() throws Exception {
         internalCluster().startNode();
         installPlugin = true;
         internalCluster().startNode();

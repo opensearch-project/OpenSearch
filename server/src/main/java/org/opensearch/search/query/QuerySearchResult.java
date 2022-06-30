@@ -58,6 +58,11 @@ import static java.util.Collections.emptyList;
 import static org.opensearch.common.lucene.Lucene.readTopDocs;
 import static org.opensearch.common.lucene.Lucene.writeTopDocs;
 
+/**
+ * The result of the query search
+ *
+ * @opensearch.internal
+ */
 public final class QuerySearchResult extends SearchPhaseResult {
 
     private int from;

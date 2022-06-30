@@ -38,9 +38,16 @@ import org.opensearch.script.ScriptFactory;
 
 /**
  * Base class for scripts used as interval filters, see {@link IntervalsSourceProvider.IntervalFilter}
+ *
+ * @opensearch.internal
  */
 public abstract class IntervalFilterScript {
 
+    /**
+     * Internal interval
+     *
+     * @opensearch.internal
+     */
     public static class Interval {
 
         private IntervalIterator iterator;
@@ -64,6 +71,11 @@ public abstract class IntervalFilterScript {
 
     public abstract boolean execute(Interval interval);
 
+    /**
+     * Factory to create a script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         IntervalFilterScript newInstance();
     }

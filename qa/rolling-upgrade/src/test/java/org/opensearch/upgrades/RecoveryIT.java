@@ -48,9 +48,6 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.rest.action.document.RestGetAction;
-import org.opensearch.rest.action.document.RestIndexAction;
-import org.opensearch.rest.action.document.RestUpdateAction;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -67,7 +64,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
@@ -93,7 +90,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
-                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // then delayed allocation will kick in. When the node comes back, the cluster-manager will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
@@ -124,7 +121,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
             Request indexDoc = new Request("PUT", index + "/_doc/" + id);
-            indexDoc.setJsonEntity("{\"test\": \"test_" + randomAsciiOfLength(2) + "\"}");
+            indexDoc.setJsonEntity("{\"test\": \"test_" + randomAsciiLettersOfLength(2) + "\"}");
             client().performRequest(indexDoc);
         }
         return numDocs;
@@ -161,7 +158,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     // if the node with the replica is the first to be restarted, while a replica is still recovering
-                    // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                    // then delayed allocation will kick in. When the node comes back, the cluster-manager will search for a copy
                     // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                     // before timing out
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
@@ -259,7 +256,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     // if the node with the replica is the first to be restarted, while a replica is still recovering
-                    // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                    // then delayed allocation will kick in. When the node comes back, the cluster-manager will search for a copy
                     // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                     // before timing out
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
@@ -269,7 +266,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 indexDocs(index, 0, 10);
                 ensureGreen(index);
                 // make sure that no shards are allocated, so we can make sure the primary stays on the old node (when one
-                // node stops, we lose the master too, so a replica will not be promoted)
+                // node stops, we lose the cluster-manager too, so a replica will not be promoted)
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
                 break;
             case MIXED:
@@ -333,7 +330,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
-                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // then delayed allocation will kick in. When the node comes back, the cluster-manager will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
@@ -451,7 +448,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
-                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // then delayed allocation will kick in. When the node comes back, the cluster-manager will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
@@ -659,7 +656,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
             for (int i = 0; i < times; i++) {
                 long value = randomNonNegativeLong();
                 Request update = new Request("POST", index + "/_update/" + docId);
-                update.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
                 update.setJsonEntity("{\"doc\": {\"updated_field\": " + value + "}}");
                 client().performRequest(update);
                 updates.put(docId, value);
@@ -668,7 +664,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         client().performRequest(new Request("POST", index + "/_refresh"));
         for (int docId : updates.keySet()) {
             Request get = new Request("GET", index + "/_doc/" + docId);
-            get.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
             Map<String, Object> doc = entityAsMap(client().performRequest(get));
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }

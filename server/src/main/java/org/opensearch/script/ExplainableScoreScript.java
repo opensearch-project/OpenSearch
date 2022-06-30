@@ -33,6 +33,7 @@
 package org.opensearch.script;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.common.Nullable;
 
 import java.io.IOException;
 
@@ -40,6 +41,8 @@ import java.io.IOException;
  * To be implemented by {@link ScoreScript} which can provided an {@link Explanation} of the score
  * This is currently not used inside opensearch but it is used, see for example here:
  * https://github.com/elastic/elasticsearch/issues/8561
+ *
+ * @opensearch.internal
  */
 public interface ExplainableScoreScript {
 
@@ -49,7 +52,21 @@ public interface ExplainableScoreScript {
      * want to explain how that was computed.
      *
      * @param subQueryScore the Explanation for _score
+     * @deprecated please use {@code explain(Explanation subQueryScore, @Nullable String scriptName)}
      */
+    @Deprecated
     Explanation explain(Explanation subQueryScore) throws IOException;
+
+    /**
+     * Build the explanation of the current document being scored
+     * The script score needs the Explanation of the sub query score because it might use _score and
+     * want to explain how that was computed.
+     *
+     * @param subQueryScore the Explanation for _score
+     * @param scriptName the script name
+     */
+    default Explanation explain(Explanation subQueryScore, @Nullable String scriptName) throws IOException {
+        return explain(subQueryScore);
+    }
 
 }

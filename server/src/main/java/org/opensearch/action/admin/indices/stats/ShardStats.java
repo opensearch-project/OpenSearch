@@ -46,6 +46,11 @@ import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
+/**
+ * Shard Stats for OpenSearch
+ *
+ * @opensearch.internal
+ */
 public class ShardStats implements Writeable, ToXContentFragment {
 
     private ShardRouting shardRouting;
@@ -172,6 +177,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String ROUTING = "routing";
         static final String STATE = "state";

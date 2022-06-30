@@ -50,6 +50,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to refresh
+ *
+ * @opensearch.api
+ */
 public class RestRefreshAction extends BaseRestHandler {
 
     @Override

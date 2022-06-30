@@ -35,10 +35,17 @@ import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
 
+/**
+ * Rare terms interface
+ *
+ * @opensearch.internal
+ */
 public interface RareTerms extends MultiBucketsAggregation {
 
     /**
      * A bucket that is associated with a single term
+     *
+     * @opensearch.internal
      */
     interface Bucket extends MultiBucketsAggregation.Bucket {
 

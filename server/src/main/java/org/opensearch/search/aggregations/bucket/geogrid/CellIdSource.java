@@ -42,6 +42,8 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 /**
  * Wrapper class to help convert {@link MultiGeoPointValues}
  * to numeric long values for bucketing.
+ *
+ * @opensearch.internal
  */
 public class CellIdSource extends ValuesSource.Numeric {
     private final ValuesSource.GeoPoint valuesSource;
@@ -87,6 +89,8 @@ public class CellIdSource extends ValuesSource.Numeric {
     /**
      * The encoder to use to convert a geopoint's (lon, lat, precision) into
      * a long-encoded bucket key for aggregating.
+     *
+     * @opensearch.internal
      */
     @FunctionalInterface
     public interface GeoPointLongEncoder {

@@ -41,6 +41,11 @@ import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * Base class for retrieving LatLonPoint docvalues
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointFieldData {
 
     @Override

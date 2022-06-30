@@ -34,6 +34,7 @@ package org.opensearch.index.get;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
@@ -62,10 +63,14 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
+/**
+ * Result provided for a search get
+ *
+ * @opensearch.api
+ */
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
 
     public static final String _INDEX = "_index";
-    public static final String _TYPE = "_type";
     public static final String _ID = "_id";
     private static final String _VERSION = "_version";
     private static final String _SEQ_NO = "_seq_no";
@@ -74,7 +79,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     private static final String FIELDS = "fields";
 
     private String index;
-    private String type;
     private String id;
     private long version;
     private long seqNo;
@@ -88,7 +92,9 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
     public GetResult(StreamInput in) throws IOException {
         index = in.readString();
-        type = in.readOptionalString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            in.readOptionalString();
+        }
         id = in.readString();
         seqNo = in.readZLong();
         primaryTerm = in.readVLong();
@@ -121,7 +127,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
     public GetResult(
         String index,
-        String type,
         String id,
         long seqNo,
         long primaryTerm,
@@ -132,7 +137,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         Map<String, DocumentField> metaFields
     ) {
         this.index = index;
-        this.type = type;
         this.id = id;
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
@@ -161,13 +165,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
      */
     public String getIndex() {
         return index;
-    }
-
-    /**
-     * The type of the document.
-     */
-    public String getType() {
-        return type;
     }
 
     /**
@@ -337,7 +334,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
-        builder.field(_TYPE, type);
         builder.field(_ID, id);
         if (isExists()) {
             if (version != -1) {
@@ -354,10 +350,10 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     public static GetResult fromXContentEmbedded(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-        return fromXContentEmbedded(parser, null, null, null);
+        return fromXContentEmbedded(parser, null, null);
     }
 
-    public static GetResult fromXContentEmbedded(XContentParser parser, String index, String type, String id) throws IOException {
+    public static GetResult fromXContentEmbedded(XContentParser parser, String index, String id) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
@@ -375,8 +371,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             } else if (token.isValue()) {
                 if (_INDEX.equals(currentFieldName)) {
                     index = parser.text();
-                } else if (_TYPE.equals(currentFieldName)) {
-                    type = parser.text();
                 } else if (_ID.equals(currentFieldName)) {
                     id = parser.text();
                 } else if (_VERSION.equals(currentFieldName)) {
@@ -414,7 +408,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                 }
             }
         }
-        return new GetResult(index, type, id, seqNo, primaryTerm, version, found, source, documentFields, metaFields);
+        return new GetResult(index, id, seqNo, primaryTerm, version, found, source, documentFields, metaFields);
     }
 
     public static GetResult fromXContent(XContentParser parser) throws IOException {
@@ -442,7 +436,9 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeOptionalString(type);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeZLong(seqNo);
         out.writeVLong(primaryTerm);
@@ -484,7 +480,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             && primaryTerm == getResult.primaryTerm
             && exists == getResult.exists
             && Objects.equals(index, getResult.index)
-            && Objects.equals(type, getResult.type)
             && Objects.equals(id, getResult.id)
             && Objects.equals(documentFields, getResult.documentFields)
             && Objects.equals(metaFields, getResult.metaFields)
@@ -493,7 +488,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
     @Override
     public int hashCode() {
-        return Objects.hash(version, seqNo, primaryTerm, exists, index, type, id, documentFields, metaFields, sourceAsMap());
+        return Objects.hash(version, seqNo, primaryTerm, exists, index, id, documentFields, metaFields, sourceAsMap());
     }
 
     @Override

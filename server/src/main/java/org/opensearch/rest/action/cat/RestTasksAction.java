@@ -62,6 +62,11 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
 
+/**
+ * _cat API action to get tasks information
+ *
+ * @opensearch.api
+ */
 public class RestTasksAction extends AbstractCatAction {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
@@ -137,6 +142,7 @@ public class RestTasksAction extends AbstractCatAction {
         // Task detailed info
         if (detailed) {
             table.addCell("description", "default:true;alias:desc;desc:task action");
+            table.addCell("resource_stats", "default:false;desc:resource consumption info of the task");
         }
         table.endHeaders();
         return table;
@@ -173,6 +179,7 @@ public class RestTasksAction extends AbstractCatAction {
 
         if (detailed) {
             table.addCell(taskInfo.getDescription());
+            table.addCell(taskInfo.getResourceStats());
         }
         table.endRow();
     }

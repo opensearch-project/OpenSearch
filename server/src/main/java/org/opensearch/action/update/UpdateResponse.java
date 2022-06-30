@@ -45,6 +45,11 @@ import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * Transport response for updating an index
+ *
+ * @opensearch.internal
+ */
 public class UpdateResponse extends DocWriteResponse {
 
     private static final String GET = "get";
@@ -69,21 +74,12 @@ public class UpdateResponse extends DocWriteResponse {
      * Constructor to be used when a update didn't translate in a write.
      * For example: update script with operation set to none
      */
-    public UpdateResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        this(new ShardInfo(0, 0), shardId, type, id, seqNo, primaryTerm, version, result);
+    public UpdateResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+        this(new ShardInfo(0, 0), shardId, id, seqNo, primaryTerm, version, result);
     }
 
-    public UpdateResponse(
-        ShardInfo shardInfo,
-        ShardId shardId,
-        String type,
-        String id,
-        long seqNo,
-        long primaryTerm,
-        long version,
-        Result result
-    ) {
-        super(shardId, type, id, seqNo, primaryTerm, version, result);
+    public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, id, seqNo, primaryTerm, version, result);
         setShardInfo(shardInfo);
     }
 
@@ -137,7 +133,6 @@ public class UpdateResponse extends DocWriteResponse {
         StringBuilder builder = new StringBuilder();
         builder.append("UpdateResponse[");
         builder.append("index=").append(getIndex());
-        builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
         builder.append(",seqNo=").append(getSeqNo());
@@ -177,6 +172,8 @@ public class UpdateResponse extends DocWriteResponse {
      * Builder class for {@link UpdateResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
      * instantiate the {@link UpdateResponse}.
+     *
+     * @opensearch.internal
      */
     public static class Builder extends DocWriteResponse.Builder {
 
@@ -190,15 +187,14 @@ public class UpdateResponse extends DocWriteResponse {
         public UpdateResponse build() {
             UpdateResponse update;
             if (shardInfo != null) {
-                update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, primaryTerm, version, result);
+                update = new UpdateResponse(shardInfo, shardId, id, seqNo, primaryTerm, version, result);
             } else {
-                update = new UpdateResponse(shardId, type, id, seqNo, primaryTerm, version, result);
+                update = new UpdateResponse(shardId, id, seqNo, primaryTerm, version, result);
             }
             if (getResult != null) {
                 update.setGetResult(
                     new GetResult(
                         update.getIndex(),
-                        update.getType(),
                         update.getId(),
                         getResult.getSeqNo(),
                         getResult.getPrimaryTerm(),

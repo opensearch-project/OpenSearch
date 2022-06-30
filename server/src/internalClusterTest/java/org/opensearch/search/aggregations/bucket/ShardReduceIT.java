@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardReduceIT extends OpenSearchIntegTestCase {
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
-        return client().prepareIndex("idx", "type")
+        return client().prepareIndex("idx")
             .setSource(
                 jsonBuilder().startObject()
                     .field("value", value)
@@ -94,8 +94,7 @@ public class ShardReduceIT extends OpenSearchIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
-            prepareCreate("idx").addMapping(
-                "type",
+            prepareCreate("idx").setMapping(
                 "nested",
                 "type=nested",
                 "ip",

@@ -44,6 +44,8 @@ import java.util.List;
  * <p>
  * Can either be a leaf node consisting of a Coordinate, or a parent with
  * children
+ *
+ * @opensearch.internal
  */
 public class CoordinateNode implements ToXContentObject {
     public final Coordinate coordinate;

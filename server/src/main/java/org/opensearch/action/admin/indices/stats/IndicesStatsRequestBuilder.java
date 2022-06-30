@@ -44,6 +44,8 @@ import org.opensearch.common.unit.TimeValue;
  * <p>
  * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
+ *
+ * @opensearch.internal
  */
 public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<
     IndicesStatsRequest,
@@ -75,15 +77,6 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
      */
     public final IndicesStatsRequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * Document types to return stats for. Mainly affects {@link #setIndexing(boolean)} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public IndicesStatsRequestBuilder setTypes(String... types) {
-        request.types(types);
         return this;
     }
 

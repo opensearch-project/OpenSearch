@@ -38,6 +38,11 @@ import org.opensearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
+/**
+ * Thrown when there are errors during the fetch phase
+ *
+ * @opensearch.internal
+ */
 public class FetchPhaseExecutionException extends SearchException {
 
     public FetchPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable t) {

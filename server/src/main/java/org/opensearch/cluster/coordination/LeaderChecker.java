@@ -75,6 +75,8 @@ import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
  * fairly lenient, possibly allowing multiple checks to fail before considering the leader to be faulty, to allow for the leader to
  * temporarily stand down on occasion, e.g. if it needs to move to a higher term. On deciding that the leader has failed a follower will
  * become a candidate and attempt to become a leader itself.
+ *
+ * @opensearch.internal
  */
 public class LeaderChecker {
 
@@ -190,7 +192,7 @@ public class LeaderChecker {
     }
 
     // For assertions
-    boolean currentNodeIsMaster() {
+    boolean currentNodeIsClusterManager() {
         return discoveryNodes.isLocalNodeElectedMaster();
     }
 
@@ -208,9 +210,9 @@ public class LeaderChecker {
             logger.debug(message);
             throw new NodeHealthCheckFailureException(message);
         } else if (discoveryNodes.isLocalNodeElectedMaster() == false) {
-            logger.debug("rejecting leader check on non-master {}", request);
+            logger.debug("rejecting leader check on non-cluster-manager {}", request);
             throw new CoordinationStateRejectedException(
-                "rejecting leader check from [" + request.getSender() + "] sent to a node that is no longer the master"
+                "rejecting leader check from [" + request.getSender() + "] sent to a node that is no longer the cluster-manager"
             );
         } else if (discoveryNodes.nodeExists(request.getSender()) == false) {
             logger.debug("rejecting leader check from removed node: {}", request);
@@ -231,6 +233,11 @@ public class LeaderChecker {
         }
     }
 
+    /**
+     * A check scheduler.
+     *
+     * @opensearch.internal
+     */
     private class CheckScheduler implements Releasable {
 
         private final AtomicBoolean isClosed = new AtomicBoolean();
@@ -378,6 +385,11 @@ public class LeaderChecker {
         }
     }
 
+    /**
+     * A leader check request.
+     *
+     * @opensearch.internal
+     */
     static class LeaderCheckRequest extends TransportRequest {
 
         private final DiscoveryNode sender;

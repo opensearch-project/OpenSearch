@@ -90,6 +90,8 @@ import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
  * <p>
  * These parameters are combined in a {@link WeightFunction} that allows calculation of node weights which
  * are used to re-balance shards based on global as well as per-index factors.
+ *
+ * @opensearch.internal
  */
 public class BalancedShardsAllocator implements ShardsAllocator {
 
@@ -289,6 +291,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     /**
      * A {@link Balancer}
+     *
+     * @opensearch.internal
      */
     public static class Balancer {
         private final Logger logger;
@@ -1190,6 +1194,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     }
 
+    /**
+     * A model node.
+     *
+     * @opensearch.internal
+     */
     public static class ModelNode implements Iterable<ModelIndex> {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
@@ -1268,6 +1277,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     }
 
+    /**
+     * A model index.
+     *
+     * @opensearch.internal
+     */
     static final class ModelIndex implements Iterable<ShardRouting> {
         private final String id;
         private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
@@ -1320,6 +1334,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
+    /**
+     * A node sorter.
+     *
+     * @opensearch.internal
+     */
     static final class NodeSorter extends IntroSorter {
 
         final ModelNode[] modelNodes;

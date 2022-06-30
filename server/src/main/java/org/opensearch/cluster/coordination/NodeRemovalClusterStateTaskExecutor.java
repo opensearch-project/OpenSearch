@@ -43,6 +43,11 @@ import org.opensearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.List;
 
+/**
+ * Update cluster state when node is removed from the cluster
+ *
+ * @opensearch.internal
+ */
 public class NodeRemovalClusterStateTaskExecutor
     implements
         ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>,
@@ -51,6 +56,11 @@ public class NodeRemovalClusterStateTaskExecutor
     private final AllocationService allocationService;
     private final Logger logger;
 
+    /**
+     * Task for the executor.
+     *
+     * @opensearch.internal
+     */
     public static class Task {
 
         private final DiscoveryNode node;
@@ -127,7 +137,7 @@ public class NodeRemovalClusterStateTaskExecutor
 
     @Override
     public void onNoLongerMaster(String source) {
-        logger.debug("no longer master while processing node removal [{}]", source);
+        logger.debug("no longer cluster-manager while processing node removal [{}]", source);
     }
 
 }

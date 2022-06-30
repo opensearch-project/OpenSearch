@@ -52,6 +52,8 @@ import java.io.IOException;
  *
  * <b>NOTE</b>: With deterministic field values this query can be used across different readers safely.
  * If updates are accepted on the field you must ensure that the same reader is used for all `slice` queries.
+ *
+ * @opensearch.internal
  */
 public final class DocValuesSliceQuery extends SliceQuery {
     public DocValuesSliceQuery(String field, int id, int max) {

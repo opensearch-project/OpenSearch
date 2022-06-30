@@ -37,7 +37,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.LeafBucketCollector;
@@ -83,6 +83,10 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
             return terms.length;
         }
 
+        @Override
+        public long docValueCount() {
+            return ords.length;
+        }
     }
 
     private void doTestSortedSetRangeLeafCollector(int maxNumValuesPerDoc) throws Exception {

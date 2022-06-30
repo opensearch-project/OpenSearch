@@ -36,11 +36,16 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.shard.ShardId;
 
+/**
+ * Updates the mappings on the cluster manager
+ *
+ * @opensearch.internal
+ */
 public interface MappingUpdatePerformer {
 
     /**
-     * Update the mappings on the master.
+     * Update the mappings on the cluster-manager.
      */
-    void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener);
+    void updateMappings(Mapping update, ShardId shardId, ActionListener<Void> listener);
 
 }

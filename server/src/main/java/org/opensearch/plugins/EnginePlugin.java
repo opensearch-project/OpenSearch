@@ -34,6 +34,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
@@ -44,6 +45,8 @@ import java.util.function.Supplier;
 
 /**
  * A plugin that provides alternative engine implementations.
+ *
+ * @opensearch.api
  */
 public interface EnginePlugin {
 
@@ -55,7 +58,9 @@ public interface EnginePlugin {
      *
      * @return an optional engine factory
      */
-    Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings);
+    default Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+        return Optional.empty();
+    }
 
     /**
      * EXPERT:
@@ -63,8 +68,23 @@ public interface EnginePlugin {
      * to determine if a custom {@link CodecService} should be provided for the given index. A plugin that is not overriding
      * the {@link CodecService} through the plugin can ignore this method and the Codec specified in the {@link IndexSettings}
      * will be used.
+     *
+     * @deprecated Please use {@code getCustomCodecServiceFactory()} instead as it provides more context for {@link CodecService}
+     * instance construction.
      */
+    @Deprecated
     default Optional<CodecService> getCustomCodecService(IndexSettings indexSettings) {
+        return Optional.empty();
+    }
+
+    /**
+     * EXPERT:
+     * When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the index settings
+     * to determine if a custom {@link CodecServiceFactory} should be provided for the given index. A plugin that is not overriding
+     * the {@link CodecServiceFactory} through the plugin can ignore this method and the default Codec specified in the
+     * {@link IndexSettings} will be used.
+     */
+    default Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
         return Optional.empty();
     }
 

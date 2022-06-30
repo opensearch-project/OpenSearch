@@ -1,8 +1,3 @@
-setup:
-  - skip:
-        version: " - 6.3.99"
-        reason:  "moving_fn added in 6.4.0"
-
 ---
 "Bad window":
 
@@ -79,4 +74,3 @@ setup:
                 buckets_path: "the_avg"
                 window: -1
                 script: "MovingFunctions.windowMax(values)"
-

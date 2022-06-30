@@ -85,14 +85,14 @@ public class GceDiscoverTests extends OpenSearchIntegTestCase {
     }
 
     public void testJoin() {
-        // start master node
-        final String masterNode = internalCluster().startMasterOnlyNode();
-        registerGceNode(masterNode);
+        // start cluster-manager node
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        registerGceNode(clusterManagerNode);
 
-        ClusterStateResponse clusterStateResponse = client(masterNode).admin()
+        ClusterStateResponse clusterStateResponse = client(clusterManagerNode).admin()
             .cluster()
             .prepareState()
-            .setMasterNodeTimeout("1s")
+            .setClusterManagerNodeTimeout("1s")
             .clear()
             .setNodes(true)
             .get();
@@ -104,7 +104,7 @@ public class GceDiscoverTests extends OpenSearchIntegTestCase {
         clusterStateResponse = client(secondNode).admin()
             .cluster()
             .prepareState()
-            .setMasterNodeTimeout("1s")
+            .setClusterManagerNodeTimeout("1s")
             .clear()
             .setNodes(true)
             .setLocal(true)

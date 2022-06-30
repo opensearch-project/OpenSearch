@@ -168,7 +168,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
     }
 
     public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index", "type", "id"));
+        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index", "id"));
 
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
@@ -183,9 +183,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
     }
 
     public void testDeleteNonExistingDocExternalVersionCreatesIndex() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest().add(
-            new DeleteRequest("index", "type", "id").versionType(VersionType.EXTERNAL).version(0)
-        );
+        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index", "id").versionType(VersionType.EXTERNAL).version(0));
 
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
@@ -194,9 +192,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
     }
 
     public void testDeleteNonExistingDocExternalGteVersionCreatesIndex() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest().add(
-            new DeleteRequest("index2", "type", "id").versionType(VersionType.EXTERNAL_GTE).version(0)
-        );
+        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index2", "id").versionType(VersionType.EXTERNAL_GTE).version(0));
 
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
@@ -205,12 +201,10 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
     }
 
     public void testGetIndexWriteRequest() throws Exception {
-        IndexRequest indexRequest = new IndexRequest("index", "type", "id1").source(emptyMap());
-        UpdateRequest upsertRequest = new UpdateRequest("index", "type", "id1").upsert(indexRequest).script(mockScript("1"));
-        UpdateRequest docAsUpsertRequest = new UpdateRequest("index", "type", "id2").doc(indexRequest).docAsUpsert(true);
-        UpdateRequest scriptedUpsert = new UpdateRequest("index", "type", "id2").upsert(indexRequest)
-            .script(mockScript("1"))
-            .scriptedUpsert(true);
+        IndexRequest indexRequest = new IndexRequest("index").id("id1").source(emptyMap());
+        UpdateRequest upsertRequest = new UpdateRequest("index", "id1").upsert(indexRequest).script(mockScript("1"));
+        UpdateRequest docAsUpsertRequest = new UpdateRequest("index", "id2").doc(indexRequest).docAsUpsert(true);
+        UpdateRequest scriptedUpsert = new UpdateRequest("index", "id2").upsert(indexRequest).script(mockScript("1")).scriptedUpsert(true);
 
         assertEquals(TransportBulkAction.getIndexWriteRequest(indexRequest), indexRequest);
         assertEquals(TransportBulkAction.getIndexWriteRequest(upsertRequest), indexRequest);
@@ -220,7 +214,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         DeleteRequest deleteRequest = new DeleteRequest("index", "id");
         assertNull(TransportBulkAction.getIndexWriteRequest(deleteRequest));
 
-        UpdateRequest badUpsertRequest = new UpdateRequest("index", "type", "id1");
+        UpdateRequest badUpsertRequest = new UpdateRequest("index", "id1");
         assertNull(TransportBulkAction.getIndexWriteRequest(badUpsertRequest));
     }
 

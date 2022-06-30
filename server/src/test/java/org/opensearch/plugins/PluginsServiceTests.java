@@ -35,7 +35,7 @@ package org.opensearch.plugins;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
@@ -102,7 +102,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             settings,
             null,
             null,
-            TestEnvironment.newEnvironment(settings).pluginsFile(),
+            TestEnvironment.newEnvironment(settings).pluginsDir(),
             Arrays.asList(classpathPlugins)
         );
     }
@@ -723,7 +723,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "desc",
             "1.0",
             Version.CURRENT,
-            "1000000.0",
+            "1000000",
             "FakePlugin",
             Collections.emptyList(),
             false

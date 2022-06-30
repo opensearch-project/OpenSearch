@@ -67,6 +67,8 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class BindingProcessor extends AbstractProcessor {
 
@@ -274,7 +276,7 @@ class BindingProcessor extends AbstractProcessor {
         }
 
         // prevent the parent from creating a JIT binding for this key
-        injector.state.parent().blacklist(key);
+        injector.state.parent().denylist(key);
         injector.state.putBinding(key, binding);
     }
 
@@ -293,7 +295,7 @@ class BindingProcessor extends AbstractProcessor {
         return false;
     }
 
-    // It's unfortunate that we have to maintain a blacklist of specific
+    // It's unfortunate that we have to maintain a denylist of specific
     // classes, but we can't easily block the whole package because of
     // all our unit tests.
     private static final Set<Class<?>> FORBIDDEN_TYPES = unmodifiableSet(
@@ -312,6 +314,11 @@ class BindingProcessor extends AbstractProcessor {
     );
     // TODO(jessewilson): fix BuiltInModule, then add Stage
 
+    /**
+     * A listener for a process creation
+     *
+     * @opensearch.internal
+     */
     interface CreationListener {
         void notify(Errors errors);
     }

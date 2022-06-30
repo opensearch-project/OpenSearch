@@ -49,6 +49,8 @@ import java.util.List;
  * additional features, such as SSD detection and better
  * filesystem information for the root filesystem.
  * @see Environment#getFileStore(Path)
+ *
+ * @opensearch.internal
  */
 class OpenSearchFileStore extends FileStore {
     /** Underlying filestore */

@@ -117,7 +117,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Integration tests for task management API
  * <p>
- * We need at least 2 nodes so we have a master node a non-master node
+ * We need at least 2 nodes so we have a cluster-manager node a non-cluster-manager node
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends OpenSearchIntegTestCase {
@@ -154,17 +154,17 @@ public class TasksIT extends OpenSearchIntegTestCase {
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(cluster().numDataNodes()));
     }
 
-    public void testMasterNodeOperationTasks() {
+    public void testClusterManagerNodeOperationTasks() {
         registerTaskManagerListeners(ClusterHealthAction.NAME);
 
-        // First run the health on the master node - should produce only one task on the master node
+        // First run the health on the cluster-manager node - should produce only one task on the cluster-manager node
         internalCluster().masterClient().admin().cluster().prepareHealth().get();
         assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
 
         resetTaskManagerListeners(ClusterHealthAction.NAME);
 
-        // Now run the health on a non-master node - should produce one task on master and one task on another node
+        // Now run the health on a non-cluster-manager node - should produce one task on cluster-manager and one task on another node
         internalCluster().nonMasterClient().admin().cluster().prepareHealth().get();
         assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
@@ -318,10 +318,8 @@ public class TasksIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
-        client().admin().indices().preparePutMapping("test").setType("doc").setSource("foo", "type=keyword").get();
-        client().prepareBulk()
-            .add(client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON))
-            .get();
+        client().admin().indices().preparePutMapping("test").setSource("foo", "type=keyword").get();
+        client().prepareBulk().add(client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
         List<TaskInfo> topTask = findEvents(BulkAction.NAME, Tuple::v1);
@@ -370,7 +368,8 @@ public class TasksIT extends OpenSearchIntegTestCase {
         registerTaskManagerListeners(SearchAction.NAME + "[*]");  // shard task
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
-        client().prepareIndex("test", "doc", "test_id")
+        client().prepareIndex("test")
+            .setId("test_id")
             .setSource("{\"foo\": \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -379,14 +378,12 @@ public class TasksIT extends OpenSearchIntegTestCase {
         headers.put(Task.X_OPAQUE_ID, "my_id");
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
-        assertSearchResponse(
-            client().filterWithHeader(headers).prepareSearch("test").setTypes("doc").setQuery(QueryBuilders.matchAllQuery()).get()
-        );
+        assertSearchResponse(client().filterWithHeader(headers).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).get());
 
         // the search operation should produce one main task
         List<TaskInfo> mainTask = findEvents(SearchAction.NAME, Tuple::v1);
         assertEquals(1, mainTask.size());
-        assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], types[doc], search_type["));
+        assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], search_type["));
         assertThat(mainTask.get(0).getDescription(), containsString("\"query\":{\"match_all\""));
         assertTaskHeaders(mainTask.get(0));
 
@@ -477,7 +474,7 @@ public class TasksIT extends OpenSearchIntegTestCase {
             }
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
             index = new Thread(() -> {
-                IndexResponse indexResponse = client().prepareIndex("test", "test").setSource("test", "test").get();
+                IndexResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
                 assertArrayEquals(ReplicationResponse.EMPTY, indexResponse.getShardInfo().getFailures());
             });
             index.start();
@@ -829,14 +826,12 @@ public class TasksIT extends OpenSearchIntegTestCase {
         assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
         SearchResponse searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
-            .setTypes(TaskResultsService.TASK_TYPE)
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.getAction())))
             .get();
 
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
         searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
-            .setTypes(TaskResultsService.TASK_TYPE)
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.getTaskId().getNodeId())))
             .get();
 
@@ -845,6 +840,11 @@ public class TasksIT extends OpenSearchIntegTestCase {
         GetTaskResponse getResponse = expectFinishedTask(taskId);
         assertEquals(result, getResponse.getTask().getResponseAsMap());
         assertNull(getResponse.getTask().getError());
+
+        // run it again to check that the tasks index has been successfully created and can be re-used
+        client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request).get();
+        events = findEvents(TestTaskPlugin.TestTaskAction.NAME, Tuple::v1);
+        assertEquals(2, events.size());
     }
 
     public void testTaskStoringFailureResult() throws Exception {
@@ -907,7 +907,8 @@ public class TasksIT extends OpenSearchIntegTestCase {
                     false,
                     false,
                     TaskId.EMPTY_TASK_ID,
-                    Collections.emptyMap()
+                    Collections.emptyMap(),
+                    null
                 ),
                 new RuntimeException("test")
             ),

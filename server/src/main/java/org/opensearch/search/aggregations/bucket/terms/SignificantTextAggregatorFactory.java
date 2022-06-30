@@ -68,6 +68,11 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.function.LongConsumer;
 
+/**
+ * Aggregation Factory for significant_text agg
+ *
+ * @opensearch.internal
+ */
 public class SignificantTextAggregatorFactory extends AggregatorFactory {
     private static final int MEMORY_GROWTH_REPORTING_INTERVAL_BYTES = 5000;
 
@@ -137,7 +142,10 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
         // TODO - need to check with mapping that this is indeed a text field....
 
-        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null : includeExclude.convertToStringFilter(DocValueFormat.RAW);
+        int maxRegexLength = searchContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+        IncludeExclude.StringFilter incExcFilter = includeExclude == null
+            ? null
+            : includeExclude.convertToStringFilter(DocValueFormat.RAW, maxRegexLength);
 
         MapStringTermsAggregator.CollectorSource collectorSource = new SignificantTextCollectorSource(
             queryShardContext.lookup().source(),
@@ -165,6 +173,11 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         );
     }
 
+    /**
+     * Collects significant text
+     *
+     * @opensearch.internal
+     */
     private static class SignificantTextCollectorSource implements MapStringTermsAggregator.CollectorSource {
         private final SourceLookup sourceLookup;
         private final BigArrays bigArrays;

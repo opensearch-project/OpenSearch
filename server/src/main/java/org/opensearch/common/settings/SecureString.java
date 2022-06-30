@@ -38,6 +38,8 @@ import java.util.Objects;
 
 /**
  * A String implementations which allows clearing the underlying char array.
+ *
+ * @opensearch.internal
  */
 public final class SecureString implements CharSequence, Closeable {
 

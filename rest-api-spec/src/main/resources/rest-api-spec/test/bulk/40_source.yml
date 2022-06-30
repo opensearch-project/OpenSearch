@@ -1,9 +1,5 @@
 ---
 "Source filtering":
-
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
   - do:
       index:
         refresh: true
@@ -72,4 +68,3 @@
 
   - match: { items.0.update.get._source.foo: garply }
   - is_false: items.0.update.get._source.bar
-

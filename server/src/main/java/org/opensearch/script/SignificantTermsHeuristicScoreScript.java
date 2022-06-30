@@ -36,6 +36,8 @@ import java.util.Map;
 
 /**
  * A script used in significant terms heuristic scoring.
+ *
+ * @opensearch.internal
  */
 public abstract class SignificantTermsHeuristicScoreScript {
 
@@ -45,6 +47,11 @@ public abstract class SignificantTermsHeuristicScoreScript {
 
     public abstract double execute(Map<String, Object> params);
 
+    /**
+     * Factory for a significant terms heuristic score script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         SignificantTermsHeuristicScoreScript newInstance();
     }

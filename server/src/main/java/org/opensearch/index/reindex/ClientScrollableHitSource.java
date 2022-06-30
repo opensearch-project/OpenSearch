@@ -66,6 +66,8 @@ import static org.opensearch.common.util.CollectionUtils.isEmpty;
 
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.
+ *
+ * @opensearch.internal
  */
 public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;
@@ -91,9 +93,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     public void doStart(RejectAwareActionListener<Response> searchListener) {
         if (logger.isDebugEnabled()) {
             logger.debug(
-                "executing initial scroll against {}{}",
-                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices(),
-                isEmpty(firstSearchRequest.types()) ? "" : firstSearchRequest.types()
+                "executing initial scroll against {}",
+                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
             );
         }
         client.search(firstSearchRequest, wrapListener(searchListener));
@@ -178,6 +179,11 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
     }
 
+    /**
+     * A Client hit
+     *
+     * @opensearch.internal
+     */
     private static class ClientHit implements Hit {
         private final SearchHit delegate;
         private final BytesReference source;
@@ -190,11 +196,6 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         @Override
         public String getIndex() {
             return delegate.getIndex();
-        }
-
-        @Override
-        public String getType() {
-            return delegate.getType();
         }
 
         @Override

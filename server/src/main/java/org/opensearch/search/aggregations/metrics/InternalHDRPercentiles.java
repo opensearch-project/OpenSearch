@@ -39,6 +39,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
+/**
+ * Implementation of HDR percentiles agg
+ *
+ * @opensearch.internal
+ */
 public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles implements Percentiles {
     public static final String NAME = "hdr_percentiles";
 
@@ -99,6 +104,11 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
         return new InternalHDRPercentiles(name, keys, merged, keyed, format, metadata);
     }
 
+    /**
+     * Iterator for HDR percentiles
+     *
+     * @opensearch.internal
+     */
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] percents;

@@ -39,6 +39,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Transport request for finding a dangling index
+ *
+ * @opensearch.internal
+ */
 public class FindDanglingIndexRequest extends BaseNodesRequest<FindDanglingIndexRequest> {
     private final String indexUUID;
 

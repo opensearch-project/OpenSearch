@@ -54,6 +54,8 @@ import static org.opensearch.ExceptionsHelper.rethrowAndSuppress;
 
 /**
  * Base class for responses of task-related operations
+ *
+ * @opensearch.internal
  */
 public class BaseTasksResponse extends ActionResponse {
     protected static final String TASK_FAILURES = "task_failures";

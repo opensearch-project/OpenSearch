@@ -37,10 +37,15 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if a document is missing
+ *
+ * @opensearch.internal
+ */
 public class DocumentMissingException extends EngineException {
 
-    public DocumentMissingException(ShardId shardId, String type, String id) {
-        super(shardId, "[" + type + "][" + id + "]: document missing");
+    public DocumentMissingException(ShardId shardId, String id) {
+        super(shardId, "[" + id + "]: document missing");
     }
 
     public DocumentMissingException(StreamInput in) throws IOException {

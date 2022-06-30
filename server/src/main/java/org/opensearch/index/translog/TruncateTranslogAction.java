@@ -67,6 +67,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+/**
+ * Action event when translog is truncated
+ *
+ * @opensearch.internal
+ */
 public class TruncateTranslogAction {
 
     protected static final Logger logger = LogManager.getLogger(TruncateTranslogAction.class);
@@ -245,8 +250,6 @@ public class TruncateTranslogAction {
             StandardOpenOption.READ,
             StandardOpenOption.CREATE_NEW
         );
-        // fsync with metadata here to make sure.
-        IOUtils.fsync(filename, false);
     }
 
     /**

@@ -42,6 +42,11 @@ import org.apache.lucene.search.SimpleCollector;
 
 import java.io.IOException;
 
+/**
+ * A minimum score collector.
+ *
+ * @opensearch.internal
+ */
 public class MinimumScoreCollector extends SimpleCollector {
 
     private final Collector collector;
@@ -55,10 +60,14 @@ public class MinimumScoreCollector extends SimpleCollector {
         this.minimumScore = minimumScore;
     }
 
+    public Collector getCollector() {
+        return collector;
+    }
+
     @Override
     public void setScorer(Scorable scorer) throws IOException {
         if (!(scorer instanceof ScoreCachingWrappingScorer)) {
-            scorer = new ScoreCachingWrappingScorer(scorer);
+            scorer = ScoreCachingWrappingScorer.wrap(scorer);
         }
         this.scorer = scorer;
         leafCollector.setScorer(scorer);

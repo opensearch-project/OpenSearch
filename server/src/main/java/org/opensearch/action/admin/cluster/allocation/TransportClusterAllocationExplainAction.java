@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
@@ -64,9 +64,11 @@ import java.util.List;
 
 /**
  * The {@code TransportClusterAllocationExplainAction} is responsible for actually executing the explanation of a shard's allocation on the
- * master node in the cluster.
+ * cluster-manager node in the cluster.
+ *
+ * @opensearch.internal
  */
-public class TransportClusterAllocationExplainAction extends TransportMasterNodeAction<
+public class TransportClusterAllocationExplainAction extends TransportClusterManagerNodeAction<
     ClusterAllocationExplainRequest,
     ClusterAllocationExplainResponse> {
 

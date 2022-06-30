@@ -55,6 +55,8 @@ import java.util.Locale;
 
 /**
  * This class starts opensearch.
+ *
+ * @opensearch.internal
  */
 class OpenSearch extends EnvironmentAwareCommand {
 
@@ -160,7 +162,7 @@ class OpenSearch extends EnvironmentAwareCommand {
 
         // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
         try {
-            env.validateTmpFile();
+            env.validateTmpDir();
         } catch (IOException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
         }

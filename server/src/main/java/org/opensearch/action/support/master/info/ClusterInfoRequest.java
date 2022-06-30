@@ -32,76 +32,22 @@
 
 package org.opensearch.action.support.master.info;
 
-import org.opensearch.action.IndicesRequest;
-import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Request>> extends MasterNodeReadRequest<Request>
-    implements
-        IndicesRequest.Replaceable {
-
-    private String[] indices = Strings.EMPTY_ARRAY;
-    private String[] types = Strings.EMPTY_ARRAY;
-
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+/**
+ * Transport request for cluster information
+ *
+ * @opensearch.internal
+ */
+public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Request>> extends
+    org.opensearch.action.support.clustermanager.info.ClusterInfoRequest<Request> {
 
     public ClusterInfoRequest() {}
 
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);
-        indices = in.readStringArray();
-        types = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        out.writeStringArray(types);
-        indicesOptions.writeIndicesOptions(out);
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public Request indices(String... indices) {
-        this.indices = indices;
-        return (Request) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Request types(String... types) {
-        this.types = types;
-        return (Request) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Request indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
-        return (Request) this;
-    }
-
-    @Override
-    public String[] indices() {
-        return indices;
-    }
-
-    public String[] types() {
-        return types;
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return indicesOptions;
-    }
-
-    @Override
-    public boolean includeDataStreams() {
-        return true;
-    }
 }

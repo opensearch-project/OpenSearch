@@ -40,7 +40,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -49,7 +48,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -62,13 +60,12 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM
 
 /**
  * Helper to parse bulk requests. This should be considered an internal class.
+ *
+ * @opensearch.internal
  */
 public final class BulkRequestParser {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
-
     private static final ParseField INDEX = new ParseField("_index");
-    private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
     private static final ParseField OP_TYPE = new ParseField("op_type");
@@ -80,16 +77,6 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
-
-    private final boolean warnOnTypeUsage;
-
-    /**
-     * Create a new parser.
-     * @param warnOnTypeUsage whether it warns upon types being explicitly specified
-     */
-    public BulkRequestParser(boolean warnOnTypeUsage) {
-        this.warnOnTypeUsage = warnOnTypeUsage;
-    }
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
         final int res = data.indexOf(marker, from);
@@ -140,49 +127,10 @@ public final class BulkRequestParser {
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
     ) throws IOException {
-        parse(
-            data,
-            defaultIndex,
-            null,
-            defaultRouting,
-            defaultFetchSourceContext,
-            defaultPipeline,
-            defaultRequireAlias,
-            allowExplicitIndex,
-            xContentType,
-            indexRequestConsumer,
-            updateRequestConsumer,
-            deleteRequestConsumer
-        );
-    }
-
-    /**
-     * Parse the provided {@code data} assuming the provided default values. Index requests
-     * will be passed to the {@code indexRequestConsumer}, update requests to the
-     * {@code updateRequestConsumer} and delete requests to the {@code deleteRequestConsumer}.
-     * @deprecated Use {@link #parse(BytesReference, String, String, FetchSourceContext, String, Boolean, boolean, XContentType,
-     * Consumer, Consumer, Consumer)} instead.
-     */
-    @Deprecated
-    public void parse(
-        BytesReference data,
-        @Nullable String defaultIndex,
-        @Nullable String defaultType,
-        @Nullable String defaultRouting,
-        @Nullable FetchSourceContext defaultFetchSourceContext,
-        @Nullable String defaultPipeline,
-        @Nullable Boolean defaultRequireAlias,
-        boolean allowExplicitIndex,
-        XContentType xContentType,
-        Consumer<IndexRequest> indexRequestConsumer,
-        Consumer<UpdateRequest> updateRequestConsumer,
-        Consumer<DeleteRequest> deleteRequestConsumer
-    ) throws IOException {
         XContent xContent = xContentType.xContent();
         int line = 0;
         int from = 0;
         byte marker = xContent.streamSeparator();
-        boolean typesDeprecationLogged = false;
         // Bulk requests can contain a lot of repeated strings for the index, pipeline and routing parameters. This map is used to
         // deduplicate duplicate strings parsed for these parameters. While it does not prevent instantiating the duplicate strings, it
         // reduces their lifetime to the lifetime of this parse call instead of the lifetime of the full bulk request.
@@ -231,7 +179,6 @@ public final class BulkRequestParser {
                 String action = parser.currentName();
 
                 String index = defaultIndex;
-                String type = defaultType;
                 String id = null;
                 String routing = defaultRouting;
                 FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
@@ -244,7 +191,7 @@ public final class BulkRequestParser {
                 String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
 
-                // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
+                // at this stage, next token can either be END_OBJECT (and use default index with auto generated id)
                 // or START_OBJECT which will have another set of parameters
                 token = parser.nextToken();
 
@@ -255,16 +202,10 @@ public final class BulkRequestParser {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
                             if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (!allowExplicitIndex) {
+                                if (allowExplicitIndex == false) {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
-                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (warnOnTypeUsage && typesDeprecationLogged == false) {
-                                    deprecationLogger.deprecate("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
-                                    typesDeprecationLogged = true;
-                                }
-                                type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -333,7 +274,8 @@ public final class BulkRequestParser {
 
                 if ("delete".equals(action)) {
                     deleteRequestConsumer.accept(
-                        new DeleteRequest(index, type, id).routing(routing)
+                        new DeleteRequest(index).id(id)
+                            .routing(routing)
                             .version(version)
                             .versionType(versionType)
                             .setIfSeqNo(ifSeqNo)
@@ -351,7 +293,8 @@ public final class BulkRequestParser {
                     if ("index".equals(action)) {
                         if (opType == null) {
                             indexRequestConsumer.accept(
-                                new IndexRequest(index, type, id).routing(routing)
+                                new IndexRequest(index).id(id)
+                                    .routing(routing)
                                     .version(version)
                                     .versionType(versionType)
                                     .setPipeline(pipeline)
@@ -362,7 +305,8 @@ public final class BulkRequestParser {
                             );
                         } else {
                             indexRequestConsumer.accept(
-                                new IndexRequest(index, type, id).routing(routing)
+                                new IndexRequest(index).id(id)
+                                    .routing(routing)
                                     .version(version)
                                     .versionType(versionType)
                                     .create("create".equals(opType))
@@ -375,7 +319,8 @@ public final class BulkRequestParser {
                         }
                     } else if ("create".equals(action)) {
                         indexRequestConsumer.accept(
-                            new IndexRequest(index, type, id).routing(routing)
+                            new IndexRequest(index).id(id)
+                                .routing(routing)
                                 .version(version)
                                 .versionType(versionType)
                                 .create(true)
@@ -391,7 +336,9 @@ public final class BulkRequestParser {
                                 "Update requests do not support versioning. " + "Please use `if_seq_no` and `if_primary_term` instead"
                             );
                         }
-                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing)
+                        UpdateRequest updateRequest = new UpdateRequest().index(index)
+                            .id(id)
+                            .routing(routing)
                             .retryOnConflict(retryOnConflict)
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)

@@ -44,7 +44,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.search.Queries;
@@ -76,9 +75,6 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +89,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
+ *
+ * @opensearch.internal
  */
 public class QueryShardContext extends QueryRewriteContext {
 
@@ -105,21 +103,12 @@ public class QueryShardContext extends QueryRewriteContext {
     private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
     private final IndexSearcher searcher;
-    private String[] types = Strings.EMPTY_ARRAY;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
 
     private final Index fullyQualifiedIndex;
     private final Predicate<String> indexNameMatcher;
     private final BooleanSupplier allowExpensiveQueries;
-
-    public void setTypes(String... types) {
-        this.types = types;
-    }
-
-    public String[] getTypes() {
-        return types;
-    }
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private boolean allowUnmappedFields;
@@ -160,13 +149,56 @@ public class QueryShardContext extends QueryRewriteContext {
             client,
             searcher,
             nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            false
+        );
+    }
+
+    public QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        boolean validate
+    ) {
+        this(
+            shardId,
+            indexSettings,
+            bigArrays,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            similarityService,
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
             indexNameMatcher,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
                 indexSettings.getIndex().getUUID()
             ),
             allowExpensiveQueries,
-            valuesSourceRegistry
+            valuesSourceRegistry,
+            validate
         );
     }
 
@@ -188,7 +220,8 @@ public class QueryShardContext extends QueryRewriteContext {
             source.indexNameMatcher,
             source.fullyQualifiedIndex,
             source.allowExpensiveQueries,
-            source.valuesSourceRegistry
+            source.valuesSourceRegistry,
+            source.validate()
         );
     }
 
@@ -209,9 +242,10 @@ public class QueryShardContext extends QueryRewriteContext {
         Predicate<String> indexNameMatcher,
         Index fullyQualifiedIndex,
         BooleanSupplier allowExpensiveQueries,
-        ValuesSourceRegistry valuesSourceRegistry
+        ValuesSourceRegistry valuesSourceRegistry,
+        boolean validate
     ) {
-        super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+        super(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
         this.shardId = shardId;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
@@ -325,11 +359,11 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns s {@link DocumentMapper} instance for the given type.
-     * Delegates to {@link MapperService#documentMapper(String)}
+     * Returns s {@link DocumentMapper} instance.
+     * Delegates to {@link MapperService#documentMapper()}
      */
     public DocumentMapper documentMapper(String type) {
-        return mapperService.documentMapper(type);
+        return mapperService.documentMapper();
     }
 
     /**
@@ -377,18 +411,6 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
-    /**
-     * Returns the narrowed down explicit types, or, if not set, all types.
-     */
-    public Collection<String> queryTypes() {
-        String[] types = getTypes();
-        if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = getMapperService().documentMapper();
-            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
-        }
-        return Arrays.asList(types);
-    }
-
     private SearchLookup lookup = null;
 
     /**
@@ -398,8 +420,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
                 getMapperService(),
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
-                types
+                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
             );
         }
         return this.lookup;
@@ -415,8 +436,7 @@ public class QueryShardContext extends QueryRewriteContext {
          */
         return new SearchLookup(
             getMapperService(),
-            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
-            types
+            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
         );
     }
 

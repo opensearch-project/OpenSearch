@@ -61,6 +61,8 @@ import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A query that computes a document score based on the provided script
+ *
+ * @opensearch.internal
  */
 public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQueryBuilder> {
 
@@ -195,9 +197,11 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         }
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
         ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup());
-        Query query = this.query.toQuery(context);
+        final QueryBuilder queryBuilder = this.query;
+        Query query = queryBuilder.toQuery(context);
         return new ScriptScoreQuery(
             query,
+            queryBuilder.queryName(),
             script,
             scoreScriptFactory,
             minScore,

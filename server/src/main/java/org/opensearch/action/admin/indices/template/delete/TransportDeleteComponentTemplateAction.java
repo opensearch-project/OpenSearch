@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -51,7 +51,12 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportDeleteComponentTemplateAction extends TransportMasterNodeAction<
+/**
+ * Transport action for deleting a component template
+ *
+ * @opensearch.internal
+ */
+public class TransportDeleteComponentTemplateAction extends TransportClusterManagerNodeAction<
     DeleteComponentTemplateAction.Request,
     AcknowledgedResponse> {
 
@@ -102,6 +107,6 @@ public class TransportDeleteComponentTemplateAction extends TransportMasterNodeA
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        indexTemplateService.removeComponentTemplate(request.name(), request.masterNodeTimeout(), listener);
+        indexTemplateService.removeComponentTemplate(request.name(), request.clusterManagerNodeTimeout(), listener);
     }
 }

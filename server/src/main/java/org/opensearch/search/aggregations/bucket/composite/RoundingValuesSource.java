@@ -44,6 +44,8 @@ import java.io.IOException;
 /**
  * A wrapper for {@link ValuesSource.Numeric} that uses {@link Rounding} to transform the long values
  * produced by the underlying source.
+ *
+ * @opensearch.internal
  */
 class RoundingValuesSource extends ValuesSource.Numeric {
     private final ValuesSource.Numeric vs;

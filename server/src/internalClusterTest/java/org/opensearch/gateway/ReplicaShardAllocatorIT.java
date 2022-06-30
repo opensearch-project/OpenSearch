@@ -113,7 +113,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, between(100, 500))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                 .collect(Collectors.toList())
         );
         client().admin().indices().prepareFlush(indexName).get();
@@ -123,7 +123,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
                 false,
                 randomBoolean(),
                 IntStream.range(0, between(0, 80))
-                    .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                    .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                     .collect(Collectors.toList())
             );
         }
@@ -192,7 +192,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, between(10, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                 .collect(Collectors.toList())
         );
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
@@ -202,7 +202,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
                 false,
                 randomBoolean(),
                 IntStream.range(0, between(10, 100))
-                    .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                    .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                     .collect(Collectors.toList())
             );
         }
@@ -231,7 +231,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, between(50, 200))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                 .collect(Collectors.toList())
         );
         client().admin().indices().prepareFlush(indexName).get();
@@ -288,7 +288,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, between(200, 500))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                 .collect(Collectors.toList())
         );
         client().admin().indices().prepareFlush(indexName).get();
@@ -297,7 +297,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, between(0, 80))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                 .collect(Collectors.toList())
         );
         if (randomBoolean()) {
@@ -327,7 +327,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
 
     public void testPreferCopyWithHighestMatchingOperations() throws Exception {
         String indexName = "test";
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(3);
         assertAcked(
             client().admin()
@@ -350,7 +350,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, between(200, 500))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                 .collect(Collectors.toList())
         );
         client().admin().indices().prepareFlush(indexName).get();
@@ -364,7 +364,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, between(1, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                 .collect(Collectors.toList())
         );
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
@@ -376,7 +376,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                 .collect(Collectors.toList())
         );
 
@@ -402,7 +402,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
      * Make sure that we do not repeatedly cancel an ongoing recovery for a noop copy on a broken node.
      */
     public void testDoNotCancelRecoveryForBrokenNode() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
         String indexName = "test";
         assertAcked(
@@ -422,7 +422,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, between(200, 500))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                 .collect(Collectors.toList())
         );
         client().admin().indices().prepareFlush(indexName).get();
@@ -474,7 +474,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, randomIntBetween(1, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                 .collect(Collectors.toList())
         );
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
@@ -518,7 +518,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
      * this behavior by changing the global checkpoint in phase1 to unassigned.
      */
     public void testSimulateRecoverySourceOnOldNode() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         String source = internalCluster().startDataOnlyNode();
         String indexName = "test";
         assertAcked(
@@ -536,7 +536,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 IntStream.range(0, between(200, 500))
-                    .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v"))
+                    .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
                     .collect(Collectors.toList())
             );
         }

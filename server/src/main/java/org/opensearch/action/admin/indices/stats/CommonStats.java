@@ -65,6 +65,11 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+/**
+ * Common Stats for OpenSearch
+ *
+ * @opensearch.internal
+ */
 public class CommonStats implements Writeable, ToXContentFragment {
 
     @Nullable
@@ -190,7 +195,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         store = indexShard.storeStats();
                         break;
                     case Indexing:
-                        indexing = indexShard.indexingStats(flags.types());
+                        indexing = indexShard.indexingStats();
                         break;
                     case Get:
                         get = indexShard.getStats();

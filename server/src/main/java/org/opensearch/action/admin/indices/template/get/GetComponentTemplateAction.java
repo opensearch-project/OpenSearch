@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.get;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -50,6 +50,8 @@ import java.util.Objects;
 
 /**
  * Action to retrieve one or more component templates
+ *
+ * @opensearch.internal
  */
 public class GetComponentTemplateAction extends ActionType<GetComponentTemplateAction.Response> {
 
@@ -62,8 +64,10 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
     /**
      * Request that to retrieve one or more component templates
+     *
+     * @opensearch.internal
      */
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends ClusterManagerNodeReadRequest<Request> {
 
         @Nullable
         private String name;
@@ -106,6 +110,11 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
     }
 
+    /**
+     * Inner response for getting component template
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField NAME = new ParseField("name");
         public static final ParseField COMPONENT_TEMPLATES = new ParseField("component_templates");

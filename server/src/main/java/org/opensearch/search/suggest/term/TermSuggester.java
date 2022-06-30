@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * The Term Suggester implementation
+ *
+ * @opensearch.internal
+ */
 public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
     public static final TermSuggester INSTANCE = new TermSuggester();

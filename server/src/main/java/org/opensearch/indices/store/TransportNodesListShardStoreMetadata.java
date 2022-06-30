@@ -77,6 +77,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Metadata for shard stores from a list of transport nodes
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.Request,
     TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
@@ -203,8 +208,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
             }
             // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this means:
-            // 1) a shard is being constructed, which means the master will not use a copy of this replica
-            // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the master may not
+            // 1) a shard is being constructed, which means the cluster-manager will not use a copy of this replica
+            // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the cluster-manager may not
             // reuse local resources.
             final Store.MetadataSnapshot metadataSnapshot = Store.readMetadataSnapshot(
                 shardPath.resolveIndex(),
@@ -225,6 +230,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
+    /**
+     * Metadata for store files
+     *
+     * @opensearch.internal
+     */
     public static class StoreFilesMetadata implements Iterable<StoreFileMetadata>, Writeable {
         private final ShardId shardId;
         private final Store.MetadataSnapshot metadataSnapshot;
@@ -318,6 +328,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
+    /**
+     * The request
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BaseNodesRequest<Request> {
 
         private final ShardId shardId;
@@ -364,6 +379,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
+    /**
+     * Metadata for the nodes store files
+     *
+     * @opensearch.internal
+     */
     public static class NodesStoreFilesMetadata extends BaseNodesResponse<NodeStoreFilesMetadata> {
 
         public NodesStoreFilesMetadata(StreamInput in) throws IOException {
@@ -385,6 +405,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
+    /**
+     * The node request
+     *
+     * @opensearch.internal
+     */
     public static class NodeRequest extends BaseNodeRequest {
 
         private final ShardId shardId;
@@ -431,6 +456,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
+    /**
+     * The metadata for the node store files
+     *
+     * @opensearch.internal
+     */
     public static class NodeStoreFilesMetadata extends BaseNodeResponse {
 
         private StoreFilesMetadata storeFilesMetadata;

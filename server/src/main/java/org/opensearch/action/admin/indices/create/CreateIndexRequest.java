@@ -35,6 +35,7 @@ package org.opensearch.action.admin.indices.create;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -46,23 +47,21 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -81,8 +80,10 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
  * @see org.opensearch.client.IndicesAdminClient#create(CreateIndexRequest)
  * @see org.opensearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
+ *
+ * @opensearch.internal
  */
-public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest, ToXContentObject {
+public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
 
     public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");
@@ -94,7 +95,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private Settings settings = EMPTY_SETTINGS;
 
-    private final Map<String, String> mappings = new HashMap<>();
+    private String mappings = "{}";
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -105,11 +106,21 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            final String type = in.readString();
-            String source = in.readString();
-            mappings.put(type, source);
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            int size = in.readVInt();
+            if (size == 1) {
+                String type = in.readString();
+                if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                    throw new IllegalArgumentException(
+                        "Expected to receive mapping type of [" + MapperService.SINGLE_MAPPING_NAME + "] but got [" + type + "]"
+                    );
+                }
+                mappings = in.readString();
+            } else if (size != 0) {
+                throw new IllegalStateException("Expected to read 0 or 1 mappings, but received " + size);
+            }
+        } else {
+            mappings = in.readString();
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -224,45 +235,56 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * Adds mapping that will be added when the index gets created.
+     * Set the mapping for this index
      *
-     * @param type   The mapping type
-     * @param source The mapping source
-     * @param xContentType The content type of the source
+     * The mapping should be in the form of a JSON string, with an outer _doc key
+     * <pre>
+     *     .mapping("{\"_doc\":{\"properties\": ... }}")
+     * </pre>
      */
-    public CreateIndexRequest mapping(String type, String source, XContentType xContentType) {
-        return mapping(type, new BytesArray(source), xContentType);
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     * @param xContentType the content type of the mapping source
-     */
-    private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
-        return mapping(type, mappingAsMap);
-    }
-
-    /**
-     * The cause for this index creation.
-     */
-    public CreateIndexRequest cause(String cause) {
-        this.cause = cause;
+    public CreateIndexRequest mapping(String mapping) {
+        this.mappings = mapping;
         return this;
     }
 
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType The content type of the source
+     */
+    public CreateIndexRequest mapping(String source, XContentType xContentType) {
+        return mapping(new BytesArray(source), xContentType);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     * @param xContentType the content type of the mapping source
+     */
+    private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
+        Objects.requireNonNull(xContentType);
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+        return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
      * @param source The mapping source
      */
-    public CreateIndexRequest mapping(String type, XContentBuilder source) {
-        return mapping(type, BytesReference.bytes(source), source.contentType());
+    public CreateIndexRequest mapping(XContentBuilder source) {
+        return mapping(BytesReference.bytes(source), source.contentType());
+    }
+
+    /**
+     * Set the mapping for this index
+     *
+     * @param source The mapping source
+     */
+    public CreateIndexRequest mapping(Map<String, ?> source) {
+        return mapping(MapperService.SINGLE_MAPPING_NAME, source);
     }
 
     /**
@@ -270,20 +292,21 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated types are being removed
      */
-    public CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        if (mappings.containsKey(type)) {
-            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
-        }
+    @Deprecated
+    private CreateIndexRequest mapping(String type, Map<String, ?> source) {
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
-            source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
+            source = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, source);
+        } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+            // if it has a different type name, then unwrap and rewrap with _doc
+            source = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, source.get(type));
         }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            mappings.put(type, Strings.toString(builder));
-            return this;
+            return mapping(Strings.toString(builder));
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -293,8 +316,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public CreateIndexRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+    public CreateIndexRequest simpleMapping(String... source) {
+        mapping(PutMappingRequest.simpleMapping(source));
+        return this;
+    }
+
+    /**
+     * The cause for this index creation.
+     */
+    public CreateIndexRequest cause(String cause) {
+        this.cause = cause;
         return this;
     }
 
@@ -413,7 +444,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    public Map<String, String> mappings() {
+    public String mappings() {
         return this.mappings;
     }
 
@@ -459,10 +490,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(cause);
         out.writeString(index);
         writeSettingsToStream(settings, out);
-        out.writeVInt(mappings.size());
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            if ("{}".equals(mappings)) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(1);
+                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                out.writeString(mappings);
+            }
+        } else {
+            out.writeString(mappings);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -472,34 +509,5 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeBoolean(true); // updateAllTypes
         }
         waitForActiveShards.writeTo(out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SETTINGS.getPreferredName());
-        settings.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject(MAPPINGS.getPreferredName());
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            try (InputStream stream = new BytesArray(entry.getValue()).streamInput()) {
-                builder.rawField(entry.getKey(), stream, XContentType.JSON);
-            }
-        }
-        builder.endObject();
-
-        builder.startObject(ALIASES.getPreferredName());
-        for (Alias alias : aliases) {
-            alias.toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
     }
 }

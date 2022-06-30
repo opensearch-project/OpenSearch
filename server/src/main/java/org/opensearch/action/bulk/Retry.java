@@ -49,6 +49,8 @@ import java.util.function.Predicate;
 
 /**
  * Encapsulates synchronous and asynchronous retry logic.
+ *
+ * @opensearch.internal
  */
 public class Retry {
     private final BackoffPolicy backoffPolicy;
@@ -92,6 +94,11 @@ public class Retry {
         return future;
     }
 
+    /**
+     * Retry handler
+     *
+     * @opensearch.internal
+     */
     static class RetryHandler implements ActionListener<BulkResponse> {
         private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
         private static final Logger logger = LogManager.getLogger(RetryHandler.class);

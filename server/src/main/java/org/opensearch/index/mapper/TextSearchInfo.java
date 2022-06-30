@@ -40,6 +40,8 @@ import org.opensearch.index.similarity.SimilarityProvider;
 
 /**
  * Encapsulates information about how to perform text searches over a field
+ *
+ * @opensearch.internal
  */
 public class TextSearchInfo {
 
@@ -142,6 +144,8 @@ public class TextSearchInfo {
 
     /**
      * What sort of term vectors are available
+     *
+     * @opensearch.internal
      */
     public enum TermVector {
         NONE,

@@ -36,7 +36,6 @@ import org.opensearch.action.termvectors.MultiTermVectorsRequest;
 import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -49,9 +48,12 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to get a multi term vector
+ *
+ * @opensearch.api
+ */
 public class RestMultiTermVectorsAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestTermVectorsAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in multi term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -60,10 +62,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
                 new Route(GET, "/_mtermvectors"),
                 new Route(POST, "/_mtermvectors"),
                 new Route(GET, "/{index}/_mtermvectors"),
-                new Route(POST, "/{index}/_mtermvectors"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_mtermvectors"),
-                new Route(POST, "/{index}/{type}/_mtermvectors")
+                new Route(POST, "/{index}/_mtermvectors")
             )
         );
     }

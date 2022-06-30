@@ -54,6 +54,8 @@ import java.util.UUID;
 
 /**
  * Meta data about restore processes that are currently executing
+ *
+ * @opensearch.internal
  */
 public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements Custom, Iterable<RestoreInProgress.Entry> {
 
@@ -110,6 +112,11 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         return entries.valuesIt();
     }
 
+    /**
+     * Builder of the restore.
+     *
+     * @opensearch.internal
+     */
     public static final class Builder {
 
         private final ImmutableOpenMap.Builder<String, Entry> entries = ImmutableOpenMap.builder();
@@ -132,6 +139,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     /**
      * Restore metadata
+     *
+     * @opensearch.internal
      */
     public static class Entry {
         private final String uuid;
@@ -235,6 +244,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     /**
      * Represents status of a restored shard
+     *
+     * @opensearch.internal
      */
     public static class ShardRestoreStatus implements Writeable {
         private State state;
@@ -358,6 +369,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     /**
      * Shard restore process state
+     *
+     * @opensearch.internal
      */
     public enum State {
         /**

@@ -37,7 +37,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.common.Nullable;
@@ -51,6 +51,11 @@ import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * An action for putting a composable template into the cluster state
+ *
+ * @opensearch.internal
+ */
 public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutComposableIndexTemplateAction INSTANCE = new PutComposableIndexTemplateAction();
@@ -62,8 +67,10 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
 
     /**
      * A request for putting a single index template into the cluster state
+     *
+     * @opensearch.internal
      */
-    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest {
+    public static class Request extends ClusterManagerNodeRequest<Request> implements IndicesRequest {
         private final String name;
         @Nullable
         private String cause;

@@ -67,6 +67,8 @@ import java.util.stream.Stream;
  * When the query primary sort is perform on a field, this phase extracts the min/max value in each shard and
  * sort them according to the provided order. This can be useful for instance to ensure that shards that contain recent
  * data are executed first when sorting by descending timestamp.
+ *
+ * @opensearch.internal
  */
 final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMatchResponse> {
 
@@ -202,6 +204,11 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         return comparator.thenComparing(index -> shardsIts.get(index).shardId());
     }
 
+    /**
+     * Inner class for determining if canMatch search phase results
+     *
+     * @opensearch.internal
+     */
     private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {
         private final FixedBitSet possibleMatches;
         private final MinAndMax<?>[] minAndMaxes;

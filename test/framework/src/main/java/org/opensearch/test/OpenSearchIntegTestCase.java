@@ -39,7 +39,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
@@ -70,7 +70,6 @@ import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
@@ -166,6 +165,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.lang.Runtime.Version;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -707,17 +707,19 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Creates a disruption that isolates the current master node from all other nodes in the cluster.
+     * Creates a disruption that isolates the current cluster-manager node from all other nodes in the cluster.
      *
      * @param disruptionType type of disruption to create
      * @return disruption
      */
-    protected static NetworkDisruption isolateMasterDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
-        final String masterNode = internalCluster().getMasterName();
+    protected static NetworkDisruption isolateClusterManagerDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
+        final String clusterManagerNode = internalCluster().getMasterName();
         return new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(
-                Collections.singleton(masterNode),
-                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false).collect(Collectors.toSet())
+                Collections.singleton(clusterManagerNode),
+                Arrays.stream(internalCluster().getNodeNames())
+                    .filter(name -> name.equals(clusterManagerNode) == false)
+                    .collect(Collectors.toSet())
             ),
             disruptionType
         );
@@ -872,13 +874,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             sb.append(value).append("] results. expected [").append(expectedResults).append("]");
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
-                sb.append("\n-> _index: [")
-                    .append(hit.getIndex())
-                    .append("] type [")
-                    .append(hit.getType())
-                    .append("] id [")
-                    .append(hit.getId())
-                    .append("]");
+                sb.append("\n-> _index: [").append(hit.getIndex()).append("] id [").append(hit.getId()).append("]");
             }
             logger.warn("{}", sb);
             fail(failMsg);
@@ -955,12 +951,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .waitForNoRelocatingShards(true)
             .waitForNoInitializingShards(waitForNoInitializingShards)
             // We currently often use ensureGreen or ensureYellow to check whether the cluster is back in a good state after shutting down
-            // a node. If the node that is stopped is the master node, another node will become master and publish a cluster state where it
-            // is master but where the node that was stopped hasn't been removed yet from the cluster state. It will only subsequently
-            // publish a second state where the old master is removed. If the ensureGreen/ensureYellow is timed just right, it will get to
-            // execute before the second cluster state update removes the old master and the condition ensureGreen / ensureYellow will
-            // trivially hold if it held before the node was shut down. The following "waitForNodes" condition ensures that the node has
-            // been removed by the master so that the health check applies to the set of nodes we expect to be part of the cluster.
+            // a node. If the node that is stopped is the cluster-manager node, another node will become cluster-manager and publish a
+            // cluster state where it is cluster-manager but where the node that was stopped hasn't been removed yet from the cluster state.
+            // It will only subsequently publish a second state where the old cluster-manager is removed.
+            // If the ensureGreen/ensureYellow is timed just right, it will get to execute before the second cluster state update removes
+            // the old cluster-manager and the condition ensureGreen / ensureYellow will trivially hold if it held before the node was
+            // shut down. The following "waitForNodes" condition ensures that the node has been removed by the cluster-manager
+            // so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
@@ -1091,44 +1088,52 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Verifies that all nodes that have the same version of the cluster state as master have same cluster state
+     * Verifies that all nodes that have the same version of the cluster state as cluster-manager have same cluster state
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
-            final Client masterClient = client();
-            ClusterState masterClusterState = masterClient.admin().cluster().prepareState().all().get().getState();
-            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
+            final Client clusterManagerClient = client();
+            ClusterState clusterManagerClusterState = clusterManagerClient.admin().cluster().prepareState().all().get().getState();
+            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(clusterManagerClusterState);
             // remove local node reference
-            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
-            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-            int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
-            String masterId = masterClusterState.nodes().getMasterNodeId();
+            clusterManagerClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
+            Map<String, Object> clusterManagerStateMap = convertToMap(clusterManagerClusterState);
+            int clusterManagerClusterStateSize = clusterManagerClusterState.toString().length();
+            String clusterManagerId = clusterManagerClusterState.nodes().getMasterNodeId();
             for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                 // remove local node reference
                 localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, namedWriteableRegistry);
                 final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
-                // Check that the non-master node has the same version of the cluster state as the master and
-                // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version()
-                    && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                final int localClusterStateSize = localClusterState.toString().length();
+                // Check that the non-cluster-manager node has the same version of the cluster state as the cluster-manager and
+                // that the cluster-manager node matches the cluster-manager (otherwise there is no requirement for the cluster state to
+                // match)
+                if (clusterManagerClusterState.version() == localClusterState.version()
+                    && clusterManagerId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
-                        assertEquals("cluster state UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
+                        assertEquals(
+                            "cluster state UUID does not match",
+                            clusterManagerClusterState.stateUUID(),
+                            localClusterState.stateUUID()
+                        );
                         // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                        // but we can compare serialization sizes - they should be the same
-                        assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
+                        // We also cannot compare byte array size because CompressedXContent's DeflateCompressor uses
+                        // a synced flush that can affect the size of the compressed byte array
+                        // (see: DeflateCompressedXContentTests#testDifferentCompressedRepresentation for an example)
+                        // instead we compare the string length of cluster state - they should be the same
+                        assertEquals("cluster state size does not match", clusterManagerClusterStateSize, localClusterStateSize);
                         // Compare JSON serialization
                         assertNull(
                             "cluster state JSON serialization does not match",
-                            differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
+                            differenceBetweenMapsIgnoringArrayOrder(clusterManagerStateMap, localStateMap)
                         );
                     } catch (final AssertionError error) {
                         logger.error(
-                            "Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                            masterClusterState.toString(),
+                            "Cluster state from cluster-manager:\n{}\nLocal cluster state:\n{}",
+                            clusterManagerClusterState.toString(),
                             localClusterState.toString()
                         );
                         throw error;
@@ -1141,8 +1146,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
-            final Client masterClient = client();
-            Metadata metadata = masterClient.admin().cluster().prepareState().all().get().getState().metadata();
+            final Client clusterManagerClient = client();
+            Metadata metadata = clusterManagerClient.admin().cluster().prepareState().all().get().getState().metadata();
             final Map<String, String> serializationParams = new HashMap<>(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
@@ -1323,7 +1328,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     /**
      * Ensures that all nodes in the cluster are connected to each other.
      *
-     * Some network disruptions may leave nodes that are not the master disconnected from each other.
+     * Some network disruptions may leave nodes that are not the cluster-manager disconnected from each other.
      * {@link org.opensearch.cluster.NodeConnectionsService} will eventually reconnect but it's
      * handy to be able to ensure this happens faster
      */
@@ -1337,8 +1342,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      *   client().prepareIndex(index, type).setSource(source).execute().actionGet();
      * </pre>
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, XContentBuilder source) {
-        return client().prepareIndex(index, type).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1348,7 +1354,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * </pre>
      */
     protected final IndexResponse index(String index, String type, String id, Map<String, Object> source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1357,8 +1363,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, String id, XContentBuilder source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1367,8 +1374,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, String id, Object... source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1379,8 +1387,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * <p>
      * where source is a JSON String.
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index, type, id).setSource(source, XContentType.JSON).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
     /**
@@ -1537,10 +1546,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders)
         throws InterruptedException {
         Random random = random();
-        Map<String, Set<String>> indicesAndTypes = new HashMap<>();
+        Set<String> indices = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {
-            final Set<String> types = indicesAndTypes.computeIfAbsent(builder.request().index(), index -> new HashSet<>());
-            types.add(builder.request().type());
+            indices.add(builder.request().index());
         }
         Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
         if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
@@ -1549,22 +1557,18 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
             final int unicodeLen = between(1, 10);
             for (int i = 0; i < numBogusDocs; i++) {
-                String id = "bogus_doc_"
-                    + randomRealisticUnicodeOfLength(unicodeLen)
-                    + Integer.toString(dummmyDocIdGenerator.incrementAndGet());
-                Map.Entry<String, Set<String>> indexAndTypes = RandomPicks.randomFrom(random, indicesAndTypes.entrySet());
-                String index = indexAndTypes.getKey();
-                String type = RandomPicks.randomFrom(random, indexAndTypes.getValue());
-                bogusIds.add(Arrays.asList(index, type, id));
+                String id = "bogus_doc_" + randomRealisticUnicodeOfLength(unicodeLen) + dummmyDocIdGenerator.incrementAndGet();
+                String index = RandomPicks.randomFrom(random, indices);
+                bogusIds.add(Arrays.asList(index, id));
                 // We configure a routing key in case the mapping requires it
-                builders.add(client().prepareIndex(index, type, id).setSource("{}", XContentType.JSON).setRouting(id));
+                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", XContentType.JSON).setRouting(id));
             }
         }
         Collections.shuffle(builders, random());
         final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
         List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time. If many then frequently in bulk.
-        final String[] indices = indicesAndTypes.keySet().toArray(new String[0]);
+        final String[] indicesArray = indices.toArray(new String[] {});
         if (builders.size() < FREQUENT_BULK_THRESHOLD ? frequently() : builders.size() < ALWAYS_BULK_THRESHOLD ? rarely() : false) {
             if (frequently()) {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), true, false);
@@ -1572,13 +1576,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                     indexRequestBuilder.execute(
                         new PayloadLatchedActionListener<>(indexRequestBuilder, newLatch(inFlightAsyncOperations), errors)
                     );
-                    postIndexAsyncActions(indices, inFlightAsyncOperations, maybeFlush);
+                    postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush);
                 }
             } else {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), false, false);
                 for (IndexRequestBuilder indexRequestBuilder : builders) {
                     indexRequestBuilder.execute().actionGet();
-                    postIndexAsyncActions(indices, inFlightAsyncOperations, maybeFlush);
+                    postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush);
                 }
             }
         } else {
@@ -1614,15 +1618,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
                 assertEquals(
-                    "failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(2) + "]",
+                    "failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
                     DocWriteResponse.Result.DELETED,
-                    client().prepareDelete(doc.get(0), doc.get(1), doc.get(2)).setRouting(doc.get(2)).get().getResult()
+                    client().prepareDelete(doc.get(0), doc.get(1)).setRouting(doc.get(1)).get().getResult()
                 );
             }
         }
         if (forceRefresh) {
             assertNoFailures(
-                client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
+                client().admin().indices().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
             );
         }
     }
@@ -1742,9 +1746,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         int maxNumDataNodes() default -1;
 
         /**
-         * Indicates whether the cluster can have dedicated master nodes. If {@code false} means data nodes will serve as master nodes
-         * and there will be no dedicated master (and data) nodes. Default is {@code false} which means
-         * dedicated master nodes will be randomly used.
+         * Indicates whether the cluster can have dedicated cluster-manager nodes. If {@code false} means data nodes will serve as cluster-manager nodes
+         * and there will be no dedicated cluster-manager (and data) nodes. Default is {@code false} which means
+         * dedicated cluster-manager nodes will be randomly used.
          */
         boolean supportsDedicatedMasters() default true;
 
@@ -1833,12 +1837,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
-    private boolean getSupportsDedicatedMasters() {
+    private boolean getSupportsDedicatedClusterManagers() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? true : annotation.supportsDedicatedMasters();
     }
 
-    private boolean getAutoManageMasterNodes() {
+    private boolean getAutoManageClusterManagerNodes() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? true : annotation.autoManageMasterNodes();
     }
@@ -1891,12 +1895,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
-        if (rarely()) {
-            // Sometimes adjust the minimum search thread pool size, causing
-            // QueueResizingOpenSearchThreadPoolExecutor to be used instead of a regular
-            // fixed thread pool
-            builder.put("thread_pool.search.min_queue_size", 100);
-        }
         return builder.build();
     }
 
@@ -1963,7 +1961,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 throw new OpenSearchException("Scope not supported: " + scope);
         }
 
-        boolean supportsDedicatedMasters = getSupportsDedicatedMasters();
+        boolean supportsDedicatedClusterManagers = getSupportsDedicatedClusterManagers();
         int numDataNodes = getNumDataNodes();
         int minNumDataNodes;
         int maxNumDataNodes;
@@ -1987,8 +1985,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return new InternalTestCluster(
             seed,
             createTempDir(),
-            supportsDedicatedMasters,
-            getAutoManageMasterNodes(),
+            supportsDedicatedClusterManagers,
+            getAutoManageClusterManagerNodes(),
             minNumDataNodes,
             maxNumDataNodes,
             InternalTestCluster.clusterName(scope.name(), seed) + "-cluster",
@@ -2231,7 +2229,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         if (isInternalCluster()) {
-            internalCluster().setBootstrapMasterNodeIndex(-1);
+            internalCluster().setBootstrapClusterManagerNodeIndex(-1);
         }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
@@ -2407,7 +2405,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         final boolean anyDebian8Nodes = response.getNodes()
             .stream()
             .anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
-        boolean java15Plus = JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0;
+        boolean java15Plus = Runtime.version().compareTo(Version.parse("15")) >= 0;
         return anyDebian8Nodes && java15Plus == false;
     }
 }

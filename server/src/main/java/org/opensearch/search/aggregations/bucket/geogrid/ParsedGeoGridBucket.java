@@ -37,6 +37,11 @@ import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
 
+/**
+ * A single geo grid bucket result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedGeoGridBucket extends ParsedMultiBucketAggregation.ParsedBucket implements GeoGrid.Bucket {
 
     protected String hashAsString;

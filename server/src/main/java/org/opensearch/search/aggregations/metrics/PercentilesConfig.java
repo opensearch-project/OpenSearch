@@ -50,6 +50,8 @@ import java.util.Objects;
  * A small config object that carries algo-specific settings.  This allows the factory to have
  * a single unified constructor for both algos, but internally switch execution
  * depending on which algo is selected
+ *
+ * @opensearch.internal
  */
 public abstract class PercentilesConfig implements ToXContent, Writeable {
     private final PercentilesMethod method;
@@ -121,6 +123,11 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         return Objects.hash(method);
     }
 
+    /**
+     * The TDigest
+     *
+     * @opensearch.internal
+     */
     public static class TDigest extends PercentilesConfig {
         static final double DEFAULT_COMPRESSION = 100.0;
         private double compression;
@@ -217,6 +224,11 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         }
     }
 
+    /**
+     * The HDR value
+     *
+     * @opensearch.internal
+     */
     public static class Hdr extends PercentilesConfig {
         static final int DEFAULT_NUMBER_SIG_FIGS = 3;
         private int numberOfSignificantValueDigits;

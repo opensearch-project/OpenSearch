@@ -38,6 +38,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Provider for the standard analyzer
+ *
+ * @opensearch.internal
+ */
 public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
 
     private final StandardAnalyzer standardAnalyzer;

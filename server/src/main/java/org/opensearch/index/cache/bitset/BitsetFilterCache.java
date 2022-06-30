@@ -33,6 +33,7 @@
 package org.opensearch.index.cache.bitset;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -83,6 +84,8 @@ import java.util.concurrent.Executor;
  * Use this cache with care, only components that require that a filter is to be materialized as a {@link BitDocIdSet}
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.opensearch.index.cache.query.QueryCache} should be used instead.
+ *
+ * @opensearch.internal
  */
 public final class BitsetFilterCache extends AbstractIndexComponent
     implements
@@ -147,7 +150,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
     }
 
     private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws ExecutionException {
-        final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
+        final IndexReader.CacheHelper cacheHelper = FilterLeafReader.unwrap(context.reader()).getCoreCacheHelper();
         if (cacheHelper == null) {
             throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
         }
@@ -189,6 +192,11 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
     }
 
+    /**
+     * Value for bitset filter cache
+     *
+     * @opensearch.internal
+     */
     public static final class Value {
 
         final BitSet bitset;
@@ -273,7 +281,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             }
 
             if (hasNested) {
-                warmUp.add(Queries.newNonNestedFilter(indexSettings.getIndexVersionCreated()));
+                warmUp.add(Queries.newNonNestedFilter());
             }
 
             final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());
@@ -313,6 +321,8 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
     /**
      *  A listener interface that is executed for each onCache / onRemoval event
+     *
+     * @opensearch.internal
      */
     public interface Listener {
         /**

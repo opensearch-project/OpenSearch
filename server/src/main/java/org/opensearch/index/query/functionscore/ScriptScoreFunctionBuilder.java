@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query.functionscore;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -50,6 +51,8 @@ import java.util.Objects;
 /**
  * A function that uses a script to compute or influence the score of documents
  * that match with the inner query or filter.
+ *
+ * @opensearch.internal
  */
 public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScoreFunctionBuilder> {
     public static final String NAME = "script_score";
@@ -57,10 +60,15 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     private final Script script;
 
     public ScriptScoreFunctionBuilder(Script script) {
+        this(script, null);
+    }
+
+    public ScriptScoreFunctionBuilder(Script script, @Nullable String functionName) {
         if (script == null) {
             throw new IllegalArgumentException("script must not be null");
         }
         this.script = script;
+        setFunctionName(functionName);
     }
 
     /**
@@ -112,7 +120,8 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
                 searchScript,
                 context.index().getName(),
                 context.getShardId(),
-                context.indexVersionCreated()
+                context.indexVersionCreated(),
+                getFunctionName()
             );
         } catch (Exception e) {
             throw new QueryShardException(context, "script_score: the script could not be loaded", e);

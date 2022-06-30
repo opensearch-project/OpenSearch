@@ -117,7 +117,7 @@ public class TasksIT extends OpenSearchRestHighLevelClientTestCase {
         }
         org.opensearch.tasks.TaskInfo info = taskResponse.getTaskInfo();
         assertTrue(info.isCancellable());
-        assertEquals("reindex from [source1] to [dest][_doc]", info.getDescription());
+        assertEquals("reindex from [source1] to [dest]", info.getDescription());
         assertEquals("indices:data/write/reindex", info.getAction());
         if (taskResponse.isCompleted() == false) {
             assertBusy(checkTaskCompletionStatus(client(), taskId));

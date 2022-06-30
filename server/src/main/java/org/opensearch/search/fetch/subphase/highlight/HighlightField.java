@@ -51,6 +51,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 
 /**
  * A field highlighted with its highlighted fragments.
+ *
+ * @opensearch.internal
  */
 public class HighlightField implements ToXContentFragment, Writeable {
 

@@ -44,6 +44,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Transport response for shard acknowledgements
+ *
+ * @opensearch.internal
+ */
 public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
 
     protected static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");

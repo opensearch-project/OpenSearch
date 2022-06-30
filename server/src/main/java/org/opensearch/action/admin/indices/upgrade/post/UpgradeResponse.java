@@ -47,7 +47,7 @@ import java.util.Map;
 /**
  * A response for the upgrade action.
  *
- *
+ * @opensearch.internal
  */
 public class UpgradeResponse extends BroadcastResponse {
 

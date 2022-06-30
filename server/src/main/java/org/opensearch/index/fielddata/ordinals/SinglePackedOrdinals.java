@@ -45,7 +45,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-public class SinglePackedOrdinals extends Ordinals {
+/**
+ * Packed ordinals for a single field
+ *
+ * @opensearch.internal
+ */
+class SinglePackedOrdinals extends Ordinals {
 
     // ordinals with value 0 indicates no value
     private final PackedInts.Reader reader;
@@ -79,6 +84,11 @@ public class SinglePackedOrdinals extends Ordinals {
         return (SortedSetDocValues) DocValues.singleton(new Docs(this, values));
     }
 
+    /**
+     * Doc class
+     *
+     * @opensearch.internal
+     */
     private static class Docs extends AbstractSortedDocValues {
 
         private final int maxOrd;

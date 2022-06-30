@@ -46,6 +46,11 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for percentiles_bucket
+ *
+ * @opensearch.internal
+ */
 public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<
     PercentilesBucketPipelineAggregationBuilder> {
     public static final String NAME = "percentiles_bucket";

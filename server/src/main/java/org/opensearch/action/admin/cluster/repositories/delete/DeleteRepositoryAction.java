@@ -37,6 +37,8 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Unregister repository action
+ *
+ * @opensearch.internal
  */
 public class DeleteRepositoryAction extends ActionType<AcknowledgedResponse> {
 

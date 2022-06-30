@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Snapshots status action
+ *
+ * @opensearch.internal
  */
 public class SnapshotsStatusAction extends ActionType<SnapshotsStatusResponse> {
 

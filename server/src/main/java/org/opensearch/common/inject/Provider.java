@@ -49,6 +49,8 @@ package org.opensearch.common.inject;
  *
  * @param <T> the type of object this provides
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public interface Provider<T> {
 

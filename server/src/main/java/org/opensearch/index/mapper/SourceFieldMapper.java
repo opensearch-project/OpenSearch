@@ -60,6 +60,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Internal field mapper for storing source (and recovery source)
+ *
+ * @opensearch.internal
+ */
 public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";
@@ -68,6 +73,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_source";
     private final Function<Map<String, ?>, Map<String, Object>> filter;
 
+    /**
+     * Default parameters for source fields
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
         public static final boolean ENABLED = true;
@@ -86,6 +96,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return (SourceFieldMapper) in;
     }
 
+    /**
+     * Builder for source fields
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", false, m -> toType(m).enabled, Defaults.ENABLED);
@@ -123,6 +138,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new SourceFieldMapper(), c -> new Builder());
 
+    /**
+     * Field type for source field mapper
+     *
+     * @opensearch.internal
+     */
     static final class SourceFieldType extends MappedFieldType {
 
         private SourceFieldType(boolean enabled) {

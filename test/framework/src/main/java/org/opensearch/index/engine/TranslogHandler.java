@@ -44,13 +44,13 @@ import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.mapper.MapperRegistry;
 
@@ -62,19 +62,20 @@ import java.util.concurrent.atomic.AtomicLong;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
-public class TranslogHandler implements Engine.TranslogRecoveryRunner {
+public class TranslogHandler implements TranslogRecoveryRunner {
 
     private final MapperService mapperService;
-    public Mapping mappingUpdate = null;
-    private final Map<String, Mapping> recoveredTypes = new HashMap<>();
 
     private final AtomicLong appliedOperations = new AtomicLong();
+
+    private final Engine engine;
 
     long appliedOperations() {
         return appliedOperations.get();
     }
 
-    public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
+    public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings, Engine engine) {
+        this.engine = engine;
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         analyzers.put(AnalysisRegistry.DEFAULT_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()));
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, emptyMap(), emptyMap());
@@ -95,21 +96,13 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
     private DocumentMapperForType docMapper(String type) {
         RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
         DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
-        return new DocumentMapperForType(b.build(mapperService), mappingUpdate);
+        return new DocumentMapperForType(b.build(mapperService), null);
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
         switch (operation.operationType()) {
             case INDEX:
-                Engine.Index engineIndex = (Engine.Index) operation;
-                Mapping update = engineIndex.parsedDoc().dynamicMappingsUpdate();
-                if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
-                    recoveredTypes.compute(
-                        engineIndex.type(),
-                        (k, mapping) -> mapping == null ? update : mapping.merge(update, MapperService.MergeReason.MAPPING_RECOVERY)
-                    );
-                }
-                engine.index(engineIndex);
+                engine.index((Engine.Index) operation);
                 break;
             case DELETE:
                 engine.delete((Engine.Delete) operation);
@@ -122,15 +115,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         }
     }
 
-    /**
-     * Returns the recovered types modifying the mapping during the recovery
-     */
-    public Map<String, Mapping> getRecoveredTypes() {
-        return recoveredTypes;
-    }
-
     @Override
-    public int run(Engine engine, Translog.Snapshot snapshot) throws IOException {
+    public int run(Translog.Snapshot snapshot) throws IOException {
         int opsRecovered = 0;
         Translog.Operation operation;
         while ((operation = snapshot.next()) != null) {
@@ -138,7 +124,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             opsRecovered++;
             appliedOperations.incrementAndGet();
         }
-        engine.syncTranslog();
+        engine.translogManager().syncTranslog();
         return opsRecovered;
     }
 
@@ -150,15 +136,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Index index = (Translog.Index) operation;
                 final String indexName = mapperService.index().getName();
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
-                    docMapper(index.type()),
-                    new SourceToParse(
-                        indexName,
-                        index.type(),
-                        index.id(),
-                        index.source(),
-                        XContentHelper.xContentType(index.source()),
-                        index.routing()
-                    ),
+                    docMapper(MapperService.SINGLE_MAPPING_NAME),
+                    new SourceToParse(indexName, index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing()),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),
@@ -172,20 +151,16 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 return engineIndex;
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
-                final Engine.Delete engineDelete = new Engine.Delete(
-                    delete.type(),
+                return IndexShard.prepareDelete(
                     delete.id(),
-                    delete.uid(),
                     delete.seqNo(),
                     delete.primaryTerm(),
                     delete.version(),
                     versionType,
                     origin,
-                    System.nanoTime(),
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM
                 );
-                return engineDelete;
             case NO_OP:
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 final Engine.NoOp engineNoOp = new Engine.NoOp(noOp.seqNo(), noOp.primaryTerm(), origin, System.nanoTime(), noOp.reason());

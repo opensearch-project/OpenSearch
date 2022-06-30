@@ -38,6 +38,9 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -47,9 +50,6 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.opensearch.common.Strings;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -352,15 +352,30 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     public void testTermVectors() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("term_vector", "yes")));
+        String[] termVectors = {
+            "yes",
+            "with_positions",
+            "with_offsets",
+            "with_positions_offsets",
+            "with_positions_payloads",
+            "with_positions_offsets_payloads" };
 
-        assertTrue(getRootFieldMapper(mapper, "field").fieldType().fieldType.storeTermVectors());
+        for (String termVector : termVectors) {
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "search_as_you_type").field("term_vector", termVector))
+            );
 
-        Stream.of(getShingleFieldMapper(mapper, "field._2gram"), getShingleFieldMapper(mapper, "field._3gram"))
-            .forEach(m -> assertTrue("for " + m.name(), m.fieldType.storeTermVectors()));
+            assertTrue(getRootFieldMapper(mapper, "field").fieldType().fieldType.storeTermVectors());
 
-        PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
-        assertFalse(prefixFieldMapper.fieldType.storeTermVectors());
+            Stream.of(getShingleFieldMapper(mapper, "field._2gram"), getShingleFieldMapper(mapper, "field._3gram"))
+                .forEach(m -> assertTrue("for " + m.name(), m.fieldType.storeTermVectors()));
+
+            PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
+            assertFalse(prefixFieldMapper.fieldType.storeTermVectors());
+            assertFalse(prefixFieldMapper.fieldType.storeTermVectorOffsets());
+            assertFalse(prefixFieldMapper.fieldType.storeTermVectorPositions());
+            assertFalse(prefixFieldMapper.fieldType.storeTermVectorPayloads());
+        }
     }
 
     public void testNorms() throws IOException {

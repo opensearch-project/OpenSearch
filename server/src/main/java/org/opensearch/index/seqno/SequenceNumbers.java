@@ -36,6 +36,8 @@ import java.util.Map;
 
 /**
  * A utility class for handling sequence numbers.
+ *
+ * @opensearch.internal
  */
 public class SequenceNumbers {
 
@@ -127,6 +129,11 @@ public class SequenceNumbers {
         }
     }
 
+    /**
+     * Commit information
+     *
+     * @opensearch.internal
+     */
     public static final class CommitInfo {
         public final long maxSeqNo;
         public final long localCheckpoint;

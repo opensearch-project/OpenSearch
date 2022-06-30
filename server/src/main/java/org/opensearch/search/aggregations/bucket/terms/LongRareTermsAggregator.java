@@ -56,6 +56,8 @@ import static java.util.Collections.emptyList;
 
 /**
  * An aggregator that finds "rare" string values (e.g. terms agg that orders ascending)
+ *
+ * @opensearch.internal
  */
 public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
     private final ValuesSource.Numeric valuesSource;

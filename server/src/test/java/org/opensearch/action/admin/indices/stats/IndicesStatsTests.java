@@ -67,7 +67,6 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
         IndexModule.Type storeType = IndexModule.defaultStoreType(true);
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("doc")
             .startObject("properties")
             .startObject("foo")
             .field("type", "keyword")
@@ -82,17 +81,16 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
             .field("type", "long")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("doc", mapping)
+                .setMapping(mapping)
                 .setSettings(Settings.builder().put("index.store.type", storeType.getSettingsKey()))
         );
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
+        client().prepareIndex("test").setId("1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
         client().admin().indices().prepareRefresh("test").get();
 
         IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
@@ -101,7 +99,7 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
         assertThat(stats.getCount(), greaterThan(0L));
 
         // now check multiple segments stats are merged together
-        client().prepareIndex("test", "doc", "2").setSource("foo", "bar", "bar", "baz", "baz", 43).get();
+        client().prepareIndex("test").setId("2").setSource("foo", "bar", "bar", "baz", "baz", 43).get();
         client().admin().indices().prepareRefresh("test").get();
 
         rsp = client().admin().indices().prepareStats("test").get();
@@ -129,7 +127,8 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
         createIndex("test", Settings.builder().put("refresh_interval", -1).build());
 
         // Index a document asynchronously so the request will only return when document is refreshed
-        ActionFuture<IndexResponse> index = client().prepareIndex("test", "test", "test")
+        ActionFuture<IndexResponse> index = client().prepareIndex("test")
+            .setId("test")
             .setSource("test", "test")
             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
             .execute();

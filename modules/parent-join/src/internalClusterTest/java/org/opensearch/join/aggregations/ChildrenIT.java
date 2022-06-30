@@ -132,7 +132,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
             logger.info("total_hits={}", topHits.getHits().getTotalHits().value);
             for (SearchHit searchHit : topHits.getHits()) {
-                logger.info("hit= {} {} {}", searchHit.getSortValues()[0], searchHit.getType(), searchHit.getId());
+                logger.info("hit= {} {}", searchHit.getSortValues()[0], searchHit.getId());
             }
         }
 
@@ -174,8 +174,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
     public void testWithDeletes() throws Exception {
         String indexName = "xyz";
         assertAcked(
-            prepareCreate(indexName).addMapping(
-                "doc",
+            prepareCreate(indexName).setMapping(
                 addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"), "name", "keyword")
             )
         );
@@ -207,7 +206,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
              * the updates cause that.
              */
             UpdateResponse updateResponse;
-            updateResponse = client().prepareUpdate(indexName, "doc", idToUpdate)
+            updateResponse = client().prepareUpdate(indexName, idToUpdate)
                 .setRouting("1")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
                 .setDetectNoop(false)
@@ -228,16 +227,15 @@ public class ChildrenIT extends AbstractParentChildTestCase {
 
     public void testPostCollection() throws Exception {
         String indexName = "prodcatalog";
-        String masterType = "masterprod";
+        String mainType = "mainprod";
         String childType = "variantsku";
         assertAcked(
             prepareCreate(indexName).setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
-                .addMapping(
-                    "doc",
+                .setMapping(
                     addFieldMappings(
-                        buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, masterType, childType),
+                        buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, mainType, childType),
                         "brand",
                         "text",
                         "name",
@@ -253,7 +251,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(createIndexRequest(indexName, masterType, "1", null, "brand", "Levis", "name", "Style 501", "material", "Denim"));
+        requests.add(createIndexRequest(indexName, mainType, "1", null, "brand", "Levis", "name", "Style 501", "material", "Denim"));
         requests.add(createIndexRequest(indexName, childType, "3", "1", "color", "blue", "size", "32"));
         requests.add(createIndexRequest(indexName, childType, "4", "1", "color", "blue", "size", "34"));
         requests.add(createIndexRequest(indexName, childType, "5", "1", "color", "blue", "size", "36"));
@@ -261,9 +259,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         requests.add(createIndexRequest(indexName, childType, "7", "1", "color", "black", "size", "40"));
         requests.add(createIndexRequest(indexName, childType, "8", "1", "color", "gray", "size", "36"));
 
-        requests.add(
-            createIndexRequest(indexName, masterType, "2", null, "brand", "Wrangler", "name", "Regular Cut", "material", "Leather")
-        );
+        requests.add(createIndexRequest(indexName, mainType, "2", null, "brand", "Wrangler", "name", "Regular Cut", "material", "Leather"));
         requests.add(createIndexRequest(indexName, childType, "9", "2", "color", "blue", "size", "32"));
         requests.add(createIndexRequest(indexName, childType, "10", "2", "color", "blue", "size", "34"));
         requests.add(createIndexRequest(indexName, childType, "12", "2", "color", "black", "size", "36"));
@@ -309,8 +305,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String parentType = "country";
         String childType = "city";
         assertAcked(
-            prepareCreate(indexName).addMapping(
-                "doc",
+            prepareCreate(indexName).setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, grandParentType, parentType, parentType, childType),
                     "name",
@@ -352,8 +347,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         // Before we only evaluated segments that yielded matches in 'towns' and 'parent_names' aggs, which caused
         // us to miss to evaluate child docs in segments we didn't have parent matches for.
         assertAcked(
-            prepareCreate("index").addMapping(
-                "doc",
+            prepareCreate("index").setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parentType", "childType"),
                     "name",

@@ -41,6 +41,8 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A get document action request builder.
+ *
+ * @opensearch.internal
  */
 public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetRequest, GetResponse, GetRequestBuilder> {
 
@@ -50,15 +52,6 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
 
     public GetRequestBuilder(OpenSearchClient client, GetAction action, @Nullable String index) {
         super(client, action, new GetRequest(index));
-    }
-
-    /**
-     * Sets the type of the document to fetch. If set to {@code null}, will use just the id to fetch the
-     * first document matching it.
-     */
-    public GetRequestBuilder setType(@Nullable String type) {
-        request.type(type);
-        return this;
     }
 
     /**

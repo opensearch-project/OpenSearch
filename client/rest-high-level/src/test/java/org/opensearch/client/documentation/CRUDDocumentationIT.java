@@ -2050,7 +2050,6 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(response.getResponses(), arrayWithSize(1));
         MultiGetItemResponse item = response.getResponses()[0];
         assertEquals("index", item.getIndex());
-        assertEquals("_doc", item.getType());
         assertEquals("example_id", item.getId());
         return item;
     }

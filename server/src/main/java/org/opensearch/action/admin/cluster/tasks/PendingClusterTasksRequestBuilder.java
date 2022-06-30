@@ -32,10 +32,15 @@
 
 package org.opensearch.action.admin.cluster.tasks;
 
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+/**
+ * Transport request builder for getting pending cluster tasks
+ *
+ * @opensearch.internal
+ */
+public class PendingClusterTasksRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     PendingClusterTasksRequest,
     PendingClusterTasksResponse,
     PendingClusterTasksRequestBuilder> {

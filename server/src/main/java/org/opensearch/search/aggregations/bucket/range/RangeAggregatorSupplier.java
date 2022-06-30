@@ -41,6 +41,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base Aggregator supplier interface for range aggs
+ *
+ * @opensearch.internal
+ */
 public interface RangeAggregatorSupplier {
     Aggregator build(
         String name,

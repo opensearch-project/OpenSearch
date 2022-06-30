@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Transport request for getting script language
+ *
+ * @opensearch.internal
+ */
 public class GetScriptLanguageRequest extends ActionRequest {
     public GetScriptLanguageRequest() {
         super();

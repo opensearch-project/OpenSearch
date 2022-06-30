@@ -74,6 +74,8 @@ import java.util.List;
  *     </li>
  * </ul>
  *
+ *
+ * @opensearch.internal
  */
 public class AggregationPath {
 
@@ -126,6 +128,11 @@ public class AggregationPath {
         return new AggregationPath(tokens);
     }
 
+    /**
+     * Element in an agg path
+     *
+     * @opensearch.internal
+     */
     public static class PathElement {
 
         private final String fullName;

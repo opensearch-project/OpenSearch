@@ -68,6 +68,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Strategy to connect to remote nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     enum ConnectionStrategy {
@@ -417,6 +422,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
     }
 
+    /**
+     * Internal strategy validation object
+     *
+     * @opensearch.internal
+     */
     static class StrategyValidator<T> implements Setting.Validator<T> {
 
         private final String key;

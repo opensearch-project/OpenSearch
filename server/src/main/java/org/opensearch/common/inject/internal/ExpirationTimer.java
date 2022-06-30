@@ -33,6 +33,8 @@ import java.util.Timer;
 
 /**
  * Timer used for entry expiration in MapMaker.
+ *
+ * @opensearch.internal
  */
 class ExpirationTimer {
     static Timer instance = new Timer(true);

@@ -100,7 +100,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
 
         // initial set up
         final String indexName = "index42";
-        final String master = internalCluster().startMasterOnlyNode();
+        final String clusterManager = internalCluster().startClusterManagerOnlyNode();
         String node1 = internalCluster().startNode();
         createIndex(
             indexName,
@@ -135,7 +135,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
         // create fake corrupted marker on node1
         putFakeCorruptionMarker(indexSettings, shardId, indexPath);
 
-        // thanks to master node1 is out of sync
+        // thanks to cluster-manager node1 is out of sync
         node1 = internalCluster().startNode(node1DataPathSettings);
 
         // there is only _stale_ primary
@@ -193,7 +193,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
             final int numExtraDocs = between(10, 100);
             IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
             for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName, "type").setSource(source);
+                builders[i] = client().prepareIndex(indexName).setSource(source);
             }
 
             indexRandom(true, false, true, Arrays.asList(builders));

@@ -37,19 +37,19 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
+import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class NoMasterBlockServiceTests extends OpenSearchTestCase {
 
-    private NoMasterBlockService noMasterBlockService;
+    private NoMasterBlockService noClusterManagerBlockService;
     private ClusterSettings clusterSettings;
 
     private void createService(Settings settings) {
         clusterSettings = new ClusterSettings(settings, BUILT_IN_CLUSTER_SETTINGS);
-        noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
+        noClusterManagerBlockService = new NoMasterBlockService(settings, clusterSettings);
     }
 
     private void assertDeprecatedWarningEmitted() {
@@ -61,39 +61,39 @@ public class NoMasterBlockServiceTests extends OpenSearchTestCase {
 
     public void testBlocksWritesByDefault() {
         createService(Settings.EMPTY);
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
+        assertThat(noClusterManagerBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
     }
 
     public void testBlocksWritesIfConfiguredBySetting() {
-        createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
+        createService(Settings.builder().put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "write").build());
+        assertThat(noClusterManagerBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
     }
 
     public void testBlocksAllIfConfiguredBySetting() {
-        createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "all").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
+        createService(Settings.builder().put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all").build());
+        assertThat(noClusterManagerBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
     }
 
     public void testBlocksMetadataWritesIfConfiguredBySetting() {
-        createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "metadata_write").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_METADATA_WRITES));
+        createService(Settings.builder().put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "metadata_write").build());
+        assertThat(noClusterManagerBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_METADATA_WRITES));
     }
 
     public void testRejectsInvalidSetting() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build())
+            () -> createService(Settings.builder().put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "unknown").build())
         );
     }
 
     public void testSettingCanBeUpdated() {
-        createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "all").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
+        createService(Settings.builder().put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all").build());
+        assertThat(noClusterManagerBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
 
-        clusterSettings.applySettings(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
+        clusterSettings.applySettings(Settings.builder().put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "write").build());
+        assertThat(noClusterManagerBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
 
-        clusterSettings.applySettings(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "metadata_write").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_METADATA_WRITES));
+        clusterSettings.applySettings(Settings.builder().put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "metadata_write").build());
+        assertThat(noClusterManagerBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_METADATA_WRITES));
     }
 }

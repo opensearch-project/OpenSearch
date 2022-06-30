@@ -49,7 +49,11 @@ import java.util.Objects;
 import static java.util.Collections.emptySet;
 
 /**
+ * Inheriting state.
+ *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class InheritingState implements State {
 
@@ -61,7 +65,7 @@ class InheritingState implements State {
     private final Map<Class<? extends Annotation>, Scope> scopes = new HashMap<>();
     private final List<MatcherAndConverter> converters = new ArrayList<>();
     private final List<TypeListenerBinding> listenerBindings = new ArrayList<>();
-    private WeakKeySet blacklistedKeys = new WeakKeySet();
+    private WeakKeySet denylistedKeys = new WeakKeySet();
     private final Object lock;
 
     InheritingState(State parent) {
@@ -143,19 +147,19 @@ class InheritingState implements State {
     }
 
     @Override
-    public void blacklist(Key<?> key) {
-        parent.blacklist(key);
-        blacklistedKeys.add(key);
+    public void denylist(Key<?> key) {
+        parent.denylist(key);
+        denylistedKeys.add(key);
     }
 
     @Override
-    public boolean isBlacklisted(Key<?> key) {
-        return blacklistedKeys.contains(key);
+    public boolean isDenylisted(Key<?> key) {
+        return denylistedKeys.contains(key);
     }
 
     @Override
-    public void clearBlacklisted() {
-        blacklistedKeys = new WeakKeySet();
+    public void clearDenylisted() {
+        denylistedKeys = new WeakKeySet();
     }
 
     @Override

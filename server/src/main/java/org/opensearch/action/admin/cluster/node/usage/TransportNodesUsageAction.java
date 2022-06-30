@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Transport action for collecting OpenSearch telemetry
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesUsageAction extends TransportNodesAction<
     NodesUsageRequest,
     NodesUsageResponse,
@@ -107,6 +112,11 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         return new NodeUsage(clusterService.localNode(), System.currentTimeMillis(), sinceTime, restUsage, aggsUsage);
     }
 
+    /**
+     * Inner Node Usage Request
+     *
+     * @opensearch.internal
+     */
     public static class NodeUsageRequest extends BaseNodeRequest {
 
         NodesUsageRequest request;

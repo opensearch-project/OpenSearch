@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.stats;
 
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
@@ -148,12 +148,12 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .addMapping("type", "field", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
+                .setMapping("field", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
                 .get()
         );
         ensureGreen();
-        client().prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
-        client().prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").execute().actionGet();
+        client().prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
@@ -270,13 +270,13 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
-                .addMapping("type", "field", "type=text,fielddata=true")
+                .setMapping("field", "type=text,fielddata=true")
                 .get()
         );
         ensureGreen();
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        client().prepareIndex("test", "type", "1").setSource("field", "value1").execute().actionGet();
-        client().prepareIndex("test", "type", "2").setSource("field", "value2").execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field", "value1").execute().actionGet();
+        client().prepareIndex("test").setId("2").setSource("field", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
@@ -385,7 +385,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         while (true) {
             IndexRequestBuilder[] builders = new IndexRequestBuilder[pageDocs];
             for (int i = 0; i < pageDocs; ++i) {
-                builders[i] = client().prepareIndex("idx", "type", Integer.toString(counter++))
+                builders[i] = client().prepareIndex("idx")
+                    .setId(Integer.toString(counter++))
                     .setSource(jsonBuilder().startObject().field("common", "field").field("str_value", "s" + i).endObject());
             }
             indexRandom(true, builders);
@@ -445,7 +446,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         // index the data again...
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx", "type", Integer.toString(i))
+            builders[i] = client().prepareIndex("idx")
+                .setId(Integer.toString(i))
                 .setSource(jsonBuilder().startObject().field("common", "field").field("str_value", "s" + i).endObject());
         }
         indexRandom(true, builders);
@@ -577,7 +579,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 sb.append(termUpto++);
                 sb.append(" some random text that keeps repeating over and over again hambone");
             }
-            client().prepareIndex("test", "type", "" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
+            client().prepareIndex("test").setId("" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
         }
         refresh();
         stats = client().admin().indices().prepareStats().execute().actionGet();
@@ -613,7 +615,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                     sb.append(' ');
                     sb.append(termUpto++);
                 }
-                client().prepareIndex("test", "type", "" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
+                client().prepareIndex("test").setId("" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
                 if (i % 2 == 0) {
                     refresh();
                 }
@@ -639,9 +641,9 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         createIndex("test1", "test2");
         ensureGreen();
 
-        client().prepareIndex("test1", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test1", "type", Integer.toString(2)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(2)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
         refresh();
 
         NumShards test1 = getNumShards("test1");
@@ -694,7 +696,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         assertThat(stats.getTotal().getRefresh(), notNullValue());
 
         // check get
-        GetResponse getResponse = client().prepareGet("test2", "type", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test2", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
@@ -703,7 +705,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(0L));
 
         // missing get
-        getResponse = client().prepareGet("test2", "type", "2").execute().actionGet();
+        getResponse = client().prepareGet("test2", "2").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
@@ -733,7 +735,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
         // index failed
         try {
-            client().prepareIndex("test1", "type", Integer.toString(1))
+            client().prepareIndex("test1")
+                .setId(Integer.toString(1))
                 .setSource("field", "value")
                 .setVersion(1)
                 .setVersionType(VersionType.EXTERNAL)
@@ -742,7 +745,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
         try {
-            client().prepareIndex("test2", "type", Integer.toString(1))
+            client().prepareIndex("test2")
+                .setId(Integer.toString(1))
                 .setSource("field", "value")
                 .setVersion(1)
                 .setVersionType(VersionType.EXTERNAL)
@@ -751,7 +755,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
         try {
-            client().prepareIndex("test2", "type", Integer.toString(1))
+            client().prepareIndex("test2")
+                .setId(Integer.toString(1))
                 .setSource("field", "value")
                 .setVersion(1)
                 .setVersionType(VersionType.EXTERNAL)
@@ -791,7 +796,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         assertThat(stats.getTotal().getSearch(), nullValue());
 
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("test_index", "_doc", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test_index").setId(Integer.toString(i)).setSource("field", "value").execute().actionGet();
             client().admin().indices().prepareFlush().execute().actionGet();
         }
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
@@ -837,9 +842,9 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test_index", "_doc", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test_index", "_doc", Integer.toString(2)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test_index_2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test_index").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test_index").setId(Integer.toString(2)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test_index_2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
@@ -964,9 +969,9 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test1", "_doc", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test1", "_doc", Integer.toString(2)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test2", "_doc", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(2)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
         refresh();
 
         int numShards1 = getNumShards("test1").totalNumShards;
@@ -999,16 +1004,14 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
     public void testCompletionFieldsParam() throws Exception {
         assertAcked(
-            prepareCreate("test1").addMapping(
-                "_doc",
+            prepareCreate("test1").setMapping(
                 "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}"
-                    + ",\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}",
-                XContentType.JSON
+                    + ",\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"
             )
         );
         ensureGreen();
 
-        client().prepareIndex("test1", "_doc", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
         refresh();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
@@ -1050,7 +1053,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
         refresh();
 
         client().prepareSearch("_all").setStats("bar", "baz").execute().actionGet();
@@ -1076,40 +1079,6 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         stats = builder.setGroups("*r").execute().actionGet();
         assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0L));
         assertThat(stats.getTotal().search.getGroupStats().containsKey("baz"), is(false));
-
-    }
-
-    public void testTypesParam() throws Exception {
-        createIndex("test1");
-        createIndex("test2");
-
-        ensureGreen();
-
-        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
-        client().prepareIndex("test2", "baz", Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
-        refresh();
-
-        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
-        IndicesStatsResponse stats = builder.execute().actionGet();
-
-        assertThat(stats.getTotal().indexing.getTotal().getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats(), is(nullValue()));
-
-        stats = builder.setTypes("bar").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats().containsKey("baz"), is(false));
-
-        stats = builder.setTypes("bar", "baz").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0L));
-
-        stats = builder.setTypes("*").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0L));
-
-        stats = builder.setTypes("*r").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats().containsKey("baz"), is(false));
 
     }
 
@@ -1244,8 +1213,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         indexRandom(
             false,
             true,
-            client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
-            client().prepareIndex("index", "type", "2").setSource("foo", "baz")
+            client().prepareIndex("index").setId("1").setSource("foo", "bar"),
+            client().prepareIndex("index").setId("2").setSource("foo", "baz")
         );
         persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         refresh();
@@ -1279,8 +1248,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
             assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
         });
 
-        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "1").get().getResult());
-        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "2").get().getResult());
+        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "1").get().getResult());
+        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "2").get().getResult());
         // Here we are testing that a fully deleted segment should be dropped and its cached is evicted.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
@@ -1319,8 +1288,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
-            client().prepareIndex("index", "type", "2").setSource("foo", "baz")
+            client().prepareIndex("index").setId("1").setSource("foo", "bar"),
+            client().prepareIndex("index").setId("2").setSource("foo", "baz")
         );
 
         assertBusy(() -> {
@@ -1387,7 +1356,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 }
                 while (!stop.get()) {
                     final String id = Integer.toString(idGenerator.incrementAndGet());
-                    final IndexResponse response = client().prepareIndex("test", "type", id).setSource("{}", XContentType.JSON).get();
+                    final IndexResponse response = client().prepareIndex("test").setId(id).setSource("{}", XContentType.JSON).get();
                     assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
                 }
             });

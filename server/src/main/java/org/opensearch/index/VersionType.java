@@ -39,6 +39,11 @@ import org.opensearch.common.lucene.uid.Versions;
 import java.io.IOException;
 import java.util.Locale;
 
+/**
+ * Types of index versions
+ *
+ * @opensearch.internal
+ */
 public enum VersionType implements Writeable {
     INTERNAL((byte) 0) {
         @Override

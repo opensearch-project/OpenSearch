@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * A single multi get response.
+ *
+ * @opensearch.internal
  */
 public class MultiGetItemResponse implements Writeable {
 
@@ -69,16 +71,6 @@ public class MultiGetItemResponse implements Writeable {
             return failure.getIndex();
         }
         return response.getIndex();
-    }
-
-    /**
-     * The type of the document.
-     */
-    public String getType() {
-        if (failure != null) {
-            return failure.getType();
-        }
-        return response.getType();
     }
 
     /**

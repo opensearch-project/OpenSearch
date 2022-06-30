@@ -82,6 +82,8 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
+ *
+ * @opensearch.internal
  */
 public class TaskManager implements ClusterStateApplier {
 

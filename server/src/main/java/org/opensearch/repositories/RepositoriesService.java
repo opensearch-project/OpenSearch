@@ -79,6 +79,8 @@ import java.util.stream.Stream;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
+ *
+ * @opensearch.internal
  */
 public class RepositoriesService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -140,7 +142,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Registers new repository in the cluster
      * <p>
-     * This method can be only called on the master node. It tries to create a new repository on the master
+     * This method can be only called on the cluster-manager node. It tries to create a new repository on the master
      * and if it was successful it adds new repository to cluster metadata.
      *
      * @param request  register repository request
@@ -172,7 +174,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             registrationListener = listener;
         }
 
-        // Trying to create the new repository on master to make sure it works
+        // Trying to create the new repository on cluster-manager to make sure it works
         try {
             closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
         } catch (Exception e) {
@@ -235,7 +237,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
-                    // repository is created on both master and data nodes
+                    // repository is created on both cluster-manager and data nodes
                     return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
                 }
             }
@@ -245,7 +247,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Unregisters repository in the cluster
      * <p>
-     * This method can be only called on the master node. It removes repository information from cluster metadata.
+     * This method can be only called on the cluster-manager node. It removes repository information from cluster metadata.
      *
      * @param request  unregister repository request
      * @param listener unregister repository listener
@@ -290,7 +292,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
-                    // repository was created on both master and data nodes
+                    // repository was created on both cluster-manager and data nodes
                     return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
                 }
             }
@@ -346,8 +348,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
     }
 
+    // Note: "voting_only" role has not been implemented yet, so the method always returns false.
     static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
-        return roles.contains(DiscoveryNodeRole.MASTER_ROLE)
+        return roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)
             && roles.contains(DiscoveryNodeRole.DATA_ROLE) == false
             && roles.stream().anyMatch(role -> role.roleName().equals("voting_only"));
     }
@@ -456,7 +459,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Returns registered repository
      * <p>
-     * This method is called only on the master node
+     * This method is called only on the cluster-manager node
      *
      * @param repositoryName repository name
      * @return registered repository

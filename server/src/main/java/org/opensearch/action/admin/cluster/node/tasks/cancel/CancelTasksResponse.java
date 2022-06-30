@@ -47,6 +47,8 @@ import java.util.List;
 
 /**
  * Returns the list of tasks that were cancelled
+ *
+ * @opensearch.internal
  */
 public class CancelTasksResponse extends ListTasksResponse {
 

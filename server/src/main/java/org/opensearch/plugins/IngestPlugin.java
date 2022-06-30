@@ -39,6 +39,8 @@ import org.opensearch.ingest.Processor;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom ingest processors
+ *
+ * @opensearch.api
  */
 public interface IngestPlugin {
 

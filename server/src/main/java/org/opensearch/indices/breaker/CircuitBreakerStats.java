@@ -44,6 +44,8 @@ import java.util.Locale;
 
 /**
  * Class encapsulating stats about the circuit breaker
+ *
+ * @opensearch.internal
  */
 public class CircuitBreakerStats implements Writeable, ToXContentObject {
 
@@ -130,6 +132,11 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
             + "]";
     }
 
+    /**
+     * Fields used for statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String LIMIT = "limit_size_in_bytes";
         static final String LIMIT_HUMAN = "limit_size";

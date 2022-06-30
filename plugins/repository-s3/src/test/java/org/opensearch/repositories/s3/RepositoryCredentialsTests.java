@@ -123,7 +123,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
         assertThat(repositories.repository(repositoryName), instanceOf(S3Repository.class));
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
-        final AmazonS3 client = repository.createBlobStore().clientReference().client();
+        final AmazonS3 client = repository.createBlobStore().clientReference().get();
         assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
         final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
@@ -162,7 +162,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
         try (AmazonS3Reference clientReference = ((S3BlobStore) repository.blobStore()).clientReference()) {
-            final AmazonS3 client = clientReference.client();
+            final AmazonS3 client = clientReference.get();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
             final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
@@ -202,7 +202,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
 
         // check credentials have been updated
         try (AmazonS3Reference clientReference = ((S3BlobStore) repository.blobStore()).clientReference()) {
-            final AmazonS3 client = clientReference.client();
+            final AmazonS3 client = clientReference.get();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
             final AWSCredentials newCredentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
@@ -317,9 +317,10 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
             @Override
-            AmazonS3 buildClient(final S3ClientSettings clientSettings) {
-                final AmazonS3 client = super.buildClient(clientSettings);
-                return new ClientAndCredentials(client, buildCredentials(logger, clientSettings));
+            AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
+                final AmazonS3WithCredentials client = super.buildClient(clientSettings);
+                final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+                return AmazonS3WithCredentials.create(new ClientAndCredentials(client.client(), credentials), credentials);
             }
 
         }

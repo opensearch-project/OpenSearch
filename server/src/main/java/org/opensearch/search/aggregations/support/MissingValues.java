@@ -49,6 +49,8 @@ import java.util.function.LongUnaryOperator;
 /**
  * Utility class that allows to return views of {@link ValuesSource}s that
  * replace the missing value with a configured value.
+ *
+ * @opensearch.internal
  */
 public enum MissingValues {
     ;
@@ -309,6 +311,11 @@ public enum MissingValues {
             }
 
             @Override
+            public long docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
             public String toString() {
                 return "anon AbstractSortedDocValues of [" + super.toString() + "]";
             }
@@ -336,6 +343,11 @@ public enum MissingValues {
             @Override
             public long getValueCount() {
                 return 1 + values.getValueCount();
+            }
+
+            @Override
+            public long docValueCount() {
+                return values.docValueCount();
             }
 
             @Override

@@ -38,6 +38,8 @@ import java.util.Map;
 
 /**
  * A script used by {@link org.opensearch.ingest.ConditionalProcessor}.
+ *
+ * @opensearch.internal
  */
 public abstract class IngestConditionalScript {
 
@@ -66,6 +68,11 @@ public abstract class IngestConditionalScript {
 
     public abstract boolean execute(Map<String, Object> ctx);
 
+    /**
+     * Factory for ingest condition script
+     *
+     * @opensearch.internal
+     */
     public interface Factory {
         IngestConditionalScript newInstance(Map<String, Object> params);
     }

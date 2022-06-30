@@ -33,7 +33,6 @@
 package org.opensearch.action.main;
 
 import org.opensearch.Build;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.Strings;
@@ -58,7 +57,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Build build = new Build(
             Build.Type.UNKNOWN,
             randomAlphaOfLength(8),
@@ -136,22 +135,6 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                 + "}",
             Strings.toString(builder)
         );
-    }
-
-    public void toXContent_overrideMainResponseVersion() throws IOException {
-        String responseVersion = LegacyESVersion.V_7_10_2.toString();
-        MainResponse response = new MainResponse(
-            "nodeName",
-            Version.CURRENT,
-            new ClusterName("clusterName"),
-            randomAlphaOfLengthBetween(10, 20),
-            Build.CURRENT,
-            responseVersion
-        );
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertTrue(Strings.toString(builder).contains("\"number\":\"" + responseVersion + "\","));
-        assertFalse(Strings.toString(builder).contains("\"distribution\":\"" + Build.CURRENT.getDistribution() + "\","));
     }
 
     @Override

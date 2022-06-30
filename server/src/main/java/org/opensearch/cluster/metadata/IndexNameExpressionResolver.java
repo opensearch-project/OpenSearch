@@ -76,6 +76,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+/**
+ * Resolves index name from an expression
+ *
+ * @opensearch.internal
+ */
 public class IndexNameExpressionResolver {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
 
@@ -768,6 +773,11 @@ public class IndexNameExpressionResolver {
         return Booleans.parseBoolean(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY), true);
     }
 
+    /**
+     * Context for the resolver.
+     *
+     * @opensearch.internal
+     */
     public static class Context {
 
         private final ClusterState state;
@@ -907,6 +917,8 @@ public class IndexNameExpressionResolver {
 
     /**
      * Resolves alias/index name expressions with wildcards into the corresponding concrete indices/aliases
+     *
+     * @opensearch.internal
      */
     static final class WildcardExpressionResolver implements ExpressionResolver {
 
@@ -1187,6 +1199,11 @@ public class IndexNameExpressionResolver {
         }
     }
 
+    /**
+     * A date math expression resolver.
+     *
+     * @opensearch.internal
+     */
     public static final class DateMathExpressionResolver implements ExpressionResolver {
 
         private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");

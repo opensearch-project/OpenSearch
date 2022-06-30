@@ -105,24 +105,4 @@ public class ScriptProcessorTests extends OpenSearchTestCase {
         int bytesTotal = ingestDocument.getFieldValue("bytes_in", Integer.class) + ingestDocument.getFieldValue("bytes_out", Integer.class);
         assertThat(ingestDocument.getSourceAndMetadata().get("bytes_total"), is(bytesTotal));
     }
-
-    public void testTypeDeprecation() throws Exception {
-        String scriptName = "script";
-        ScriptService scriptService = new ScriptService(
-            Settings.builder().build(),
-            Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG,
-                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
-                    ctx.get("_type");
-                    return null;
-                }), Collections.emptyMap())
-            ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
-        );
-        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
-        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, null, scriptService);
-        processor.execute(ingestDocument);
-        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
-    }
 }

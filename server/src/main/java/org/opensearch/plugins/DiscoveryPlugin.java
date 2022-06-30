@@ -57,6 +57,8 @@ import java.util.function.Supplier;
  *     }
  * }
  * </pre>
+ *
+ * @opensearch.api
  */
 public interface DiscoveryPlugin {
 

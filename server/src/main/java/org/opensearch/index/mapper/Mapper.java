@@ -48,8 +48,18 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * The foundation OpenSearch mapper
+ *
+ * @opensearch.internal
+ */
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
+    /**
+     * The builder context used in field mappings
+     *
+     * @opensearch.internal
+     */
     public static class BuilderContext {
         private final Settings indexSettings;
         private final ContentPath contentPath;
@@ -81,6 +91,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
     }
 
+    /**
+     * Base mapper builder
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder<T extends Builder> {
 
         public String name;
@@ -99,8 +114,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         public abstract Mapper build(BuilderContext context);
     }
 
+    /**
+     * Type parser for the mapper
+     *
+     * @opensearch.internal
+     */
     public interface TypeParser {
 
+        /**
+         * Parser context for the type parser
+         *
+         * @opensearch.internal
+         */
         class ParserContext {
 
             private final Function<String, SimilarityProvider> similarityLookupService;
@@ -195,6 +220,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return new MultiFieldParserContext(in);
             }
 
+            /**
+             * Base mutiple field parser context
+             *
+             * @opensearch.internal
+             */
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(

@@ -37,6 +37,8 @@ import org.opensearch.common.inject.Provider;
  *
  * @author Kevin Bourrillion (kevinb9n@gmail.com)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class Providers {
 

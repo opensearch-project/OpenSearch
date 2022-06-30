@@ -128,10 +128,8 @@ public class TokenCountFieldMapperIntegrationIT extends OpenSearchIntegTestCase 
         settings.put("index.analysis.analyzer.mock_english.tokenizer", "standard");
         settings.put("index.analysis.analyzer.mock_english.filter", "stop");
         prepareCreate("test").setSettings(settings)
-            .addMapping(
-                "test",
+            .setMapping(
                 jsonBuilder().startObject()
-                    .startObject("test")
                     .startObject("properties")
                     .startObject("foo")
                     .field("type", "text")
@@ -162,7 +160,6 @@ public class TokenCountFieldMapperIntegrationIT extends OpenSearchIntegTestCase 
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
             .get();
         ensureGreen();
@@ -187,7 +184,7 @@ public class TokenCountFieldMapperIntegrationIT extends OpenSearchIntegTestCase 
     }
 
     private IndexRequestBuilder prepareIndex(String id, String... texts) throws IOException {
-        return client().prepareIndex("test", "test", id).setSource("foo", texts);
+        return client().prepareIndex("test").setId(id).setSource("foo", texts);
     }
 
     private SearchResponse searchById(String id) {
@@ -203,7 +200,7 @@ public class TokenCountFieldMapperIntegrationIT extends OpenSearchIntegTestCase 
     }
 
     private SearchRequestBuilder prepareSearch() {
-        SearchRequestBuilder request = client().prepareSearch("test").setTypes("test");
+        SearchRequestBuilder request = client().prepareSearch("test");
         request.addStoredField("foo.token_count");
         request.addStoredField("foo.token_count_without_position_increments");
         if (loadCountedFields) {

@@ -7,6 +7,8 @@
  */
 
 import javax.annotation.Nullable
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.internal.jvm.Jvm
 
 /**
@@ -101,7 +103,7 @@ configure([
   project(":example-plugins:custom-settings"),
   project(":example-plugins:custom-significance-heuristic"),
   project(":example-plugins:custom-suggester"),
-  project(":example-plugins:painless-whitelist"),
+  project(":example-plugins:painless-allowlist"),
   project(":example-plugins:rescore"),
   project(":example-plugins:rest-handler"),
   project(":example-plugins:script-expert-scoring"),
@@ -160,7 +162,6 @@ configure([
   project(":qa:os"),
   project(":qa:wildfly"),
   project(":rest-api-spec"),
-  project(":server"),
   project(":test:external-modules:test-delayed-aggs"),
   project(":test:fixtures:azure-fixture"),
   project(":test:fixtures:gcs-fixture"),
@@ -175,9 +176,18 @@ configure([
   }
 }
 
+configure(project(":server")) {
+  project.tasks.withType(MissingJavadocTask) {
+    // TODO: bump to variable missing level after increasing javadoc coverage
+    javadocMissingLevel = "class"
+  }
+}
+
 class MissingJavadocTask extends DefaultTask {
   @InputFiles
   @SkipWhenEmpty
+  @IgnoreEmptyDirectories
+  @PathSensitive(PathSensitivity.RELATIVE)
   SourceDirectorySet srcDirSet;
 
   @OutputDirectory
@@ -270,6 +280,10 @@ class MissingJavadocTask extends DefaultTask {
     if (!classpath.isEmpty()) {
       opts << [ '-classpath', classpath.asPath ]
     }
+
+    opts << [ '-tag', 'opensearch.experimental:a:WARNING: This API is experimental and might change in incompatible ways in the next release.' ]
+    opts << [ '-tag', 'opensearch.internal:a:NOTE: This API is for internal purposes only and might change in incompatible ways in the next release.' ]
+
     opts << [ '-doclet', "org.opensearch.missingdoclet.MissingDoclet" ]
     opts << [ '-docletpath', docletpath.asPath ]
     opts << [ '--missing-level', javadocMissingLevel ]

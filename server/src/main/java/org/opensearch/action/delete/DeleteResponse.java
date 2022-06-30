@@ -47,6 +47,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  *
  * @see org.opensearch.action.delete.DeleteRequest
  * @see org.opensearch.client.Client#delete(DeleteRequest)
+ *
+ * @opensearch.internal
  */
 public class DeleteResponse extends DocWriteResponse {
 
@@ -58,12 +60,12 @@ public class DeleteResponse extends DocWriteResponse {
         super(in);
     }
 
-    public DeleteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean found) {
-        this(shardId, type, id, seqNo, primaryTerm, version, found ? Result.DELETED : Result.NOT_FOUND);
+    public DeleteResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean found) {
+        this(shardId, id, seqNo, primaryTerm, version, found ? Result.DELETED : Result.NOT_FOUND);
     }
 
-    private DeleteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        super(shardId, type, id, seqNo, primaryTerm, version, assertDeletedOrNotFound(result));
+    private DeleteResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, id, seqNo, primaryTerm, version, assertDeletedOrNotFound(result));
     }
 
     private static Result assertDeletedOrNotFound(Result result) {
@@ -81,7 +83,6 @@ public class DeleteResponse extends DocWriteResponse {
         StringBuilder builder = new StringBuilder();
         builder.append("DeleteResponse[");
         builder.append("index=").append(getIndex());
-        builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
@@ -110,12 +111,14 @@ public class DeleteResponse extends DocWriteResponse {
      * Builder class for {@link DeleteResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
      * instantiate the {@link DeleteResponse}.
+     *
+     * @opensearch.internal
      */
     public static class Builder extends DocWriteResponse.Builder {
 
         @Override
         public DeleteResponse build() {
-            DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, primaryTerm, version, result);
+            DeleteResponse deleteResponse = new DeleteResponse(shardId, id, seqNo, primaryTerm, version, result);
             deleteResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 deleteResponse.setShardInfo(shardInfo);

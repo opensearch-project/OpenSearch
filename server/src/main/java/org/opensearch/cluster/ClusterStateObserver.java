@@ -50,6 +50,8 @@ import java.util.function.Supplier;
  * A utility class which simplifies interacting with the cluster state in cases where
  * one tries to take action based on the current state but may want to wait for a new state
  * and retry upon failure.
+ *
+ * @opensearch.internal
  */
 public class ClusterStateObserver {
 
@@ -187,7 +189,7 @@ public class ClusterStateObserver {
         // sample a new state. This state maybe *older* than the supplied state if we are called from an applier,
         // which wants to wait for something else to happen
         ClusterState newState = clusterApplierService.state();
-        if (lastObservedState.get().isOlderOrDifferentMaster(newState) && statePredicate.test(newState)) {
+        if (lastObservedState.get().isOlderOrDifferentClusterManager(newState) && statePredicate.test(newState)) {
             // good enough, let's go.
             logger.trace("observer: sampled state accepted by predicate ({})", newState);
             lastObservedState.set(new StoredState(newState));
@@ -205,6 +207,11 @@ public class ClusterStateObserver {
         }
     }
 
+    /**
+     * An observer of the cluster state for changes.
+     *
+     * @opensearch.internal
+     */
     class ObserverClusterStateListener implements TimeoutClusterStateListener {
 
         @Override
@@ -241,7 +248,7 @@ public class ClusterStateObserver {
                 return;
             }
             ClusterState newState = clusterApplierService.state();
-            if (lastObservedState.get().isOlderOrDifferentMaster(newState) && context.statePredicate.test(newState)) {
+            if (lastObservedState.get().isOlderOrDifferentClusterManager(newState) && context.statePredicate.test(newState)) {
                 // double check we're still listening
                 if (observingContext.compareAndSet(context, null)) {
                     logger.trace("observer: post adding listener: accepting current cluster state ({})", newState);
@@ -295,25 +302,33 @@ public class ClusterStateObserver {
     }
 
     /**
-     * The observer considers two cluster states to be the same if they have the same version and master node id (i.e. null or set)
+     * The observer considers two cluster states to be the same if they have the same version and cluster-manager node id (i.e. null or set)
+     *
+     * @opensearch.internal
      */
     private static class StoredState {
-        private final String masterNodeId;
+        private final String clusterManagerNodeId;
         private final long version;
 
         StoredState(ClusterState clusterState) {
-            this.masterNodeId = clusterState.nodes().getMasterNodeId();
+            this.clusterManagerNodeId = clusterState.nodes().getMasterNodeId();
             this.version = clusterState.version();
         }
 
         /**
-         * returns true if stored state is older then given state or they are from a different master, meaning they can't be compared
+         * returns true if stored state is older then given state or they are from a different cluster-manager, meaning they can't be compared
          * */
-        public boolean isOlderOrDifferentMaster(ClusterState clusterState) {
-            return version < clusterState.version() || Objects.equals(masterNodeId, clusterState.nodes().getMasterNodeId()) == false;
+        public boolean isOlderOrDifferentClusterManager(ClusterState clusterState) {
+            return version < clusterState.version()
+                || Objects.equals(clusterManagerNodeId, clusterState.nodes().getMasterNodeId()) == false;
         }
     }
 
+    /**
+     * Listener for the observer.
+     *
+     * @opensearch.internal
+     */
     public interface Listener {
 
         /** called when a new state is observed */
@@ -325,6 +340,11 @@ public class ClusterStateObserver {
         void onTimeout(TimeValue timeout);
     }
 
+    /**
+     * Context for the observer.
+     *
+     * @opensearch.internal
+     */
     static class ObservingContext {
         public final Listener listener;
         public final Predicate<ClusterState> statePredicate;
@@ -340,6 +360,11 @@ public class ClusterStateObserver {
         }
     }
 
+    /**
+     * A context preserving listener.
+     *
+     * @opensearch.internal
+     */
     private static final class ContextPreservingListener implements Listener {
         private final Listener delegate;
         private final Supplier<ThreadContext.StoredContext> contextSupplier;

@@ -36,6 +36,8 @@ import java.util.Map;
 
 /**
  * A string template rendered as a script.
+ *
+ * @opensearch.internal
  */
 public abstract class TemplateScript {
 
@@ -55,6 +57,11 @@ public abstract class TemplateScript {
     /** Run a template and return the resulting string, encoded in utf8 bytes. */
     public abstract String execute();
 
+    /**
+     * Factory for a template script
+     *
+     * @opensearch.internal
+     */
     public interface Factory {
         TemplateScript newInstance(Map<String, Object> params);
     }

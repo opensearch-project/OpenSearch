@@ -76,10 +76,8 @@ public class FunctionScorePluginIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping(
-                "type1",
+            .setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
@@ -89,20 +87,15 @@ public class FunctionScorePluginIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
             .get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().get();
 
         client().index(
-            indexRequest("test").type("type1")
-                .id("1")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject())
+            indexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject())
         ).actionGet();
         client().index(
-            indexRequest("test").type("type1")
-                .id("2")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())
+            indexRequest("test").id("2").source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())
         ).actionGet();
 
         client().admin().indices().prepareRefresh().get();
@@ -175,7 +168,7 @@ public class FunctionScorePluginIT extends OpenSearchIntegTestCase {
             }
 
             @Override
-            public Explanation explainFunction(String distanceString, double distanceVal, double scale) {
+            public Explanation explainFunction(String distanceString, double distanceVal, double scale, String functionName) {
                 return Explanation.match((float) distanceVal, "" + distanceVal);
             }
 

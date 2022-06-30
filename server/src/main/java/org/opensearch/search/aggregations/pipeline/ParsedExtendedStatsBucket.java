@@ -36,6 +36,11 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.aggregations.metrics.ParsedExtendedStats;
 
+/**
+ * An extended stats agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedExtendedStatsBucket extends ParsedExtendedStats implements ExtendedStatsBucket {
 
     @Override

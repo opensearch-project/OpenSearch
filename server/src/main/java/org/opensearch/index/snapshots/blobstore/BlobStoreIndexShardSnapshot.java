@@ -54,11 +54,15 @@ import java.util.stream.IntStream;
 
 /**
  * Shard snapshot metadata
+ *
+ * @opensearch.internal
  */
 public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
     /**
      * Information about snapshotted file
+     *
+     * @opensearch.internal
      */
     public static class FileInfo {
 

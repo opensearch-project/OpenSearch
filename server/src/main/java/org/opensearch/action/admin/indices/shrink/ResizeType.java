@@ -34,6 +34,8 @@ package org.opensearch.action.admin.indices.shrink;
 
 /**
  * The type of the resize operation
+ *
+ * @opensearch.internal
  */
 public enum ResizeType {
     SHRINK,

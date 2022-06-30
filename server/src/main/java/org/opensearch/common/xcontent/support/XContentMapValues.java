@@ -50,6 +50,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Map values for xcontent parsing.
+ *
+ * @opensearch.internal
+ */
 public class XContentMapValues {
 
     /**

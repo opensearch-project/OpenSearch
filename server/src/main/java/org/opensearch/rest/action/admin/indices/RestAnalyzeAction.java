@@ -47,8 +47,18 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to analyze an action
+ *
+ * @opensearch.api
+ */
 public class RestAnalyzeAction extends BaseRestHandler {
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     public static class Fields {
         public static final ParseField ANALYZER = new ParseField("analyzer");
         public static final ParseField TEXT = new ParseField("text");

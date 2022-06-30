@@ -49,6 +49,8 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndice
  * local state via their arguments. Yet, if an instance is shared across indices they might be called concurrently and should not
  * modify local state without sufficient synchronization.
  * </p>
+ *
+ * @opensearch.internal
  */
 public interface IndexEventListener {
 
@@ -161,7 +163,7 @@ public interface IndexEventListener {
     default void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {}
 
     /**
-     * Called on the Master node only before the {@link IndexService} instances is created to simulate an index creation.
+     * Called on the cluster-manager node only before the {@link IndexService} instances is created to simulate an index creation.
      * This happens right before the index and it's metadata is registered in the cluster state
      */
     default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {}

@@ -40,6 +40,8 @@ import java.io.IOException;
 /**
  * An exception that remote cluster is missing or
  * connectivity to the remote connection is failing
+ *
+ * @opensearch.internal
  */
 public final class NoSuchRemoteClusterException extends ResourceNotFoundException {
 

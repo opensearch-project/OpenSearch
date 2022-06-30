@@ -71,6 +71,8 @@ import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
 
 /**
  * Meta data about snapshots that are currently executing
+ *
+ * @opensearch.internal
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
@@ -175,6 +177,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         );
     }
 
+    /**
+     * Entry in the collection.
+     *
+     * @opensearch.internal
+     */
     public static class Entry implements Writeable, ToXContent, RepositoryOperation {
         private final State state;
         private final Snapshot snapshot;
@@ -297,9 +304,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (in.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 version = Version.readVersion(in);
             } else if (in.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
-                // If an older master informs us that shard generations are supported we use the minimum shard generation compatible
-                // version. If shard generations are not supported yet we use a placeholder for a version that does not use shard
-                // generations.
+                // If an older cluster-manager informs us that shard generations are supported
+                // we use the minimum shard generation compatible version.
+                // If shard generations are not supported yet we use a placeholder for a version that does not use shard generations.
                 version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : SnapshotsService.OLD_SNAPSHOT_FORMAT;
             } else {
                 version = SnapshotsService.OLD_SNAPSHOT_FORMAT;
@@ -776,6 +783,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return false;
     }
 
+    /**
+     * Status of shard snapshots.
+     *
+     * @opensearch.internal
+     */
     public static class ShardSnapshotStatus implements Writeable {
 
         /**
@@ -911,6 +923,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
     }
 
+    /**
+     * State of the snapshots.
+     *
+     * @opensearch.internal
+     */
     public enum State {
         INIT((byte) 0, false),
         STARTED((byte) 1, false),
@@ -1048,6 +1065,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return builder;
     }
 
+    /**
+     * The shard state.
+     *
+     * @opensearch.internal
+     */
     public enum ShardState {
         INIT((byte) 0, false, false),
         SUCCESS((byte) 2, true, false),

@@ -62,6 +62,11 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Aggregation Factory for terms agg
+ *
+ * @opensearch.internal
+ */
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
@@ -360,6 +365,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
+    /**
+     * The execution mode for the terms agg
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {
@@ -380,7 +390,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(format, maxRegexLength);
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -458,7 +471,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     );
 
                 }
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
                 boolean remapGlobalOrds;
                 if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
                     /*

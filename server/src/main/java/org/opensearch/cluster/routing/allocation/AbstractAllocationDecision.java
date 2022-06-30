@@ -50,6 +50,8 @@ import java.util.stream.Collectors;
 
 /**
  * An abstract class for representing various types of allocation decisions.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractAllocationDecision implements ToXContentFragment, Writeable {
 

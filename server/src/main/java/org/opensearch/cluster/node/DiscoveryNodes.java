@@ -63,6 +63,8 @@ import java.util.stream.StreamSupport;
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
+ *
+ * @opensearch.internal
  */
 public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
 
@@ -70,10 +72,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     private final ImmutableOpenMap<String, DiscoveryNode> nodes;
     private final ImmutableOpenMap<String, DiscoveryNode> dataNodes;
-    private final ImmutableOpenMap<String, DiscoveryNode> masterNodes;
+    private final ImmutableOpenMap<String, DiscoveryNode> clusterManagerNodes;
     private final ImmutableOpenMap<String, DiscoveryNode> ingestNodes;
 
-    private final String masterNodeId;
+    private final String clusterManagerNodeId;
     private final String localNodeId;
     private final Version minNonClientNodeVersion;
     private final Version maxNonClientNodeVersion;
@@ -83,9 +85,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     private DiscoveryNodes(
         ImmutableOpenMap<String, DiscoveryNode> nodes,
         ImmutableOpenMap<String, DiscoveryNode> dataNodes,
-        ImmutableOpenMap<String, DiscoveryNode> masterNodes,
+        ImmutableOpenMap<String, DiscoveryNode> clusterManagerNodes,
         ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
-        String masterNodeId,
+        String clusterManagerNodeId,
         String localNodeId,
         Version minNonClientNodeVersion,
         Version maxNonClientNodeVersion,
@@ -94,9 +96,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     ) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
-        this.masterNodes = masterNodes;
+        this.clusterManagerNodes = clusterManagerNodes;
         this.ingestNodes = ingestNodes;
-        this.masterNodeId = masterNodeId;
+        this.clusterManagerNodeId = clusterManagerNodeId;
         this.localNodeId = localNodeId;
         this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.maxNonClientNodeVersion = maxNonClientNodeVersion;
@@ -110,14 +112,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Returns {@code true} if the local node is the elected master node.
+     * Returns {@code true} if the local node is the elected cluster-manager node.
      */
     public boolean isLocalNodeElectedMaster() {
         if (localNodeId == null) {
             // we don't know yet the local node id, return false
             return false;
         }
-        return localNodeId.equals(masterNodeId);
+        return localNodeId.equals(clusterManagerNodeId);
     }
 
     /**
@@ -148,12 +150,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Get a {@link Map} of the discovered master nodes arranged by their ids
+     * Get a {@link Map} of the discovered cluster-manager nodes arranged by their ids
      *
-     * @return {@link Map} of the discovered master nodes arranged by their ids
+     * @return {@link Map} of the discovered cluster-manager nodes arranged by their ids
      */
     public ImmutableOpenMap<String, DiscoveryNode> getMasterNodes() {
-        return this.masterNodes;
+        return this.clusterManagerNodes;
     }
 
     /**
@@ -164,35 +166,35 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Get a {@link Map} of the discovered master and data nodes arranged by their ids
+     * Get a {@link Map} of the discovered cluster-manager and data nodes arranged by their ids
      *
-     * @return {@link Map} of the discovered master and data nodes arranged by their ids
+     * @return {@link Map} of the discovered cluster-manager and data nodes arranged by their ids
      */
     public ImmutableOpenMap<String, DiscoveryNode> getMasterAndDataNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(dataNodes);
-        nodes.putAll(masterNodes);
+        nodes.putAll(clusterManagerNodes);
         return nodes.build();
     }
 
     /**
-     * Get a {@link Map} of the coordinating only nodes (nodes which are neither master, nor data, nor ingest nodes) arranged by their ids
+     * Get a {@link Map} of the coordinating only nodes (nodes which are neither cluster-manager, nor data, nor ingest nodes) arranged by their ids
      *
      * @return {@link Map} of the coordinating only nodes arranged by their ids
      */
     public ImmutableOpenMap<String, DiscoveryNode> getCoordinatingOnlyNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(this.nodes);
-        nodes.removeAll(masterNodes.keys());
+        nodes.removeAll(clusterManagerNodes.keys());
         nodes.removeAll(dataNodes.keys());
         nodes.removeAll(ingestNodes.keys());
         return nodes.build();
     }
 
     /**
-     * Returns a stream of all nodes, with master nodes at the front
+     * Returns a stream of all nodes, with cluster-manager nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
         return Stream.concat(
-            StreamSupport.stream(masterNodes.spliterator(), false).map(cur -> cur.value),
+            StreamSupport.stream(clusterManagerNodes.spliterator(), false).map(cur -> cur.value),
             StreamSupport.stream(this.spliterator(), false).filter(n -> n.isMasterNode() == false)
         );
     }
@@ -230,7 +232,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     /**
      * Determine if the given node exists and has the right roles. Supported roles vary by version, and our local cluster state might
-     * have come via an older master, so the roles may differ even if the node is otherwise identical.
+     * have come via an older cluster-manager, so the roles may differ even if the node is otherwise identical.
      */
     public boolean nodeExistsWithSameRoles(DiscoveryNode discoveryNode) {
         final DiscoveryNode existing = nodes.get(discoveryNode.getId());
@@ -239,7 +241,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     /**
      * Determine if the given node exists and has the right version. During upgrade from Elasticsearch version as OpenSearch node run in
-     * BWC mode and can have the version as 7.10.2 in cluster state from older master to OpenSearch master.
+     * BWC mode and can have the version as 7.10.2 in cluster state from older cluster-manager to OpenSearch cluster-manager.
      */
     public boolean nodeExistsWithBWCVersion(DiscoveryNode discoveryNode) {
         final DiscoveryNode existing = nodes.get(discoveryNode.getId());
@@ -250,12 +252,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Get the id of the master node
+     * Get the id of the cluster-manager node
      *
-     * @return id of the master
+     * @return id of the cluster-manager
      */
     public String getMasterNodeId() {
-        return this.masterNodeId;
+        return this.clusterManagerNodeId;
     }
 
     /**
@@ -277,12 +279,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Returns the master node, or {@code null} if there is no master node
+     * Returns the cluster-manager node, or {@code null} if there is no cluster-manager node
      */
     @Nullable
     public DiscoveryNode getMasterNode() {
-        if (masterNodeId != null) {
-            return nodes.get(masterNodeId);
+        if (clusterManagerNodeId != null) {
+            return nodes.get(clusterManagerNodeId);
         }
         return null;
     }
@@ -370,7 +372,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * Works by tracking the current set of nodes and applying each node specification in sequence. The set starts out empty and each node
      * specification may either add or remove nodes. For instance:
      *
-     * - _local, _master and _all respectively add to the subset the local node, the currently-elected master, and all the nodes
+     * - _local, _cluster_manager (_master) and _all respectively add to the subset the local node, the currently-elected cluster_manager, and all the nodes
      * - node IDs, names, hostnames and IP addresses all add to the subset any nodes which match
      * - a wildcard-based pattern of the form "attr*:value*" adds to the subset all nodes with a matching attribute with a matching value
      * - role:true adds to the subset all nodes with a matching role
@@ -393,10 +395,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     if (localNodeId != null) {
                         resolvedNodesIds.add(localNodeId);
                     }
-                } else if (nodeId.equals("_master")) {
-                    String masterNodeId = getMasterNodeId();
-                    if (masterNodeId != null) {
-                        resolvedNodesIds.add(masterNodeId);
+                } else if (nodeId.equals("_master") || nodeId.equals("_cluster_manager")) {
+                    String clusterManagerNodeId = getMasterNodeId();
+                    if (clusterManagerNodeId != null) {
+                        resolvedNodesIds.add(clusterManagerNodeId);
                     }
                 } else if (nodeExists(nodeId)) {
                     resolvedNodesIds.add(nodeId);
@@ -419,11 +421,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             } else {
                                 resolvedNodesIds.removeAll(dataNodes.keys());
                             }
-                        } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)) {
+                        } else if (roleNameIsClusterManager(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(masterNodes.keys());
+                                resolvedNodesIds.addAll(clusterManagerNodes.keys());
                             } else {
-                                resolvedNodesIds.removeAll(masterNodes.keys());
+                                resolvedNodesIds.removeAll(clusterManagerNodes.keys());
                             }
                         } else if (DiscoveryNodeRole.INGEST_ROLE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
@@ -506,32 +508,37 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 sb.append(", local");
             }
             if (node == getMasterNode()) {
-                sb.append(", master");
+                sb.append(", cluster-manager");
             }
             sb.append("\n");
         }
         return sb.toString();
     }
 
+    /**
+     * Delta between nodes.
+     *
+     * @opensearch.internal
+     */
     public static class Delta {
 
         private final String localNodeId;
         @Nullable
-        private final DiscoveryNode previousMasterNode;
+        private final DiscoveryNode previousClusterManagerNode;
         @Nullable
-        private final DiscoveryNode newMasterNode;
+        private final DiscoveryNode newClusterManagerNode;
         private final List<DiscoveryNode> removed;
         private final List<DiscoveryNode> added;
 
         private Delta(
-            @Nullable DiscoveryNode previousMasterNode,
-            @Nullable DiscoveryNode newMasterNode,
+            @Nullable DiscoveryNode previousClusterManagerNode,
+            @Nullable DiscoveryNode newClusterManagerNode,
             String localNodeId,
             List<DiscoveryNode> removed,
             List<DiscoveryNode> added
         ) {
-            this.previousMasterNode = previousMasterNode;
-            this.newMasterNode = newMasterNode;
+            this.previousClusterManagerNode = previousClusterManagerNode;
+            this.newClusterManagerNode = newClusterManagerNode;
             this.localNodeId = localNodeId;
             this.removed = removed;
             this.added = added;
@@ -542,17 +549,17 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean masterNodeChanged() {
-            return Objects.equals(newMasterNode, previousMasterNode) == false;
+            return Objects.equals(newClusterManagerNode, previousClusterManagerNode) == false;
         }
 
         @Nullable
-        public DiscoveryNode previousMasterNode() {
-            return previousMasterNode;
+        public DiscoveryNode previousClusterManagerNode() {
+            return previousClusterManagerNode;
         }
 
         @Nullable
         public DiscoveryNode newMasterNode() {
-            return newMasterNode;
+            return newClusterManagerNode;
         }
 
         public boolean removed() {
@@ -574,9 +581,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public String shortSummary() {
             final StringBuilder summary = new StringBuilder();
             if (masterNodeChanged()) {
-                summary.append("master node changed {previous [");
-                if (previousMasterNode() != null) {
-                    summary.append(previousMasterNode());
+                summary.append("cluster-manager node changed {previous [");
+                if (previousClusterManagerNode() != null) {
+                    summary.append(previousClusterManagerNode());
                 }
                 summary.append("], current [");
                 if (newMasterNode() != null) {
@@ -609,11 +616,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (masterNodeId == null) {
+        if (clusterManagerNodeId == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeString(masterNodeId);
+            out.writeString(clusterManagerNodeId);
         }
         out.writeVInt(nodes.size());
         for (DiscoveryNode node : this) {
@@ -656,10 +663,15 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return new Builder(nodes);
     }
 
+    /**
+     * Builder of a map of discovery nodes.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final ImmutableOpenMap.Builder<String, DiscoveryNode> nodes;
-        private String masterNodeId;
+        private String clusterManagerNodeId;
         private String localNodeId;
 
         public Builder() {
@@ -667,7 +679,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public Builder(DiscoveryNodes nodes) {
-            this.masterNodeId = nodes.getMasterNodeId();
+            this.clusterManagerNodeId = nodes.getMasterNodeId();
             this.localNodeId = nodes.getLocalNodeId();
             this.nodes = ImmutableOpenMap.builder(nodes.getNodes());
         }
@@ -712,8 +724,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return this;
         }
 
-        public Builder masterNodeId(String masterNodeId) {
-            this.masterNodeId = masterNodeId;
+        public Builder masterNodeId(String clusterManagerNodeId) {
+            this.clusterManagerNodeId = clusterManagerNodeId;
             return this;
         }
 
@@ -784,7 +796,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 dataNodesBuilder.build(),
                 masterNodesBuilder.build(),
                 ingestNodesBuilder.build(),
-                masterNodeId,
+                clusterManagerNodeId,
                 localNodeId,
                 minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
                 maxNonClientNodeVersion == null ? Version.CURRENT : maxNonClientNodeVersion,
@@ -794,7 +806,20 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean isLocalNodeElectedMaster() {
-            return masterNodeId != null && masterNodeId.equals(localNodeId);
+            return clusterManagerNodeId != null && clusterManagerNodeId.equals(localNodeId);
         }
+    }
+
+    /**
+     * Check if the given name of the node role is 'cluster_manager' or 'master'.
+     * The method is added for {@link #resolveNodes} to keep the code clear, when support the both above roles.
+     * @deprecated As of 2.0, because promoting inclusive language. MASTER_ROLE is deprecated.
+     * @param matchAttrName a given String for a name of the node role.
+     * @return true if the given roleName is 'cluster_manger' or 'master'
+     */
+    @Deprecated
+    private boolean roleNameIsClusterManager(String matchAttrName) {
+        return DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)
+            || DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName().equals(matchAttrName);
     }
 }

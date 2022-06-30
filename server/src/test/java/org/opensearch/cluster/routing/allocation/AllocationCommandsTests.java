@@ -188,7 +188,7 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
                     .add(newNode("node1"))
                     .add(newNode("node2"))
                     .add(newNode("node3"))
-                    .add(newNode("node4", singleton(DiscoveryNodeRole.MASTER_ROLE)))
+                    .add(newNode("node4", singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
             )
             .build();
         clusterState = allocation.reroute(clusterState, "reroute");
@@ -737,7 +737,7 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
             "test1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         DiscoveryNode node2 = new DiscoveryNode(
@@ -748,7 +748,9 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
             "test2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            new HashSet<>(randomSubsetOf(new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE)))),
+            new HashSet<>(
+                randomSubsetOf(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.INGEST_ROLE)))
+            ),
             Version.CURRENT
         );
 
@@ -806,7 +808,7 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
             "test1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         DiscoveryNode node2 = new DiscoveryNode(
@@ -817,7 +819,9 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
             "test2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            new HashSet<>(randomSubsetOf(new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE)))),
+            new HashSet<>(
+                randomSubsetOf(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.INGEST_ROLE)))
+            ),
             Version.CURRENT
         );
 

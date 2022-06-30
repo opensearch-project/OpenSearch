@@ -35,7 +35,6 @@ package org.opensearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.LRUQueryCache;
@@ -63,6 +62,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
+/**
+ * The query cache for indices
+ *
+ * @opensearch.internal
+ */
 public class IndicesQueryCache implements QueryCache, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);
@@ -155,11 +159,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         @Override
-        public void extractTerms(Set<Term> terms) {
-            in.extractTerms(terms);
-        }
-
-        @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             shardKeyMap.add(context.reader());
             return in.explain(context, doc);
@@ -217,6 +216,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         cache.clear();
     }
 
+    /**
+     * Statistics for the indices query cache
+     *
+     * @opensearch.internal
+     */
     private static class Stats implements Cloneable {
 
         final ShardId shardId;
@@ -252,6 +256,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
+    /**
+     * Statistics and Counts
+     *
+     * @opensearch.internal
+     */
     private static class StatsAndCount {
         volatile int count;
         final Stats stats;

@@ -55,6 +55,8 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 /**
  * This class parses the json request and translates it into a
  * TermVectorsRequest.
+ *
+ * @opensearch.api
  */
 public class RestTermVectorsAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in term vector requests is deprecated.";
@@ -66,12 +68,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
                 new Route(GET, "/{index}/_termvectors"),
                 new Route(POST, "/{index}/_termvectors"),
                 new Route(GET, "/{index}/_termvectors/{id}"),
-                new Route(POST, "/{index}/_termvectors/{id}"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_termvectors"),
-                new Route(POST, "/{index}/{type}/_termvectors"),
-                new Route(GET, "/{index}/{type}/{id}/_termvectors"),
-                new Route(POST, "/{index}/{type}/{id}/_termvectors")
+                new Route(POST, "/{index}/_termvectors/{id}")
             )
         );
     }

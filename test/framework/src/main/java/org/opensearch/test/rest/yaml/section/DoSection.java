@@ -353,7 +353,7 @@ public class DoSection implements ExecutableSection {
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders, final Version masterVersion) {
+    void checkWarningHeaders(final List<String> warningHeaders, final Version clusterManagerVersion) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
@@ -367,7 +367,7 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
-                if (masterVersion.before(LegacyESVersion.V_7_0_0)
+                if (clusterManagerVersion.before(LegacyESVersion.V_7_0_0)
                     && message.equals(
                         "the default number of shards will change from [5] to [1] in 7.0.0; "
                             + "if you wish to continue using the default of [5] shards, "
@@ -375,7 +375,7 @@ public class DoSection implements ExecutableSection {
                     )) {
                     /*
                      * This warning header will come back in the vast majority of our tests that create an index when running against an
-                     * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
+                     * older cluster-manager. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
                      */
                     continue;
                 }

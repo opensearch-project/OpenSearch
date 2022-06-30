@@ -51,6 +51,8 @@ import java.util.Map;
 /**
  * Dfs phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
  * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf)
+ *
+ * @opensearch.internal
  */
 public class DfsPhase {
 

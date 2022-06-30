@@ -48,6 +48,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.env.Environment;
 
+/**
+ * Prepares internal settings
+ *
+ * @opensearch.internal
+ */
 public class InternalSettingsPreparer {
 
     private static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
@@ -85,7 +90,7 @@ public class InternalSettingsPreparer {
         Environment environment = new Environment(output.build(), configPath);
 
         output = Settings.builder(); // start with a fresh output
-        Path path = environment.configFile().resolve("opensearch.yml");
+        Path path = environment.configDir().resolve("opensearch.yml");
         if (Files.exists(path)) {
             try {
                 output.loadFromPath(path);

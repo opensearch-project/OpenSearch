@@ -72,6 +72,11 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Transport handler for publication
+ *
+ * @opensearch.internal
+ */
 public class PublicationTransportHandler {
 
     private static final Logger logger = LogManager.getLogger(PublicationTransportHandler.class);
@@ -85,7 +90,7 @@ public class PublicationTransportHandler {
 
     private final AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
 
-    // the master needs the original non-serialized state as the cluster state contains some volatile information that we
+    // the cluster-manager needs the original non-serialized state as the cluster state contains some volatile information that we
     // don't want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or
     // because it's mostly just debugging info that would unnecessarily blow up CS updates (I think there was one in
     // snapshot code).
@@ -279,6 +284,8 @@ public class PublicationTransportHandler {
      * Publishing a cluster state typically involves sending the same cluster state (or diff) to every node, so the work of diffing,
      * serializing, and compressing the state can be done once and the results shared across publish requests. The
      * {@code PublicationContext} implements this sharing.
+     *
+     * @opensearch.internal
      */
     public class PublicationContext {
 
@@ -337,8 +344,9 @@ public class PublicationTransportHandler {
             if (destination.equals(discoveryNodes.getLocalNode())) {
                 // if publishing to self, use original request instead (see currentPublishRequestToSelf for explanation)
                 final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(publishRequest);
-                // we might override an in-flight publication to self in case where we failed as master and became master again,
-                // and the new publication started before the previous one completed (which fails anyhow because of higher current term)
+                // we might override an in-flight publication to self in case where we failed as cluster-manager and
+                // became cluster-manager again, and the new publication started before the previous one completed
+                // (which fails anyhow because of higher current term)
                 assert previousRequest == null || previousRequest.getAcceptedState().term() < publishRequest.getAcceptedState().term();
                 responseActionListener = new ActionListener<PublishWithJoinResponse>() {
                     @Override

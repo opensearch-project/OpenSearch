@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Base class for responses to action requests.
+ *
+ * @opensearch.internal
  */
 public abstract class ActionResponse extends TransportResponse {
 

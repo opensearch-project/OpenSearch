@@ -46,6 +46,8 @@ import java.util.Set;
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
  * @author mikeward@google.com (Mike Ward)
+ *
+ * @opensearch.internal
  */
 class InjectionRequestProcessor extends AbstractProcessor {
 

@@ -38,6 +38,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 /**
  * Allows plugging in a custom election strategy, restricting the notion of an election quorum.
  * Custom additional quorum restrictions can be defined by implementing the {@link #satisfiesAdditionalQuorumConstraints} method.
+ *
+ * @opensearch.internal
  */
 public abstract class ElectionStrategy {
 

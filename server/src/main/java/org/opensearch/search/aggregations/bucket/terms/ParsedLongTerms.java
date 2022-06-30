@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A long term agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedLongTerms extends ParsedTerms {
 
     @Override
@@ -60,6 +65,11 @@ public class ParsedLongTerms extends ParsedTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for long term values
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
         private Long key;

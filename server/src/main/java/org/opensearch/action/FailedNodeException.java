@@ -39,6 +39,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Base exception for a failed node
+ *
+ * @opensearch.internal
+ */
 public class FailedNodeException extends OpenSearchException {
 
     private final String nodeId;

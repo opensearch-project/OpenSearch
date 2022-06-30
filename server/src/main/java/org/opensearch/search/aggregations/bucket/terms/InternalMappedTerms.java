@@ -47,6 +47,8 @@ import java.util.stream.Collectors;
 
 /**
  * Common superclass for results of the terms aggregation on mapped fields.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>> extends InternalTerms<A, B> {
     protected final DocValueFormat format;

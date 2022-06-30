@@ -62,6 +62,8 @@ import java.util.function.Function;
  *      Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
+ *
+ * @opensearch.internal
  */
 public class FsRepository extends BlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(FsRepository.class);
@@ -118,7 +120,7 @@ public class FsRepository extends BlobStoreRepository {
         if (location.isEmpty()) {
             logger.warn(
                 "the repository location is missing, it should point to a shared file system location"
-                    + " that is available on all master and data nodes"
+                    + " that is available on all cluster-manager and data nodes"
             );
             throw new RepositoryException(metadata.name(), "missing location");
         }

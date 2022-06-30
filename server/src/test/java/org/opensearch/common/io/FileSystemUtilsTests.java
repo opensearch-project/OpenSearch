@@ -33,7 +33,7 @@
 package org.opensearch.common.io;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 

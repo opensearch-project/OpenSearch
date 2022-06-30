@@ -62,6 +62,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * Memory controller for indexing operations
+ *
+ * @opensearch.internal
+ */
 public class IndexingMemoryController implements IndexingOperationListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndexingMemoryController.class);
@@ -255,6 +260,11 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         }
     }
 
+    /**
+     * The bytes used by a shard and a reference to the shard
+     *
+     * @opensearch.internal
+     */
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
         final long bytesUsed;
         final IndexShard shard;

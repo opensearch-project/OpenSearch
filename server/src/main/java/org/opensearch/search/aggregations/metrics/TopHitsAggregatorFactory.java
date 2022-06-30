@@ -53,6 +53,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Aggregation Factory for top_hits agg
+ *
+ * @opensearch.internal
+ */
 class TopHitsAggregatorFactory extends AggregatorFactory {
 
     private final int from;
@@ -127,7 +132,11 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(searchContext.mapperService(), docValueFields);
+            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(
+                searchContext.mapperService()::simpleMatchToFullName,
+                searchContext.mapperService().getIndexSettings().getMaxDocvalueFields(),
+                docValueFields
+            );
             subSearchContext.docValuesContext(docValuesContext);
         }
         if (fetchFields != null) {

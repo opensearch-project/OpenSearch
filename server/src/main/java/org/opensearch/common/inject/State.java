@@ -46,6 +46,8 @@ import static java.util.Collections.emptySet;
  * injector data to be accessed as a unit.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 interface State {
 
@@ -106,15 +108,15 @@ interface State {
         }
 
         @Override
-        public void blacklist(Key<?> key) {}
+        public void denylist(Key<?> key) {}
 
         @Override
-        public boolean isBlacklisted(Key<?> key) {
+        public boolean isDenylisted(Key<?> key) {
             return true;
         }
 
         @Override
-        public void clearBlacklisted() {}
+        public void clearDenylisted() {}
 
         @Override
         public void makeAllBindingsToEagerSingletons(Injector injector) {}
@@ -164,25 +166,25 @@ interface State {
 
     /**
      * Forbids the corresponding injector from creating a binding to {@code key}. Child injectors
-     * blacklist their bound keys on their parent injectors to prevent just-in-time bindings on the
+     * denylist their bound keys on their parent injectors to prevent just-in-time bindings on the
      * parent injector that would conflict.
      */
-    void blacklist(Key<?> key);
+    void denylist(Key<?> key);
 
     /**
      * Returns true if {@code key} is forbidden from being bound in this injector. This indicates that
      * one of this injector's descendent's has bound the key.
      */
-    boolean isBlacklisted(Key<?> key);
+    boolean isDenylisted(Key<?> key);
 
     /**
      * Returns the shared lock for all injector data. This is a low-granularity, high-contention lock
-     * to be used when reading mutable data (ie. just-in-time bindings, and binding blacklists).
+     * to be used when reading mutable data (ie. just-in-time bindings, and binding denylists).
      */
     Object lock();
 
-    // ES_GUICE: clean blacklist keys
-    void clearBlacklisted();
+    // ES_GUICE: clean denylist keys
+    void clearDenylisted();
 
     void makeAllBindingsToEagerSingletons(Injector injector);
 }

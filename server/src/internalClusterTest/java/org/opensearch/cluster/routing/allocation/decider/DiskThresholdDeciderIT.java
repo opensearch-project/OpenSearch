@@ -32,9 +32,9 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
-import org.apache.lucene.mockfile.FilterFileStore;
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterPath;
+import org.apache.lucene.tests.mockfile.FilterFileStore;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -154,7 +154,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     }
 
     public void testHighWatermarkNotExceeded() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
@@ -189,7 +189,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     }
 
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
@@ -302,7 +302,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         while (true) {
             final IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[scaledRandomIntBetween(100, 10000)];
             for (int i = 0; i < indexRequestBuilders.length; i++) {
-                indexRequestBuilders[i] = client().prepareIndex(indexName, "_doc").setSource("field", randomAlphaOfLength(10));
+                indexRequestBuilders[i] = client().prepareIndex(indexName).setSource("field", randomAlphaOfLength(10));
             }
             indexRandom(true, indexRequestBuilders);
             forceMerge();
@@ -353,7 +353,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     private void assertBusyWithDiskUsageRefresh(String nodeName, String indexName, Matcher<? super Set<ShardRouting>> matcher)
         throws Exception {
         assertBusy(() -> {
-            // refresh the master's ClusterInfoService before checking the assigned shards because DiskThresholdMonitor might still
+            // refresh the cluster-manager's ClusterInfoService before checking the assigned shards because DiskThresholdMonitor might still
             // be processing a previous ClusterInfo update and will skip the new one (see DiskThresholdMonitor#onNewInfo(ClusterInfo)
             // and its internal checkInProgress flag)
             refreshDiskUsage();

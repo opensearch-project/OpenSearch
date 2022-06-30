@@ -116,7 +116,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
     }
 
     public void testSetMetadataExceptVersion() throws Exception {
-        Metadata randomMetadata = randomFrom(Metadata.INDEX, Metadata.TYPE, Metadata.ID, Metadata.ROUTING);
+        Metadata randomMetadata = randomFrom(Metadata.INDEX, Metadata.ID, Metadata.ROUTING);
         Processor processor = createSetProcessor(randomMetadata.getFieldName(), "_value", true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);

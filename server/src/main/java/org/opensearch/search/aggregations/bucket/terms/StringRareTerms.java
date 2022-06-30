@@ -45,9 +45,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of string rare terms
+ *
+ * @opensearch.internal
+ */
 public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, StringRareTerms.Bucket> {
     public static final String NAME = "srareterms";
 
+    /**
+     * Bucket for rare string terms
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalRareTerms.Bucket<Bucket> {
         BytesRef termBytes;
 

@@ -36,6 +36,8 @@ package org.opensearch.search.aggregations.metrics;
  * An aggregation that approximates the median absolute deviation of a numeric field
  *
  * @see <a href="https://en.wikipedia.org/wiki/Median_absolute_deviation">https://en.wikipedia.org/wiki/Median_absolute_deviation</a>
+ *
+ * @opensearch.internal
  */
 public interface MedianAbsoluteDeviation extends NumericMetricsAggregation.SingleValue {
 

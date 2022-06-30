@@ -39,6 +39,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
+/**
+ * Implementation of HDR percentiles ranks
+ *
+ * @opensearch.internal
+ */
 public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles implements PercentileRanks {
     public static final String NAME = "hdr_percentile_ranks";
 
@@ -109,6 +114,11 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
         return percentileRank;
     }
 
+    /**
+     * Terator for HDR percentile ranks agg
+     *
+     * @opensearch.internal
+     */
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;

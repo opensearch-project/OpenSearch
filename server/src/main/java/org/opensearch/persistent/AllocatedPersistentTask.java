@@ -48,6 +48,8 @@ import java.util.function.Predicate;
 
 /**
  * Represents a executor node operation that corresponds to a persistent task
+ *
+ * @opensearch.internal
  */
 public class AllocatedPersistentTask extends CancellableTask {
 
@@ -204,6 +206,11 @@ public class AllocatedPersistentTask extends CancellableTask {
         }
     }
 
+    /**
+     * The state of the task.
+     *
+     * @opensearch.internal
+     */
     public enum State {
         STARTED,  // the task is currently running
         PENDING_CANCEL, // the task is cancelled on master, cancelling it locally

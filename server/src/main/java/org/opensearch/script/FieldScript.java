@@ -46,6 +46,8 @@ import java.util.function.Function;
 
 /**
  * A script to produce dynamic values for return fields.
+ *
+ * @opensearch.internal
  */
 public abstract class FieldScript {
 
@@ -108,11 +110,20 @@ public abstract class FieldScript {
         leafLookup.setDocument(docid);
     }
 
-    /** A factory to construct {@link FieldScript} instances. */
+    /**
+     * A factory to construct {@link FieldScript} instances.
+     *
+     * @opensearch.internal
+     */
     public interface LeafFactory {
         FieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
+    /**
+     * Factory for field script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
     }

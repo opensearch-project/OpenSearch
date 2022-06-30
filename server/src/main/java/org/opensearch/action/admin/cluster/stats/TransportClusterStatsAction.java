@@ -64,6 +64,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Transport action for obtaining cluster state
+ *
+ * @opensearch.internal
+ */
 public class TransportClusterStatsAction extends TransportNodesAction<
     ClusterStatsRequest,
     ClusterStatsResponse,
@@ -206,6 +211,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     }
 
+    /**
+     * Inner Cluster Stats Node Request
+     *
+     * @opensearch.internal
+     */
     public static class ClusterStatsNodeRequest extends BaseNodeRequest {
 
         ClusterStatsRequest request;

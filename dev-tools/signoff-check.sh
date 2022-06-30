@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/usr/bin/env bash
+
+set -e -o pipefail
 
 ### Script to check for signoff presents on commits
 
@@ -28,4 +30,3 @@ done
 
 # Return non-zero error code if any commits were missing signoff
 exit $missingSignoff
-

@@ -77,6 +77,8 @@ import java.util.function.Predicate;
  * <li> {@link #relocateShard} starts relocation of a started shard.
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
 
@@ -891,6 +893,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.size();
     }
 
+    /**
+     * Unassigned shard list.
+     *
+     * @opensearch.internal
+     */
     public static final class UnassignedShards implements Iterable<ShardRouting> {
 
         private final RoutingNodes nodes;
@@ -987,6 +994,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             ignored.add(shard);
         }
 
+        /**
+         * An unassigned iterator.
+         *
+         * @opensearch.internal
+         */
         public class UnassignedIterator implements Iterator<ShardRouting>, ExistingShardsAllocator.UnassignedAllocationHandler {
 
             private final ListIterator<ShardRouting> iterator;
@@ -1367,6 +1379,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
     }
 
+    /**
+     * A collection of recoveries.
+     *
+     * @opensearch.internal
+     */
     private static final class Recoveries {
         private static final Recoveries EMPTY = new Recoveries();
         private int incoming = 0;

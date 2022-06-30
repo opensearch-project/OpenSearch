@@ -134,7 +134,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
@@ -156,7 +155,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
@@ -178,7 +176,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
@@ -202,7 +199,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
                 XContentType.JSON
@@ -222,7 +218,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ThrowingRunnable runnable = () -> mapper2.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
                 XContentType.JSON
@@ -234,6 +229,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     public void testIgnoreMalformed() throws Exception {
         doTestIgnoreMalformed("a", "For input string: \"a\"");
+        doTestIgnoreMalformed(true, "Current token (VALUE_TRUE) not numeric");
 
         List<String> values = Arrays.asList("NaN", "Infinity", "-Infinity");
         for (String value : values) {
@@ -241,12 +237,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private void doTestIgnoreMalformed(String value, String exceptionMessageContains) throws Exception {
+    private void doTestIgnoreMalformed(Object value, String exceptionMessageContains) throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ThrowingRunnable runnable = () -> mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                 XContentType.JSON
@@ -261,7 +256,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper2.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                 XContentType.JSON
@@ -277,7 +271,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                 XContentType.JSON
@@ -291,7 +284,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                 XContentType.JSON

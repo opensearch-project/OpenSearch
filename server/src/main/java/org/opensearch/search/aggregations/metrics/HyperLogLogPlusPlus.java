@@ -60,6 +60,8 @@ import java.nio.ByteOrder;
  * to the HyperLogLog algorithm and then this is used.
  *
  * It supports storing several HyperLogLogPlusPlus structures which are identified by a bucket number.
+ *
+ * @opensearch.internal
  */
 public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
@@ -223,6 +225,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * The hyper log log
+     *
+     * @opensearch.internal
+     */
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
         private final BigArrays bigArrays;
         private final HyperLogLogIterator iterator;
@@ -267,6 +274,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * Iterator for hyper log log
+     *
+     * @opensearch.internal
+     */
     private static class HyperLogLogIterator implements AbstractHyperLogLog.RunLenIterator {
 
         private final HyperLogLog hll;
@@ -302,6 +314,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * The plus plus
+     *
+     * @opensearch.internal
+     */
     private static class LinearCounting extends AbstractLinearCounting implements Releasable {
 
         protected final int threshold;
@@ -395,6 +412,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * The plus plus iterator
+     *
+     * @opensearch.internal
+     */
     private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
 
         private final LinearCounting lc;

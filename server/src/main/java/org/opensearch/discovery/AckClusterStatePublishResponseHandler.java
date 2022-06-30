@@ -42,6 +42,8 @@ import java.util.Set;
  * Allows to wait for all nodes to reply to the publish of a new cluster state
  * and notifies the {@link org.opensearch.discovery.Discovery.AckListener}
  * so that the cluster state update can be acknowledged
+ *
+ * @opensearch.internal
  */
 public class AckClusterStatePublishResponseHandler extends BlockingClusterStatePublishResponseHandler {
 
@@ -53,11 +55,11 @@ public class AckClusterStatePublishResponseHandler extends BlockingClusterStateP
      * Creates a new AckClusterStatePublishResponseHandler
      * @param publishingToNodes the set of nodes to which the cluster state will be published and should respond
      * @param ackListener the {@link org.opensearch.discovery.Discovery.AckListener} to notify for each response
-     *                    gotten from non master nodes
+     *                    gotten from non cluster-manager nodes
      */
     public AckClusterStatePublishResponseHandler(Set<DiscoveryNode> publishingToNodes, Discovery.AckListener ackListener) {
-        // Don't count the master as acknowledged, because it's not done yet
-        // otherwise we might end up with all the nodes but the master holding the latest cluster state
+        // Don't count the cluster-manager as acknowledged, because it's not done yet
+        // otherwise we might end up with all the nodes but the cluster-manager holding the latest cluster state
         super(publishingToNodes);
         this.ackListener = ackListener;
     }

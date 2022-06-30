@@ -37,10 +37,15 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Publishes the cluster state
+ *
+ * @opensearch.internal
+ */
 public interface ClusterStatePublisher {
     /**
-     * Publish all the changes to the cluster from the master (can be called just by the master). The publish
-     * process should apply this state to the master as well!
+     * Publish all the changes to the cluster from the cluster-manager (can be called just by the cluster-manager). The publish
+     * process should apply this state to the cluster-manager as well!
      *
      * The publishListener allows to wait for the publication to complete, which can be either successful completion, timing out or failing.
      * The method is guaranteed to pass back a {@link FailedToCommitClusterStateException} to the publishListener if the change is not
@@ -51,6 +56,11 @@ public interface ClusterStatePublisher {
      */
     void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener);
 
+    /**
+     * An acknowledgement listener.
+     *
+     * @opensearch.internal
+     */
     interface AckListener {
         /**
          * Should be called when the cluster coordination layer has committed the cluster state (i.e. even if this publication fails,

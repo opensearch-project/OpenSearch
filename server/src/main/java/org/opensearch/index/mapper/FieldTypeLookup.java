@@ -45,6 +45,8 @@ import java.util.Set;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
+ *
+ * @opensearch.internal
  */
 class FieldTypeLookup implements Iterable<MappedFieldType> {
 

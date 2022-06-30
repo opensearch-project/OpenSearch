@@ -33,6 +33,11 @@ package org.opensearch.action.admin.cluster.configuration;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport endpoint for clearing exclusions to voting config
+ *
+ * @opensearch.internal
+ */
 public class ClearVotingConfigExclusionsAction extends ActionType<ClearVotingConfigExclusionsResponse> {
     public static final ClearVotingConfigExclusionsAction INSTANCE = new ClearVotingConfigExclusionsAction();
     public static final String NAME = "cluster:admin/voting_config/clear_exclusions";

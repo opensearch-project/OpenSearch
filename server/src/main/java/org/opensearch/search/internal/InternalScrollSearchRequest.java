@@ -44,6 +44,11 @@ import org.opensearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Internal request used during scroll search
+ *
+ * @opensearch.internal
+ */
 public class InternalScrollSearchRequest extends TransportRequest {
 
     private ShardSearchContextId contextId;

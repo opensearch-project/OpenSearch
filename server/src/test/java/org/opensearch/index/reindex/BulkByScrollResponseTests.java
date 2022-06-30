@@ -51,7 +51,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 
 public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkByScrollResponse> {
@@ -81,14 +81,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     private List<Failure> randomIndexingFailures() {
         return usually()
             ? emptyList()
-            : singletonList(
-                new Failure(
-                    randomSimpleString(random()),
-                    randomSimpleString(random()),
-                    randomSimpleString(random()),
-                    new IllegalArgumentException("test")
-                )
-            );
+            : singletonList(new Failure(randomSimpleString(random()), randomSimpleString(random()), new IllegalArgumentException("test")));
     }
 
     private List<ScrollableHitSource.SearchFailure> randomSearchFailures() {
@@ -119,7 +112,6 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             Failure expectedFailure = expected.getBulkFailures().get(i);
             Failure actualFailure = actual.getBulkFailures().get(i);
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
-            assertEquals(expectedFailure.getType(), actualFailure.getType());
             assertEquals(expectedFailure.getId(), actualFailure.getId());
             assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
@@ -150,7 +142,6 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             Failure expectedFailure = expected.getBulkFailures().get(i);
             Failure actualFailure = actual.getBulkFailures().get(i);
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
-            assertEquals(expectedFailure.getType(), actualFailure.getType());
             assertEquals(expectedFailure.getId(), actualFailure.getId());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
         }

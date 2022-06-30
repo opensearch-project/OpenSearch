@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.put;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -54,7 +54,12 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportPutComponentTemplateAction extends TransportMasterNodeAction<
+/**
+ * An action for putting a single component template into the cluster state
+ *
+ * @opensearch.internal
+ */
+public class TransportPutComponentTemplateAction extends TransportClusterManagerNodeAction<
     PutComponentTemplateAction.Request,
     AcknowledgedResponse> {
 
@@ -120,7 +125,7 @@ public class TransportPutComponentTemplateAction extends TransportMasterNodeActi
             request.cause(),
             request.create(),
             request.name(),
-            request.masterNodeTimeout(),
+            request.clusterManagerNodeTimeout(),
             componentTemplate,
             listener
         );

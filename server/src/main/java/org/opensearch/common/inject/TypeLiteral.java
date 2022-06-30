@@ -76,6 +76,8 @@ import static org.opensearch.common.inject.internal.MoreTypes.canonicalize;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public class TypeLiteral<T> {
 
@@ -268,6 +270,8 @@ public class TypeLiteral<T> {
      *
      * @param supertype a superclass of, or interface implemented by, this.
      * @since 2.0
+     *
+     * @opensearch.internal
      */
     public TypeLiteral<?> getSupertype(Class<?> supertype) {
         if (!supertype.isAssignableFrom(rawType)) {

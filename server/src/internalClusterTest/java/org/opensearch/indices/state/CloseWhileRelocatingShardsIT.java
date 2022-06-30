@@ -120,7 +120,7 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
                     indexRandom(
                         randomBoolean(),
                         IntStream.range(0, nbDocs)
-                            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                             .collect(Collectors.toList())
                     );
                     break;
@@ -147,7 +147,7 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
         );
 
         final String targetNode = internalCluster().startDataOnlyNode();
-        ensureClusterSizeConsistency(); // wait for the master to finish processing join.
+        ensureClusterSizeConsistency(); // wait for the cluster-manager to finish processing join.
 
         try {
             final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());

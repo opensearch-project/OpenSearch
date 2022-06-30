@@ -64,7 +64,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -94,7 +94,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
+            .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
             .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
             .build();
 
@@ -179,7 +179,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
         );
-        node.client().prepareIndex("test", "_doc", "1").setSource(Collections.emptyMap()).get();
+        node.client().prepareIndex("test").setId("1").setSource(Collections.emptyMap()).get();
         OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
@@ -213,7 +213,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
                         .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 )
         );
-        node.client().prepareIndex("test", "_doc", "1").setSource(Collections.singletonMap("foo", 3L)).get();
+        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
         OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
@@ -256,7 +256,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
                         .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 )
         );
-        node.client().prepareIndex("test", "_doc", "1").setSource(Collections.singletonMap("foo", 3L)).get();
+        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
         OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
@@ -298,7 +298,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
                         .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 )
         );
-        node.client().prepareIndex("test", "_doc", "1").setSource(Collections.singletonMap("foo", 3L)).get();
+        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
         OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());

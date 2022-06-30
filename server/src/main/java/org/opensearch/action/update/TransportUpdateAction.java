@@ -81,6 +81,11 @@ import static org.opensearch.ExceptionsHelper.unwrapCause;
 import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.wrapBulkResponse;
 
+/**
+ * Transport action for updating an index
+ *
+ * @opensearch.internal
+ */
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
@@ -142,7 +147,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         request.routing((metadata.resolveWriteIndexRouting(request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
         if (request.routing() == null && metadata.routingRequired(concreteIndex)) {
-            throw new RoutingMissingException(concreteIndex, request.type(), request.id());
+            throw new RoutingMissingException(concreteIndex, request.id());
         }
     }
 
@@ -154,12 +159,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 request.index()
             );
         }
-        // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
+        // if we don't have a master, we don't have metadata, that's fine, let it find a cluster-manager using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             client.admin()
                 .indices()
                 .create(
-                    new CreateIndexRequest().index(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()),
+                    new CreateIndexRequest().index(request.index()).cause("auto(update api)").clusterManagerNodeTimeout(request.timeout()),
                     new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
@@ -226,7 +231,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
-                        response.getType(),
                         response.getId(),
                         response.getSeqNo(),
                         response.getPrimaryTerm(),
@@ -267,7 +271,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
-                        response.getType(),
                         response.getId(),
                         response.getSeqNo(),
                         response.getPrimaryTerm(),
@@ -296,7 +299,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
-                        response.getType(),
                         response.getId(),
                         response.getSeqNo(),
                         response.getPrimaryTerm(),
@@ -325,7 +327,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 if (indexServiceOrNull != null) {
                     IndexShard shard = indexService.getShardOrNull(shardId.getId());
                     if (shard != null) {
-                        shard.noopUpdate(request.type());
+                        shard.noopUpdate();
                     }
                 }
                 listener.onResponse(update);

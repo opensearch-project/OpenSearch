@@ -42,7 +42,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.opensearch.index.query.QueryBuilder;
@@ -86,14 +85,11 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("text")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -104,11 +100,9 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject()))
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject()))
             .actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())
-        ).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis");
@@ -121,14 +115,11 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testSimpleMoreLikeThisWithTypes() throws Exception {
         logger.info("Creating index test");
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("text")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -139,11 +130,9 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject()))
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject()))
             .actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())
-        ).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis");
@@ -155,17 +144,14 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
     // Issue #30148
     public void testMoreLikeThisForZeroTokensInOneOfTheAnalyzedFields() throws Exception {
-        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate("test").addMapping(
-            "type",
+        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate("test").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("myField")
                 .field("type", "text")
                 .endObject()
                 .startObject("empty")
                 .field("type", "text")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -176,14 +162,10 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         client().index(
-            indexRequest("test").type("type")
-                .id("1")
-                .source(jsonBuilder().startObject().field("myField", "and_foo").field("empty", "").endObject())
+            indexRequest("test").id("1").source(jsonBuilder().startObject().field("myField", "and_foo").field("empty", "").endObject())
         ).actionGet();
         client().index(
-            indexRequest("test").type("type")
-                .id("2")
-                .source(jsonBuilder().startObject().field("myField", "and_foo").field("empty", "").endObject())
+            indexRequest("test").id("2").source(jsonBuilder().startObject().field("myField", "and_foo").field("empty", "").endObject())
         ).actionGet();
 
         client().admin().indices().refresh(refreshRequest()).actionGet();
@@ -200,18 +182,15 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1", "some_long", "type=long"));
+        assertAcked(prepareCreate("test").setMapping("some_long", "type=long"));
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(
-            indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("some_long", 1367484649580L).endObject())
-        ).actionGet();
-        client().index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("some_long", 0).endObject()))
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("some_long", 1367484649580L).endObject()))
             .actionGet();
-        client().index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("some_long", -666).endObject()))
-            .actionGet();
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("some_long", 0).endObject())).actionGet();
+        client().index(indexRequest("test").id("3").source(jsonBuilder().startObject().field("some_long", -666).endObject())).actionGet();
 
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -225,14 +204,11 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testMoreLikeThisWithAliases() throws Exception {
         logger.info("Creating index test");
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("text")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -250,18 +226,14 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(
-            indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene beta").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("text", "opensearch beta").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("4").source(jsonBuilder().startObject().field("text", "opensearch release").endObject())
-        ).actionGet();
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("text", "lucene beta").endObject()))
+            .actionGet();
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject()))
+            .actionGet();
+        client().index(indexRequest("test").id("3").source(jsonBuilder().startObject().field("text", "opensearch beta").endObject()))
+            .actionGet();
+        client().index(indexRequest("test").id("4").source(jsonBuilder().startObject().field("text", "opensearch release").endObject()))
+            .actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis on index");
@@ -297,25 +269,19 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testMoreLikeThisWithAliasesInLikeDocuments() throws Exception {
         String indexName = "foo";
         String aliasName = "foo_name";
-        String typeName = "bar";
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("bar").startObject("properties").endObject().endObject().endObject()
-        );
-        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping, XContentType.JSON).get();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
+        client().admin().indices().prepareCreate(indexName).setMapping(mapping).get();
         client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
-        client().index(
-            indexRequest(indexName).type(typeName).id("1").source(jsonBuilder().startObject().field("text", "opensearch index").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest(indexName).type(typeName).id("2").source(jsonBuilder().startObject().field("text", "lucene index").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest(indexName).type(typeName).id("3").source(jsonBuilder().startObject().field("text", "opensearch index").endObject())
-        ).actionGet();
+        client().index(indexRequest(indexName).id("1").source(jsonBuilder().startObject().field("text", "opensearch index").endObject()))
+            .actionGet();
+        client().index(indexRequest(indexName).id("2").source(jsonBuilder().startObject().field("text", "lucene index").endObject()))
+            .actionGet();
+        client().index(indexRequest(indexName).id("3").source(jsonBuilder().startObject().field("text", "opensearch index").endObject()))
+            .actionGet();
         refresh(indexName);
 
         SearchResponse response = client().prepareSearch()
@@ -326,11 +292,10 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     }
 
     public void testMoreLikeThisIssue2197() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("bar").startObject("properties").endObject().endObject().endObject()
-        );
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
-        client().prepareIndex("foo", "bar", "1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
+        client().admin().indices().prepareCreate("foo").setMapping(mapping).get();
+        client().prepareIndex("foo")
+            .setId("1")
             .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
             .get();
         client().admin().indices().prepareRefresh("foo").get();
@@ -348,13 +313,12 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
     // Issue #2489
     public void testMoreLikeWithCustomRouting() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("bar").startObject("properties").endObject().endObject().endObject()
-        );
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
+        client().admin().indices().prepareCreate("foo").setMapping(mapping).get();
         ensureGreen();
 
-        client().prepareIndex("foo", "bar", "1")
+        client().prepareIndex("foo")
+            .setId("1")
             .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
             .setRouting("2")
             .get();
@@ -369,19 +333,16 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
     // Issue #3039
     public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("bar").startObject("properties").endObject().endObject().endObject()
-        );
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
         assertAcked(
-            prepareCreate("foo", 2, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0)).addMapping(
-                "bar",
-                mapping,
-                XContentType.JSON
+            prepareCreate("foo", 2, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0)).setMapping(
+                mapping
             )
         );
         ensureGreen();
 
-        client().prepareIndex("foo", "bar", "1")
+        client().prepareIndex("foo")
+            .setId("1")
             .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
             .setRouting("4000")
             .get();
@@ -396,10 +357,8 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     // Issue #3252
     public void testNumericField() throws Exception {
         final String[] numericTypes = new String[] { "byte", "short", "integer", "long" };
-        prepareCreate("test").addMapping(
-            "type",
+        prepareCreate("test").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("int_value")
                 .field("type", randomFrom(numericTypes))
@@ -409,13 +368,14 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         ).get();
         ensureGreen();
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject())
             .get();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("string_value", "opensearch index").field("int_value", 42).endObject())
             .get();
 
@@ -510,7 +470,6 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testMoreLikeThisWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("_doc")
             .startObject("properties")
             .startObject("text")
             .field("type", "text")
@@ -520,10 +479,9 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .field("path", "text")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
-        assertAcked(prepareCreate("test").addMapping("_doc", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
         index("test", "_doc", "1", "text", "lucene");
@@ -541,14 +499,11 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testSimpleMoreLikeInclude() throws Exception {
         logger.info("Creating index test");
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("text")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -560,8 +515,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
         logger.info("Indexing...");
         client().index(
-            indexRequest("test").type("type1")
-                .id("1")
+            indexRequest("test").id("1")
                 .source(
                     jsonBuilder().startObject()
                         .field("text", "Apache Lucene is a free/open source information retrieval software library")
@@ -569,8 +523,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 )
         ).actionGet();
         client().index(
-            indexRequest("test").type("type1")
-                .id("2")
+            indexRequest("test").id("2")
                 .source(jsonBuilder().startObject().field("text", "Lucene has been ported to other programming languages").endObject())
         ).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
@@ -610,14 +563,11 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testSimpleMoreLikeThisIds() throws Exception {
         logger.info("Creating index test");
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("text")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -629,9 +579,9 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
         logger.info("Indexing...");
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene").setId("1"));
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene release").setId("2"));
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "apache lucene").setId("3"));
+        builders.add(client().prepareIndex("test").setSource("text", "lucene").setId("1"));
+        builders.add(client().prepareIndex("test").setSource("text", "lucene release").setId("2"));
+        builders.add(client().prepareIndex("test").setSource("text", "apache lucene").setId("3"));
         indexRandom(true, builders);
 
         logger.info("Running MoreLikeThis");
@@ -640,14 +590,14 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .include(true)
             .minTermFreq(1)
             .minDocFreq(1);
-        SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).get();
+        SearchResponse mltResponse = client().prepareSearch().setQuery(queryBuilder).get();
         assertHitCount(mltResponse, 3L);
     }
 
     public void testMoreLikeThisMultiValueFields() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(
-            prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=keyword")
+            prepareCreate("test").setMapping("text", "type=text,analyzer=keyword")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
         );
         ensureGreen();
@@ -656,10 +606,10 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         String[] values = { "aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj" };
         List<IndexRequestBuilder> builders = new ArrayList<>(values.length + 1);
         // index one document with all the values
-        builders.add(client().prepareIndex("test", "type1", "0").setSource("text", values));
+        builders.add(client().prepareIndex("test").setId("0").setSource("text", values));
         // index each document with only one of the values
         for (int i = 0; i < values.length; i++) {
-            builders.add(client().prepareIndex("test", "type1", String.valueOf(i + 1)).setSource("text", values[i]));
+            builders.add(client().prepareIndex("test").setId(String.valueOf(i + 1)).setSource("text", values[i]));
         }
         indexRandom(true, builders);
 
@@ -672,7 +622,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 .minDocFreq(1)
                 .maxQueryTerms(max_query_terms)
                 .minimumShouldMatch("0%");
-            SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+            SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
             assertSearchResponse(response);
             assertHitCount(response, max_query_terms);
         }
@@ -681,7 +631,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testMinimumShouldMatch() throws ExecutionException, InterruptedException {
         logger.info("Creating the index ...");
         assertAcked(
-            prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=whitespace")
+            prepareCreate("test").setMapping("text", "type=text,analyzer=whitespace")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
         );
         ensureGreen();
@@ -693,7 +643,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             for (int j = 1; j <= 10 - i; j++) {
                 text += j + " ";
             }
-            builders.add(client().prepareIndex("test", "type1", i + "").setSource("text", text));
+            builders.add(client().prepareIndex("test").setId(i + "").setSource("text", text));
         }
         indexRandom(true, builders);
 
@@ -705,7 +655,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 .minDocFreq(1)
                 .minimumShouldMatch(minimumShouldMatch);
             logger.info("Testing with minimum_should_match = {}", minimumShouldMatch);
-            SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+            SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
             assertSearchResponse(response);
             if (minimumShouldMatch.equals("0%")) {
                 assertHitCount(response, 10);
@@ -727,7 +677,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             doc.field("field" + i, generateRandomStringArray(5, 10, false) + "a"); // make sure they are not all empty
         }
         doc.endObject();
-        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource(doc));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(doc));
 
         logger.info("Checking the document matches ...");
         // routing to ensure we hit the shard with the doc
@@ -735,21 +685,21 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .minDocFreq(0)
             .maxQueryTerms(100)
             .minimumShouldMatch("100%"); // strict all terms must match!
-        SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2107")
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating the index ...");
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=whitespace", "date", "type=date"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text,analyzer=whitespace", "date", "type=date"));
         ensureGreen("test");
 
         logger.info("Creating an index with a single document ...");
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource(jsonBuilder().startObject().field("text", "Hello World!").field("date", "2009-01-01").endObject())
         );
 
@@ -800,7 +750,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         logger.info("Indexing each field value of this document as a single document.");
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numFields; i++) {
-            builders.add(client().prepareIndex("test", "type1", i + "").setSource("field" + i, i + ""));
+            builders.add(client().prepareIndex("test").setId(i + "").setSource("field" + i, i + ""));
         }
         indexRandom(true, builders);
 
@@ -809,7 +759,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .minDocFreq(0)
             .maxQueryTerms(100)
             .minimumShouldMatch("0%");
-        SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, numFields);
 
@@ -824,23 +774,23 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 .include(true)
                 .minimumShouldMatch("0%");
 
-            response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+            response = client().prepareSearch("test").setQuery(mltQuery).get();
             assertSearchResponse(response);
             assertHitCount(response, numFields - (i + 1));
         }
     }
 
     public void testSelectFields() throws IOException, ExecutionException, InterruptedException {
-        assertAcked(
-            prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace")
-        );
+        assertAcked(prepareCreate("test").setMapping("text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace"));
         ensureGreen("test");
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource(jsonBuilder().startObject().field("text", "hello world").field("text1", "opensearch").endObject()),
-            client().prepareIndex("test", "type1", "2")
+            client().prepareIndex("test")
+                .setId("2")
                 .setSource(jsonBuilder().startObject().field("text", "goodby moon").field("text1", "opensearch").endObject())
         );
 
@@ -848,7 +798,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .minDocFreq(0)
             .include(true)
             .minimumShouldMatch("1%");
-        SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 2);
 
@@ -856,15 +806,15 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .minDocFreq(0)
             .include(true)
             .minimumShouldMatch("1%");
-        response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
     }
 
     public void testWithRouting() throws IOException {
-        client().prepareIndex("index", "type", "1").setRouting("3").setSource("text", "this is a document").get();
-        client().prepareIndex("index", "type", "2").setRouting("1").setSource("text", "this is another document").get();
-        client().prepareIndex("index", "type", "3").setRouting("4").setSource("text", "this is yet another document").get();
+        client().prepareIndex("index").setId("1").setRouting("3").setSource("text", "this is a document").get();
+        client().prepareIndex("index").setId("2").setRouting("1").setSource("text", "this is another document").get();
+        client().prepareIndex("index").setId("3").setRouting("4").setSource("text", "this is yet another document").get();
         refresh("index");
 
         Item item = new Item("index", "2").routing("1");
@@ -883,10 +833,8 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testWithMissingRouting() throws IOException {
         logger.info("Creating index test with routing required for type1");
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("text")
                     .field("type", "text")
@@ -894,7 +842,6 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("_routing")
                     .field("required", true)
-                    .endObject()
                     .endObject()
                     .endObject()
             )
@@ -914,7 +861,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
             Throwable cause = exception.getCause();
             assertThat(cause, instanceOf(RoutingMissingException.class));
-            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[_doc]/[1]"));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[1]"));
         }
 
         {
@@ -933,7 +880,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
             Throwable cause = exception.getCause();
             assertThat(cause, instanceOf(RoutingMissingException.class));
-            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[_doc]/[2]"));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[2]"));
         }
     }
 }

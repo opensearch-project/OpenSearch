@@ -54,6 +54,8 @@ import static org.opensearch.search.suggest.completion.context.GeoContextMapping
 
 /**
  * Defines the query context for {@link GeoContextMapping}
+ *
+ * @opensearch.internal
  */
 public final class GeoQueryContext implements ToXContentObject {
     public static final String NAME = "geo";
@@ -175,6 +177,11 @@ public final class GeoQueryContext implements ToXContentObject {
         return builder;
     }
 
+    /**
+     * Builder for the geo context
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private GeoPoint geoPoint;
         private int boost = 1;

@@ -168,8 +168,8 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         // end::create-repository-request-type
 
         // tag::create-repository-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::create-repository-request-masterTimeout
         // tag::create-repository-request-timeout
         request.timeout(TimeValue.timeValueMinutes(1)); // <1>
@@ -238,8 +238,8 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         request.local(true); // <1>
         // end::get-repository-request-local
         // tag::get-repository-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::get-repository-request-masterTimeout
 
         // tag::get-repository-execute
@@ -298,8 +298,8 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         // we need to restore as a different index name
 
         // tag::restore-snapshot-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::restore-snapshot-request-masterTimeout
 
         // tag::restore-snapshot-request-waitForCompletion
@@ -395,8 +395,8 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         // end::delete-repository-request
 
         // tag::delete-repository-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::delete-repository-request-masterTimeout
         // tag::delete-repository-request-timeout
         request.timeout(TimeValue.timeValueMinutes(1)); // <1>
@@ -454,8 +454,8 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         // end::verify-repository-request
 
         // tag::verify-repository-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::verify-repository-request-masterTimeout
         // tag::verify-repository-request-timeout
         request.timeout(TimeValue.timeValueMinutes(1)); // <1>
@@ -544,8 +544,8 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         // end::create-snapshot-request-includeGlobalState
 
         // tag::create-snapshot-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::create-snapshot-request-masterTimeout
         // tag::create-snapshot-request-waitForCompletion
         request.waitForCompletion(true); // <1>
@@ -622,8 +622,8 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         // end::get-snapshots-request-snapshots
 
         // tag::get-snapshots-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::get-snapshots-request-masterTimeout
 
         // tag::get-snapshots-request-verbose
@@ -704,8 +704,8 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         request.ignoreUnavailable(true); // <1>
         // end::snapshots-status-request-ignoreUnavailable
         // tag::snapshots-status-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::snapshots-status-request-masterTimeout
 
         // tag::snapshots-status-execute
@@ -769,8 +769,8 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         // end::delete-snapshot-request
 
         // tag::delete-snapshot-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
+        request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.clusterManagerNodeTimeout("1m"); // <2>
         // end::delete-snapshot-request-masterTimeout
 
         // tag::delete-snapshot-execute

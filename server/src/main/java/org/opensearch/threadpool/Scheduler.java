@@ -53,6 +53,8 @@ import java.util.function.Consumer;
 
 /**
  * Scheduler that allows to schedule one-shot and periodic commands.
+ *
+ * @opensearch.internal
  */
 public interface Scheduler {
 

@@ -36,6 +36,8 @@ import java.lang.reflect.Member;
  * Creates stack trace elements for members.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class StackTraceElements {
 

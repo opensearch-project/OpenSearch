@@ -43,6 +43,11 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * A single percentiles agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedPercentiles extends ParsedAggregation implements Iterable<Percentile> {
 
     protected final Map<Double, Double> percentiles = new LinkedHashMap<>();

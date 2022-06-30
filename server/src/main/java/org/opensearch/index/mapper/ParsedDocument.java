@@ -42,12 +42,14 @@ import java.util.List;
 
 /**
  * The result of parsing a document.
+ *
+ * @opensearch.internal
  */
 public class ParsedDocument {
 
     private final Field version;
 
-    private final String id, type;
+    private final String id;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
 
     private final String routing;
@@ -63,7 +65,6 @@ public class ParsedDocument {
         Field version,
         SeqNoFieldMapper.SequenceIDFields seqID,
         String id,
-        String type,
         String routing,
         List<Document> documents,
         BytesReference source,
@@ -73,7 +74,6 @@ public class ParsedDocument {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
-        this.type = type;
         this.routing = routing;
         this.documents = documents;
         this.source = source;
@@ -83,10 +83,6 @@ public class ParsedDocument {
 
     public String id() {
         return this.id;
-    }
-
-    public String type() {
-        return this.type;
     }
 
     public Field version() {

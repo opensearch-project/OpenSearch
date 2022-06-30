@@ -67,12 +67,15 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
 /**
  * A base class for all opensearch exceptions.
+ *
+ * @opensearch.internal
  */
 public class OpenSearchException extends RuntimeException implements ToXContentFragment, Writeable {
 
@@ -785,7 +788,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             2,
             UNKNOWN_VERSION_ADDED
         ),
-        MASTER_NOT_DISCOVERED_EXCEPTION(
+        CLUSTER_MANAGER_NOT_DISCOVERED_EXCEPTION(
             org.opensearch.discovery.MasterNotDiscoveredException.class,
             org.opensearch.discovery.MasterNotDiscoveredException::new,
             3,
@@ -1496,7 +1499,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             143,
             UNKNOWN_VERSION_ADDED
         ),
-        NOT_MASTER_EXCEPTION(
+        NOT_CLUSTER_MANAGER_EXCEPTION(
             org.opensearch.cluster.NotMasterException.class,
             org.opensearch.cluster.NotMasterException::new,
             144,
@@ -1592,6 +1595,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.transport.NoSeedNodeLeftException::new,
             160,
             LegacyESVersion.V_7_10_0
+        ),
+        REPLICATION_FAILED_EXCEPTION(
+            org.opensearch.indices.replication.common.ReplicationFailedException.class,
+            org.opensearch.indices.replication.common.ReplicationFailedException::new,
+            161,
+            V_2_1_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

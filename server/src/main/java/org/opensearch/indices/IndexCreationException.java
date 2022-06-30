@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if there is an error creating an index
+ *
+ * @opensearch.internal
+ */
 public class IndexCreationException extends OpenSearchException implements OpenSearchWrapperException {
 
     public IndexCreationException(String index, Throwable cause) {

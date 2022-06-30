@@ -53,6 +53,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get hot threads
+ *
+ * @opensearch.api
+ */
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     private static final String formatDeprecatedMessageWithoutNodeID = "[%s] is a deprecated endpoint. "

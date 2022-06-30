@@ -35,6 +35,11 @@ package org.opensearch.common.util;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 
+/**
+ * Array utilities.
+ *
+ * @opensearch.internal
+ */
 public class ArrayUtils {
 
     private ArrayUtils() {}

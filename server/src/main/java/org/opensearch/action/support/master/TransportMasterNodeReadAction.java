@@ -34,6 +34,7 @@ package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.Writeable;
@@ -41,11 +42,15 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 /**
- * A base class for read operations that needs to be performed on the master node.
+ * A base class for read operations that needs to be performed on the cluster-manager node.
  * Can also be executed on the local node if needed.
+ *
+ * @opensearch.internal
+ * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link TransportClusterManagerNodeReadAction}
  */
+@Deprecated
 public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse> extends
-    TransportMasterNodeAction<Request, Response> {
+    TransportClusterManagerNodeReadAction<Request, Response> {
 
     protected TransportMasterNodeReadAction(
         String actionName,
@@ -56,7 +61,7 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        super(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
     protected TransportMasterNodeReadAction(
@@ -81,8 +86,4 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         );
     }
 
-    @Override
-    protected final boolean localExecute(Request request) {
-        return request.local();
-    }
 }

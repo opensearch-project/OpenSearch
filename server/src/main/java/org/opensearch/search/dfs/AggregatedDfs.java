@@ -44,6 +44,11 @@ import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+/**
+ * Compute global distributed frequency across the index
+ *
+ * @opensearch.internal
+ */
 public class AggregatedDfs implements Writeable {
 
     private ObjectObjectHashMap<Term, TermStatistics> termStatistics;

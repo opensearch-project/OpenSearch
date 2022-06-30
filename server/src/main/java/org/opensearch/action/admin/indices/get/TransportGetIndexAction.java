@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.info.TransportClusterInfoAction;
+import org.opensearch.action.support.clustermanager.info.TransportClusterInfoAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -58,6 +58,8 @@ import java.util.stream.StreamSupport;
 
 /**
  * Get index action.
+ *
+ * @opensearch.internal
  */
 public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndexRequest, GetIndexResponse> {
 
@@ -102,7 +104,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         final ClusterState state,
         final ActionListener<GetIndexResponse> listener
     ) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsResult = ImmutableOpenMap.of();
+        ImmutableOpenMap<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
@@ -121,8 +123,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                 case MAPPINGS:
                     if (!doneMappings) {
                         try {
-                            mappingsResult = state.metadata()
-                                .findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
+                            mappingsResult = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
                             doneMappings = true;
                         } catch (IOException e) {
                             listener.onFailure(e);

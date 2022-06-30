@@ -40,8 +40,8 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.MasterNodeRequest;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -73,6 +73,11 @@ import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for deleting a datastream
+ *
+ * @opensearch.internal
+ */
 public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(DeleteDataStreamAction.class);
@@ -84,7 +89,12 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
+    /**
+     * Request for deleting data streams
+     *
+     * @opensearch.internal
+     */
+    public static class Request extends ClusterManagerNodeRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
 
@@ -149,7 +159,12 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+    /**
+     * Transport action for deleting data streams
+     *
+     * @opensearch.internal
+     */
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataDeleteIndexService deleteIndexService;
 
@@ -185,7 +200,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
                     @Override
                     public TimeValue timeout() {
-                        return request.masterNodeTimeout();
+                        return request.clusterManagerNodeTimeout();
                     }
 
                     @Override

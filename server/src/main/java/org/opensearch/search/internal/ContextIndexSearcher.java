@@ -41,7 +41,7 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -84,6 +84,8 @@ import java.util.concurrent.Executor;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
+ *
+ * @opensearch.internal
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /**
@@ -95,16 +97,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
-
-    public ContextIndexSearcher(
-        IndexReader reader,
-        Similarity similarity,
-        QueryCache queryCache,
-        QueryCachingPolicy queryCachingPolicy,
-        boolean wrapWithExitableDirectoryReader
-    ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, null);
-    }
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -233,6 +225,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
     }
 
+    public void search(
+        Query query,
+        CollectorManager<?, TopFieldDocs> manager,
+        QuerySearchResult result,
+        DocValueFormat[] formats,
+        TotalHits totalHits
+    ) throws IOException {
+        TopFieldDocs mergedTopDocs = search(query, manager);
+        // Lucene sets shards indexes during merging of topDocs from different collectors
+        // We need to reset shard index; OpenSearch will set shard index later during reduce stage
+        for (ScoreDoc scoreDoc : mergedTopDocs.scoreDocs) {
+            scoreDoc.shardIndex = -1;
+        }
+        if (totalHits != null) { // we have already precalculated totalHits for the whole index
+            mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
+        }
+        result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
+    }
+
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         for (LeafReaderContext ctx : leaves) { // search each subreader
@@ -291,10 +302,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private Weight wrapWeight(Weight weight) {
         if (cancellable.isEnabled()) {
             return new Weight(weight.getQuery()) {
-                @Override
-                public void extractTerms(Set<Term> terms) {
-                    throw new UnsupportedOperationException();
-                }
 
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
@@ -344,7 +351,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:
-        DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(
+        DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
             Arrays.asList(new BitSetIterator(acceptDocs, acceptDocs.approximateCardinality()), scorer.iterator())
         );
         int seen = 0;
@@ -423,9 +430,5 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         public void clear() {
             runnables.clear();
         }
-    }
-
-    public boolean allowConcurrentSegmentSearch() {
-        return (getExecutor() != null);
     }
 }

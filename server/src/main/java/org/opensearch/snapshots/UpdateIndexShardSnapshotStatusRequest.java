@@ -32,7 +32,7 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -44,8 +44,10 @@ import java.util.Objects;
 
 /**
  * Internal request that is used to send changes in snapshot status to master
+ *
+ * @opensearch.internal
  */
-public class UpdateIndexShardSnapshotStatusRequest extends MasterNodeRequest<UpdateIndexShardSnapshotStatusRequest> {
+public class UpdateIndexShardSnapshotStatusRequest extends ClusterManagerNodeRequest<UpdateIndexShardSnapshotStatusRequest> {
     private final Snapshot snapshot;
     private final ShardId shardId;
     private final SnapshotsInProgress.ShardSnapshotStatus status;
@@ -62,7 +64,7 @@ public class UpdateIndexShardSnapshotStatusRequest extends MasterNodeRequest<Upd
         this.shardId = shardId;
         this.status = status;
         // By default, we keep trying to post snapshot status messages to avoid snapshot processes getting stuck.
-        this.masterNodeTimeout = TimeValue.timeValueNanos(Long.MAX_VALUE);
+        this.clusterManagerNodeTimeout = TimeValue.timeValueNanos(Long.MAX_VALUE);
     }
 
     @Override

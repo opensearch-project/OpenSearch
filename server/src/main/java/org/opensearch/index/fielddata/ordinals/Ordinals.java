@@ -38,6 +38,8 @@ import org.apache.lucene.util.BytesRef;
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
+ *
+ * @opensearch.internal
  */
 public abstract class Ordinals implements Accountable {
 
@@ -60,6 +62,11 @@ public abstract class Ordinals implements Accountable {
         return ordinals(NO_VALUES);
     }
 
+    /**
+     * Holder of values
+     *
+     * @opensearch.internal
+     */
     public interface ValuesHolder {
 
         BytesRef lookupOrd(long ord);

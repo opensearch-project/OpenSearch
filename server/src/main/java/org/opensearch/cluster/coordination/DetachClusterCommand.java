@@ -41,15 +41,20 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import java.io.IOException;
 import java.nio.file.Path;
 
+/**
+ * Command to detach a node from the cluster
+ *
+ * @opensearch.internal
+ */
 public class DetachClusterCommand extends OpenSearchNodeCommand {
 
     static final String NODE_DETACHED_MSG = "Node was successfully detached from the cluster";
     static final String CONFIRMATION_MSG = DELIMITER
         + "\n"
         + "You should only run this tool if you have permanently lost all of the\n"
-        + "master-eligible nodes in this cluster and you cannot restore the cluster\n"
+        + "cluster-manager-eligible nodes in this cluster and you cannot restore the cluster\n"
         + "from a snapshot, or you have already unsafely bootstrapped a new cluster\n"
-        + "by running `opensearch-node unsafe-bootstrap` on a master-eligible\n"
+        + "by running `opensearch-node unsafe-bootstrap` on a cluster-manager-eligible\n"
         + "node that belonged to the same cluster as this node. This tool can cause\n"
         + "arbitrary data loss and its use should be your last resort.\n"
         + "\n"
@@ -86,8 +91,8 @@ public class DetachClusterCommand extends OpenSearchNodeCommand {
     // package-private for tests
     static Metadata updateMetadata(Metadata oldMetadata) {
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder()
-            .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
-            .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
+            .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER)
+            .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER)
             .term(0)
             .build();
         return Metadata.builder(oldMetadata).coordinationMetadata(coordinationMetadata).clusterUUIDCommitted(false).build();

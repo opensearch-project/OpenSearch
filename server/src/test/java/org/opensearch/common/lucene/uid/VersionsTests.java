@@ -216,15 +216,15 @@ public class VersionsTests extends OpenSearchTestCase {
 
     public void testLuceneVersionOnUnknownVersions() {
         // between two known versions, should use the lucene version of the previous version
-        Version version = LegacyESVersion.fromString("7.10.50");
-        assertEquals(VersionUtils.getPreviousVersion(Version.fromString("7.10.3")).luceneVersion, version.luceneVersion);
+        Version version = Version.fromString("1.1.50");
+        assertEquals(VersionUtils.getPreviousVersion(Version.fromString("1.1.3")).luceneVersion, version.luceneVersion);
 
         // too old version, major should be the oldest supported lucene version minus 1
         version = LegacyESVersion.fromString("5.2.1");
         assertEquals(VersionUtils.getFirstVersion().luceneVersion.major - 1, version.luceneVersion.major);
 
         // future version, should be the same version as today
-        version = Version.fromString("2.77.1");
+        version = Version.fromString(Version.CURRENT.major + ".77.1");
         assertEquals(Version.CURRENT.luceneVersion, version.luceneVersion);
     }
 }

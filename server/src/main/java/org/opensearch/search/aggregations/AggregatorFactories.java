@@ -77,6 +77,8 @@ import static java.util.stream.Collectors.toMap;
 
 /**
  * An immutable collection of {@link AggregatorFactories}.
+ *
+ * @opensearch.internal
  */
 public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
@@ -293,6 +295,8 @@ public class AggregatorFactories {
     /**
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
+     *
+     * @opensearch.internal
      */
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();

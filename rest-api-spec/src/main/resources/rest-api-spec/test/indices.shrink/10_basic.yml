@@ -1,16 +1,14 @@
 ---
 "Shrink index via API":
-  - skip:
-      version: " - 6.9.99"
-      reason: expects warnings that pre-7.0.0 will not send
-      features: [warnings, arbitrary_key]
-
   # creates an index with one document solely allocated on a particular data node
   # and shrinks it into a new index with a single shard
   # we don't do the relocation to a single node after the index is created
   # here since in a mixed version cluster we can't identify
   # which node is the one with the highest version and that is the only one that can safely
   # be used to shrink the index.
+
+  - skip:
+      features: allowed_warnings
 
   - do:
       nodes.info:
@@ -40,7 +38,6 @@
         id:    "1"
 
   - match: { _index:   source }
-  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -59,6 +56,8 @@
 
   # now we do the actual shrink
   - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.shrink:
         index: "source"
         target: "target"
@@ -78,6 +77,5 @@
         id:    "1"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }

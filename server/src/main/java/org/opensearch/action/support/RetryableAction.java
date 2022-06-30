@@ -50,6 +50,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The executor the action will be executed on can be defined in the constructor. Otherwise, SAME is the
  * default. The action will be retried with exponentially increasing delay periods until the timeout period
  * has been reached.
+ *
+ * @opensearch.internal
  */
 public abstract class RetryableAction<Response> {
 

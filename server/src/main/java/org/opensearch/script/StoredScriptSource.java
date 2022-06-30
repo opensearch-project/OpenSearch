@@ -65,6 +65,8 @@ import java.util.Objects;
 /**
  * {@link StoredScriptSource} represents user-defined parameters for a script
  * saved in the {@link ClusterState}.
+ *
+ * @opensearch.internal
  */
 public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContentObject {
 

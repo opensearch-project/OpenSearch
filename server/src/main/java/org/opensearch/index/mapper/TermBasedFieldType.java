@@ -46,7 +46,10 @@ import java.util.List;
 import java.util.Map;
 
 /** Base {@link MappedFieldType} implementation for a field that is indexed
- *  with the inverted index. */
+ *  with the inverted index.
+ *
+ * @opensearch.internal
+ */
 public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
     public TermBasedFieldType(

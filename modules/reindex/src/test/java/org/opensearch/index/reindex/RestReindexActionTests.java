@@ -38,13 +38,11 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
@@ -101,53 +99,5 @@ public class RestReindexActionTests extends RestActionTestCase {
             ReindexRequest request = action.buildRequest(requestBuilder.build(), new NamedWriteableRegistry(Collections.emptyList()));
             assertEquals("10m", request.getScrollTime().toString());
         }
-    }
-
-    /**
-     * test deprecation is logged if one or more types are used in source search request inside reindex
-     */
-    public void testTypeInSource() throws IOException {
-        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
-            .withPath("/_reindex");
-        XContentBuilder b = JsonXContent.contentBuilder().startObject();
-        {
-            b.startObject("source");
-            {
-                b.field("type", randomFrom(Arrays.asList("\"t1\"", "[\"t1\", \"t2\"]", "\"_doc\"")));
-            }
-            b.endObject();
-        }
-        b.endObject();
-        requestBuilder.withContent(new BytesArray(BytesReference.bytes(b).toBytesRef()), XContentType.JSON);
-
-        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
-
-        dispatchRequest(requestBuilder.build());
-        assertWarnings(ReindexRequest.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    /**
-     * test deprecation is logged if a type is used in the destination index request inside reindex
-     */
-    public void testTypeInDestination() throws IOException {
-        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
-            .withPath("/_reindex");
-        XContentBuilder b = JsonXContent.contentBuilder().startObject();
-        {
-            b.startObject("dest");
-            {
-                b.field("type", (randomBoolean() ? "_doc" : randomAlphaOfLength(4)));
-            }
-            b.endObject();
-        }
-        b.endObject();
-        requestBuilder.withContent(new BytesArray(BytesReference.bytes(b).toBytesRef()), XContentType.JSON);
-
-        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
-
-        dispatchRequest(requestBuilder.build());
-        assertWarnings(ReindexRequest.TYPES_DEPRECATION_MESSAGE);
     }
 }

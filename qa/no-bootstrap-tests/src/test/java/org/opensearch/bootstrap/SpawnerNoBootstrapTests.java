@@ -33,7 +33,7 @@
 package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -90,8 +90,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Environment environment = TestEnvironment.newEnvironment(settings);
 
         // This plugin will NOT have a controller daemon
-        Path plugin = environment.modulesFile().resolve("a_plugin");
-        Files.createDirectories(environment.modulesFile());
+        Path plugin = environment.modulesDir().resolve("a_plugin");
+        Files.createDirectories(environment.modulesDir());
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
                 plugin,
@@ -113,8 +113,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
      * Two plugins - one with a controller daemon and one without.
      */
     public void testControllerSpawn() throws Exception {
-        assertControllerSpawns(Environment::pluginsFile, false);
-        assertControllerSpawns(Environment::modulesFile, true);
+        assertControllerSpawns(Environment::pluginsDir, false);
+        assertControllerSpawns(Environment::modulesDir, true);
     }
 
     private void assertControllerSpawns(final Function<Environment, Path> pluginsDirFinder, boolean expectSpawn) throws Exception {
@@ -133,8 +133,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         // this plugin will have a controller daemon
         Path plugin = pluginsDirFinder.apply(environment).resolve("test_plugin");
-        Files.createDirectories(environment.modulesFile());
-        Files.createDirectories(environment.pluginsFile());
+        Files.createDirectories(environment.modulesDir());
+        Files.createDirectories(environment.pluginsDir());
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
             plugin,
@@ -192,7 +192,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         Environment environment = TestEnvironment.newEnvironment(settings);
 
-        Path plugin = environment.modulesFile().resolve("test_plugin");
+        Path plugin = environment.modulesDir().resolve("test_plugin");
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
                 plugin,

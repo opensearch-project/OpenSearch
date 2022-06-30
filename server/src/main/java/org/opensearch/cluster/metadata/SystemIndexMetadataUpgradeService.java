@@ -48,6 +48,8 @@ import java.util.List;
 
 /**
  * A service responsible for updating the metadata used by system indices.
+ *
+ * @opensearch.internal
  */
 public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
@@ -56,7 +58,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
     private final SystemIndices systemIndices;
     private final ClusterService clusterService;
 
-    private boolean master = false;
+    private boolean clusterManager = false;
 
     private volatile ImmutableOpenMap<String, IndexMetadata> lastIndexMetadataMap = ImmutableOpenMap.of();
     private volatile boolean updateTaskPending = false;
@@ -68,11 +70,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster() != master) {
-            this.master = event.localNodeMaster();
+        if (event.localNodeMaster() != clusterManager) {
+            this.clusterManager = event.localNodeMaster();
         }
 
-        if (master && updateTaskPending == false) {
+        if (clusterManager && updateTaskPending == false) {
             final ImmutableOpenMap<String, IndexMetadata> indexMetadataMap = event.state().metadata().indices();
 
             if (lastIndexMetadataMap != indexMetadataMap) {
@@ -92,6 +94,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
     }
 
+    /**
+     * Task to update system index metadata.
+     *
+     * @opensearch.internal
+     */
     public class SystemIndexMetadataUpdateTask extends ClusterStateUpdateTask {
 
         @Override

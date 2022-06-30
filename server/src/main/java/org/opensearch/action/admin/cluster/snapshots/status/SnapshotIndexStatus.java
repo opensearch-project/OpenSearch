@@ -53,6 +53,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * Represents snapshot status of all shards in the index
+ *
+ * @opensearch.internal
  */
 public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, ToXContentFragment {
 
@@ -122,6 +124,11 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         return indexShards.values().iterator();
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String SHARDS = "shards";
     }

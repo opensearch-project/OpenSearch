@@ -39,6 +39,11 @@ import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import java.util.List;
 import java.util.function.Function;
 
+/**
+ * Base token filter factory used in analysis chain
+ *
+ * @opensearch.internal
+ */
 public interface TokenFilterFactory {
     String name();
 

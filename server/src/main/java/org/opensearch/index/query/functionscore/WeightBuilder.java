@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query.functionscore;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
@@ -42,6 +43,8 @@ import java.io.IOException;
 
 /**
  * A query that multiplies the weight to the score.
+ *
+ * @opensearch.internal
  */
 public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     public static final String NAME = "weight";
@@ -50,6 +53,13 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
      * Standard constructor.
      */
     public WeightBuilder() {}
+
+    /**
+     * Standard constructor.
+     */
+    public WeightBuilder(@Nullable String functionName) {
+        setFunctionName(functionName);
+    }
 
     /**
      * Read from a stream.

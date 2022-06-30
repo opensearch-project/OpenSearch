@@ -60,6 +60,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Transport action for reloading OpenSearch Secure Settings
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesReloadSecureSettingsAction extends TransportNodesAction<
     NodesReloadSecureSettingsRequest,
     NodesReloadSecureSettingsResponse,
@@ -144,7 +149,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         final SecureString secureSettingsPassword = request.hasPassword()
             ? request.getSecureSettingsPassword()
             : new SecureString(new char[0]);
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configDir())) {
             // reread keystore from config file
             if (keystore == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(
@@ -178,6 +183,11 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         }
     }
 
+    /**
+     * Inner Node Request
+     *
+     * @opensearch.internal
+     */
     public static class NodeRequest extends BaseNodeRequest {
 
         NodesReloadSecureSettingsRequest request;

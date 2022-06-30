@@ -87,6 +87,11 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/**
+ * Transport action for retrieving the shard state
+ *
+ * @opensearch.internal
+ */
 public class ShardStateAction {
 
     private static final Logger logger = LogManager.getLogger(ShardStateAction.class);
@@ -177,14 +182,14 @@ public class ShardStateAction {
         final ActionListener<Void> listener
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
-        DiscoveryNode masterNode = currentState.nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
         Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
-        if (masterNode == null) {
-            logger.warn("no master known for action [{}] for shard entry [{}]", actionName, request);
-            waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
+        if (clusterManagerNode == null) {
+            logger.warn("no cluster-manager known for action [{}] for shard entry [{}]", actionName, request);
+            waitForNewClusterManagerAndRetry(actionName, observer, request, listener, changePredicate);
         } else {
-            logger.debug("sending [{}] to [{}] for shard entry [{}]", actionName, masterNode.getId(), request);
-            transportService.sendRequest(masterNode, actionName, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+            logger.debug("sending [{}] to [{}] for shard entry [{}]", actionName, clusterManagerNode.getId(), request);
+            transportService.sendRequest(clusterManagerNode, actionName, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleResponse(TransportResponse.Empty response) {
                     listener.onResponse(null);
@@ -192,14 +197,14 @@ public class ShardStateAction {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    if (isMasterChannelException(exp)) {
-                        waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
+                    if (isClusterManagerChannelException(exp)) {
+                        waitForNewClusterManagerAndRetry(actionName, observer, request, listener, changePredicate);
                     } else {
                         logger.warn(
                             new ParameterizedMessage(
                                 "unexpected failure while sending request [{}]" + " to [{}] for shard entry [{}]",
                                 actionName,
-                                masterNode,
+                                clusterManagerNode,
                                 request
                             ),
                             exp
@@ -217,17 +222,17 @@ public class ShardStateAction {
         }
     }
 
-    private static Class[] MASTER_CHANNEL_EXCEPTIONS = new Class[] {
+    private static Class[] CLUSTER_MANAGER_CHANNEL_EXCEPTIONS = new Class[] {
         NotMasterException.class,
         ConnectTransportException.class,
         FailedToCommitClusterStateException.class };
 
-    private static boolean isMasterChannelException(TransportException exp) {
-        return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
+    private static boolean isClusterManagerChannelException(TransportException exp) {
+        return ExceptionsHelper.unwrap(exp, CLUSTER_MANAGER_CHANNEL_EXCEPTIONS) != null;
     }
 
     /**
-     * Send a shard failed request to the master node to update the cluster state with the failure of a shard on another node. This means
+     * Send a shard failed request to the cluster-manager node to update the cluster state with the failure of a shard on another node. This means
      * that the shard should be failed because a write made it into the primary but was not replicated to this shard copy. If the shard
      * does not exist anymore but still has an entry in the in-sync set, remove its allocation id from the in-sync set.
      *
@@ -261,7 +266,7 @@ public class ShardStateAction {
     }
 
     /**
-     * Send a shard failed request to the master node to update the cluster state when a shard on the local node failed.
+     * Send a shard failed request to the cluster-manager node to update the cluster state when a shard on the local node failed.
      */
     public void localShardFailed(
         final ShardRouting shardRouting,
@@ -273,7 +278,7 @@ public class ShardStateAction {
     }
 
     /**
-     * Send a shard failed request to the master node to update the cluster state when a shard on the local node failed.
+     * Send a shard failed request to the cluster-manager node to update the cluster state when a shard on the local node failed.
      */
     public void localShardFailed(
         final ShardRouting shardRouting,
@@ -294,7 +299,7 @@ public class ShardStateAction {
     }
 
     // visible for testing
-    protected void waitForNewMasterAndRetry(
+    protected void waitForNewClusterManagerAndRetry(
         String actionName,
         ClusterStateObserver observer,
         TransportRequest request,
@@ -305,7 +310,7 @@ public class ShardStateAction {
             @Override
             public void onNewClusterState(ClusterState state) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("new cluster state [{}] after waiting for master election for shard entry [{}]", state, request);
+                    logger.trace("new cluster state [{}] after waiting for cluster-manager election for shard entry [{}]", state, request);
                 }
                 sendShardAction(actionName, state, request, listener);
             }
@@ -318,7 +323,7 @@ public class ShardStateAction {
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                // we wait indefinitely for a new master
+                // we wait indefinitely for a new cluster-manager
                 assert false;
             }
         }, changePredicate);
@@ -328,6 +333,11 @@ public class ShardStateAction {
         this.followUpRerouteTaskPriority = followUpRerouteTaskPriority;
     }
 
+    /**
+     * A transport handler for a shard failed action.
+     *
+     * @opensearch.internal
+     */
     private static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
         private final ClusterService clusterService;
         private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
@@ -376,13 +386,13 @@ public class ShardStateAction {
 
                     @Override
                     public void onNoLongerMaster(String source) {
-                        logger.error("{} no longer master while failing shard [{}]", request.shardId, request);
+                        logger.error("{} no longer cluster-manager while failing shard [{}]", request.shardId, request);
                         try {
                             channel.sendResponse(new NotMasterException(source));
                         } catch (Exception channelException) {
                             logger.warn(
                                 () -> new ParameterizedMessage(
-                                    "{} failed to send no longer master while failing shard [{}]",
+                                    "{} failed to send no longer cluster-manager while failing shard [{}]",
                                     request.shardId,
                                     request
                                 ),
@@ -411,6 +421,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * Executor if shard fails cluster state task.
+     *
+     * @opensearch.internal
+     */
     public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<FailedShardEntry> {
         private final AllocationService allocationService;
         private final RerouteService rerouteService;
@@ -547,6 +562,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * Entry for a failed shard.
+     *
+     * @opensearch.internal
+     */
     public static class FailedShardEntry extends TransportRequest {
         final ShardId shardId;
         final String allocationId;
@@ -653,6 +673,11 @@ public class ShardStateAction {
         sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, entry, listener);
     }
 
+    /**
+     * Handler for a shard started action.
+     *
+     * @opensearch.internal
+     */
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
         private final ClusterService clusterService;
         private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
@@ -682,6 +707,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * Executor for when shard starts cluster state.
+     *
+     * @opensearch.internal
+     */
     public static class ShardStartedClusterStateTaskExecutor
         implements
             ClusterStateTaskExecutor<StartedShardEntry>,
@@ -714,7 +744,8 @@ public class ShardStateAction {
                 if (matched == null) {
                     // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
                     // events on every cluster state publishing that does not contain the shard as started yet. This means that old stale
-                    // requests might still be in flight even after the shard has already been started or failed on the master. We just
+                    // requests might still be in flight even after the shard has already been started or failed on the cluster-manager. We
+                    // just
                     // ignore these requests for now.
                     logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", task.shardId, task);
                     builder.success(task);
@@ -806,6 +837,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * try for started shard.
+     *
+     * @opensearch.internal
+     */
     public static class StartedShardEntry extends TransportRequest {
         final ShardId shardId;
         final String allocationId;
@@ -849,6 +885,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * Error thrown when a shard is no longer primary.
+     *
+     * @opensearch.internal
+     */
     public static class NoLongerPrimaryShardException extends OpenSearchException {
 
         public NoLongerPrimaryShardException(ShardId shardId, String msg) {

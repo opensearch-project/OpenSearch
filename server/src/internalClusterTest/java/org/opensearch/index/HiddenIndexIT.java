@@ -63,7 +63,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
         assertAcked(
             client().admin().indices().prepareCreate("hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get()
         );
-        client().prepareIndex("hidden-index", "_doc").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         // default not visible to wildcard expansion
         SearchResponse searchResponse = client().prepareSearch(randomFrom("*", "_all", "h*", "*index"))
@@ -95,7 +95,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put("index.hidden", true).build())
                 .get()
         );
-        client().prepareIndex(".hidden-index", "_doc").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex(".hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         searchResponse = client().prepareSearch(randomFrom(".*", ".hidden-*")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
         matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> ".hidden-index".equals(hit.getIndex()));
         assertTrue(matchedHidden);
@@ -122,7 +122,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("a_global_template")
                 .setPatterns(Collections.singletonList("*"))
-                .addMapping("_doc", "foo", "type=text")
+                .setMapping("foo", "type=text")
                 .get()
         );
         assertAcked(
@@ -130,7 +130,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("not_global_template")
                 .setPatterns(Collections.singletonList("a*"))
-                .addMapping("_doc", "bar", "type=text")
+                .setMapping("bar", "type=text")
                 .get()
         );
         assertAcked(
@@ -138,7 +138,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("specific_template")
                 .setPatterns(Collections.singletonList("a_hidden_index"))
-                .addMapping("_doc", "baz", "type=text")
+                .setMapping("baz", "type=text")
                 .get()
         );
         assertAcked(
@@ -146,7 +146,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("unused_template")
                 .setPatterns(Collections.singletonList("not_used"))
-                .addMapping("_doc", "foobar", "type=text")
+                .setMapping("foobar", "type=text")
                 .get()
         );
 
@@ -160,7 +160,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("a_hidden_index").get();
         assertThat(mappingsResponse.mappings().size(), is(1));
-        MappingMetadata mappingMetadata = mappingsResponse.mappings().get("a_hidden_index").get("_doc");
+        MappingMetadata mappingMetadata = mappingsResponse.mappings().get("a_hidden_index");
         assertNotNull(mappingMetadata);
         Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
         assertNotNull(propertiesMap);
@@ -192,7 +192,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("a_global_template")
                 .setPatterns(Collections.singletonList("my_hidden_pattern*"))
-                .addMapping("_doc", "foo", "type=text")
+                .setMapping("foo", "type=text")
                 .setSettings(Settings.builder().put("index.hidden", true).build())
                 .get()
         );

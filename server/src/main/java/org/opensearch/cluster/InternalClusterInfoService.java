@@ -77,12 +77,14 @@ import java.util.function.Consumer;
  * InternalClusterInfoService provides the ClusterInfoService interface,
  * routinely updated on a timer. The timer can be dynamically changed by
  * setting the <code>cluster.info.update.interval</code> setting (defaulting
- * to 30 seconds). The InternalClusterInfoService only runs on the master node.
+ * to 30 seconds). The InternalClusterInfoService only runs on the cluster-manager node.
  * Listens for changes in the number of data nodes and immediately submits a
  * ClusterInfoUpdateJob if a node has been added.
  *
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
+ *
+ * @opensearch.internal
  */
 public class InternalClusterInfoService implements ClusterInfoService, ClusterStateListener {
 
@@ -109,7 +111,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile IndicesStatsSummary indicesStatsSummary;
-    // null if this node is not currently the master
+    // null if this node is not currently the cluster-manager
     private final AtomicReference<RefreshAndRescheduleRunnable> refreshAndRescheduleRunnable = new AtomicReference<>();
     private volatile boolean enabled;
     private volatile TimeValue fetchTimeout;
@@ -150,8 +152,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() && refreshAndRescheduleRunnable.get() == null) {
-            logger.trace("elected as master, scheduling cluster info update tasks");
-            executeRefresh(event.state(), "became master");
+            logger.trace("elected as cluster-manager, scheduling cluster info update tasks");
+            executeRefresh(event.state(), "became cluster-manager");
 
             final RefreshAndRescheduleRunnable newRunnable = new RefreshAndRescheduleRunnable();
             refreshAndRescheduleRunnable.set(newRunnable);
@@ -467,6 +469,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
+    /**
+     * Indices statistics summary.
+     *
+     * @opensearch.internal
+     */
     private static class IndicesStatsSummary {
         static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(
             ImmutableOpenMap.of(),
@@ -491,6 +498,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     /**
      * Runs {@link InternalClusterInfoService#refresh()}, logging failures/rejections appropriately.
+     *
+     * @opensearch.internal
      */
     private class RefreshRunnable extends AbstractRunnable {
         private final String reason;
@@ -524,6 +533,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     /**
      * Runs {@link InternalClusterInfoService#refresh()}, logging failures/rejections appropriately, and reschedules itself on completion.
+     *
+     * @opensearch.internal
      */
     private class RefreshAndRescheduleRunnable extends RefreshRunnable {
         RefreshAndRescheduleRunnable() {
@@ -535,7 +546,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             if (this == refreshAndRescheduleRunnable.get()) {
                 super.doRun();
             } else {
-                logger.trace("master changed, scheduled refresh job is stale");
+                logger.trace("cluster-manager changed, scheduled refresh job is stale");
             }
         }
 

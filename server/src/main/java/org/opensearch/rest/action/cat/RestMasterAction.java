@@ -38,6 +38,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -47,21 +48,29 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to list cluster_manager information
+ *
+ * @opensearch.api
+ */
 public class RestMasterAction extends AbstractCatAction {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMasterAction.class);
+
     @Override
-    public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat/master"));
+    public List<ReplacedRoute> replacedRoutes() {
+        // The deprecated path will be removed in a future major version.
+        return singletonList(new ReplacedRoute(GET, "/_cat/cluster_manager", "/_cat/master"));
     }
 
     @Override
     public String getName() {
-        return "cat_master_action";
+        return "cat_cluster_manager_action";
     }
 
     @Override
     protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/master\n");
+        sb.append("/_cat/cluster_manager\n");
     }
 
     @Override
@@ -69,7 +78,10 @@ public class RestMasterAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override
@@ -101,17 +113,17 @@ public class RestMasterAction extends AbstractCatAction {
         DiscoveryNodes nodes = state.getState().nodes();
 
         table.startRow();
-        DiscoveryNode master = nodes.get(nodes.getMasterNodeId());
-        if (master == null) {
+        DiscoveryNode clusterManager = nodes.get(nodes.getMasterNodeId());
+        if (clusterManager == null) {
             table.addCell("-");
             table.addCell("-");
             table.addCell("-");
             table.addCell("-");
         } else {
-            table.addCell(master.getId());
-            table.addCell(master.getHostName());
-            table.addCell(master.getHostAddress());
-            table.addCell(master.getName());
+            table.addCell(clusterManager.getId());
+            table.addCell(clusterManager.getHostName());
+            table.addCell(clusterManager.getHostAddress());
+            table.addCell(clusterManager.getName());
         }
         table.endRow();
 

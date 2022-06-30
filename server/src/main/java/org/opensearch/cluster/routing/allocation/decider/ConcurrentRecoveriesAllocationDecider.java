@@ -32,6 +32,8 @@ import org.apache.logging.log4j.Logger;
  * <code>cluster.routing.allocation.cluster_concurrent_recoveries</code>. Iff this
  * setting is set to <code>-1</code> the number of cluster concurrent recoveries operations
  * are unlimited.
+ *
+ * @opensearch.internal
  */
 public class ConcurrentRecoveriesAllocationDecider extends AllocationDecider {
 

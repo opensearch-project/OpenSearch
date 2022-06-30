@@ -58,6 +58,11 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 
+/**
+ * Internal coordination class for composite aggs
+ *
+ * @opensearch.internal
+ */
 public class InternalComposite extends InternalMultiBucketAggregation<InternalComposite, InternalComposite.InternalBucket>
     implements
         CompositeAggregation {
@@ -312,6 +317,11 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         return Objects.hash(super.hashCode(), size, buckets, afterKey, Arrays.hashCode(reverseMuls), Arrays.hashCode(missingOrders));
     }
 
+    /**
+     * The bucket iterator
+     *
+     * @opensearch.internal
+     */
     private static class BucketIterator implements Comparable<BucketIterator> {
         final Iterator<InternalBucket> it;
         InternalBucket current;
@@ -330,6 +340,11 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
     }
 
+    /**
+     * Internal bucket for the internal composite agg
+     *
+     * @opensearch.internal
+     */
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
         implements
             CompositeAggregation.Bucket,
@@ -511,6 +526,11 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         return obj;
     }
 
+    /**
+     * An array map used for the internal composite agg
+     *
+     * @opensearch.internal
+     */
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
         final Comparable[] values;

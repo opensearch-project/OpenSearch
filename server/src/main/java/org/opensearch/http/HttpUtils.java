@@ -32,6 +32,11 @@
 
 package org.opensearch.http;
 
+/**
+ * Utility class for HTTP connections
+ *
+ * @opensearch.internal
+ */
 public class HttpUtils {
 
     static final String CLOSE = "close";

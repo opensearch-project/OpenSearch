@@ -40,6 +40,8 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 
 /**
  * Maps long bucket keys to bucket ordinals.
+ *
+ * @opensearch.internal
  */
 public abstract class LongKeyedBucketOrds implements Releasable {
     /**
@@ -98,6 +100,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
     /**
      * An iterator for buckets inside a particular {@code owningBucketOrd}.
+     *
+     * @opensearch.internal
      */
     public interface BucketOrdsEnum {
         /**
@@ -140,6 +144,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
     /**
      * Implementation that only works if it is collecting from a single bucket.
+     *
+     * @opensearch.internal
      */
     public static class FromSingle extends LongKeyedBucketOrds {
         private final LongHash ords;
@@ -219,6 +225,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
     /**
      * Implementation that works properly when collecting from many buckets.
+     *
+     * @opensearch.internal
      */
     public static class FromMany extends LongKeyedBucketOrds {
         private final LongLongHash ords;

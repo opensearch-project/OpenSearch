@@ -75,6 +75,8 @@ import static org.opensearch.node.Node.NODE_NAME_SETTING;
 
 /**
  * A module for loading classes for node discovery.
+ *
+ * @opensearch.internal
  */
 public class DiscoveryModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
@@ -119,7 +121,7 @@ public class DiscoveryModule {
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
-        MasterService masterService,
+        MasterService clusterManagerService,
         ClusterApplier clusterApplier,
         ClusterSettings clusterSettings,
         List<DiscoveryPlugin> plugins,
@@ -195,7 +197,7 @@ public class DiscoveryModule {
                 transportService,
                 namedWriteableRegistry,
                 allocationService,
-                masterService,
+                clusterManagerService,
                 gatewayMetaState::getPersistedState,
                 seedHostsProvider,
                 clusterApplier,

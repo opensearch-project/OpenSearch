@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,7 +88,6 @@ import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
-import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -98,7 +96,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -115,7 +112,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -127,6 +123,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SH
 
 /**
  * Service responsible for submitting create index requests
+ *
+ * @opensearch.internal
  */
 public class MetadataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);
@@ -217,17 +215,9 @@ public class MetadataCreateIndexService {
      * @param isHidden Whether or not this is a hidden index
      */
     public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
-        boolean isSystem = false;
         if (index.charAt(0) == '.') {
-            SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(index);
-            if (matchingDescriptor != null) {
-                logger.trace(
-                    "index [{}] is a system index because it matches index pattern [{}] with description [{}]",
-                    index,
-                    matchingDescriptor.getIndexPattern(),
-                    matchingDescriptor.getDescription()
-                );
-                isSystem = true;
+            if (systemIndices.validateSystemIndex(index)) {
+                return true;
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
@@ -240,7 +230,7 @@ public class MetadataCreateIndexService {
             }
         }
 
-        return isSystem;
+        return false;
     }
 
     /**
@@ -452,7 +442,7 @@ public class MetadataCreateIndexService {
         final boolean silent,
         final IndexMetadata sourceMetadata,
         final IndexMetadata temporaryIndexMeta,
-        final List<Map<String, Map<String, Object>>> mappings,
+        final List<Map<String, Object>> mappings,
         final Function<IndexService, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
         final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
@@ -474,7 +464,6 @@ public class MetadataCreateIndexService {
                     request.index(),
                     aliases,
                     indexService.mapperService()::documentMapper,
-                    () -> indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING),
                     temporaryIndexMeta.getSettings(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
@@ -543,20 +532,10 @@ public class MetadataCreateIndexService {
             templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList())
         );
 
-        final Map<String, Map<String, Object>> mappings = Collections.unmodifiableMap(
+        final Map<String, Object> mappings = Collections.unmodifiableMap(
             parseV1Mappings(
                 request.mappings(),
-                templates.stream()
-                    .map(IndexTemplateMetadata::getMappings)
-                    // Converts the ImmutableOpenMap into a non-terrible HashMap
-                    .map(iom -> {
-                        Map<String, CompressedXContent> converted = new HashMap<>(iom.size());
-                        for (ObjectObjectCursor<String, CompressedXContent> cursor : iom) {
-                            converted.put(cursor.key, cursor.value);
-                        }
-                        return converted;
-                    })
-                    .collect(toList()),
+                templates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
                 xContentRegistry
             )
         );
@@ -618,7 +597,7 @@ public class MetadataCreateIndexService {
             );
         }
 
-        final List<Map<String, Map<String, Object>>> mappings = collectV2Mappings(
+        final List<Map<String, Object>> mappings = collectV2Mappings(
             request.mappings(),
             currentState,
             templateName,
@@ -661,29 +640,31 @@ public class MetadataCreateIndexService {
         );
     }
 
-    public static List<Map<String, Map<String, Object>>> collectV2Mappings(
-        final Map<String, String> requestMappings,
+    public static List<Map<String, Object>> collectV2Mappings(
+        final String requestMappings,
         final ClusterState currentState,
         final String templateName,
         final NamedXContentRegistry xContentRegistry,
         final String indexName
     ) throws Exception {
-        List<Map<String, Map<String, Object>>> result = new ArrayList<>();
-
         List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
+        return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
+    }
+
+    public static List<Map<String, Object>> collectV2Mappings(
+        final String requestMappings,
+        final List<CompressedXContent> templateMappings,
+        final NamedXContentRegistry xContentRegistry
+    ) throws Exception {
+        List<Map<String, Object>> result = new ArrayList<>();
+
         for (CompressedXContent templateMapping : templateMappings) {
             Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
-            result.add(singletonMap(MapperService.SINGLE_MAPPING_NAME, parsedTemplateMapping));
+            result.add(parsedTemplateMapping);
         }
 
-        if (requestMappings.size() > 0) {
-            assert requestMappings.size() == 1 : "expected request metadata mappings to have 1 type but it had: " + requestMappings;
-            Map.Entry<String, String> entry = requestMappings.entrySet().iterator().next();
-
-            String type = entry.getKey();
-            Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, entry.getValue());
-            result.add(singletonMap(type, parsedMappings));
-        }
+        Map<String, Object> parsedRequestMappings = MapperService.parseMapping(xContentRegistry, requestMappings);
+        result.add(parsedRequestMappings);
         return result;
     }
 
@@ -696,7 +677,8 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.info("applying create index request using existing index [{}] metadata", sourceMetadata.getIndex().getName());
 
-        if (request.mappings().size() > 0) {
+        final Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, request.mappings());
+        if (mappings.isEmpty() == false) {
             throw new IllegalArgumentException(
                 "mappings are not allowed when creating an index from a source index, " + "all mappings are copied from the source index"
             );
@@ -721,7 +703,7 @@ public class MetadataCreateIndexService {
             silent,
             sourceMetadata,
             tmpImd,
-            Collections.emptyList(),
+            Collections.singletonList(mappings),
             indexService -> resolveAndValidateAliases(
                 request.index(),
                 request.aliases(),
@@ -747,55 +729,28 @@ public class MetadataCreateIndexService {
      * {@link IndexTemplateMetadata#order()}). This merging makes no distinction between field
      * definitions, as may result in an invalid field definition
      */
-    static Map<String, Map<String, Object>> parseV1Mappings(
-        Map<String, String> requestMappings,
-        List<Map<String, CompressedXContent>> templateMappings,
+    static Map<String, Object> parseV1Mappings(
+        String requestMappings,
+        List<CompressedXContent> templateMappings,
         NamedXContentRegistry xContentRegistry
     ) throws Exception {
-        Map<String, Map<String, Object>> mappings = new HashMap<>();
-        for (Map.Entry<String, String> entry : requestMappings.entrySet()) {
-            Map<String, Object> mapping = MapperService.parseMapping(xContentRegistry, entry.getValue());
-            if (mapping.isEmpty()) {
-                // Someone provided an empty '{}' for mappings, which is okay, but to avoid
-                // tripping the below assertion, we can safely ignore it
-                continue;
-            }
-            assert mapping.size() == 1 : mapping;
-            assert entry.getKey().equals(mapping.keySet().iterator().next()) : entry.getKey() + " != " + mapping;
-            mappings.put(entry.getKey(), mapping);
-        }
-
+        Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, requestMappings);
         // apply templates, merging the mappings into the request mapping if exists
-        for (Map<String, CompressedXContent> tMapping : templateMappings) {
-            for (Map.Entry<String, CompressedXContent> cursor : tMapping.entrySet()) {
-                String mappingString = cursor.getValue().string();
-                String type = cursor.getKey();
-                if (mappings.containsKey(type)) {
-                    XContentHelper.mergeDefaults(mappings.get(type), MapperService.parseMapping(xContentRegistry, mappingString));
-                } else if (mappings.size() == 1 && type.equals(MapperService.SINGLE_MAPPING_NAME)) {
-                    // Typeless template with typed mapping
-                    Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
-                    assert templateMapping.size() == 1 : templateMapping;
-                    assert type.equals(templateMapping.keySet().iterator().next()) : type + " != " + templateMapping;
-                    Map.Entry<String, Map<String, Object>> mappingEntry = mappings.entrySet().iterator().next();
-                    templateMapping = singletonMap(
-                        mappingEntry.getKey(),                       // reuse type name from the mapping
-                        templateMapping.values().iterator().next()
-                    ); // but actual mappings from the template
-                    XContentHelper.mergeDefaults(mappingEntry.getValue(), templateMapping);
-                } else if (tMapping.size() == 1 && mappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
-                    // Typed template with typeless mapping
-                    Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
-                    assert templateMapping.size() == 1 : templateMapping;
-                    assert type.equals(templateMapping.keySet().iterator().next()) : type + " != " + templateMapping;
-                    Map<String, Object> mapping = mappings.get(MapperService.SINGLE_MAPPING_NAME);
-                    templateMapping = singletonMap(
-                        MapperService.SINGLE_MAPPING_NAME,           // make template mapping typeless
-                        templateMapping.values().iterator().next()
-                    );
-                    XContentHelper.mergeDefaults(mapping, templateMapping);
+        for (CompressedXContent mapping : templateMappings) {
+            if (mapping != null) {
+                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
+                if (templateMapping.isEmpty()) {
+                    // Someone provided an empty '{}' for mappings, which is okay, but to avoid
+                    // tripping the below assertion, we can safely ignore it
+                    continue;
+                }
+                assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
+                // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
+                templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, templateMapping.values().iterator().next());
+                if (mappings.isEmpty()) {
+                    mappings = templateMapping;
                 } else {
-                    mappings.put(type, MapperService.parseMapping(xContentRegistry, mappingString));
+                    XContentHelper.mergeDefaults(mappings, templateMapping);
                 }
             }
         }
@@ -889,13 +844,7 @@ public class MetadataCreateIndexService {
             indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
         }
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
-            final int numberOfShards;
-            if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(settings)) {
-                numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
-            } else {
-                numberOfShards = getNumberOfShards(indexSettingsBuilder);
-            }
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
@@ -928,7 +877,7 @@ public class MetadataCreateIndexService {
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings
          * that will be used to create this index.
          */
-        shardLimitValidator.validateShardLimit(indexSettings, currentState);
+        shardLimitValidator.validateShardLimit(request.index(), indexSettings, currentState);
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) == false
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings).onOrAfter(Version.V_2_0_0)) {
             throw new IllegalArgumentException(
@@ -951,21 +900,6 @@ public class MetadataCreateIndexService {
                     + "or other file systems instead."
             );
         }
-    }
-
-    static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
-        // TODO: this logic can be removed when the current major version is 8
-        assert Version.CURRENT.major == 1 || Version.CURRENT.major == 2;
-        final int numberOfShards;
-        final Version indexVersionCreated = Version.fromId(
-            Integer.parseInt(indexSettingsBuilder.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey()))
-        );
-        if (indexVersionCreated.before(LegacyESVersion.V_7_0_0)) {
-            numberOfShards = 5;
-        } else {
-            numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY);
-        }
-        return numberOfShards;
     }
 
     /**
@@ -1099,7 +1033,6 @@ public class MetadataCreateIndexService {
         String indexName,
         List<AliasMetadata> aliases,
         Supplier<DocumentMapper> documentMapperSupplier,
-        Supplier<DocumentMapper> defaultDocumentMapperSupplier,
         Settings indexSettings,
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
@@ -1109,11 +1042,10 @@ public class MetadataCreateIndexService {
         indexMetadataBuilder.system(isSystem);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
-        for (DocumentMapper mapper : Arrays.asList(documentMapperSupplier.get(), defaultDocumentMapperSupplier.get())) {
-            if (mapper != null) {
-                MappingMetadata mappingMd = new MappingMetadata(mapper);
-                mappingsMetadata.put(mapper.type(), mappingMd);
-            }
+        DocumentMapper mapper = documentMapperSupplier.get();
+        if (mapper != null) {
+            MappingMetadata mappingMd = new MappingMetadata(mapper);
+            mappingsMetadata.put(mapper.type(), mappingMd);
         }
 
         for (MappingMetadata mappingMd : mappingsMetadata.values()) {
@@ -1174,15 +1106,13 @@ public class MetadataCreateIndexService {
     private static void updateIndexMappingsAndBuildSortOrder(
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
-        List<Map<String, Map<String, Object>>> mappings,
+        List<Map<String, Object>> mappings,
         @Nullable IndexMetadata sourceMetadata
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
-        for (Map<String, Map<String, Object>> mapping : mappings) {
-            if (!mapping.isEmpty()) {
-                assert mapping.size() == 1 : mapping;
-                Map.Entry<String, Map<String, Object>> entry = mapping.entrySet().iterator().next();
-                mapperService.merge(entry.getKey(), entry.getValue(), MergeReason.INDEX_TEMPLATE);
+        for (Map<String, Object> mapping : mappings) {
+            if (mapping.isEmpty() == false) {
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
             }
         }
 
@@ -1230,7 +1160,7 @@ public class MetadataCreateIndexService {
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
-        List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataFile());
+        List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }

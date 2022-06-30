@@ -63,7 +63,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/468")
     public void testKeystoreUpgrade() throws Exception {
-        final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
+        final Path keystore = KeyStoreWrapper.keystorePath(env.configDir());
         try (
             InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-opensearch.keystore");
             OutputStream os = Files.newOutputStream(keystore)
@@ -74,12 +74,12 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
                 os.write(buffer, 0, read);
             }
         }
-        try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configFile())) {
+        try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configDir())) {
             assertNotNull(beforeUpgrade);
             assertThat(beforeUpgrade.getFormatVersion(), equalTo(3));
         }
         execute();
-        try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configFile())) {
+        try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configDir())) {
             assertNotNull(afterUpgrade);
             assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.FORMAT_VERSION));
             afterUpgrade.decrypt(new char[0]);
@@ -89,7 +89,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testKeystoreDoesNotExist() {
         final UserException e = expectThrows(UserException.class, this::execute);
-        assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
+        assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configDir()) + "]")));
     }
 
 }

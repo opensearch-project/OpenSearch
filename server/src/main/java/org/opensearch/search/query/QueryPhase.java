@@ -36,8 +36,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.MinDocQuery;
-import org.apache.lucene.queries.SearchAfterSortedDocQuery;
+import org.opensearch.lucene.queries.MinDocQuery;
+import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -47,17 +47,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.util.concurrent.QueueResizingOpenSearchThreadPoolExecutor;
-import org.opensearch.index.IndexSortConfig;
-import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.common.util.concurrent.EWMATrackingThreadPoolExecutor;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchService;
@@ -76,6 +72,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import static org.opensearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
@@ -87,17 +84,26 @@ import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsC
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
+ *
+ * @opensearch.internal
  */
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
     // TODO: remove this property
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("opensearch.search.rewrite_sort", "true"));
+    public static final QueryPhaseSearcher DEFAULT_QUERY_PHASE_SEARCHER = new DefaultQueryPhaseSearcher();
 
+    private final QueryPhaseSearcher queryPhaseSearcher;
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
     private final RescorePhase rescorePhase;
 
     public QueryPhase() {
+        this(DEFAULT_QUERY_PHASE_SEARCHER);
+    }
+
+    public QueryPhase(QueryPhaseSearcher queryPhaseSearcher) {
+        this.queryPhaseSearcher = Objects.requireNonNull(queryPhaseSearcher, "QueryPhaseSearcher is required");
         this.aggregationPhase = new AggregationPhase();
         this.suggestPhase = new SuggestPhase();
         this.rescorePhase = new RescorePhase();
@@ -143,7 +149,7 @@ public class QueryPhase {
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
-        boolean rescore = executeInternal(searchContext);
+        boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
 
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);
@@ -166,6 +172,15 @@ public class QueryPhase {
      * @return whether the rescoring phase should be executed
      */
     static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+        return executeInternal(searchContext, QueryPhase.DEFAULT_QUERY_PHASE_SEARCHER);
+    }
+
+    /**
+     * In a package-private method so that it can be tested without having to
+     * wire everything (mapperService, etc.)
+     * @return whether the rescoring phase should be executed
+     */
+    static boolean executeInternal(SearchContext searchContext, QueryPhaseSearcher queryPhaseSearcher) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
@@ -225,19 +240,15 @@ public class QueryPhase {
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            if (searchContext.queryCollectors().isEmpty() == false) {
+            if (searchContext.queryCollectorManagers().isEmpty() == false) {
                 // plug in additional collectors, like aggregations
-                collectors.add(createMultiCollectorContext(searchContext.queryCollectors().values()));
+                collectors.add(createMultiCollectorContext(searchContext.queryCollectorManagers().values()));
             }
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
-            }
-            // optimizing sort on Numerics (long and date)
-            if ((searchContext.sort() != null) && SYS_PROP_REWRITE_SORT) {
-                enhanceSortOnNumeric(searchContext, searcher.getIndexReader());
             }
 
             boolean timeoutSet = scrollContext == null
@@ -246,15 +257,7 @@ public class QueryPhase {
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
-                final long startTime = searchContext.getRelativeTimeInMillis();
-                final long timeout = searchContext.timeout().millis();
-                final long maxTime = startTime + timeout;
-                timeoutRunnable = searcher.addQueryCancellation(() -> {
-                    final long time = searchContext.getRelativeTimeInMillis();
-                    if (time > maxTime) {
-                        throw new TimeExceededException();
-                    }
-                });
+                timeoutRunnable = searcher.addQueryCancellation(createQueryTimeoutChecker(searchContext));
             } else {
                 timeoutRunnable = null;
             }
@@ -269,13 +272,22 @@ public class QueryPhase {
             }
 
             try {
-                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                boolean shouldRescore = queryPhaseSearcher.searchWith(
+                    searchContext,
+                    searcher,
+                    query,
+                    collectors,
+                    hasFilterCollector,
+                    timeoutSet
+                );
+
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                if (executor instanceof QueueResizingOpenSearchThreadPoolExecutor) {
-                    QueueResizingOpenSearchThreadPoolExecutor rExecutor = (QueueResizingOpenSearchThreadPoolExecutor) executor;
+                if (executor instanceof EWMATrackingThreadPoolExecutor) {
+                    final EWMATrackingThreadPoolExecutor rExecutor = (EWMATrackingThreadPoolExecutor) executor;
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
+
                 return shouldRescore;
             } finally {
                 // Search phase has finished, no longer need to check for timeout
@@ -287,6 +299,28 @@ public class QueryPhase {
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }
+    }
+
+    /**
+     * Create runnable which throws {@link TimeExceededException} when the runnable is called after timeout + runnable creation time
+     * exceeds currentTime
+     * @param searchContext to extract timeout from and to get relative time from
+     * @return the created runnable
+     */
+    static Runnable createQueryTimeoutChecker(final SearchContext searchContext) {
+        /* for startTime, relative non-cached precise time must be used to prevent false positive timeouts.
+        * Using cached time for startTime will fail and produce false positive timeouts when maxTime = (startTime + timeout) falls in
+        * next time cache slot(s) AND time caching lifespan > passed timeout */
+        final long startTime = searchContext.getRelativeTimeInMillis(false);
+        final long maxTime = startTime + searchContext.timeout().millis();
+        return () -> {
+            /* As long as startTime is non cached time, using cached time here might only produce false negative timeouts within the time
+            * cache life span which is acceptable */
+            final long time = searchContext.getRelativeTimeInMillis();
+            if (time > maxTime) {
+                throw new TimeExceededException();
+            }
+        };
     }
 
     private static boolean searchWithCollector(
@@ -332,27 +366,6 @@ public class QueryPhase {
         return topDocsFactory.shouldRescore();
     }
 
-    private static void enhanceSortOnNumeric(SearchContext searchContext, IndexReader reader) {
-        if (canEarlyTerminate(reader, searchContext.sort())) {
-            // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher
-            return;
-        }
-        Sort sort = searchContext.sort().sort;
-        SortField sortField = sort.getSort()[0];
-        if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return;
-
-        // check if this is a field of type Long or Date, that is indexed and has doc values
-        String fieldName = sortField.getField();
-        if (fieldName == null) return; // happens when _score or _doc is the 1st sort field
-        if (searchContext.mapperService() == null) return; // mapperService can be null in tests
-        final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
-        if (fieldType == null) return; // for unmapped fields, default behaviour depending on "unmapped_type" flag
-        if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return;
-        if (fieldType.isSearchable() == false) return;
-        if (fieldType.hasDocValues() == false) return;
-        sortField.setCanUsePoints();
-    }
-
     /**
      * Returns true if the provided <code>query</code> returns docs in index order (internal doc ids).
      * @param query The query to execute
@@ -387,5 +400,47 @@ public class QueryPhase {
         return true;
     }
 
-    private static class TimeExceededException extends RuntimeException {}
+    /**
+     * The exception being raised when search timeout is reached.
+     *
+     * @opensearch.internal
+     */
+    public static class TimeExceededException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+    }
+
+    /**
+     * Default {@link QueryPhaseSearcher} implementation which delegates to the {@link QueryPhase}.
+     *
+     * @opensearch.internal
+     */
+    public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
+        /**
+         * Please use {@link QueryPhase#DEFAULT_QUERY_PHASE_SEARCHER}
+         */
+        protected DefaultQueryPhaseSearcher() {}
+
+        @Override
+        public boolean searchWith(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
+            return searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
+
+        protected boolean searchWithCollector(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
+            return QueryPhase.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
+    }
 }

@@ -54,6 +54,8 @@ import java.util.List;
 /**
  * A set of static helpers to simplify working with aggregation buckets, in
  * particular providing utilities that help pipeline aggregations.
+ *
+ * @opensearch.internal
  */
 public class BucketHelpers {
 
@@ -65,6 +67,8 @@ public class BucketHelpers {
      *
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "skip": empty buckets will simply be ignored
+     *
+     * @opensearch.internal
      */
     public enum GapPolicy implements Writeable {
         INSERT_ZEROS((byte) 0, "insert_zeros"),

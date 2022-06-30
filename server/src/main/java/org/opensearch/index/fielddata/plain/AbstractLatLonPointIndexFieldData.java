@@ -51,6 +51,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
 
+/**
+ * Base class for sorting LatLonPoint docvalues
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPointFieldData {
 
     protected final String fieldName;
@@ -95,6 +100,11 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
         throw new IllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 
+    /**
+     * Lucene LatLonPoint as indexed field data type
+     *
+     * @opensearch.internal
+     */
     public static class LatLonPointIndexFieldData extends AbstractLatLonPointIndexFieldData {
         public LatLonPointIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
             super(fieldName, valuesSourceType);
@@ -133,6 +143,11 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
         }
     }
 
+    /**
+     * Builder for LatLonPoint based field data
+     *
+     * @opensearch.internal
+     */
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;

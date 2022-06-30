@@ -41,6 +41,11 @@ import org.opensearch.common.lucene.Lucene;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+ * Doc value and formats to sort during search
+ *
+ * @opensearch.internal
+ */
 public class SearchSortValuesAndFormats implements Writeable {
     private final Object[] rawSortValues;
     private final Object[] formattedSortValues;

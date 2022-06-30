@@ -40,12 +40,14 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -59,6 +61,7 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.store.IndexOutputOutputStream;
@@ -91,16 +94,16 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.RunUnderPrimaryPermit;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -187,13 +190,15 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = store.getMetadata();
+        ReplicationLuceneIndex luceneIndex = new ReplicationLuceneIndex();
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);
+            luceneIndex.addFileDetail(md.name(), md.length(), false);
         }
         Store targetStore = newStore(createTempDir());
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, luceneIndex, "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -222,7 +227,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
         handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
         sendFilesFuture.actionGet();
-        Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata(null);
+        Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata();
         Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata);
         assertEquals(metas.size(), recoveryDiff.identical.size());
         assertEquals(0, recoveryDiff.different.size());
@@ -461,7 +466,6 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
     }
 
     private Engine.Index getIndex(final String id) {
-        final String type = "test";
         final ParseContext.Document document = new ParseContext.Document();
         document.add(new TextField("test", "test", Field.Store.YES));
         final Field idField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
@@ -477,7 +481,6 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             versionField,
             seqID,
             id,
-            type,
             null,
             Arrays.asList(document),
             source,
@@ -509,10 +512,12 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        ReplicationLuceneIndex luceneIndex = new ReplicationLuceneIndex();
+        Store.MetadataSnapshot metadata = store.getMetadata();
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);
+            luceneIndex.addFileDetail(md.name(), md.length(), false);
         }
 
         CorruptionUtils.corruptFile(
@@ -523,7 +528,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             )
         );
         Store targetStore = newStore(createTempDir(), false);
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, luceneIndex, "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -540,21 +545,22 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 });
             }
         };
+        IndexShard mockShard = mock(IndexShard.class);
+        when(mockShard.shardId()).thenReturn(new ShardId("testIndex", "testUUID", 0));
+        doAnswer(invocation -> {
+            assertFalse(failedEngine.get());
+            failedEngine.set(true);
+            return null;
+        }).when(mockShard).failShard(any(), any());
         RecoverySourceHandler handler = new RecoverySourceHandler(
-            null,
+            mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
             request,
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
             between(1, 8),
             between(1, 8)
-        ) {
-            @Override
-            protected void failEngine(IOException cause) {
-                assertFalse(failedEngine.get());
-                failedEngine.set(true);
-            }
-        };
+        );
         SetOnce<Exception> sendFilesError = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
         handler.sendFiles(
@@ -566,6 +572,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         latch.await();
         assertThat(sendFilesError.get(), instanceOf(IOException.class));
         assertNotNull(ExceptionsHelper.unwrapCorruption(sendFilesError.get()));
+        failedEngine.get();
         assertTrue(failedEngine.get());
         // ensure all chunk requests have been completed; otherwise some files on the target are left open.
         IOUtils.close(() -> terminate(threadPool), () -> threadPool = null);
@@ -590,7 +597,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = store.getMetadata();
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);
@@ -613,21 +620,22 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 }
             }
         };
+        IndexShard mockShard = mock(IndexShard.class);
+        when(mockShard.shardId()).thenReturn(new ShardId("testIndex", "testUUID", 0));
+        doAnswer(invocation -> {
+            assertFalse(failedEngine.get());
+            failedEngine.set(true);
+            return null;
+        }).when(mockShard).failShard(any(), any());
         RecoverySourceHandler handler = new RecoverySourceHandler(
-            null,
+            mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
             request,
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
             between(1, 10),
             between(1, 4)
-        ) {
-            @Override
-            protected void failEngine(IOException cause) {
-                assertFalse(failedEngine.get());
-                failedEngine.set(true);
-            }
-        };
+        );
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
         handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
         Exception ex = expectThrows(Exception.class, sendFilesFuture::actionGet);
@@ -650,7 +658,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
         when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
         when(shard.isRelocatedPrimary()).thenReturn(true);
-        when(shard.acquireSafeIndexCommit()).thenReturn(mock(Engine.IndexCommitRef.class));
+        when(shard.acquireSafeIndexCommit()).thenReturn(mock(GatedCloseable.class));
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
@@ -743,7 +751,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
         try {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads, logger);
+            RunUnderPrimaryPermit.run(() -> {}, "test", shard, cancellableThreads, logger);
         } catch (CancellableThreads.ExecutionCancelledException e) {
             // expected.
         }
@@ -1187,16 +1195,9 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, OpenSearchTestCase::randomNonNegativeLong);
             final Translog.Operation op;
             if (randomBoolean()) {
-                op = new Translog.Index("_doc", "id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
+                op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
             } else if (randomBoolean()) {
-                op = new Translog.Delete(
-                    "_doc",
-                    "id",
-                    new Term("_id", Uid.encodeId("id")),
-                    seqNo,
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                );
+                op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
             } else {
                 op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
             }

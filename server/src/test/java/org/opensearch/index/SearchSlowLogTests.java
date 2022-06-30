@@ -96,7 +96,7 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
 
     protected SearchContext createSearchContext(IndexService indexService, String... groupStats) {
         BigArrays bigArrays = indexService.getBigArrays();
-        final ShardSearchRequest request = new ShardSearchRequest(new ShardId(indexService.index(), 0), new String[0], 0L, null);
+        final ShardSearchRequest request = new ShardSearchRequest(new ShardId(indexService.index(), 0), 0L, null);
         return new TestSearchContext(bigArrays, indexService) {
             @Override
             public List<String> groupStats() {
@@ -258,28 +258,10 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         assertThat(p.getValueFor("took"), equalTo("10nanos"));
         assertThat(p.getValueFor("took_millis"), equalTo("0"));
         assertThat(p.getValueFor("total_hits"), equalTo("-1"));
-        assertThat(p.getValueFor("types"), equalTo("[]"));
         assertThat(p.getValueFor("stats"), equalTo("[]"));
         assertThat(p.getValueFor("search_type"), Matchers.nullValue());
         assertThat(p.getValueFor("total_shards"), equalTo("1"));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
-    }
-
-    public void testSlowLogWithTypes() throws IOException {
-        IndexService index = createIndex("foo");
-        SearchContext searchContext = searchContextWithSourceAndTask(index);
-        searchContext.getQueryShardContext().setTypes("type1", "type2");
-        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
-
-        assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\", \\\"type2\\\"]"));
-
-        searchContext.getQueryShardContext().setTypes("type1");
-        p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
-        assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\"]"));
-
-        searchContext.getQueryShardContext().setTypes();
-        p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
-        assertThat(p.getValueFor("types"), equalTo("[]"));
     }
 
     public void testSlowLogsWithStats() throws IOException {

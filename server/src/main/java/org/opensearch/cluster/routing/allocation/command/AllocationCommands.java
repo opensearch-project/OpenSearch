@@ -52,6 +52,8 @@ import java.util.Objects;
 /**
  * A simple {@link AllocationCommand} composite managing several
  * {@link AllocationCommand} implementations
+ *
+ * @opensearch.internal
  */
 public class AllocationCommands implements ToXContentFragment {
     private final List<AllocationCommand> commands = new ArrayList<>();

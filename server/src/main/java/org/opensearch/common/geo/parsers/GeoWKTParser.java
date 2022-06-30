@@ -60,6 +60,8 @@ import java.util.List;
  *
  * complies with OGC® document: 12-063r5 and ISO/IEC 13249-3:2016 standard
  * located at http://docs.opengeospatial.org/is/12-063r5/12-063r5.html
+ *
+ * @opensearch.internal
  */
 public class GeoWKTParser {
     public static final String EMPTY = "EMPTY";

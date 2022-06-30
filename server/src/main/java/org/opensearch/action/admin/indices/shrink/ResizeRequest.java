@@ -55,6 +55,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Request class to shrink an index into a single shard
+ *
+ * @opensearch.internal
  */
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 

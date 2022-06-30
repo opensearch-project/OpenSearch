@@ -38,6 +38,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base supplier of an ExtendesStats aggregator
+ *
+ * @opensearch.internal
+ */
 public interface ExtendedStatsAggregatorProvider {
 
     Aggregator build(

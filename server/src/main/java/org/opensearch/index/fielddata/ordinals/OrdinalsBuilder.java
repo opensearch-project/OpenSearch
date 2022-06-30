@@ -46,6 +46,8 @@ import java.util.Arrays;
  * Simple class to build document ID &lt;-&gt; ordinal mapping. Note: Ordinals are
  * {@code 1} based monotonically increasing positive integers. {@code 0}
  * donates the missing value in this context.
+ *
+ * @opensearch.internal
  */
 public final class OrdinalsBuilder implements Closeable {
 
@@ -82,6 +84,8 @@ public final class OrdinalsBuilder implements Closeable {
      * <p>
      * In addition to these structures, there is another array which stores the current position (level + slice + offset in the slice)
      * in order to be able to append data in constant time.
+     *
+     * @opensearch.internal
      */
     private static class OrdinalsStore {
 

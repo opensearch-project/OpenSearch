@@ -56,6 +56,8 @@ import static org.opensearch.common.util.concurrent.ConcurrentCollections.newCon
  * A publication can succeed and complete before all nodes have applied the published state and acknowledged it; however we need every node
  * eventually either to apply the published state (or a later state) or be removed from the cluster. This component achieves this by
  * removing any lagging nodes from the cluster after a timeout.
+ *
+ * @opensearch.internal
  */
 public class LagDetector {
 
@@ -102,7 +104,7 @@ public class LagDetector {
     public void setAppliedVersion(final DiscoveryNode discoveryNode, final long appliedVersion) {
         final NodeAppliedStateTracker nodeAppliedStateTracker = appliedStateTrackersByNode.get(discoveryNode);
         if (nodeAppliedStateTracker == null) {
-            // Received an ack from a node that a later publication has removed (or we are no longer master). No big deal.
+            // Received an ack from a node that a later publication has removed (or we are no longer cluster-manager). No big deal.
             logger.trace("node {} applied version {} but this node's version is not being tracked", discoveryNode, appliedVersion);
         } else {
             nodeAppliedStateTracker.increaseAppliedVersion(appliedVersion);
@@ -149,6 +151,11 @@ public class LagDetector {
         return Collections.unmodifiableSet(appliedStateTrackersByNode.keySet());
     }
 
+    /**
+     * A tracker that the node applied state.
+     *
+     * @opensearch.internal
+     */
     private class NodeAppliedStateTracker {
         private final DiscoveryNode discoveryNode;
         private final AtomicLong appliedVersion = new AtomicLong();

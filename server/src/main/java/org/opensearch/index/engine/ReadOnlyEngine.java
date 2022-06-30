@@ -41,17 +41,18 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.NoOpTranslogManager;
+import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -65,7 +66,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.
@@ -73,6 +73,8 @@ import java.util.stream.Stream;
  * engine.
  *
  * @see #ReadOnlyEngine(EngineConfig, SeqNoStats, TranslogStats, boolean, Function, boolean)
+ *
+ * @opensearch.internal
  */
 public class ReadOnlyEngine extends Engine {
 
@@ -88,6 +90,7 @@ public class ReadOnlyEngine extends Engine {
     private final SafeCommitInfo safeCommitInfo;
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
+    private final TranslogManager translogManager;
 
     protected volatile TranslogStats translogStats;
 
@@ -140,6 +143,21 @@ public class ReadOnlyEngine extends Engine {
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
 
                 completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+
+                translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
+                    @Override
+                    public void close() {}
+
+                    @Override
+                    public int totalOperations() {
+                        return 0;
+                    }
+
+                    @Override
+                    public Translog.Operation next() {
+                        return null;
+                    }
+                });
 
                 success = true;
             } finally {
@@ -264,7 +282,17 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public TranslogManager translogManager() {
+        return translogManager;
+    }
+
+    @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
+        return lastCommittedSegmentInfos;
+    }
+
+    @Override
+    protected SegmentInfos getLatestSegmentInfos() {
         return lastCommittedSegmentInfos;
     }
 
@@ -307,61 +335,29 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public boolean isTranslogSyncNeeded() {
-        return false;
-    }
-
-    @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
-        return false;
-    }
-
-    @Override
-    public void syncTranslog() {}
-
-    @Override
-    public Closeable acquireHistoryRetentionLock(HistorySource historySource) {
+    public Closeable acquireHistoryRetentionLock() {
         return () -> {};
     }
 
     @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
-        MapperService mapperService,
         long fromSeqNo,
         long toSeqNo,
-        boolean requiredFullRange
+        boolean requiredFullRange,
+        boolean accurateCount
     ) {
         return newEmptySnapshot();
     }
 
     @Override
-    public Translog.Snapshot readHistoryOperations(
-        String reason,
-        HistorySource historySource,
-        MapperService mapperService,
-        long startingSeqNo
-    ) {
-        return newEmptySnapshot();
+    public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNo) throws IOException {
+        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true)) {
+            return snapshot.totalOperations();
+        }
     }
 
-    @Override
-    public int estimateNumberOfHistoryOperations(
-        String reason,
-        HistorySource historySource,
-        MapperService mapperService,
-        long startingSeqNo
-    ) {
-        return 0;
-    }
-
-    @Override
-    public boolean hasCompleteOperationHistory(
-        String reason,
-        HistorySource historySource,
-        MapperService mapperService,
-        long startingSeqNo
-    ) {
+    public boolean hasCompleteOperationHistory(String reason, long startingSeqNo) {
         // we can do operation-based recovery if we don't have to replay any operation.
         return startingSeqNo > seqNoStats.getMaxSeqNo();
     }
@@ -372,18 +368,15 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public TranslogStats getTranslogStats() {
-        return translogStats;
-    }
-
-    @Override
-    public Translog.Location getTranslogLastWriteLocation() {
-        return new Translog.Location(0, 0, 0);
-    }
-
-    @Override
     public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
+    }
+
+    @Override
+    public long getProcessedLocalCheckpoint() {
+        // the read-only engine does not process checkpoints, so its
+        // processed checkpoint is identical to its persisted one.
+        return getPersistedLocalCheckpoint();
     }
 
     @Override
@@ -439,13 +432,13 @@ public class ReadOnlyEngine extends Engine {
     ) {}
 
     @Override
-    public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
+    public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) {
         store.incRef();
-        return new IndexCommitRef(indexCommit, store::decRef);
+        return new GatedCloseable<>(indexCommit, store::decRef);
     }
 
     @Override
-    public IndexCommitRef acquireSafeIndexCommit() {
+    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() {
         return acquireLastIndexCommit(false);
     }
 
@@ -461,44 +454,9 @@ public class ReadOnlyEngine extends Engine {
     public void deactivateThrottling() {}
 
     @Override
-    public void trimUnreferencedTranslogFiles() {}
-
-    @Override
-    public boolean shouldRollTranslogGeneration() {
-        return false;
-    }
-
-    @Override
-    public void rollTranslogGeneration() {}
-
-    @Override
-    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
-        return 0;
-    }
-
-    @Override
     public int fillSeqNoGaps(long primaryTerm) {
         return 0;
     }
-
-    @Override
-    public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            try (Translog.Snapshot snapshot = newEmptySnapshot()) {
-                translogRecoveryRunner.run(this, snapshot);
-            } catch (final Exception e) {
-                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
-            }
-        }
-        return this;
-    }
-
-    @Override
-    public void skipTranslogRecovery() {}
-
-    @Override
-    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) {}
 
     @Override
     public void maybePruneDeletes() {}

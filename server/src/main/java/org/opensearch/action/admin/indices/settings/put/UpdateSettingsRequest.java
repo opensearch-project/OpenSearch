@@ -58,6 +58,8 @@ import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Request for an update index settings action
+ *
+ * @opensearch.internal
  */
 public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest>
     implements
@@ -231,7 +233,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             return false;
         }
         UpdateSettingsRequest that = (UpdateSettingsRequest) o;
-        return masterNodeTimeout.equals(that.masterNodeTimeout)
+        return clusterManagerNodeTimeout.equals(that.clusterManagerNodeTimeout)
             && timeout.equals(that.timeout)
             && Objects.equals(settings, that.settings)
             && Objects.equals(indicesOptions, that.indicesOptions)
@@ -241,7 +243,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public int hashCode() {
-        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
+        return Objects.hash(clusterManagerNodeTimeout, timeout, settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
     }
 
 }

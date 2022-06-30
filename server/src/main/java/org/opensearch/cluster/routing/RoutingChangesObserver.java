@@ -34,6 +34,8 @@ package org.opensearch.cluster.routing;
 
 /**
  * Records changes made to {@link RoutingNodes} during an allocation round.
+ *
+ * @opensearch.internal
  */
 public interface RoutingChangesObserver {
     /**
@@ -135,6 +137,11 @@ public interface RoutingChangesObserver {
         }
     }
 
+    /**
+     * Observer of routing changes.
+     *
+     * @opensearch.internal
+     */
     class DelegatingRoutingChangesObserver implements RoutingChangesObserver {
 
         private final RoutingChangesObserver[] routingChangesObservers;

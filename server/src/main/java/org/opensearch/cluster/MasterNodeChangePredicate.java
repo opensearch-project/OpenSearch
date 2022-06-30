@@ -36,6 +36,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.util.function.Predicate;
 
+/**
+ * Utility class to build a predicate that accepts cluster state changes
+ *
+ * @opensearch.internal
+ */
 public final class MasterNodeChangePredicate {
 
     private MasterNodeChangePredicate() {
@@ -48,14 +53,14 @@ public final class MasterNodeChangePredicate {
      */
     public static Predicate<ClusterState> build(ClusterState currentState) {
         final long currentVersion = currentState.version();
-        final DiscoveryNode masterNode = currentState.nodes().getMasterNode();
-        final String currentMasterId = masterNode == null ? null : masterNode.getEphemeralId();
+        final DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
+        final String currentMasterId = clusterManagerNode == null ? null : clusterManagerNode.getEphemeralId();
         return newState -> {
-            final DiscoveryNode newMaster = newState.nodes().getMasterNode();
+            final DiscoveryNode newClusterManager = newState.nodes().getMasterNode();
             final boolean accept;
-            if (newMaster == null) {
+            if (newClusterManager == null) {
                 accept = false;
-            } else if (newMaster.getEphemeralId().equals(currentMasterId) == false) {
+            } else if (newClusterManager.getEphemeralId().equals(currentMasterId) == false) {
                 accept = true;
             } else {
                 accept = newState.version() > currentVersion;

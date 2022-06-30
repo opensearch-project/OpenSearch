@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Exception thrown if a retention lease already exists
+ *
+ * @opensearch.internal
+ */
 public class RetentionLeaseAlreadyExistsException extends ResourceAlreadyExistsException {
 
     public RetentionLeaseAlreadyExistsException(final String id) {

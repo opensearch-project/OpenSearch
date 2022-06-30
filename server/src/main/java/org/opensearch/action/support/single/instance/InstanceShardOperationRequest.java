@@ -46,8 +46,13 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Transport Request for an Index Shard Operation
+ *
+ * @opensearch.internal
+ */
 // TODO: This request and its associated transport action can be folded into UpdateRequest which is its only concrete production code
-//       implementation
+// implementation
 public abstract class InstanceShardOperationRequest<Request extends InstanceShardOperationRequest<Request>> extends ActionRequest
     implements
         IndicesRequest {

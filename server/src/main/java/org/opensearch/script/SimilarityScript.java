@@ -34,7 +34,11 @@ package org.opensearch.script;
 
 import org.opensearch.index.similarity.ScriptedSimilarity;
 
-/** A script that is used to build {@link ScriptedSimilarity} instances. */
+/**
+ * A script that is used to build {@link ScriptedSimilarity} instances.
+ *
+ * @opensearch.internal
+ */
 public abstract class SimilarityScript {
 
     /** Compute the score.
@@ -52,6 +56,11 @@ public abstract class SimilarityScript {
         ScriptedSimilarity.Doc doc
     );
 
+    /**
+     * Factory for a similarity script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         SimilarityScript newInstance();
     }

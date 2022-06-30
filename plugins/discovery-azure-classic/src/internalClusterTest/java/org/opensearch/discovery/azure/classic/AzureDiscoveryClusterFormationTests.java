@@ -38,7 +38,6 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.FileSystemUtils;
@@ -67,6 +66,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.StringWriter;
+import java.lang.Runtime.Version;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -295,15 +295,13 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
      * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
      */
     private static String getProtocol() {
-        if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
-            return "TLS";
-        } else if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
+        if (Runtime.version().compareTo(Version.parse("12")) < 0) {
             return "TLSv1.2";
         } else {
-            JavaVersion full = AccessController.doPrivileged(
-                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
+            Version full = AccessController.doPrivileged(
+                (PrivilegedAction<Version>) () -> Version.parse(System.getProperty("java.version"))
             );
-            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
+            if (full.compareTo(Version.parse("12.0.1")) < 0) {
                 return "TLSv1.2";
             }
         }

@@ -34,6 +34,11 @@ package org.opensearch.common.metrics;
 
 import java.util.concurrent.atomic.LongAdder;
 
+/**
+ * A counter metric for tracking.
+ *
+ * @opensearch.internal
+ */
 public class CounterMetric implements Metric {
 
     private final LongAdder counter = new LongAdder();

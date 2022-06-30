@@ -58,8 +58,19 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Set;
 
+/**
+ * Response returning the term vector (doc frequency, positions, offsets) for a
+ * document.
+ *
+ * @opensearch.internal
+ */
 public class TermVectorsResponse extends ActionResponse implements ToXContentObject {
 
+    /**
+     * Fields used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     private static class FieldStrings {
         // term statistics strings
         public static final String TTF = "ttf";

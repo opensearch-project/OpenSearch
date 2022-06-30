@@ -367,7 +367,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
     public void testTranslogRecoveryWorksWithIMC() throws IOException {
         IndexShard shard = newStartedShard(true);
         for (int i = 0; i < 100; i++) {
-            indexDoc(shard, "_doc", Integer.toString(i), "{\"foo\" : \"bar\"}", XContentType.JSON, null);
+            indexDoc(shard, Integer.toString(i), "{\"foo\" : \"bar\"}", XContentType.JSON, null);
         }
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();

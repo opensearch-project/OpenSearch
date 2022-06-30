@@ -240,7 +240,7 @@ public class MetadataCreateDataStreamServiceTests extends OpenSearchTestCase {
                                     .put(request.settings())
                                     .build()
                             )
-                            .putMapping("_doc", generateMapping("@timestamp"))
+                            .putMapping(generateMapping("@timestamp"))
                             .numberOfShards(1)
                             .numberOfReplicas(1)
                             .build(),

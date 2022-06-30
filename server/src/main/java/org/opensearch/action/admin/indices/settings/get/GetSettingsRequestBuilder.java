@@ -33,11 +33,16 @@
 package org.opensearch.action.admin.indices.settings.get;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
-public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+/**
+ * Transport request builder for getting index segments
+ *
+ * @opensearch.internal
+ */
+public class GetSettingsRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     GetSettingsRequest,
     GetSettingsResponse,
     GetSettingsRequestBuilder> {

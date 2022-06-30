@@ -64,6 +64,11 @@ import java.io.IOException;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+/**
+ * Perform replication resync
+ *
+ * @opensearch.internal
+ */
 public class TransportResyncReplicationAction extends TransportWriteAction<
     ResyncReplicationRequest,
     ResyncReplicationRequest,
@@ -253,6 +258,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
      * A proxy for primary-replica resync operations which are performed on replicas when a new primary is promoted.
      * Replica shards fail to execute resync operations will be failed but won't be marked as stale.
      * This avoids marking shards as stale during cluster restart but enforces primary-replica resync mandatory.
+     *
+     * @opensearch.internal
      */
     class ResyncActionReplicasProxy extends ReplicasProxy {
 

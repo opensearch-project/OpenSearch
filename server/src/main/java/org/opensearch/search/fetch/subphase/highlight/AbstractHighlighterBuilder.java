@@ -62,6 +62,8 @@ import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBui
 /**
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>>
     implements

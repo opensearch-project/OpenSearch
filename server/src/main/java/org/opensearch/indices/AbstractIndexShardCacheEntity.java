@@ -39,6 +39,8 @@ import org.opensearch.index.shard.IndexShard;
 
 /**
  * Abstract base class for the an {@link IndexShard} level {@linkplain IndicesRequestCache.CacheEntity}.
+ *
+ * @opensearch.internal
  */
 abstract class AbstractIndexShardCacheEntity implements IndicesRequestCache.CacheEntity {
 

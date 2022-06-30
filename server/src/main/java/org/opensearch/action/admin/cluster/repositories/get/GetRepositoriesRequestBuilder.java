@@ -32,14 +32,16 @@
 
 package org.opensearch.action.admin.cluster.repositories.get;
 
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
 /**
  * Get repository request builder
+ *
+ * @opensearch.internal
  */
-public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+public class GetRepositoriesRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     GetRepositoriesRequest,
     GetRepositoriesResponse,
     GetRepositoriesRequestBuilder> {

@@ -69,6 +69,8 @@ import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV
 
 /**
  * Service responsible for handling rollover requests for write aliases and data streams
+ *
+ * @opensearch.internal
  */
 public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
@@ -92,6 +94,11 @@ public class MetadataRolloverService {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
+    /**
+     * Result for rollover request
+     *
+     * @opensearch.internal
+     */
     public static class RolloverResult {
         public final String rolloverIndexName;
         public final String sourceIndexName;
@@ -286,7 +293,7 @@ public class MetadataRolloverService {
             b.put(settings);
         }
         return new CreateIndexClusterStateUpdateRequest(cause, targetIndexName, providedIndexName).ackTimeout(createIndexRequest.timeout())
-            .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
+            .masterNodeTimeout(createIndexRequest.clusterManagerNodeTimeout())
             .settings(b.build())
             .aliases(createIndexRequest.aliases())
             .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
@@ -390,7 +397,9 @@ public class MetadataRolloverService {
             if (Strings.isNullOrEmpty(newIndexName) == false) {
                 throw new IllegalArgumentException("new index name may not be specified when rolling over a data stream");
             }
-            if ((request.settings().equals(Settings.EMPTY) == false) || (request.aliases().size() > 0) || (request.mappings().size() > 0)) {
+            if ((request.settings().equals(Settings.EMPTY) == false)
+                || (request.aliases().size() > 0)
+                || (request.mappings().equals("{}") == false)) {
                 throw new IllegalArgumentException(
                     "aliases, mappings, and index settings may not be specified when rolling over a data stream"
                 );

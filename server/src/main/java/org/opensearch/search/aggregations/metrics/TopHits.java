@@ -36,6 +36,8 @@ import org.opensearch.search.aggregations.Aggregation;
 
 /**
  * Accumulation of the most relevant hits for a bucket this aggregation falls into.
+ *
+ * @opensearch.internal
  */
 public interface TopHits extends Aggregation {
 

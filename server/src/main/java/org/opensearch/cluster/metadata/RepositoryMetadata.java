@@ -44,6 +44,8 @@ import java.util.Objects;
 
 /**
  * Metadata about registered repository
+ *
+ * @opensearch.internal
  */
 public class RepositoryMetadata implements Writeable {
 

@@ -39,6 +39,8 @@ import java.util.Objects;
  * assigning a persistent task to a node of the cluster.
  *
  * @see EnableAssignmentDecider
+ *
+ * @opensearch.internal
  */
 public final class AssignmentDecision {
 
@@ -65,6 +67,11 @@ public final class AssignmentDecision {
         return "assignment decision [type=" + type + ", reason=" + reason + "]";
     }
 
+    /**
+     * The decision.
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         NO(0),
         YES(1);

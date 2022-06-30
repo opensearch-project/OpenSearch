@@ -52,6 +52,8 @@ import java.util.List;
 /**
  * Encapsulates the logic of whether a new index should be automatically created when
  * a write operation is about to happen in a non existing index.
+ *
+ * @opensearch.internal
  */
 public final class AutoCreateIndex {
 
@@ -142,6 +144,11 @@ public final class AutoCreateIndex {
         this.autoCreate = autoCreate;
     }
 
+    /**
+     * An auto create object
+     *
+     * @opensearch.internal
+     */
     static class AutoCreate {
         private final boolean autoCreateIndex;
         private final List<Tuple<String, Boolean>> expressions;

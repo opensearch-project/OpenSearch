@@ -43,6 +43,11 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
+/**
+ * A blob store repository that is metered
+ *
+ * @opensearch.internal
+ */
 public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
     private final RepositoryInfo repositoryInfo;
 

@@ -38,11 +38,12 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Uid;
 import org.apache.lucene.util.BytesRef;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
  * {@linkplain StoredFieldVisitor} that loads a single field value.
+ *
+ * @opensearch.internal
  */
 public final class SingleFieldsVisitor extends StoredFieldVisitor {
     private final MappedFieldType field;
@@ -84,8 +85,8 @@ public final class SingleFieldsVisitor extends StoredFieldVisitor {
     }
 
     @Override
-    public void stringField(FieldInfo fieldInfo, byte[] bytes) {
-        addValue(new String(bytes, StandardCharsets.UTF_8));
+    public void stringField(FieldInfo fieldInfo, String value) {
+        addValue(value);
     }
 
     @Override

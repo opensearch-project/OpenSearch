@@ -53,6 +53,7 @@ import java.util.Collections;
 import java.util.TreeSet;
 
 public class IncludeExcludeTests extends OpenSearchTestCase {
+
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
@@ -97,6 +98,10 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
                 return 1;
             }
 
+            @Override
+            public long docValueCount() {
+                return 1;
+            }
         };
         IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);

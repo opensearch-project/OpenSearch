@@ -36,6 +36,11 @@ import org.opensearch.index.IndexComponent;
 
 import java.io.Closeable;
 
+/**
+ * Base interface for a query cache
+ *
+ * @opensearch.internal
+ */
 public interface QueryCache extends IndexComponent, Closeable, org.apache.lucene.search.QueryCache {
 
     void clear(String reason);

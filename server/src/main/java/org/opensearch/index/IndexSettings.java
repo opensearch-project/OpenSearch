@@ -46,6 +46,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 
@@ -68,6 +69,8 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIEL
  * the latest updated settings instance. Classes that need to listen to settings updates can register
  * a settings consumer at index creation via {@link IndexModule#addSettingsUpdateConsumer(Setting, Consumer)} that will
  * be called for each settings update.
+ *
+ * @opensearch.internal
  */
 public final class IndexSettings {
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
@@ -503,12 +506,35 @@ public final class IndexSettings {
         Setting.Property.IndexScope
     );
 
+    /**
+     * Expert: sets the amount of time to wait for merges (during {@link org.apache.lucene.index.IndexWriter#commit}
+     * or {@link org.apache.lucene.index.IndexWriter#getReader(boolean, boolean)}) returned by MergePolicy.findFullFlushMerges(...).
+     * If this time is reached, we proceed with the commit based on segments merged up to that point. The merges are not
+     * aborted, and will still run to completion independent of the commit or getReader call, like natural segment merges.
+     */
+    public static final Setting<TimeValue> INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME = Setting.timeSetting(
+        "index.merge_on_flush.max_full_flush_merge_wait_time",
+        new TimeValue(10, TimeUnit.SECONDS),
+        new TimeValue(0, TimeUnit.MILLISECONDS),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<Boolean> INDEX_MERGE_ON_FLUSH_ENABLED = Setting.boolSetting(
+        "index.merge_on_flush.enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
+    private final ReplicationType replicationType;
+    private final boolean isRemoteStoreEnabled;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -585,6 +611,15 @@ public final class IndexSettings {
     private volatile int maxRegexLength;
 
     /**
+     * The max amount of time to wait for merges
+     */
+    private volatile TimeValue maxFullFlushMergeWaitTime;
+    /**
+     * Is merge of flush enabled or not
+     */
+    private volatile boolean mergeOnFlushEnabled;
+
+    /**
      * Returns the default search fields for this index.
      */
     public List<String> getDefaultFields() {
@@ -651,6 +686,8 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
+        replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
+        isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE, false);
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -696,6 +733,8 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
+        maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
+        mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -765,6 +804,8 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME, this::setMaxFullFlushMergeWaitTime);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -879,6 +920,20 @@ public final class IndexSettings {
      */
     public int getNumberOfReplicas() {
         return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null);
+    }
+
+    /**
+     * Returns true if segment replication is enabled on the index.
+     */
+    public boolean isSegRepEnabled() {
+        return ReplicationType.SEGMENT.equals(replicationType);
+    }
+
+    /**
+     * Returns if remote store is enabled for this index.
+     */
+    public boolean isRemoteStoreEnabled() {
+        return isRemoteStoreEnabled;
     }
 
     /**
@@ -1327,5 +1382,21 @@ public final class IndexSettings {
 
     private void setMappingFieldNameLengthLimit(long value) {
         this.mappingFieldNameLengthLimit = value;
+    }
+
+    private void setMaxFullFlushMergeWaitTime(TimeValue timeValue) {
+        this.maxFullFlushMergeWaitTime = timeValue;
+    }
+
+    private void setMergeOnFlushEnabled(boolean enabled) {
+        this.mergeOnFlushEnabled = enabled;
+    }
+
+    public TimeValue getMaxFullFlushMergeWaitTime() {
+        return this.maxFullFlushMergeWaitTime;
+    }
+
+    public boolean isMergeOnFlushEnabled() {
+        return mergeOnFlushEnabled;
     }
 }

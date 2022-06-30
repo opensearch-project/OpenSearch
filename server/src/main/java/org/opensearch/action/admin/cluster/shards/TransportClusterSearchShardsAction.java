@@ -34,7 +34,7 @@ package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -58,7 +58,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportClusterSearchShardsAction extends TransportMasterNodeReadAction<
+/**
+ * Transport action for searching shards
+ *
+ * @opensearch.internal
+ */
+public class TransportClusterSearchShardsAction extends TransportClusterManagerNodeReadAction<
     ClusterSearchShardsRequest,
     ClusterSearchShardsResponse> {
 

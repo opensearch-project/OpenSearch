@@ -70,13 +70,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "8u242+b08";
-    private static final String SYSTEM_JDK_VENDOR = "adoptopenjdk";
-    private static final String GRADLE_JDK_VERSION = "17.0.2+8";
+    private static final String SYSTEM_JDK_VERSION = "11.0.15+10";
+    private static final String SYSTEM_JDK_VENDOR = "adoptium";
+    private static final String GRADLE_JDK_VERSION = "17.0.3+7";
     private static final String GRADLE_JDK_VENDOR = "adoptium";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
@@ -204,7 +205,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                     vmDependencies
                 );
             } else {
-                for (var entry : linuxTestTasks.entrySet()) {
+                for (Entry<OpenSearchDistribution.Type, List<TaskProvider<Test>>> entry : linuxTestTasks.entrySet()) {
                     OpenSearchDistribution.Type type = entry.getKey();
                     TaskProvider<?> vmLifecycleTask = vmLifecyleTasks.get(type);
                     configureVMWrapperTasks(vmProject, entry.getValue(), depsTasks, wrapperTask -> {
@@ -227,7 +228,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                     }, vmDependencies);
                 }
 
-                for (var entry : upgradeTestTasks.entrySet()) {
+                for (Entry<String, List<TaskProvider<Test>>> entry : upgradeTestTasks.entrySet()) {
                     String version = entry.getKey();
                     TaskProvider<?> vmVersionTask = vmVersionTasks.get(version);
                     configureVMWrapperTasks(
@@ -321,7 +322,12 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static Configuration configureExamplePlugin(Project project) {
         Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
         DependencyHandler deps = project.getDependencies();
-        Map<String, String> examplePluginProject = Map.of("path", ":example-plugins:custom-settings", "configuration", "zip");
+        Map<String, String> examplePluginProject = new HashMap<String, String>() {
+            {
+                put("path", ":example-plugins:custom-settings");
+                put("configuration", "zip");
+            }
+        };
         deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(examplePluginProject));
         return examplePlugin;
     }

@@ -58,6 +58,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for significant_terms agg
+ *
+ * @opensearch.internal
+ */
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SignificantTermsAggregatorFactory.class);
 
@@ -306,6 +311,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         );
     }
 
+    /**
+     * The execution mode for the significant terms agg
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {
@@ -325,8 +335,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                int maxRegexLength = aggregationContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(format, maxRegexLength);
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -364,8 +376,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
+                int maxRegexLength = aggregationContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
                 boolean remapGlobalOrd = true;
                 if (cardinality == CardinalityUpperBound.ONE && factories == AggregatorFactories.EMPTY && includeExclude == null) {
                     /*

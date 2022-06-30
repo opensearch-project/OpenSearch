@@ -70,6 +70,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -95,6 +96,11 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 
+/**
+ * Index metadata information
+ *
+ * @opensearch.internal
+ */
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(
@@ -143,6 +149,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
     );
 
+    /**
+     * The state of the index.
+     *
+     * @opensearch.internal
+     */
     public enum State {
         OPEN((byte) 0),
         CLOSE((byte) 1);
@@ -260,9 +271,37 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope
     );
 
+    /**
+     * Used to specify the replication type for the index. By default, document replication is used.
+     */
+    public static final String SETTING_REPLICATION_TYPE = "index.replication.type";
+    public static final Setting<ReplicationType> INDEX_REPLICATION_TYPE_SETTING = new Setting<>(
+        SETTING_REPLICATION_TYPE,
+        ReplicationType.DOCUMENT.toString(),
+        ReplicationType::parseString,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final String SETTING_REMOTE_STORE = "index.remote_store";
+    /**
+     * Used to specify if the index data should be persisted in the remote store.
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_STORE_SETTING = Setting.boolSetting(
+        SETTING_REMOTE_STORE,
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
 
+    /**
+     * Blocks the API.
+     *
+     * @opensearch.internal
+     */
     public enum APIBlock implements Writeable {
         READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK),
         READ("read", INDEX_READ_BLOCK),
@@ -661,36 +700,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Return an object that maps each type to the associated mappings.
-     * The return value is never {@code null} but may be empty if the index
-     * has no mappings.
-     * @deprecated Use {@link #mapping()} instead now that indices have a single type
-     */
-    @Deprecated
-    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
-        return mappings;
-    }
-
-    /**
      * Return the concrete mapping for this index or {@code null} if this index has no mappings at all.
      */
     @Nullable
     public MappingMetadata mapping() {
         for (ObjectObjectCursor<String, MappingMetadata> cursor : mappings) {
-            if (cursor.key.equals(MapperService.DEFAULT_MAPPING) == false) {
-                return cursor.value;
-            }
+            return cursor.value;
         }
         return null;
-    }
-
-    /**
-     * Get the default mapping.
-     * NOTE: this is always {@code null} for 7.x indices which are disallowed to have a default mapping.
-     */
-    @Nullable
-    public MappingMetadata defaultMapping() {
-        return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -702,25 +719,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return INDEX_RESIZE_SOURCE_UUID.exists(settings)
             ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings), INDEX_RESIZE_SOURCE_UUID.get(settings))
             : null;
-    }
-
-    /**
-     * Sometimes, the default mapping exists and an actual mapping is not created yet (introduced),
-     * in this case, we want to return the default mapping in case it has some default mapping definitions.
-     * <p>
-     * Note, once the mapping type is introduced, the default mapping is applied on the actual typed MappingMetadata,
-     * setting its routing, timestamp, and so on if needed.
-     */
-    @Nullable
-    public MappingMetadata mappingOrDefault() {
-        MappingMetadata mapping = null;
-        for (ObjectCursor<MappingMetadata> m : mappings.values()) {
-            if (mapping == null || mapping.type().equals(MapperService.DEFAULT_MAPPING)) {
-                mapping = m.value;
-            }
-        }
-
-        return mapping;
     }
 
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
@@ -855,6 +853,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return builder;
     }
 
+    /**
+     * A diff of index metadata.
+     *
+     * @opensearch.internal
+     */
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
         private final String index;
@@ -1081,6 +1084,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new Builder(indexMetadata);
     }
 
+    /**
+     * Builder of index metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private String index;
@@ -1190,17 +1198,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public MappingMetadata mapping(String type) {
-            return mappings.get(type);
+        public MappingMetadata mapping() {
+            return mappings.get(MapperService.SINGLE_MAPPING_NAME);
         }
 
-        public Builder putMapping(String type, String source) throws IOException {
-            putMapping(new MappingMetadata(type, XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
+        public Builder putMapping(String source) throws IOException {
+            putMapping(
+                new MappingMetadata(
+                    MapperService.SINGLE_MAPPING_NAME,
+                    XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)
+                )
+            );
             return this;
         }
 
         public Builder putMapping(MappingMetadata mappingMd) {
-            mappings.put(mappingMd.type(), mappingMd);
+            mappings.clear();
+            if (mappingMd != null) {
+                mappings.put(mappingMd.type(), mappingMd);
+            }
             return this;
         }
 
@@ -1336,14 +1352,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         public IndexMetadata build() {
             ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
-
-            // update default mapping on the MappingMetadata
-            if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
-                MappingMetadata defaultMapping = mappings.get(MapperService.DEFAULT_MAPPING);
-                for (ObjectCursor<MappingMetadata> cursor : mappings.values()) {
-                    cursor.value.updateDefaultMapping(defaultMapping);
-                }
-            }
 
             /*
              * We expect that the metadata has been properly built to set the number of shards and the number of replicas, and do not rely
@@ -1497,23 +1505,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             if (context != Metadata.XContentContext.API) {
                 builder.startArray(KEY_MAPPINGS);
-                for (ObjectObjectCursor<String, MappingMetadata> cursor : indexMetadata.getMappings()) {
+                MappingMetadata mmd = indexMetadata.mapping();
+                if (mmd != null) {
                     if (binary) {
-                        builder.value(cursor.value.source().compressed());
+                        builder.value(mmd.source().compressed());
                     } else {
-                        builder.map(XContentHelper.convertToMap(cursor.value.source().uncompressed(), true).v2());
+                        builder.map(XContentHelper.convertToMap(mmd.source().uncompressed(), true).v2());
                     }
                 }
                 builder.endArray();
             } else {
                 builder.startObject(KEY_MAPPINGS);
-                for (ObjectObjectCursor<String, MappingMetadata> cursor : indexMetadata.getMappings()) {
-                    Map<String, Object> mapping = XContentHelper.convertToMap(cursor.value.source().uncompressed(), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
+                MappingMetadata mmd = indexMetadata.mapping();
+                if (mmd != null) {
+                    Map<String, Object> mapping = XContentHelper.convertToMap(mmd.source().uncompressed(), false).v2();
+                    if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
                         // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor.key);
+                        mapping = (Map<String, Object>) mapping.get(mmd.type());
                     }
-                    builder.field(cursor.key);
+                    builder.field(mmd.type());
                     builder.map(mapping);
                 }
                 builder.endObject();

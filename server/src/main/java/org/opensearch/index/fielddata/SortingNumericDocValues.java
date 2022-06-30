@@ -41,6 +41,8 @@ import java.util.function.LongConsumer;
 
 /**
  * Base class for building {@link SortedNumericDocValues} instances based on unsorted content.
+ *
+ * @opensearch.internal
  */
 public abstract class SortingNumericDocValues extends SortedNumericDocValues {
 

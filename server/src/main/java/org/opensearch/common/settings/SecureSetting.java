@@ -44,6 +44,8 @@ import java.util.Set;
  * A secure setting.
  *
  * This class allows access to settings from the OpenSearch keystore.
+ *
+ * @opensearch.internal
  */
 public abstract class SecureSetting<T> extends Setting<T> {
 
@@ -171,6 +173,11 @@ public abstract class SecureSetting<T> extends Setting<T> {
         return new SecureFileSetting(name, fallback, properties);
     }
 
+    /**
+     * Setting for a secure string
+     *
+     * @opensearch.internal
+     */
     private static class SecureStringSetting extends SecureSetting<SecureString> {
         private final Setting<SecureString> fallback;
 
@@ -193,6 +200,11 @@ public abstract class SecureSetting<T> extends Setting<T> {
         }
     }
 
+    /**
+     * An insecure string setting
+     *
+     * @opensearch.internal
+     */
     private static class InsecureStringSetting extends Setting<SecureString> {
         private final String name;
 
@@ -212,6 +224,11 @@ public abstract class SecureSetting<T> extends Setting<T> {
         }
     }
 
+    /**
+     * A secure file setting
+     *
+     * @opensearch.internal
+     */
     private static class SecureFileSetting extends SecureSetting<InputStream> {
         private final Setting<InputStream> fallback;
 

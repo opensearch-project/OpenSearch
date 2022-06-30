@@ -48,6 +48,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A builder for scaling executors.
+ *
+ * @opensearch.internal
  */
 public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuilder.ScalingExecutorSettings> {
 

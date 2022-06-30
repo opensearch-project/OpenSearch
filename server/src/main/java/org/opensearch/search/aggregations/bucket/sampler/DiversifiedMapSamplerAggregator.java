@@ -34,8 +34,8 @@ package org.opensearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DiversifiedTopDocsCollector;
-import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
@@ -54,6 +54,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Aggregate all docs that match the diversified map sample
+ *
+ * @opensearch.internal
+ */
 public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
 
     private ValuesSource valuesSource;

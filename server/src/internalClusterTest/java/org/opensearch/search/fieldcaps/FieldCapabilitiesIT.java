@@ -88,7 +88,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(prepareCreate("old_index").addMapping("_doc", oldIndexMapping));
+        assertAcked(prepareCreate("old_index").setMapping(oldIndexMapping));
 
         XContentBuilder newIndexMapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -106,7 +106,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(prepareCreate("new_index").addMapping("_doc", newIndexMapping));
+        assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
         assertAcked(client().admin().indices().prepareAliases().addAlias("new_index", "current"));
     }
 
@@ -222,14 +222,14 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithIndexFilter() throws InterruptedException {
-        assertAcked(prepareCreate("index-1").addMapping("_doc", "timestamp", "type=date", "field1", "type=keyword"));
-        assertAcked(prepareCreate("index-2").addMapping("_doc", "timestamp", "type=date", "field1", "type=long"));
+        assertAcked(prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"));
+        assertAcked(prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long"));
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("index-1", "_doc").setSource("timestamp", "2015-07-08"));
-        reqs.add(client().prepareIndex("index-1", "_doc").setSource("timestamp", "2018-07-08"));
-        reqs.add(client().prepareIndex("index-2", "_doc").setSource("timestamp", "2019-10-12"));
-        reqs.add(client().prepareIndex("index-2", "_doc").setSource("timestamp", "2020-07-08"));
+        reqs.add(client().prepareIndex("index-1").setSource("timestamp", "2015-07-08"));
+        reqs.add(client().prepareIndex("index-1").setSource("timestamp", "2018-07-08"));
+        reqs.add(client().prepareIndex("index-2").setSource("timestamp", "2019-10-12"));
+        reqs.add(client().prepareIndex("index-2").setSource("timestamp", "2020-07-08"));
         indexRandom(true, reqs);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps("index-*").setFields("*").get();

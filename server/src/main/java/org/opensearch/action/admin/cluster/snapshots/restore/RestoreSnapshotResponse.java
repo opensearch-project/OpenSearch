@@ -52,6 +52,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 
 /**
  * Contains information about restores snapshot
+ *
+ * @opensearch.internal
  */
 public class RestoreSnapshotResponse extends ActionResponse implements ToXContentObject {
 

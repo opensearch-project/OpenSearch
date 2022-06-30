@@ -110,7 +110,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     public void testBulkWeirdScenario() throws Exception {
-        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
 
         assertAcked(
@@ -128,8 +128,8 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setType("_doc").setId("1").setSource("field1", "value1"))
-            .add(client().prepareUpdate().setIndex("test").setType("_doc").setId("1").setDoc("field2", "value2"))
+            .add(client().prepareIndex().setIndex("test").setId("1").setSource("field1", "value1"))
+            .add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2"))
             .execute()
             .actionGet();
 
@@ -149,8 +149,8 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     // returns data paths settings of in-sync shard copy
-    private Settings createStaleReplicaScenario(String master) throws Exception {
-        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+    private Settings createStaleReplicaScenario(String clusterManager) throws Exception {
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         refresh();
         ClusterState state = client().admin().cluster().prepareState().all().get().getState();
         List<ShardRouting> shards = state.routingTable().allShards("test");
@@ -167,43 +167,46 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         }
 
         NetworkDisruption partition = new NetworkDisruption(
-            new TwoPartitions(Sets.newHashSet(master, replicaNode), Collections.singleton(primaryNode)),
+            new TwoPartitions(Sets.newHashSet(clusterManager, replicaNode), Collections.singleton(primaryNode)),
             NetworkDisruption.DISCONNECT
         );
         internalCluster().setDisruptionScheme(partition);
         logger.info("--> partitioning node with primary shard from rest of cluster");
         partition.startDisrupting();
 
-        ensureStableCluster(2, master);
+        ensureStableCluster(2, clusterManager);
 
         logger.info("--> index a document into previous replica shard (that is now primary)");
-        client(replicaNode).prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        client(replicaNode).prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
 
         logger.info("--> shut down node that has new acknowledged document");
         final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
 
-        ensureStableCluster(1, master);
+        ensureStableCluster(1, clusterManager);
 
         partition.stopDisrupting();
 
         logger.info("--> waiting for node with old primary shard to rejoin the cluster");
-        ensureStableCluster(2, master);
+        ensureStableCluster(2, clusterManager);
 
         logger.info("--> check that old primary shard does not get promoted to primary again");
         // kick reroute and wait for all shard states to be fetched
-        client(master).admin().cluster().prepareReroute().get();
+        client(clusterManager).admin().cluster().prepareReroute().get();
         assertBusy(
-            () -> assertThat(internalCluster().getInstance(GatewayAllocator.class, master).getNumberOfInFlightFetches(), equalTo(0))
+            () -> assertThat(internalCluster().getInstance(GatewayAllocator.class, clusterManager).getNumberOfInFlightFetches(), equalTo(0))
         );
         // kick reroute a second time and check that all shards are unassigned
-        assertThat(client(master).admin().cluster().prepareReroute().get().getState().getRoutingNodes().unassigned().size(), equalTo(2));
+        assertThat(
+            client(clusterManager).admin().cluster().prepareReroute().get().getState().getRoutingNodes().unassigned().size(),
+            equalTo(2)
+        );
         return inSyncDataPathSettings;
     }
 
     public void testDoNotAllowStaleReplicasToBePromotedToPrimary() throws Exception {
-        logger.info("--> starting 3 nodes, 1 master, 2 data");
-        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        logger.info("--> starting 3 nodes, 1 cluster-manager, 2 data");
+        String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
         assertAcked(
             client().admin()
@@ -213,7 +216,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
                 .get()
         );
         ensureGreen();
-        final Settings inSyncDataPathSettings = createStaleReplicaScenario(master);
+        final Settings inSyncDataPathSettings = createStaleReplicaScenario(clusterManager);
 
         logger.info("--> starting node that reuses data folder with the up-to-date primary shard");
         internalCluster().startDataOnlyNode(inSyncDataPathSettings);
@@ -291,8 +294,8 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     public void testForceStaleReplicaToBePromotedToPrimary() throws Exception {
-        logger.info("--> starting 3 nodes, 1 master, 2 data");
-        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        logger.info("--> starting 3 nodes, 1 cluster-manager, 2 data");
+        String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
         assertAcked(
             client().admin()
@@ -305,7 +308,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         Set<String> historyUUIDs = Arrays.stream(client().admin().indices().prepareStats("test").clear().get().getShards())
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY))
             .collect(Collectors.toSet());
-        createStaleReplicaScenario(master);
+        createStaleReplicaScenario(clusterManager);
         if (randomBoolean()) {
             assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(0));
         }
@@ -343,7 +346,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
             }
             logger.info("expected allocation ids: {} actual allocation ids: {}", expectedAllocationIds, allocationIds);
         };
-        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
+        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, clusterManager);
         clusterService.addListener(clusterStateListener);
 
         rerouteBuilder.get();
@@ -390,7 +393,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     public void testForceStaleReplicaToBePromotedToPrimaryOnWrongNode() throws Exception {
-        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
         final String idxName = "test";
         assertAcked(
@@ -401,14 +404,14 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
                 .get()
         );
         ensureGreen();
-        createStaleReplicaScenario(master);
+        createStaleReplicaScenario(clusterManager);
         // Ensure the stopped primary's data is deleted so that it doesn't get picked up by the next datanode we start
         internalCluster().wipePendingDataDirectories();
         internalCluster().startDataOnlyNodes(1);
-        ensureStableCluster(3, master);
+        ensureStableCluster(3, clusterManager);
         final int shardId = 0;
         final List<String> nodeNames = new ArrayList<>(Arrays.asList(internalCluster().getNodeNames()));
-        nodeNames.remove(master);
+        nodeNames.remove(clusterManager);
         client().admin()
             .indices()
             .prepareShardStores(idxName)
@@ -434,7 +437,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     public void testForceStaleReplicaToBePromotedForGreenIndex() {
-        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         final String idxName = "test";
         assertAcked(
@@ -459,7 +462,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     public void testForceStaleReplicaToBePromotedForMissingIndex() {
-        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         final String dataNode = internalCluster().startDataOnlyNode();
         final String idxName = "test";
         IndexNotFoundException ex = expectThrows(
@@ -497,7 +500,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     public void testDoNotRemoveAllocationIdOnNodeLeave() throws Exception {
-        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
             client().admin()
@@ -537,7 +540,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
     }
 
     public void testRemoveAllocationIdOnWriteAfterNodeLeave() throws Exception {
-        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
             client().admin()
@@ -558,7 +561,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         ensureYellow("test");
         assertEquals(2, client().admin().cluster().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         logger.info("--> indexing...");
-        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
@@ -595,7 +598,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
                 .get()
         );
         ensureGreen("test");
-        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         logger.info("--> removing 2 nodes from cluster");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1), nodes.get(2)));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1), nodes.get(2)));
@@ -657,7 +660,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
      * This test asserts that replicas failed to execute resync operations will be failed but not marked as stale.
      */
     public void testPrimaryReplicaResyncFailed() throws Exception {
-        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);
         final String oldPrimary = internalCluster().startDataOnlyNode();
         assertAcked(
@@ -671,7 +674,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         ensureGreen();
         String timeout = randomFrom("0s", "1s", "2s");
         assertAcked(
-            client(master).admin()
+            client(clusterManager).admin()
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
@@ -700,7 +703,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(oldPrimary));
         // Checks that we fails replicas in one side but not mark them as stale.
         assertBusy(() -> {
-            ClusterState state = client(master).admin().cluster().prepareState().get().getState();
+            ClusterState state = client(clusterManager).admin().cluster().prepareState().get().getState();
             final IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
             final String newPrimaryNode = state.getRoutingNodes().node(shardRoutingTable.primary.currentNodeId()).node().getName();
             assertThat(newPrimaryNode, not(equalTo(oldPrimary)));
@@ -712,7 +715,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
             assertThat(state.metadata().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
         }, 1, TimeUnit.MINUTES);
         assertAcked(
-            client(master).admin()
+            client(clusterManager).admin()
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "all"))
@@ -722,7 +725,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         partition.ensureHealthy(internalCluster());
         logger.info("--> stop disrupting network and re-enable allocation");
         assertBusy(() -> {
-            ClusterState state = client(master).admin().cluster().prepareState().get().getState();
+            ClusterState state = client(clusterManager).admin().cluster().prepareState().get().getState();
             assertThat(state.routingTable().shardRoutingTable(shardId).activeShards(), hasSize(numberOfReplicas));
             assertThat(state.metadata().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
             for (String node : replicaNodes) {

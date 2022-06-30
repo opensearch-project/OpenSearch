@@ -47,13 +47,17 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.tasks.Task;
 
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+/**
+ * The search time slow log implementation
+ *
+ * @opensearch.internal
+ */
 public final class SearchSlowLog implements SearchOperationListener {
     private static final Charset UTF_8 = Charset.forName("UTF-8");
 
@@ -204,6 +208,11 @@ public final class SearchSlowLog implements SearchOperationListener {
         }
     }
 
+    /**
+     * Search slow log message
+     *
+     * @opensearch.internal
+     */
     static final class SearchSlowLogMessage extends OpenSearchLogMessage {
 
         SearchSlowLogMessage(SearchContext context, long tookInNanos) {
@@ -220,8 +229,6 @@ public final class SearchSlowLog implements SearchOperationListener {
             } else {
                 messageFields.put("total_hits", "-1");
             }
-            String[] types = context.getQueryShardContext().getTypes();
-            messageFields.put("types", escapeJson(asJsonArray(types != null ? Arrays.stream(types) : Stream.empty())));
             messageFields.put(
                 "stats",
                 escapeJson(asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
@@ -259,13 +266,6 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("-1");
             }
             sb.append("], ");
-            if (context.getQueryShardContext().getTypes() == null) {
-                sb.append("types[], ");
-            } else {
-                sb.append("types[");
-                Strings.arrayToDelimitedString(context.getQueryShardContext().getTypes(), ",", sb);
-                sb.append("], ");
-            }
             if (context.groupStats() == null) {
                 sb.append("stats[], ");
             } else {

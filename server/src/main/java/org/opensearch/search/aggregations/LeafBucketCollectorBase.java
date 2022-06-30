@@ -41,6 +41,8 @@ import java.io.IOException;
  * A {@link LeafBucketCollector} that delegates all calls to the sub leaf
  * aggregator and sets the scorer on its source of values if it implements
  * {@link ScorerAware}.
+ *
+ * @opensearch.internal
  */
 public class LeafBucketCollectorBase extends LeafBucketCollector {
 

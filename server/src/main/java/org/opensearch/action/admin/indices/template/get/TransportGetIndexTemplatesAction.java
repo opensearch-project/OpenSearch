@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.template.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -52,7 +52,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+/**
+ * Transport action to retrieve one or more Index templates
+ *
+ * @opensearch.internal
+ */
+public class TransportGetIndexTemplatesAction extends TransportClusterManagerNodeReadAction<
+    GetIndexTemplatesRequest,
+    GetIndexTemplatesResponse> {
 
     @Inject
     public TransportGetIndexTemplatesAction(

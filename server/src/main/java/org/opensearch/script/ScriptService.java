@@ -71,6 +71,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Service for scripting
+ *
+ * @opensearch.internal
+ */
 public class ScriptService implements Closeable, ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);

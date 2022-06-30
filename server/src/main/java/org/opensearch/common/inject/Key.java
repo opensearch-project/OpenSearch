@@ -58,6 +58,8 @@ import java.util.Objects;
  * types will be replaced with their wrapper types when keys are created.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class Key<T> {
 
@@ -323,6 +325,11 @@ public class Key<T> {
         return new Key<>(typeLiteral, annotationStrategy.withoutAttributes());
     }
 
+    /**
+     * Strategy for annotations
+     *
+     * @opensearch.internal
+     */
     interface AnnotationStrategy {
         Annotation getAnnotation();
 
@@ -411,6 +418,11 @@ public class Key<T> {
         }
     }
 
+    /**
+     * Strategy for an annotation
+     *
+     * @opensearch.internal
+     */
     // this class not test-covered
     static class AnnotationInstanceStrategy implements AnnotationStrategy {
 
@@ -461,6 +473,11 @@ public class Key<T> {
         }
     }
 
+    /**
+     * Type of annotation
+     *
+     * @opensearch.internal
+     */
     static class AnnotationTypeStrategy implements AnnotationStrategy {
 
         final Class<? extends Annotation> annotationType;

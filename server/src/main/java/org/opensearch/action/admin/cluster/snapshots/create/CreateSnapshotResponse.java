@@ -50,6 +50,8 @@ import java.util.Objects;
 
 /**
  * Create snapshot response
+ *
+ * @opensearch.internal
  */
 public class CreateSnapshotResponse extends ActionResponse implements ToXContentObject {
 

@@ -41,6 +41,7 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
@@ -57,6 +58,7 @@ import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.RangeType;
@@ -64,7 +66,6 @@ import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncAction;
@@ -73,6 +74,7 @@ import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.plugins.MapperPlugin;
@@ -89,6 +91,8 @@ import java.util.function.Predicate;
 
 /**
  * Configures classes and services that are shared by indices on each node.
+ *
+ * @opensearch.internal
  */
 public class IndicesModule extends AbstractModule {
     private final List<Entry> namedWritables = new ArrayList<>();
@@ -185,7 +189,7 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(IndexFieldMapper.NAME, IndexFieldMapper.PARSER);
         builtInMetadataMappers.put(DataStreamFieldMapper.NAME, DataStreamFieldMapper.PARSER);
         builtInMetadataMappers.put(SourceFieldMapper.NAME, SourceFieldMapper.PARSER);
-        builtInMetadataMappers.put(TypeFieldMapper.NAME, TypeFieldMapper.PARSER);
+        builtInMetadataMappers.put(NestedPathFieldMapper.NAME, NestedPathFieldMapper.PARSER);
         builtInMetadataMappers.put(VersionFieldMapper.NAME, VersionFieldMapper.PARSER);
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);
         // _field_names must be added last so that it has a chance to see all the other mappers
@@ -276,6 +280,11 @@ public class IndicesModule extends AbstractModule {
         bind(RetentionLeaseSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseBackgroundSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseSyncer.class).asEagerSingleton();
+        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
+            bind(SegmentReplicationCheckpointPublisher.class).asEagerSingleton();
+        } else {
+            bind(SegmentReplicationCheckpointPublisher.class).toInstance(SegmentReplicationCheckpointPublisher.EMPTY);
+        }
     }
 
     /**

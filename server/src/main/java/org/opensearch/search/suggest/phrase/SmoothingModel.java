@@ -41,6 +41,11 @@ import org.opensearch.search.suggest.phrase.WordScorer.WordScorerFactory;
 
 import java.io.IOException;
 
+/**
+ * Smooths the scoring calculation
+ *
+ * @opensearch.internal
+ */
 public abstract class SmoothingModel implements NamedWriteable, ToXContentFragment {
 
     @Override

@@ -41,6 +41,11 @@ import org.opensearch.index.mapper.VersionFieldMapper;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Doc Values used in LuceneChangesSnapshot for recovery
+ *
+ * @opensearch.internal
+ */
 final class CombinedDocValues {
     private final NumericDocValues versionDV;
     private final NumericDocValues seqNoDV;

@@ -38,7 +38,12 @@ import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 
 import java.io.IOException;
 
-//TODO public for tests
+/**
+ * Linear interpolation based scoring
+ *
+ * @opensearch.internal
+ */
+// TODO public for tests
 public final class LinearInterpolatingScorer extends WordScorer {
 
     private final double unigramLambda;

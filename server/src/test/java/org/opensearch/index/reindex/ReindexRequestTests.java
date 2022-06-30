@@ -113,9 +113,6 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             reindexRequest.setSourceBatchSize(randomInt(100));
         }
         if (randomBoolean()) {
-            reindexRequest.setDestDocType("type");
-        }
-        if (randomBoolean()) {
             reindexRequest.setDestOpType("create");
         }
         if (randomBoolean()) {
@@ -160,7 +157,6 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(expectedInstance.getDestination().getPipeline(), newInstance.getDestination().getPipeline());
         assertEquals(expectedInstance.getDestination().routing(), newInstance.getDestination().routing());
         assertEquals(expectedInstance.getDestination().opType(), newInstance.getDestination().opType());
-        assertEquals(expectedInstance.getDestination().type(), newInstance.getDestination().type());
     }
 
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {

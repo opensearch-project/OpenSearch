@@ -46,6 +46,11 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport Request for Retrieving Field Capabilities for an Index
+ *
+ * @opensearch.internal
+ */
 public class FieldCapabilitiesIndexRequest extends ActionRequest implements IndicesRequest {
 
     public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();

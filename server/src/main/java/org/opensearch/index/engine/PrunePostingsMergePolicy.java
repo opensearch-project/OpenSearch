@@ -59,6 +59,8 @@ import java.util.Iterator;
  * soft deleted documents independent of the retention policy. Note, in order for this merge policy to be effective it needs to be added
  * before the {@link org.apache.lucene.index.SoftDeletesRetentionMergePolicy} because otherwise only documents that are deleted / removed
  * anyways will be pruned.
+ *
+ * @opensearch.internal
  */
 final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
 
@@ -151,11 +153,6 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                     public int size() {
                         return postingsReader.size();
                     }
-
-                    @Override
-                    public long ramBytesUsed() {
-                        return postingsReader.ramBytesUsed();
-                    }
                 };
             }
 
@@ -171,6 +168,11 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         };
     }
 
+    /**
+     * Class holder for only live docs and the postings enumerator
+     *
+     * @opensearch.internal
+     */
     private static final class OnlyLiveDocsPostingsEnum extends PostingsEnum {
 
         private final Bits liveDocs;

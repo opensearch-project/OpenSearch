@@ -34,7 +34,7 @@ package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -48,7 +48,12 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportGetStoredScriptAction extends TransportMasterNodeReadAction<GetStoredScriptRequest, GetStoredScriptResponse> {
+/**
+ * Transport action for getting stored script
+ *
+ * @opensearch.internal
+ */
+public class TransportGetStoredScriptAction extends TransportClusterManagerNodeReadAction<GetStoredScriptRequest, GetStoredScriptResponse> {
 
     private final ScriptService scriptService;
 

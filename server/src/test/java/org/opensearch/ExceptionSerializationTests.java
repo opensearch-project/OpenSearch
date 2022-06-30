@@ -84,6 +84,7 @@ import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.recovery.PeerRecoveryNotFound;
 import org.opensearch.indices.recovery.RecoverFilesRecoveryException;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.ingest.IngestProcessorException;
 import org.opensearch.cluster.coordination.NodeHealthCheckFailureException;
 import org.opensearch.repositories.RepositoryException;
@@ -465,11 +466,10 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testRoutingMissingException() throws IOException {
-        RoutingMissingException ex = serialize(new RoutingMissingException("idx", "type", "id"));
+        RoutingMissingException ex = serialize(new RoutingMissingException("idx", "id"));
         assertEquals("idx", ex.getIndex().getName());
-        assertEquals("type", ex.getType());
         assertEquals("id", ex.getId());
-        assertEquals("routing is required for [idx]/[type]/[id]", ex.getMessage());
+        assertEquals("routing is required for [idx]/[id]", ex.getMessage());
     }
 
     public void testRepositoryException() throws IOException {
@@ -512,7 +512,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testClusterBlockException() throws IOException {
         ClusterBlockException ex = serialize(new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)));
-        assertEquals("blocked by: [SERVICE_UNAVAILABLE/2/no master];", ex.getMessage());
+        assertEquals("blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];", ex.getMessage());
         assertTrue(ex.blocks().contains(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
         assertEquals(1, ex.blocks().size());
     }
@@ -850,6 +850,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(158, PeerRecoveryNotFound.class);
         ids.put(159, NodeHealthCheckFailureException.class);
         ids.put(160, NoSeedNodeLeftException.class);
+        ids.put(161, ReplicationFailedException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {

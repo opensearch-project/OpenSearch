@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.close;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for closing an index
+ *
+ * @opensearch.internal
+ */
 public class CloseIndexAction extends ActionType<CloseIndexResponse> {
 
     public static final CloseIndexAction INSTANCE = new CloseIndexAction();

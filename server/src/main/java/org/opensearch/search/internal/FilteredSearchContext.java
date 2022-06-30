@@ -33,6 +33,7 @@
 package org.opensearch.search.internal;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
@@ -61,6 +62,7 @@ import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
@@ -68,6 +70,11 @@ import org.opensearch.search.suggest.SuggestionSearchContext;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Context used during a filtered search
+ *
+ * @opensearch.internal
+ */
 public abstract class FilteredSearchContext extends SearchContext {
 
     private final SearchContext in;
@@ -492,8 +499,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return in.queryCollectors();
+    public Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers() {
+        return in.queryCollectorManagers();
     }
 
     @Override

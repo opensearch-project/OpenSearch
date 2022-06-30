@@ -47,6 +47,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Transport Response for retrieving status of upgrading an Index
+ *
+ * @opensearch.internal
+ */
 public class UpgradeStatusResponse extends BroadcastResponse {
     private ShardUpgradeStatus[] shards;
 
@@ -200,6 +205,11 @@ public class UpgradeStatusResponse extends BroadcastResponse {
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
         static final String SHARDS = "shards";

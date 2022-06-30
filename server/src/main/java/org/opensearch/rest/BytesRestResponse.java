@@ -52,6 +52,11 @@ import static org.opensearch.OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE
 import static org.opensearch.OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * REST response in bytes
+ *
+ * @opensearch.api
+ */
 public class BytesRestResponse extends RestResponse {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";

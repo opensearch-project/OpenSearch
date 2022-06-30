@@ -46,6 +46,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for avg agg
+ *
+ * @opensearch.internal
+ */
 class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     AvgAggregatorFactory(

@@ -45,6 +45,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Base class for internal aggregations that are comprised of multiple buckets
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalMultiBucketAggregation<
     A extends InternalMultiBucketAggregation,
     B extends InternalMultiBucketAggregation.InternalBucket> extends InternalAggregation implements MultiBucketsAggregation {
@@ -218,6 +223,11 @@ public abstract class InternalMultiBucketAggregation<
         return reducedBuckets;
     }
 
+    /**
+     * An internal buck for the internal multibucket agg
+     *
+     * @opensearch.internal
+     */
     public abstract static class InternalBucket implements Bucket, Writeable {
 
         public Object getProperty(String containingAggName, List<String> path) {

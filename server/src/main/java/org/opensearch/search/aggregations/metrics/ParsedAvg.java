@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * An average agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedAvg extends ParsedSingleValueNumericMetricsAggregation implements Avg {
 
     @Override

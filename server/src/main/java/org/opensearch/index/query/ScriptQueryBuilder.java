@@ -38,14 +38,17 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.search.function.Functions;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.script.FilterScript;
@@ -56,6 +59,11 @@ import java.util.Objects;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
+/**
+ * Query builder for script queries
+ *
+ * @opensearch.internal
+ */
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
 
@@ -153,17 +161,24 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         }
         FilterScript.Factory factory = context.compile(script, FilterScript.CONTEXT);
         FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());
-        return new ScriptQuery(script, filterScript);
+        return new ScriptQuery(script, filterScript, queryName);
     }
 
+    /**
+     * Internal script query
+     *
+     * @opensearch.internal
+     */
     static class ScriptQuery extends Query {
 
         final Script script;
         final FilterScript.LeafFactory filterScript;
+        final String queryName;
 
-        ScriptQuery(Script script, FilterScript.LeafFactory filterScript) {
+        ScriptQuery(Script script, FilterScript.LeafFactory filterScript, @Nullable String queryName) {
             this.script = script;
             this.filterScript = filterScript;
+            this.queryName = queryName;
         }
 
         @Override
@@ -171,8 +186,14 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             StringBuilder buffer = new StringBuilder();
             buffer.append("ScriptQuery(");
             buffer.append(script);
+            buffer.append(Functions.nameOrEmptyArg(queryName));
             buffer.append(")");
             return buffer.toString();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
         }
 
         @Override

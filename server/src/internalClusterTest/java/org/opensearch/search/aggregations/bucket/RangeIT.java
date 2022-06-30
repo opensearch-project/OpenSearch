@@ -123,7 +123,7 @@ public class RangeIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             builders.add(
-                client().prepareIndex("idx", "type")
+                client().prepareIndex("idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(SINGLE_VALUED_FIELD_NAME, i + 1)
@@ -136,10 +136,11 @@ public class RangeIT extends OpenSearchIntegTestCase {
             );
         }
         createIndex("idx_unmapped");
-        prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer").get();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             // shift sequence by 1, to ensure we have negative values, and value 3 on the edge of the tested ranges
@@ -151,13 +152,13 @@ public class RangeIT extends OpenSearchIntegTestCase {
 
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
-        prepareCreate("old_index").addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance").get();
-        prepareCreate("new_index").addMapping("_doc", "route_length_miles", "type=double").get();
+        prepareCreate("old_index").setMapping("distance", "type=double", "route_length_miles", "type=alias,path=distance").get();
+        prepareCreate("new_index").setMapping("route_length_miles", "type=double").get();
 
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 42.0));
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 50.5));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource("route_length_miles", 100.2));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource(Collections.emptyMap()));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 42.0));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 50.5));
+        builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
+        builders.add(client().prepareIndex("new_index").setSource(Collections.emptyMap()));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -930,14 +931,14 @@ public class RangeIT extends OpenSearchIntegTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "i", "type=integer")
+            prepareCreate("cache_test_idx").setMapping("i", "type=integer")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource(jsonBuilder().startObject().field("i", 1).endObject()),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource(jsonBuilder().startObject().field("i", 2).endObject())
+            client().prepareIndex("cache_test_idx").setId("1").setSource(jsonBuilder().startObject().field("i", 1).endObject()),
+            client().prepareIndex("cache_test_idx").setId("2").setSource(jsonBuilder().startObject().field("i", 2).endObject())
         );
 
         // Make sure we are starting with a clear cache

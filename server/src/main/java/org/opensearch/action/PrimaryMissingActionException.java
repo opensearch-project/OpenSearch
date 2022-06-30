@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Base exception for a missing action on a primary
+ *
+ * @opensearch.internal
+ */
 public class PrimaryMissingActionException extends OpenSearchException {
 
     public PrimaryMissingActionException(String message) {

@@ -39,6 +39,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -53,7 +54,6 @@ public class DocWriteResponseTests extends OpenSearchTestCase {
     public void testGetLocation() {
         final DocWriteResponse response = new DocWriteResponse(
             new ShardId("index", "uuid", 0),
-            "type",
             "id",
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             17,
@@ -61,14 +61,13 @@ public class DocWriteResponseTests extends OpenSearchTestCase {
             Result.CREATED
         ) {
         };
-        assertEquals("/index/type/id", response.getLocation(null));
-        assertEquals("/index/type/id?routing=test_routing", response.getLocation("test_routing"));
+        assertEquals("/index/" + MapperService.SINGLE_MAPPING_NAME + "/id", response.getLocation(null));
+        assertEquals("/index/" + MapperService.SINGLE_MAPPING_NAME + "/id?routing=test_routing", response.getLocation("test_routing"));
     }
 
     public void testGetLocationNonAscii() {
         final DocWriteResponse response = new DocWriteResponse(
             new ShardId("index", "uuid", 0),
-            "type",
             "❤",
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             17,
@@ -76,14 +75,13 @@ public class DocWriteResponseTests extends OpenSearchTestCase {
             Result.CREATED
         ) {
         };
-        assertEquals("/index/type/%E2%9D%A4", response.getLocation(null));
-        assertEquals("/index/type/%E2%9D%A4?routing=%C3%A4", response.getLocation("ä"));
+        assertEquals("/index/" + MapperService.SINGLE_MAPPING_NAME + "/%E2%9D%A4", response.getLocation(null));
+        assertEquals("/index/" + MapperService.SINGLE_MAPPING_NAME + "/%E2%9D%A4?routing=%C3%A4", response.getLocation("ä"));
     }
 
     public void testGetLocationWithSpaces() {
         final DocWriteResponse response = new DocWriteResponse(
             new ShardId("index", "uuid", 0),
-            "type",
             "a b",
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             17,
@@ -91,8 +89,8 @@ public class DocWriteResponseTests extends OpenSearchTestCase {
             Result.CREATED
         ) {
         };
-        assertEquals("/index/type/a+b", response.getLocation(null));
-        assertEquals("/index/type/a+b?routing=c+d", response.getLocation("c d"));
+        assertEquals("/index/" + MapperService.SINGLE_MAPPING_NAME + "/a+b", response.getLocation(null));
+        assertEquals("/index/" + MapperService.SINGLE_MAPPING_NAME + "/a+b?routing=c+d", response.getLocation("c d"));
     }
 
     /**
@@ -102,7 +100,6 @@ public class DocWriteResponseTests extends OpenSearchTestCase {
     public void testToXContentDoesntIncludeForcedRefreshUnlessForced() throws IOException {
         DocWriteResponse response = new DocWriteResponse(
             new ShardId("index", "uuid", 0),
-            "type",
             "id",
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             17,

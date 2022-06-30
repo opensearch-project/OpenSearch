@@ -65,6 +65,8 @@ import java.util.Map;
  * or:
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
+ *
+ * @opensearch.internal
  */
 public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
@@ -76,6 +78,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         FIELD_TYPE.freeze();
     }
 
+    /**
+     * Concrete builder for geo_shape types
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, GeoShapeFieldType> {
 
         public Builder(String name) {
@@ -108,6 +115,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
     }
 
+    /**
+     * Concrete field type for geo_shape fields
+     *
+     * @opensearch.internal
+     */
     public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> implements GeoShapeQueryable {
 
         private final VectorGeoShapeQueryProcessor queryProcessor;
@@ -128,6 +140,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
     }
 
+    /**
+     * The type parser
+     *
+     * @opensearch.internal
+     */
     public static final class TypeParser extends AbstractShapeGeometryFieldMapper.TypeParser {
 
         @Override

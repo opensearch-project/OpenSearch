@@ -34,6 +34,8 @@ package org.opensearch.common.util;
 
 /**
  * Abstraction of an array of long values.
+ *
+ * @opensearch.internal
  */
 public interface LongArray extends BigArray {
 

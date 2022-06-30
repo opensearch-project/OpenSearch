@@ -44,6 +44,8 @@ import static org.opensearch.ingest.IngestDocument.PIPELINE_CYCLE_ERROR_MESSAGE;
 
 /**
  * Processor to be used within Simulate API to keep track of processors executed in pipeline.
+ *
+ * @opensearch.internal
  */
 public final class TrackingResultProcessor implements Processor {
 

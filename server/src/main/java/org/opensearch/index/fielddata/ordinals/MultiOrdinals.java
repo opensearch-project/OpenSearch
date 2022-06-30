@@ -51,6 +51,8 @@ import java.util.List;
 
 /**
  * {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields.
+ *
+ * @opensearch.internal
  */
 public class MultiOrdinals extends Ordinals {
 
@@ -127,6 +129,11 @@ public class MultiOrdinals extends Ordinals {
         }
     }
 
+    /**
+     * Single doc type
+     *
+     * @opensearch.internal
+     */
     private static class SingleDocs extends AbstractSortedDocValues {
 
         private final int valueCount;
@@ -175,6 +182,11 @@ public class MultiOrdinals extends Ordinals {
 
     }
 
+    /**
+     * Multiple docs
+     *
+     * @opensearch.internal
+     */
     private static class MultiDocs extends AbstractSortedSetDocValues {
 
         private final long valueCount;
@@ -216,6 +228,11 @@ public class MultiOrdinals extends Ordinals {
         @Override
         public BytesRef lookupOrd(long ord) {
             return values.lookupOrd(ord);
+        }
+
+        @Override
+        public long docValueCount() {
+            return currentEndOffset - currentOffset;
         }
     }
 }

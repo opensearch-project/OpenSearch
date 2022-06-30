@@ -45,6 +45,9 @@ import org.opensearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.Iterator;
 
+/**
+ * An aggregator that aggregates the performance profiling of other aggregations
+ */
 public class ProfilingAggregator extends Aggregator {
 
     private final Aggregator delegate;

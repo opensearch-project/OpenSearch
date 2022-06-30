@@ -36,6 +36,8 @@ import java.util.Objects;
 
 /**
  * Encapsulates a bootstrap check.
+ *
+ * @opensearch.internal
  */
 public interface BootstrapCheck {
 

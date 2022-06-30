@@ -42,6 +42,11 @@ import org.opensearch.env.Environment;
 
 import java.nio.file.Path;
 
+/**
+ * Base settings class for key store commands.
+ *
+ * @opensearch.internal
+ */
 public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
 
     private KeyStoreWrapper keyStore;
@@ -57,14 +62,14 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
     @Override
     protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         try {
-            final Path configFile = env.configFile();
+            final Path configFile = env.configDir();
             keyStore = KeyStoreWrapper.load(configFile);
             if (keyStore == null) {
                 if (keyStoreMustExist) {
                     throw new UserException(
                         ExitCodes.DATA_ERROR,
                         "OpenSearch keystore not found at ["
-                            + KeyStoreWrapper.keystorePath(env.configFile())
+                            + KeyStoreWrapper.keystorePath(env.configDir())
                             + "]. Use 'create' command to create one."
                     );
                 } else if (options.has(forceOption) == false) {

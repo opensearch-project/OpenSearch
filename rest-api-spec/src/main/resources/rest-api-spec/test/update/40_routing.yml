@@ -55,4 +55,3 @@
             doc:        { foo: baz }
 
  - match: { get._source.foo: baz }
-

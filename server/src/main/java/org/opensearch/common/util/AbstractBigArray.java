@@ -40,7 +40,11 @@ import org.opensearch.common.recycler.Recycler;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 
-/** Common implementation for array lists that slice data into fixed-size blocks. */
+/**
+ * Common implementation for array lists that slice data into fixed-size blocks.
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractBigArray extends AbstractArray {
 
     private final PageCacheRecycler recycler;

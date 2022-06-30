@@ -62,6 +62,8 @@ import java.util.function.BiConsumer;
  * {@link Rounding}.
  *
  * @see Rounding
+ *
+ * @opensearch.internal
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
 

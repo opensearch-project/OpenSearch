@@ -34,7 +34,11 @@ package org.opensearch.script;
 
 import org.opensearch.index.similarity.ScriptedSimilarity;
 
-/** A script that is used to compute scoring factors that are the same for all documents. */
+/**
+ * A script that is used to compute scoring factors that are the same for all documents.
+ *
+ * @opensearch.internal
+ */
 public abstract class SimilarityWeightScript {
 
     /** Compute the weight.
@@ -44,6 +48,11 @@ public abstract class SimilarityWeightScript {
      */
     public abstract double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field, ScriptedSimilarity.Term term);
 
+    /**
+     * Factory for a similarity weight script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         SimilarityWeightScript newInstance();
     }

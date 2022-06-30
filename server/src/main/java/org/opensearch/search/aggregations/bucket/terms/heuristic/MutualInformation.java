@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Mutual Information significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class MutualInformation extends NXYSignificanceHeuristic {
     public static final String NAME = "mutual_information";
     public static final ConstructingObjectParser<MutualInformation, Void> PARSER = new ConstructingObjectParser<>(
@@ -142,6 +147,11 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         return builder;
     }
 
+    /**
+     * Builder for a Mutual Information heuristic
+     *
+     * @opensearch.internal
+     */
     public static class MutualInformationBuilder extends NXYBuilder {
         public MutualInformationBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
             super(includeNegatives, backgroundIsSuperset);

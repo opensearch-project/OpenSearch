@@ -58,6 +58,11 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
+/**
+ * Metadata for index aliases
+ *
+ * @opensearch.internal
+ */
 public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
 
     private final String alias;
@@ -271,6 +276,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return builder;
     }
 
+    /**
+     * Builder of alias metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final String alias;

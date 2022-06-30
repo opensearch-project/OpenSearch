@@ -40,6 +40,11 @@ import org.opensearch.indices.analysis.HunspellService;
 
 import java.util.Locale;
 
+/**
+ * The token filter factory for the hunspell analyzer
+ *
+ * @opensearch.internal
+ */
 public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Dictionary dictionary;

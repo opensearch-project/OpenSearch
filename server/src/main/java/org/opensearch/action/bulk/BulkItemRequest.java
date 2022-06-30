@@ -45,6 +45,11 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport request for a Single bulk item
+ *
+ * @opensearch.internal
+ */
 public class BulkItemRequest implements Writeable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
@@ -105,13 +110,7 @@ public class BulkItemRequest implements Writeable, Accountable {
      */
     public void abort(String index, Exception cause) {
         if (primaryResponse == null) {
-            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
-                index,
-                request.type(),
-                request.id(),
-                Objects.requireNonNull(cause),
-                true
-            );
+            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.id(), Objects.requireNonNull(cause), true);
             setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
         } else {
             assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted() : "response ["

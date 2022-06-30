@@ -60,6 +60,8 @@ import java.util.Map;
 /**
  * Transport action for shard recovery operation. This transport action does not actually
  * perform shard recovery, it only reports on recoveries (both active and complete).
+ *
+ * @opensearch.internal
  */
 public class TransportRecoveryAction extends TransportBroadcastByNodeAction<RecoveryRequest, RecoveryResponse, RecoveryState> {
 
@@ -87,7 +89,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
     @Override
     protected RecoveryState readShardResult(StreamInput in) throws IOException {
-        return RecoveryState.readRecoveryState(in);
+        return new RecoveryState(in);
     }
 
     @Override

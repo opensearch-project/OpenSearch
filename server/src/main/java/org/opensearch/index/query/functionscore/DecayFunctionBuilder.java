@@ -35,6 +35,7 @@ package org.opensearch.index.query.functionscore;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoDistance;
@@ -71,6 +72,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
+/**
+ * Foundation builder for a decay function
+ *
+ * @opensearch.internal
+ */
 public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>> extends ScoreFunctionBuilder<DFB> {
 
     protected static final String ORIGIN = "origin";
@@ -96,7 +102,28 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     /**
      * Convenience constructor that converts its parameters into json to parse on the data nodes.
      */
+    protected DecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, @Nullable String functionName) {
+        this(fieldName, origin, scale, offset, DEFAULT_DECAY, functionName);
+    }
+
+    /**
+     * Convenience constructor that converts its parameters into json to parse on the data nodes.
+     */
     protected DecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
+        this(fieldName, origin, scale, offset, decay, null);
+    }
+
+    /**
+     * Convenience constructor that converts its parameters into json to parse on the data nodes.
+     */
+    protected DecayFunctionBuilder(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay,
+        @Nullable String functionName
+    ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("decay function: field name must not be null");
         }
@@ -123,6 +150,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         } catch (IOException e) {
             throw new IllegalArgumentException("unable to build inner function object", e);
         }
+        setFunctionName(functionName);
     }
 
     protected DecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
@@ -285,7 +313,16 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             );
         }
         IndexNumericFieldData numericFieldData = context.getForField(fieldType);
-        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
+        return new NumericFieldDataScoreFunction(
+            origin,
+            scale,
+            decay,
+            offset,
+            getDecayFunction(),
+            numericFieldData,
+            mode,
+            getFunctionName()
+        );
     }
 
     private AbstractDistanceScoreFunction parseGeoVariable(
@@ -325,7 +362,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
         double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
         IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-        return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode);
+        return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode, getFunctionName());
 
     }
 
@@ -375,9 +412,23 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24), DecayFunctionParser.class.getSimpleName() + ".offset");
         double offset = val.getMillis();
         IndexNumericFieldData numericFieldData = context.getForField(dateFieldType);
-        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
+        return new NumericFieldDataScoreFunction(
+            origin,
+            scale,
+            decay,
+            offset,
+            getDecayFunction(),
+            numericFieldData,
+            mode,
+            getFunctionName()
+        );
     }
 
+    /**
+     * Score function for geo field data
+     *
+     * @opensearch.internal
+     */
     static class GeoFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
         private final GeoPoint origin;
@@ -392,9 +443,10 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             double offset,
             DecayFunction func,
             IndexGeoPointFieldData fieldData,
-            MultiValueMode mode
+            MultiValueMode mode,
+            @Nullable String functionName
         ) {
-            super(scale, decay, offset, func, mode);
+            super(scale, decay, offset, func, mode, functionName);
             this.origin = origin;
             this.fieldData = fieldData;
         }
@@ -473,6 +525,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
     }
 
+    /**
+     * Score function for numeric data
+     *
+     * @opensearch.internal
+     */
     static class NumericFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
         private final IndexNumericFieldData fieldData;
@@ -485,9 +542,10 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             double offset,
             DecayFunction func,
             IndexNumericFieldData fieldData,
-            MultiValueMode mode
+            MultiValueMode mode,
+            @Nullable String functionName
         ) {
-            super(scale, decay, offset, func, mode);
+            super(scale, decay, offset, func, mode, functionName);
             this.fieldData = fieldData;
             this.origin = origin;
         }
@@ -562,20 +620,23 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     /**
      * This is the base class for scoring a single field.
      *
-     * */
+     * @opensearch.internal
+     */
     public abstract static class AbstractDistanceScoreFunction extends ScoreFunction {
 
         private final double scale;
         protected final double offset;
         private final DecayFunction func;
         protected final MultiValueMode mode;
+        protected final String functionName;
 
         public AbstractDistanceScoreFunction(
             double userSuppiedScale,
             double decay,
             double offset,
             DecayFunction func,
-            MultiValueMode mode
+            MultiValueMode mode,
+            @Nullable String functionName
         ) {
             super(CombineFunction.MULTIPLY);
             this.mode = mode;
@@ -591,6 +652,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : offset must be > 0.0");
             }
             this.offset = offset;
+            this.functionName = functionName;
         }
 
         /**
@@ -624,7 +686,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                     return Explanation.match(
                         (float) score(docId, subQueryScore.getValue().floatValue()),
                         "Function for field " + getFieldName() + ":",
-                        func.explainFunction(getDistanceString(ctx, docId), value, scale)
+                        func.explainFunction(getDistanceString(ctx, docId), value, scale, functionName)
                     );
                 }
             };

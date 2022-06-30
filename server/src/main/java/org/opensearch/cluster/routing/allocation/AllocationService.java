@@ -79,6 +79,8 @@ import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_L
  * {@link AllocationService} keeps {@link AllocationDeciders} to choose nodes
  * for shard allocation. This class also manages new nodes joining the cluster
  * and rerouting of shards.
+ *
+ * @opensearch.internal
  */
 public class AllocationService {
 
@@ -740,6 +742,8 @@ public class AllocationService {
     /**
      * this class is used to describe results of applying a set of
      * {@link org.opensearch.cluster.routing.allocation.command.AllocationCommand}
+     *
+     * @opensearch.internal
      */
     public static class CommandsResult {
 

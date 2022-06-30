@@ -35,7 +35,7 @@ package org.opensearch.action;
 /**
  * An {@link ActionFuture} that listeners can be added to.
  *
- *
+ * @opensearch.internal
  */
 public interface ListenableActionFuture<T> extends ActionFuture<T> {
 

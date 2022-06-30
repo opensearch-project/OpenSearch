@@ -29,6 +29,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
+/**
+ * Utility to cancel a timeout task
+ *
+ * @opensearch.internal
+ */
 public class TimeoutTaskCancellationUtility {
 
     private static final Logger logger = LogManager.getLogger(TimeoutTaskCancellationUtility.class);
@@ -99,6 +104,8 @@ public class TimeoutTaskCancellationUtility {
      * Timeout listener which executes the provided runnable after timeout is expired and if a response/failure is not yet received.
      * If either a response/failure is received before timeout then the scheduled task is cancelled and response/failure is sent back to
      * the original listener.
+     *
+     * @opensearch.internal
      */
     private static class TimeoutRunnableListener<Response> implements ActionListener<Response>, Runnable {
 

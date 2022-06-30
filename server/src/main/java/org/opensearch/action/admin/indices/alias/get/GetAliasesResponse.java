@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Transport response for listing index aliases
+ *
+ * @opensearch.internal
+ */
 public class GetAliasesResponse extends ActionResponse {
 
     private final ImmutableOpenMap<String, List<AliasMetadata>> aliases;

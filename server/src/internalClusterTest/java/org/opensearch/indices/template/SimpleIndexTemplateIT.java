@@ -110,11 +110,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .setPatterns(Collections.singletonList("te*"))
             .setSettings(indexSettings())
             .setOrder(0)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -123,7 +121,6 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -136,16 +133,13 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .setPatterns(Collections.singletonList("test*"))
             .setSettings(indexSettings())
             .setOrder(1)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field2")
                     .field("type", "text")
                     .field("store", false)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -161,16 +155,13 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .setSettings(indexSettings())
                 .setCreate(true)
                 .setOrder(1)
-                .addMapping(
-                    "type1",
+                .setMapping(
                     XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("type1")
                         .startObject("properties")
                         .startObject("field2")
                         .field("type", "text")
                         .field("store", false)
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -182,10 +173,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         assertThat(response.getIndexTemplates(), hasSize(2));
 
         // index something into test_index, will match on both templates
-        client().prepareIndex("test_index", "type1", "1")
-            .setSource("field1", "value1", "field2", "value 2")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("test_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         SearchResponse searchResponse = client().prepareSearch("test_index")
@@ -200,10 +188,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
-        client().prepareIndex("text_index", "type1", "1")
-            .setSource("field1", "value1", "field2", "value 2")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("text_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         // now only match on one template (template_1)
@@ -229,11 +214,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -242,7 +225,6 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "text")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -255,16 +237,13 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template_2")
             .setPatterns(Collections.singletonList("test*"))
             .setOrder(1)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field2")
                     .field("type", "text")
                     .field("store", false)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -287,11 +266,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -300,7 +277,6 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -328,11 +304,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .setVersion(123)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -341,7 +315,6 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -373,11 +346,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -386,7 +357,6 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -400,11 +370,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template_2")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -413,7 +381,6 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -427,11 +394,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template3")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -440,7 +405,6 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -513,7 +477,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type1", "{\"foo\": \"abcde\"}", XContentType.JSON)
+                .setMapping("{\"foo\": \"abcde\"}", XContentType.JSON)
                 .get()
         );
         assertThat(e.getMessage(), containsString("Failed to parse mapping "));
@@ -560,7 +524,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .indices()
             .preparePutTemplate("template_with_aliases")
             .setPatterns(Collections.singletonList("te*"))
-            .addMapping("_doc", "type", "type=keyword", "field", "type=text")
+            .setMapping("type", "type=keyword", "field", "type=text")
             .addAlias(new Alias("simple_alias"))
             .addAlias(new Alias("templated_alias-{index}"))
             .addAlias(new Alias("filtered_alias").filter("{\"term\":{\"type\":\"type2\"}}"))
@@ -570,11 +534,11 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
-        client().prepareIndex("test_index", "_doc", "1").setSource("type", "type1", "field", "A value").get();
-        client().prepareIndex("test_index", "_doc", "2").setSource("type", "type2", "field", "B value").get();
-        client().prepareIndex("test_index", "_doc", "3").setSource("type", "typeX", "field", "C value").get();
-        client().prepareIndex("test_index", "_doc", "4").setSource("type", "typeY", "field", "D value").get();
-        client().prepareIndex("test_index", "_doc", "5").setSource("type", "typeZ", "field", "E value").get();
+        client().prepareIndex("test_index").setId("1").setSource("type", "type1", "field", "A value").get();
+        client().prepareIndex("test_index").setId("2").setSource("type", "type2", "field", "B value").get();
+        client().prepareIndex("test_index").setId("3").setSource("type", "typeX", "field", "C value").get();
+        client().prepareIndex("test_index").setId("4").setSource("type", "typeY", "field", "D value").get();
+        client().prepareIndex("test_index").setId("5").setSource("type", "typeZ", "field", "E value").get();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -630,15 +594,15 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        assertAcked(prepareCreate("test_index").addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
 
-        client().prepareIndex("test_index", "_doc", "1").setSource("field", "value1").get();
-        client().prepareIndex("test_index", "_doc", "2").setSource("field", "value2").get();
+        client().prepareIndex("test_index").setId("1").setSource("field", "value1").get();
+        client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
@@ -669,15 +633,15 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        assertAcked(prepareCreate("test_index").addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(3));
 
-        client().prepareIndex("test_index", "_doc", "1").setSource("field", "value1").get();
-        client().prepareIndex("test_index", "_doc", "2").setSource("field", "value2").get();
+        client().prepareIndex("test_index").setId("1").setSource("field", "value1").get();
+        client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
@@ -826,7 +790,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template1")
             .setPatterns(Collections.singletonList("a*"))
             .setOrder(0)
-            .addMapping("test", "field", "type=text")
+            .setMapping("field", "type=text")
             .addAlias(new Alias("alias1").filter(termQuery("field", "value")))
             .get();
         // Indexing into b index should fail, since there is field with name 'field' in the mapping
@@ -838,12 +802,11 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .addAlias(new Alias("alias4").filter(termQuery("field", "value")))
             .get();
 
-        client().prepareIndex("a1", "test", "test").setSource("{}", XContentType.JSON).get();
-        BulkResponse response = client().prepareBulk().add(new IndexRequest("a2", "test", "test").source("{}", XContentType.JSON)).get();
+        client().prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON).get();
+        BulkResponse response = client().prepareBulk().add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
         assertThat(response.getItems()[0].getIndex(), equalTo("a2"));
-        assertThat(response.getItems()[0].getType(), equalTo("test"));
         assertThat(response.getItems()[0].getId(), equalTo("test"));
         assertThat(response.getItems()[0].getVersion(), equalTo(1L));
 
@@ -855,9 +818,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         // So the aliases defined in the index template for this index will not fail
         // even though the fields in the alias fields don't exist yet and indexing into
         // an index that doesn't exist yet will succeed
-        client().prepareIndex("b1", "test", "test").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON).get();
 
-        response = client().prepareBulk().add(new IndexRequest("b2", "test", "test").source("{}", XContentType.JSON)).get();
+        response = client().prepareBulk().add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
         assertThat(response.getItems()[0].getId(), equalTo("test"));
@@ -903,16 +866,13 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .setPatterns(Collections.singletonList("test*"))
                 .setCreate(true)
                 .setOrder(1)
-                .addMapping(
-                    "type1",
+                .setMapping(
                     XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("type1")
                         .startObject("properties")
                         .startObject("field2")
                         .field("type", "text")
                         .field("analyzer", "custom_1")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -937,7 +897,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .setPatterns(Collections.singletonList("te*"))
                 .setVersion(version)
                 .setOrder(order)
-                .addMapping("test", "field", "type=text")
+                .setMapping("field", "type=text")
                 .get()
         );
 
@@ -953,11 +913,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template_1")
             .setPatterns(Arrays.asList("a*", "b*"))
             .setSettings(indexSettings())
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -969,13 +927,12 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
             .get();
 
-        client().prepareIndex("ax", "type1", "1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("ax").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
-        client().prepareIndex("bx", "type1", "1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("bx").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
 
@@ -1034,7 +991,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("template_2")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type", "{\"type\":{\"_routing\":{\"required\":false}}}", XContentType.JSON)
+                .setMapping("{\"_routing\":{\"required\":false}}", XContentType.JSON)
                 .setSettings(Settings.builder().put("index.number_of_shards", "6").put("index.routing_partition_size", "3"))
                 .get()
         );

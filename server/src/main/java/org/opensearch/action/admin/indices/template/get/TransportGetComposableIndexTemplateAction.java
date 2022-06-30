@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.get;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -52,7 +52,12 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetComposableIndexTemplateAction extends TransportMasterNodeReadAction<
+/**
+ * Transport Action to retrieve one or more Composable Index templates
+ *
+ * @opensearch.internal
+ */
+public class TransportGetComposableIndexTemplateAction extends TransportClusterManagerNodeReadAction<
     GetComposableIndexTemplateAction.Request,
     GetComposableIndexTemplateAction.Response> {
 

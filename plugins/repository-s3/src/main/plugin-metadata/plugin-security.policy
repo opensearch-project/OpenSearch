@@ -51,6 +51,9 @@ grant {
   // s3 client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
 
+  // s3 client set Authenticator for proxy username/password
+  permission java.net.NetPermission "setDefaultAuthenticator";
+
   // only for tests : org.opensearch.repositories.s3.S3RepositoryPlugin
   permission java.util.PropertyPermission "opensearch.allow_insecure_settings", "read,write";
 };

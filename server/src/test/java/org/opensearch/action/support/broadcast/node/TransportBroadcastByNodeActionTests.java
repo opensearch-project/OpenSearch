@@ -366,17 +366,17 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         }
     }
 
-    // simulate the master being removed from the cluster but before a new master is elected
-    // as such, the shards assigned to the master will still show up in the cluster state as assigned to a node but
-    // that node will not be in the local cluster state on any node that has detected the master as failing
+    // simulate the cluster-manager being removed from the cluster but before a new cluster-manager is elected
+    // as such, the shards assigned to the cluster-manager will still show up in the cluster state as assigned to a node but
+    // that node will not be in the local cluster state on any node that has detected the cluster-manager as failing
     // in this case, such a shard should be treated as unassigned
-    public void testRequestsAreNotSentToFailedMaster() {
+    public void testRequestsAreNotSentToFailedClusterManager() {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = clusterService.state().nodes().getMasterNode();
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
-        builder.remove(masterNode.getId());
+        builder.remove(clusterManagerNode.getId());
 
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
 
@@ -384,11 +384,11 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
 
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
-        // the master should not be in the list of nodes that requests were sent to
+        // the cluster manager should not be in the list of nodes that requests were sent to
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { TEST_INDEX });
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt) {
-            if (!shard.currentNodeId().equals(masterNode.getId())) {
+            if (!shard.currentNodeId().equals(clusterManagerNode.getId())) {
                 set.add(shard.currentNodeId());
             }
         }
@@ -399,7 +399,7 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         // check requests were sent to the right nodes
         assertEquals(set, capturedRequests.keySet());
         for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
-            // check one request was sent to each non-master node
+            // check one request was sent to each non-cluster-manager node
             assertEquals(1, entry.getValue().size());
         }
     }
@@ -456,13 +456,13 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        // simulate removing the master
-        final boolean simulateFailedMasterNode = rarely();
-        DiscoveryNode failedMasterNode = null;
-        if (simulateFailedMasterNode) {
-            failedMasterNode = clusterService.state().nodes().getMasterNode();
+        // simulate removing the cluster-manager
+        final boolean simulateFailedClusterManagerNode = rarely();
+        DiscoveryNode failedClusterManagerNode = null;
+        if (simulateFailedClusterManagerNode) {
+            failedClusterManagerNode = clusterService.state().nodes().getMasterNode();
             DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
-            builder.remove(failedMasterNode.getId());
+            builder.remove(failedClusterManagerNode.getId());
             builder.masterNodeId(null);
 
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
@@ -511,8 +511,8 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
                 transport.handleResponse(requestId, nodeResponse);
             }
         }
-        if (simulateFailedMasterNode) {
-            totalShards += map.get(failedMasterNode.getId()).size();
+        if (simulateFailedClusterManagerNode) {
+            totalShards += map.get(failedClusterManagerNode.getId()).size();
         }
 
         Response response = listener.get();

@@ -53,6 +53,11 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
 
+/**
+ * Base class for requesting bulk by scrolls
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends ActionRequest {
 
     public static final int MAX_DOCS_ALL_MATCHES = -1;
@@ -502,9 +507,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             b.append(Arrays.toString(searchRequest.indices()));
         } else {
             b.append("[all indices]");
-        }
-        if (searchRequest.types() != null && searchRequest.types().length != 0) {
-            b.append(Arrays.toString(searchRequest.types()));
         }
     }
 

@@ -185,17 +185,14 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(singletonList("te*"));
-        request.putMapping(
-            "type1",
+        request.mappings(
             Strings.toString(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field2")
                     .field("type", "text")
                     .field("analyzer", "custom_1")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -211,7 +208,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     public void testBrokenMapping() throws Exception {
         PutRequest request = new PutRequest("api", "broken_mapping");
         request.patterns(singletonList("te*"));
-        request.putMapping("type1", "abcde");
+        request.mappings("abcde");
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -223,7 +220,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         // invalid json: put index template fails
         PutRequest request = new PutRequest("api", "blank_mapping");
         request.patterns(singletonList("te*"));
-        request.putMapping("type1", "{}");
+        request.mappings("{}");
         Set<Alias> aliases = new HashSet<>();
         aliases.add(new Alias("invalid_alias").filter("abcde"));
         request.aliases(aliases);
@@ -970,7 +967,6 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
     public void testResolveConflictingMappings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
@@ -2064,6 +2060,27 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             null
         );
         service.addIndexTemplateV2(stateWithDSAndTemplate, false, "logs", nonDSTemplate);
+    }
+
+    public void testLegacyNoopUpdate() {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        PutRequest pr = new PutRequest("api", "id");
+        pr.patterns(Arrays.asList("foo", "bar"));
+        if (randomBoolean()) {
+            pr.settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
+        }
+        if (randomBoolean()) {
+            pr.mappings("{}");
+        }
+        if (randomBoolean()) {
+            pr.aliases(Collections.singleton(new Alias("alias")));
+        }
+        pr.order(randomIntBetween(0, 10));
+        state = MetadataIndexTemplateService.innerPutTemplate(state, pr, new IndexTemplateMetadata.Builder("id"));
+
+        assertNotNull(state.metadata().templates().get("id"));
+
+        assertThat(MetadataIndexTemplateService.innerPutTemplate(state, pr, new IndexTemplateMetadata.Builder("id")), equalTo(state));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

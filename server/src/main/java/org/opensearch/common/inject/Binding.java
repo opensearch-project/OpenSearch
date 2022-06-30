@@ -68,6 +68,8 @@ import org.opensearch.common.inject.spi.Element;
  * @param <T> the bound type. The injected is always assignable to this type.
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public interface Binding<T> extends Element {
 

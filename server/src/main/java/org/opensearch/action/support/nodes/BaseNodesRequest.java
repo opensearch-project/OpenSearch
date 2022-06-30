@@ -42,6 +42,11 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
+/**
+ * Base class for requests targeting a list of nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest {
 
     /**

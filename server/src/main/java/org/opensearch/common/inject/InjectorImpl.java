@@ -72,6 +72,8 @@ import static org.opensearch.common.inject.internal.Annotations.findScopeAnnotat
  *
  * @author crazybob@google.com (Bob Lee)
  * @see InjectorBuilder
+ *
+ * @opensearch.internal
  */
 class InjectorImpl implements Injector, Lookups {
     final State state;
@@ -199,6 +201,11 @@ class InjectorImpl implements Injector, Lookups {
         return new ProviderBindingImpl<>(this, key, delegate);
     }
 
+    /**
+     * Implementation for a binding object
+     *
+     * @opensearch.internal
+     */
     static class ProviderBindingImpl<T> extends BindingImpl<Provider<T>> implements ProviderBinding<Provider<T>> {
         final BindingImpl<T> providedBinding;
 
@@ -286,6 +293,11 @@ class InjectorImpl implements Injector, Lookups {
         }
     }
 
+    /**
+     * Implementation for a converted constant
+     *
+     * @opensearch.internal
+     */
     private static class ConvertedConstantBindingImpl<T> extends BindingImpl<T> implements ConvertedConstantBinding<T> {
         final T value;
         final Provider<T> provider;
@@ -530,12 +542,12 @@ class InjectorImpl implements Injector, Lookups {
      * other ancestor injectors until this injector is tried.
      */
     private <T> BindingImpl<T> createJustInTimeBindingRecursive(Key<T> key, Errors errors) throws ErrorsException {
-        if (state.isBlacklisted(key)) {
+        if (state.isDenylisted(key)) {
             throw errors.childBindingAlreadySet(key).toException();
         }
 
         BindingImpl<T> binding = createJustInTimeBinding(key, errors);
-        state.parent().blacklist(key);
+        state.parent().denylist(key);
         jitBindings.put(key, binding);
         return binding;
     }
@@ -555,7 +567,7 @@ class InjectorImpl implements Injector, Lookups {
      *          if the binding cannot be created.
      */
     <T> BindingImpl<T> createJustInTimeBinding(Key<T> key, Errors errors) throws ErrorsException {
-        if (state.isBlacklisted(key)) {
+        if (state.isDenylisted(key)) {
             throw errors.childBindingAlreadySet(key).toException();
         }
 
@@ -607,6 +619,11 @@ class InjectorImpl implements Injector, Lookups {
         return getBindingOrThrow(key, errors).getInternalFactory();
     }
 
+    /**
+     * Multimap for java bindings
+     *
+     * @opensearch.internal
+     */
     private static class BindingsMultimap {
         final Map<TypeLiteral<?>, List<Binding<?>>> multimap = new HashMap<>();
 
@@ -659,6 +676,8 @@ class InjectorImpl implements Injector, Lookups {
 
     /**
      * Invokes a method.
+     *
+     * @opensearch.internal
      */
     interface MethodInvoker {
         Object invoke(Object target, Object... parameters) throws IllegalAccessException, InvocationTargetException;
@@ -805,7 +824,7 @@ class InjectorImpl implements Injector, Lookups {
 
     // ES_GUICE: clear caches
     public void clearCache() {
-        state.clearBlacklisted();
+        state.clearDenylisted();
         constructors = new ConstructorInjectorStore(this);
         membersInjectorStore = new MembersInjectorStore(this, state.getTypeListenerBindings());
         jitBindings = new HashMap<>();

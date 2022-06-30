@@ -55,6 +55,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Set;
 
+/**
+ * Outbound data handler
+ *
+ * @opensearch.internal
+ */
 final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
@@ -207,6 +212,11 @@ final class OutboundHandler {
         }
     }
 
+    /**
+     * Internal message serializer
+     *
+     * @opensearch.internal
+     */
     private static class MessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
 
         private final OutboundMessage message;

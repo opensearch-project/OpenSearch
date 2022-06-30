@@ -32,7 +32,7 @@
 package org.opensearch.env;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
@@ -524,8 +524,8 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         Settings settings = buildEnvSettings(Settings.EMPTY);
         Index index = new Index("test", "testUUID");
 
-        // build settings using same path.data as original but without data and master roles
-        Settings noDataNoMasterSettings = Settings.builder()
+        // build settings using same path.data as original but without data and cluster-manager roles
+        Settings noDataNoClusterManagerSettings = Settings.builder()
             .put(settings)
             .put(
                 NodeRoles.removeRoles(
@@ -535,8 +535,8 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             )
             .build();
 
-        // test that we can create data=false and master=false with no meta information
-        newNodeEnvironment(noDataNoMasterSettings).close();
+        // test that we can create data=false and cluster_manager=false with no meta information
+        newNodeEnvironment(noDataNoClusterManagerSettings).close();
 
         Path indexPath;
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
@@ -546,7 +546,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             indexPath = env.indexPaths(index)[0];
         }
 
-        verifyFailsOnMetadata(noDataNoMasterSettings, indexPath);
+        verifyFailsOnMetadata(noDataNoClusterManagerSettings, indexPath);
 
         // build settings using same path.data as original but without data role
         Settings noDataSettings = nonDataNode(settings);
@@ -563,15 +563,15 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
 
         // assert that we get the stricter message on meta-data when both conditions fail
-        verifyFailsOnMetadata(noDataNoMasterSettings, indexPath);
+        verifyFailsOnMetadata(noDataNoClusterManagerSettings, indexPath);
 
-        // build settings using same path.data as original but without master role
-        Settings noMasterSettings = nonMasterNode(settings);
+        // build settings using same path.data as original but without cluster-manager role
+        Settings noClusterManagerSettings = nonMasterNode(settings);
 
-        // test that we can create master=false env regardless of data.
-        newNodeEnvironment(noMasterSettings).close();
+        // test that we can create cluster_manager=false env regardless of data.
+        newNodeEnvironment(noClusterManagerSettings).close();
 
-        // test that we can create data=true, master=true env. Also remove state dir to leave only shard data for following asserts
+        // test that we can create data=true, cluster_manager=true env. Also remove state dir to leave only shard data for following asserts
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             for (Path path : env.indexPaths(index)) {
                 Files.delete(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
@@ -580,7 +580,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
 
         // assert that we fail on shard data even without the metadata dir.
         verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
-        verifyFailsOnShardData(noDataNoMasterSettings, indexPath, shardDataDirName);
+        verifyFailsOnShardData(noDataNoClusterManagerSettings, indexPath, shardDataDirName);
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
@@ -597,12 +597,12 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
     private void verifyFailsOnMetadata(Settings settings, Path indexPath) {
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            "Must fail creating NodeEnvironment on a data path that has index metadata if node does not have data and master roles",
+            "Must fail creating NodeEnvironment on a data path that has index metadata if node does not have data and cluster-manager roles",
             () -> newNodeEnvironment(settings).close()
         );
 
         assertThat(ex.getMessage(), containsString(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
-        assertThat(ex.getMessage(), startsWith("node does not have the data and master roles but has index metadata"));
+        assertThat(ex.getMessage(), startsWith("node does not have the data and cluster_manager roles but has index metadata"));
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

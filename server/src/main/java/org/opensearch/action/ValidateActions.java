@@ -32,6 +32,11 @@
 
 package org.opensearch.action;
 
+/**
+ * Validates transport actions
+ *
+ * @opensearch.internal
+ */
 public class ValidateActions {
 
     public static ActionRequestValidationException addValidationError(String error, ActionRequestValidationException validationException) {

@@ -101,7 +101,7 @@ public class BatchedRerouteServiceTests extends OpenSearchTestCase {
 
     public void testBatchesReroutesTogetherAtPriorityOfHighestSubmittedReroute() throws BrokenBarrierException, InterruptedException {
         final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
-        clusterService.submitStateUpdateTask("block master service", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("block cluster-manager service", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 cyclicBarrier.await(); // notify test that we are blocked
@@ -115,7 +115,7 @@ public class BatchedRerouteServiceTests extends OpenSearchTestCase {
             }
         });
 
-        cyclicBarrier.await(); // wait for master thread to be blocked
+        cyclicBarrier.await(); // wait for cluster-manager thread to be blocked
 
         final AtomicBoolean rerouteExecuted = new AtomicBoolean();
         final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
@@ -194,7 +194,7 @@ public class BatchedRerouteServiceTests extends OpenSearchTestCase {
         actions.forEach(threadPool.generic()::execute);
         assertTrue(tasksSubmittedCountDown.await(10, TimeUnit.SECONDS));
 
-        cyclicBarrier.await(); // allow master thread to continue;
+        cyclicBarrier.await(); // allow cluster-manager thread to continue;
         assertTrue(tasksCompletedCountDown.await(10, TimeUnit.SECONDS)); // wait for reroute to complete
         assertTrue(rerouteExecuted.get()); // see above for assertion that it's only called once
     }

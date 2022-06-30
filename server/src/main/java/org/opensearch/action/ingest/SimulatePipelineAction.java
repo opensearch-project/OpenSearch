@@ -34,6 +34,11 @@ package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to simulate a pipeline
+ *
+ * @opensearch.internal
+ */
 public class SimulatePipelineAction extends ActionType<SimulatePipelineResponse> {
 
     public static final SimulatePipelineAction INSTANCE = new SimulatePipelineAction();

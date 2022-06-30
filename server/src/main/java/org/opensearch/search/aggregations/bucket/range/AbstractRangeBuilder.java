@@ -49,6 +49,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+/**
+ * Base Aggregation Builder for range aggs
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range> extends ValuesSourceAggregationBuilder<
     AB> {
 

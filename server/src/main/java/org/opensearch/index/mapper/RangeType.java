@@ -46,7 +46,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FutureArrays;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.network.InetAddresses;
@@ -62,11 +61,16 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-/** Enum defining the type of range */
+/**
+ * Enum defining the type of range
+ *
+ * @opensearch.internal
+ */
 public enum RangeType {
     IP("ip_range", LengthType.FIXED_16) {
         @Override
@@ -196,7 +200,7 @@ public enum RangeType {
         ) {
             byte[] lowerBytes = InetAddressPoint.encode((InetAddress) lower);
             byte[] upperBytes = InetAddressPoint.encode((InetAddress) upper);
-            if (FutureArrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
+            if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
                 throw new IllegalArgumentException("Range query `from` value (" + lower + ") is greater than `to` value (" + upper + ")");
             }
             InetAddress correctedFrom = includeLower ? (InetAddress) lower : nextUp(lower);
@@ -204,7 +208,7 @@ public enum RangeType {
             ;
             lowerBytes = InetAddressPoint.encode(correctedFrom);
             upperBytes = InetAddressPoint.encode(correctedTo);
-            if (FutureArrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
+            if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
                 return new MatchNoDocsQuery("float range didn't intersect anything");
             } else {
                 return querySupplier.apply(correctedFrom, correctedTo);
@@ -978,6 +982,11 @@ public enum RangeType {
     private final NumberFieldMapper.NumberType numberType;
     public final LengthType lengthType;
 
+    /**
+     * Type of length
+     *
+     * @opensearch.internal
+     */
     public enum LengthType {
         FIXED_4 {
             @Override

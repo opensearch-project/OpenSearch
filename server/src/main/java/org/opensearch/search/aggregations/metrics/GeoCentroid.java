@@ -37,6 +37,8 @@ import org.opensearch.search.aggregations.Aggregation;
 
 /**
  * Interface for {@link GeoCentroidAggregator}
+ *
+ * @opensearch.internal
  */
 public interface GeoCentroid extends Aggregation {
     GeoPoint centroid();

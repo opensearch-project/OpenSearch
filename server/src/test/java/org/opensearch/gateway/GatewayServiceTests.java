@@ -129,13 +129,13 @@ public class GatewayServiceTests extends OpenSearchTestCase {
         GatewayService service = createService(Settings.builder());
         ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask();
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
+        DiscoveryNode clusterManagerNode = DiscoveryNode.createLocal(
             settings(Version.CURRENT).put(masterNode()).build(),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             nodeId
         );
         ClusterState stateWithBlock = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
+            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(clusterManagerNode).build())
             .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
             .build();
 

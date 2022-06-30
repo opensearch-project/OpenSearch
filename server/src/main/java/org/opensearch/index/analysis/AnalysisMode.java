@@ -36,6 +36,8 @@ package org.opensearch.index.analysis;
  * Enum representing the mode in which token filters and analyzers are allowed to operate.
  * While most token filters are allowed both in index and search time analyzers, some are
  * restricted to be used only at index time, others at search time.
+ *
+ * @opensearch.internal
  */
 public enum AnalysisMode {
 

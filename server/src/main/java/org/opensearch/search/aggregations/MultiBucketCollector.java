@@ -51,6 +51,8 @@ import java.util.List;
  * {@link BucketCollector}s. It is similar to the {@link MultiCollector} except that the
  * {@link #wrap} method filters out the {@link BucketCollector#NO_OP_COLLECTOR}s and not
  * the null ones.
+ *
+ * @opensearch.internal
  */
 public class MultiBucketCollector extends BucketCollector {
 
@@ -174,6 +176,11 @@ public class MultiBucketCollector extends BucketCollector {
         }
     }
 
+    /**
+     * A multi leaf bucket collector
+     *
+     * @opensearch.internal
+     */
     private static class MultiLeafBucketCollector extends LeafBucketCollector {
 
         private final boolean cacheScores;
@@ -189,7 +196,7 @@ public class MultiBucketCollector extends BucketCollector {
         @Override
         public void setScorer(Scorable scorer) throws IOException {
             if (cacheScores) {
-                scorer = new ScoreCachingWrappingScorer(scorer);
+                scorer = ScoreCachingWrappingScorer.wrap(scorer);
             }
             for (int i = 0; i < numCollectors; ++i) {
                 final LeafCollector c = collectors[i];

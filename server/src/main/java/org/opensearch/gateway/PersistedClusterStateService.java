@@ -108,7 +108,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
- * Stores cluster metadata in a bare Lucene index (per data path) split across a number of documents. This is used by master-eligible nodes
+ * Stores cluster metadata in a bare Lucene index (per data path) split across a number of documents. This is used by cluster-manager-eligible nodes
  * to record the last-accepted cluster state during publication. The metadata is written incrementally where possible, leaving alone any
  * documents that have not changed. The index has the following fields:
  *
@@ -131,6 +131,8 @@ import java.util.function.Supplier;
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
  *
  * (the last-accepted term is recorded in Metadata → CoordinationMetadata so does not need repeating here)
+ *
+ * @opensearch.internal
  */
 public class PersistedClusterStateService {
     private static final Logger logger = LogManager.getLogger(PersistedClusterStateService.class);
@@ -266,6 +268,11 @@ public class PersistedClusterStateService {
         return dataPaths;
     }
 
+    /**
+     * The on disk state.
+     *
+     * @opensearch.internal
+     */
     public static class OnDiskState {
         private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, Metadata.EMPTY_METADATA);
 
@@ -583,6 +590,11 @@ public class PersistedClusterStateService {
         }
     }
 
+    /**
+     * Writer for cluster state service
+     *
+     * @opensearch.internal
+     */
     public static class Writer implements Closeable {
 
         private final List<MetadataIndexWriter> metadataIndexWriters;

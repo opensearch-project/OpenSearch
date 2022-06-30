@@ -38,7 +38,6 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -57,22 +56,6 @@ public class RestUpdateActionTests extends RestActionTestCase {
     public void setUpAction() {
         action = new RestUpdateAction();
         controller().registerHandler(action);
-    }
-
-    public void testTypeInPath() {
-        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
-
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
-            .withPath("/some_index/some_type/some_id/_update")
-            .build();
-        dispatchRequest(deprecatedRequest);
-        assertWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE);
-
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
-            .withPath("/some_index/_update/some_id")
-            .build();
-        dispatchRequest(validRequest);
     }
 
     public void testUpdateDocVersion() {

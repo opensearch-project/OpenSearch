@@ -60,7 +60,9 @@ import java.io.Closeable;
 import java.util.Objects;
 
 /**
- * Component that runs only on the master node and is responsible for assigning running tasks to nodes
+ * Component that runs only on the cluster-manager node and is responsible for assigning running tasks to nodes
+ *
+ * @opensearch.internal
  */
 public class PersistentTasksClusterService implements ClusterStateListener, Closeable {
 
@@ -114,7 +116,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     }
 
     /**
-     * Creates a new persistent task on master node
+     * Creates a new persistent task on cluster-manager node
      *
      * @param taskId     the task's id
      * @param taskName   the task's name
@@ -398,7 +400,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
     /**
      * Returns true if the cluster state change(s) require to reassign some persistent tasks. It can happen in the following
-     * situations: a node left or is added, the routing table changed, the master node changed, the metadata changed or the
+     * situations: a node left or is added, the routing table changed, the cluster-manager node changed, the metadata changed or the
      * persistent tasks changed.
      */
     boolean shouldReassignPersistentTasks(final ClusterChangedEvent event) {

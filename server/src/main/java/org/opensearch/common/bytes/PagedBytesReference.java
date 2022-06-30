@@ -42,6 +42,8 @@ import java.io.IOException;
 /**
  * A page based bytes reference, internally holding the bytes in a paged
  * data structure.
+ *
+ * @opensearch.internal
  */
 public class PagedBytesReference extends AbstractBytesReference {
 

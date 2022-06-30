@@ -40,6 +40,7 @@ import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecid
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
@@ -67,6 +68,8 @@ import java.util.function.Predicate;
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
+ *
+ * @opensearch.internal
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
@@ -187,6 +190,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.FINAL_PIPELINE,
                 MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
                 ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -203,6 +208,18 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
             )
         )
+    );
+
+    /**
+     * Map of feature flag name to feature-flagged index setting. Once each feature
+     * is ready for production release, the feature flag can be removed, and the
+     * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
+     */
+    public static final Map<String, Setting> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
+        FeatureFlags.REPLICATION_TYPE,
+        IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
+        FeatureFlags.REMOTE_STORE,
+        IndexMetadata.INDEX_REMOTE_STORE_SETTING
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

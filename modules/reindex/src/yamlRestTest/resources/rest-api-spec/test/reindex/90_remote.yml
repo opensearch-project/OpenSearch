@@ -7,15 +7,15 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: master }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
-  - is_true: nodes.$master.http.publish_address
-  - set: {nodes.$master.http.publish_address: host}
+  - is_true: nodes.$cluster_manager.http.publish_address
+  - set: {nodes.$cluster_manager.http.publish_address: host}
   - do:
       reindex:
         refresh: true
@@ -68,15 +68,15 @@
   - do:
       indices.refresh: {}
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: master }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
-  - is_true: nodes.$master.http.publish_address
-  - set: {nodes.$master.http.publish_address: host}
+  - is_true: nodes.$cluster_manager.http.publish_address
+  - set: {nodes.$cluster_manager.http.publish_address: host}
   - do:
       reindex:
         refresh: true
@@ -118,15 +118,15 @@
         routing: foo
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: master }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
-  - is_true: nodes.$master.http.publish_address
-  - set: {nodes.$master.http.publish_address: host}
+  - is_true: nodes.$cluster_manager.http.publish_address
+  - set: {nodes.$cluster_manager.http.publish_address: host}
   - do:
       reindex:
         refresh: true
@@ -169,15 +169,15 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: master }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
-  - is_true: nodes.$master.http.publish_address
-  - set: {nodes.$master.http.publish_address: host}
+  - is_true: nodes.$cluster_manager.http.publish_address
+  - set: {nodes.$cluster_manager.http.publish_address: host}
   - do:
       reindex:
         refresh: true
@@ -236,15 +236,15 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: master }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
-  - is_true: nodes.$master.http.publish_address
-  - set: {nodes.$master.http.publish_address: host}
+  - is_true: nodes.$cluster_manager.http.publish_address
+  - set: {nodes.$cluster_manager.http.publish_address: host}
   - do:
       reindex:
         refresh: true
@@ -302,15 +302,15 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: master }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
-  - is_true: nodes.$master.http.publish_address
-  - set: {nodes.$master.http.publish_address: host}
+  - is_true: nodes.$cluster_manager.http.publish_address
+  - set: {nodes.$cluster_manager.http.publish_address: host}
   - do:
       reindex:
         refresh: true
@@ -358,15 +358,15 @@
         body:    { "text": "test" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: master }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
-  - is_true: nodes.$master.http.publish_address
-  - set: {nodes.$master.http.publish_address: host}
+  - is_true: nodes.$cluster_manager.http.publish_address
+  - set: {nodes.$cluster_manager.http.publish_address: host}
   - do:
       catch: /query malformed, no start_object after query name/
       reindex:
@@ -411,15 +411,15 @@
         body:    { "text": "test", "filtered": "removed" }
         refresh: true
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: master }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
-  - is_true: nodes.$master.http.publish_address
-  - set: {nodes.$master.http.publish_address: host}
+  - is_true: nodes.$cluster_manager.http.publish_address
+  - set: {nodes.$cluster_manager.http.publish_address: host}
   - do:
       reindex:
         refresh: true
@@ -480,15 +480,15 @@
       indices.refresh: {}
 
 
-  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  # Fetch the http host. We use the host of the cluster-manager because we know there will always be a cluster-manager.
   - do:
       cluster.state: {}
-  - set: { master_node: master }
+  - set: { cluster_manager_node: cluster_manager }
   - do:
       nodes.info:
         metric: [ http ]
-  - is_true: nodes.$master.http.publish_address
-  - set: {nodes.$master.http.publish_address: host}
+  - is_true: nodes.$cluster_manager.http.publish_address
+  - set: {nodes.$cluster_manager.http.publish_address: host}
   - do:
       reindex:
         requests_per_second: .00000001 # About 9.5 years to complete the request

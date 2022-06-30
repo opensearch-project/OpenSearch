@@ -51,6 +51,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Spawns native module controller processes if present. Will only work prior to a system call filter being installed.
+ *
+ * @opensearch.internal
  */
 final class Spawner implements Closeable {
 
@@ -77,14 +79,14 @@ final class Spawner implements Closeable {
         if (!spawned.compareAndSet(false, true)) {
             throw new IllegalStateException("native controllers already spawned");
         }
-        if (!Files.exists(environment.modulesFile())) {
-            throw new IllegalStateException("modules directory [" + environment.modulesFile() + "] not found");
+        if (!Files.exists(environment.modulesDir())) {
+            throw new IllegalStateException("modules directory [" + environment.modulesDir() + "] not found");
         }
         /*
          * For each module, attempt to spawn the controller daemon. Silently ignore any module that doesn't include a controller for the
          * correct platform.
          */
-        List<Path> paths = PluginsService.findPluginDirs(environment.modulesFile());
+        List<Path> paths = PluginsService.findPluginDirs(environment.modulesDir());
         for (final Path modules : paths) {
             final PluginInfo info = PluginInfo.readFromProperties(modules);
             final Path spawnPath = Platforms.nativeControllerPath(modules);
@@ -99,7 +101,7 @@ final class Spawner implements Closeable {
                 );
                 throw new IllegalArgumentException(message);
             }
-            final Process process = spawnNativeController(spawnPath, environment.tmpFile(), inheritIo);
+            final Process process = spawnNativeController(spawnPath, environment.tmpDir(), inheritIo);
             processes.add(process);
         }
     }

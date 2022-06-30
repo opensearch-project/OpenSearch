@@ -66,6 +66,7 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -272,7 +273,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         assertNull(meta.index("test"));
 
         test = createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test").get(), 1);
         IndexMetadata secondMetadata = clusterService.state().metadata().index("test");
@@ -437,7 +438,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState originalState = clusterService.state();
 
-        // import an index with minor version incremented by one over cluster master version, it should be ignored
+        // import an index with minor version incremented by one over cluster cluster-manager version, it should be ignored
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettingsLater = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(Version.CURRENT.id + 10000))
@@ -567,7 +568,13 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         final Version randVersion = VersionUtils.randomIndexCompatibleVersion(random());
         assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
         for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            assertTrue(indicesService.isMetadataField(randVersion, builtIn));
+            if (NestedPathFieldMapper.NAME.equals(builtIn) && randVersion.before(Version.V_2_0_0)) {
+                continue;   // nested field mapper does not exist prior to 2.0
+            }
+            assertTrue(
+                "Expected " + builtIn + " to be a metadata field for version " + randVersion,
+                indicesService.isMetadataField(randVersion, builtIn)
+            );
         }
     }
 

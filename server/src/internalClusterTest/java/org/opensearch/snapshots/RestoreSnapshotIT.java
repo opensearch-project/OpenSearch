@@ -147,8 +147,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse1.status(), equalTo(RestStatus.ACCEPTED));
         assertThat(restoreSnapshotResponse2.status(), equalTo(RestStatus.ACCEPTED));
         ensureGreen(restoredIndexName1, restoredIndexName2);
-        assertThat(client.prepareGet(restoredIndexName1, "_doc", docId).get().isExists(), equalTo(true));
-        assertThat(client.prepareGet(restoredIndexName2, "_doc", docId2).get().isExists(), equalTo(true));
+        assertThat(client.prepareGet(restoredIndexName1, docId).get().isExists(), equalTo(true));
+        assertThat(client.prepareGet(restoredIndexName2, docId2).get().isExists(), equalTo(true));
     }
 
     public void testParallelRestoreOperationsFromSingleSnapshot() throws Exception {
@@ -206,8 +206,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse1.get().status(), equalTo(RestStatus.ACCEPTED));
         assertThat(restoreSnapshotResponse2.get().status(), equalTo(RestStatus.ACCEPTED));
         ensureGreen(restoredIndexName1, restoredIndexName2);
-        assertThat(client.prepareGet(restoredIndexName1, "_doc", docId).get().isExists(), equalTo(true));
-        assertThat(client.prepareGet(restoredIndexName2, "_doc", sameSourceIndex ? docId : docId2).get().isExists(), equalTo(true));
+        assertThat(client.prepareGet(restoredIndexName1, docId).get().isExists(), equalTo(true));
+        assertThat(client.prepareGet(restoredIndexName2, sameSourceIndex ? docId : docId2).get().isExists(), equalTo(true));
     }
 
     public void testRestoreIncreasesPrimaryTerms() {
@@ -284,7 +284,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         NumShards numShards = getNumShards("test-idx");
 
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("_doc").setSource("baz", "type=text"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("baz", "type=text"));
         ensureGreen();
 
         logger.info("--> snapshot it");
@@ -310,7 +310,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                     .put("refresh_interval", 5, TimeUnit.SECONDS)
             )
         );
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("_doc").setSource("foo", "type=text"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("foo", "type=text"));
         ensureGreen();
 
         logger.info("--> close index");
@@ -424,11 +424,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .indices()
                 .preparePutTemplate("test-template")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping(
-                    "_doc",
+                .setMapping(
                     XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("_doc")
                         .startObject("properties")
                         .startObject("field1")
                         .field("type", "text")
@@ -437,7 +435,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .startObject("field2")
                         .field("type", "keyword")
                         .field("store", true)
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -735,13 +732,12 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             client().admin()
                 .indices()
                 .preparePutMapping("test-idx")
-                .setType("_doc")
                 .setSource("field1", "type=text,analyzer=standard,search_analyzer=my_analyzer")
         );
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "_doc").setId(Integer.toString(i)).setSource("field1", "Foo bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "Foo bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

@@ -76,7 +76,6 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("shape")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "geo_shape")
@@ -84,16 +83,14 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
         // create index
-        assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName).setMapping(mapping));
 
         mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("shape")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "geo_shape")
@@ -101,10 +98,9 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        assertAcked(prepareCreate(idxName + "2").addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName + "2").setMapping(mapping));
         ensureGreen(idxName, idxName + "2");
 
         internalCluster().fullRestart();
@@ -140,9 +136,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
      */
     public void testIgnoreMalformed() throws Exception {
         // create index
-        assertAcked(
-            client().admin().indices().prepareCreate("test").addMapping("geometry", "shape", "type=geo_shape,ignore_malformed=true").get()
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -185,14 +179,14 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
 
-        indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape", polygonGeoJson));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
     public void testMappingUpdate() throws Exception {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("geometry", "shape", "type=geo_shape").get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape").get());
         ensureGreen();
 
         String update = "{\n"
@@ -206,7 +200,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().preparePutMapping("test").setType("geometry").setSource(update, XContentType.JSON).get()
+            () -> client().admin().indices().preparePutMapping("test").setSource(update, XContentType.JSON).get()
         );
         assertThat(e.getMessage(), containsString("using [BKD] strategy cannot be merged with"));
     }
@@ -227,7 +221,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "  }";
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n"
@@ -237,10 +231,10 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "    }\n"
             + "}";
 
-        indexRandom(true, client().prepareIndex("test", "doc", "0").setSource(source, XContentType.JSON).setRouting("ABC"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(geoShapeQuery("shape", "0", "doc").indexedShapeIndex("test").indexedShapeRouting("ABC"))
+            .setQuery(geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))
             .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -265,16 +259,16 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "  }";
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("vector").addMapping("doc", mappingVector, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("vector").setMapping(mappingVector).get());
         ensureGreen();
 
-        assertAcked(client().admin().indices().prepareCreate("quad").addMapping("doc", mappingQuad, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("quad").setMapping(mappingQuad).get());
         ensureGreen();
 
         String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";
 
-        indexRandom(true, client().prepareIndex("quad", "doc", "0").setSource(source, XContentType.JSON));
-        indexRandom(true, client().prepareIndex("vector", "doc", "0").setSource(source, XContentType.JSON));
+        indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, XContentType.JSON));
+        indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, XContentType.JSON));
 
         try {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();

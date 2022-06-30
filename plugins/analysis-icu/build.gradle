@@ -28,8 +28,6 @@
  * under the License.
  */
 
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
@@ -46,7 +44,7 @@ forbiddenApisMain {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
   api "com.ibm.icu:icu4j:${versions.icu4j}"
 }
 

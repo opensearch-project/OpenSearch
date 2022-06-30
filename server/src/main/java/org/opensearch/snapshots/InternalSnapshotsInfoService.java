@@ -67,6 +67,11 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.function.Supplier;
 
+/**
+ * Information service for snapshots
+ *
+ * @opensearch.internal
+ */
 public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
 
     public static final Setting<Integer> INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING = Setting.intSetting(
@@ -176,8 +181,8 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             }
 
         } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
-            // TODO Maybe just clear out non-ongoing snapshot recoveries is the node is master eligible, so that we don't
-            // have to repopulate the data over and over in an unstable master situation?
+            // TODO Maybe just clear out non-ongoing snapshot recoveries is the node is cluster-manager eligible, so that we don't
+            // have to repopulate the data over and over in an unstable cluster-manager situation?
             synchronized (mutex) {
                 // information only needed on current master
                 knownSnapshotShards = ImmutableOpenMap.of();
@@ -357,6 +362,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         }
         return Collections.unmodifiableSet(snapshotShards);
     }
+
+    /**
+     * A snapshot of a shard
+     *
+     * @opensearch.internal
+     */
 
     public static class SnapshotShard {
 

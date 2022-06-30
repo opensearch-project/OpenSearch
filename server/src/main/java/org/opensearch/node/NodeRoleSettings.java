@@ -40,6 +40,11 @@ import org.opensearch.common.settings.Setting.Property;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Settings for a node role
+ *
+ * @opensearch.internal
+ */
 public class NodeRoleSettings {
 
     public static final Setting<List<DiscoveryNodeRole>> NODE_ROLES_SETTING = Setting.listSetting(
@@ -51,7 +56,11 @@ public class NodeRoleSettings {
             .filter(role -> role.isEnabledByDefault(settings))
             .map(DiscoveryNodeRole::roleName)
             .collect(Collectors.toList()),
-        roles -> {},
+        roles -> {
+            for (DiscoveryNodeRole role : roles) {
+                role.validateRole(roles);
+            }
+        },
         Property.NodeScope
     );
 

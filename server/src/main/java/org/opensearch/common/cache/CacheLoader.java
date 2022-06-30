@@ -32,6 +32,11 @@
 
 package org.opensearch.common.cache;
 
+/**
+ * An interface for a cache loader.
+ *
+ * @opensearch.internal
+ */
 @FunctionalInterface
 public interface CacheLoader<K, V> {
     V load(K key) throws Exception;

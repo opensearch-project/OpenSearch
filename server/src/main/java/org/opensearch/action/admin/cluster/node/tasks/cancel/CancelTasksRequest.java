@@ -44,6 +44,8 @@ import java.util.Arrays;
 
 /**
  * A request to cancel tasks
+ *
+ * @opensearch.internal
  */
 public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 

@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.template.post;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -64,8 +64,10 @@ import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findC
 /**
  * Handles simulating an index template either by name (looking it up in the
  * cluster state), or by a provided template configuration
+ *
+ * @opensearch.internal
  */
-public class TransportSimulateTemplateAction extends TransportMasterNodeReadAction<
+public class TransportSimulateTemplateAction extends TransportClusterManagerNodeReadAction<
     SimulateTemplateAction.Request,
     SimulateIndexTemplateResponse> {
 

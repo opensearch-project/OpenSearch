@@ -88,13 +88,11 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             request.requests().get(0).indicesOptions(),
             equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS))
         );
-        assertThat(request.requests().get(0).types().length, equalTo(0));
         assertThat(request.requests().get(1).indices()[0], equalTo("test"));
         assertThat(
             request.requests().get(1).indicesOptions(),
             equalTo(IndicesOptions.fromOptions(false, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS))
         );
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(2).indices()[0], equalTo("test"));
         assertThat(
             request.requests().get(2).indicesOptions(),
@@ -112,12 +110,9 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         );
 
         assertThat(request.requests().get(5).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(5).types().length, equalTo(0));
         assertThat(request.requests().get(6).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(6).types().length, equalTo(0));
         assertThat(request.requests().get(6).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(7).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(7).types().length, equalTo(0));
     }
 
     public void testFailWithUnknownKey() {
@@ -148,7 +143,6 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             request.requests().get(0).indicesOptions(),
             equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS))
         );
-        assertThat(request.requests().get(0).types().length, equalTo(0));
     }
 
     public void testCancelAfterIntervalAtParentAndFewChildRequest() throws Exception {
@@ -197,23 +191,17 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             request.requests().get(0).indicesOptions(),
             equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS))
         );
-        assertThat(request.requests().get(0).types().length, equalTo(0));
     }
 
     public void testSimpleAdd2() throws Exception {
         MultiSearchRequest request = parseMultiSearchRequestFromFile("/org/opensearch/action/search/simple-msearch2.json");
         assertThat(request.requests().size(), equalTo(5));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(0).types().length, equalTo(0));
         assertThat(request.requests().get(1).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(2).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(2).types().length, equalTo(0));
         assertThat(request.requests().get(3).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(3).types().length, equalTo(0));
         assertThat(request.requests().get(3).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(4).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(4).types().length, equalTo(0));
     }
 
     public void testSimpleAdd3() throws Exception {
@@ -223,13 +211,9 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
         assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
         assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
         assertThat(request.requests().get(2).indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(2).types()[0], equalTo("type2"));
-        assertThat(request.requests().get(2).types()[1], equalTo("type1"));
         assertThat(request.requests().get(3).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(3).types().length, equalTo(0));
         assertThat(request.requests().get(3).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
     }
 
@@ -242,13 +226,10 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         assertThat(request.requests().get(0).preference(), nullValue());
         assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
         assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(1).requestCache(), nullValue());
         assertThat(request.requests().get(1).preference(), equalTo("_local"));
         assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
         assertThat(request.requests().get(2).indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(2).types()[0], equalTo("type2"));
-        assertThat(request.requests().get(2).types()[1], equalTo("type1"));
         assertThat(request.requests().get(2).routing(), equalTo("123"));
     }
 
@@ -414,7 +395,6 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
                 new BytesArray(originalBytes),
                 xContentType.xContent(),
                 consumer,
-                null,
                 null,
                 null,
                 null,

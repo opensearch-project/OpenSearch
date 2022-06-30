@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.open;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to open an index.
+ *
+ * @opensearch.internal
+ */
 public class OpenIndexAction extends ActionType<OpenIndexResponse> {
 
     public static final OpenIndexAction INSTANCE = new OpenIndexAction();

@@ -37,6 +37,11 @@ import org.opensearch.index.translog.Translog;
 
 import java.util.Objects;
 
+/**
+ * Encapsulates an Index Version in the translog
+ *
+ * @opensearch.internal
+ */
 final class IndexVersionValue extends VersionValue {
 
     private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexVersionValue.class);

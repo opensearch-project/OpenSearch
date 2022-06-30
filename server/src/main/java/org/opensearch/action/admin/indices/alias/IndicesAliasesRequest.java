@@ -72,6 +72,8 @@ import static org.opensearch.common.xcontent.ObjectParser.fromList;
 
 /**
  * A request to add/remove aliases for one or more indices.
+ *
+ * @opensearch.internal
  */
 public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject {
 
@@ -97,6 +99,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
     /**
      * Request to take one or more actions on one or more indexes and alias combinations.
+     *
+     * @opensearch.internal
      */
     public static class AliasActions implements AliasesRequest, Writeable, ToXContentObject {
 
@@ -116,6 +120,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField REMOVE = new ParseField("remove");
         private static final ParseField REMOVE_INDEX = new ParseField("remove_index");
 
+        /**
+         * The type of request.
+         *
+         * @opensearch.internal
+         */
         public enum Type {
             ADD((byte) 0, AliasActions.ADD),
             REMOVE((byte) 1, AliasActions.REMOVE),

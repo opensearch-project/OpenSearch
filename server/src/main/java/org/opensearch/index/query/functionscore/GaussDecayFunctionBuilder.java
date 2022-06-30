@@ -33,12 +33,19 @@
 package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.lucene.search.function.Functions;
 
 import java.io.IOException;
 
+/**
+ * Foundation builder for a gaussian decay
+ *
+ * @opensearch.internal
+ */
 public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFunctionBuilder> {
     public static final String NAME = "gauss";
     public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
@@ -49,8 +56,23 @@ public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFu
         super(fieldName, origin, scale, offset);
     }
 
+    public GaussDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, @Nullable String functionName) {
+        super(fieldName, origin, scale, offset, functionName);
+    }
+
     public GaussDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
         super(fieldName, origin, scale, offset, decay);
+    }
+
+    public GaussDecayFunctionBuilder(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay,
+        @Nullable String functionName
+    ) {
+        super(fieldName, origin, scale, offset, decay, functionName);
     }
 
     GaussDecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
@@ -74,8 +96,12 @@ public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFu
         return GAUSS_DECAY_FUNCTION;
     }
 
+    /**
+     * Gaussian scoring
+     *
+     * @opensearch.internal
+     */
     private static final class GaussScoreFunction implements DecayFunction {
-
         @Override
         public double evaluate(double value, double scale) {
             // note that we already computed scale^2 in processScale() so we do
@@ -84,8 +110,11 @@ public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFu
         }
 
         @Override
-        public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match((float) evaluate(value, scale), "exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
+        public Explanation explainFunction(String valueExpl, double value, double scale, @Nullable String functionName) {
+            return Explanation.match(
+                (float) evaluate(value, scale),
+                "exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + Functions.nameOrEmptyArg(functionName) + ")"
+            );
         }
 
         @Override

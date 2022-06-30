@@ -44,6 +44,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Field Data for Paged Bytes
+ *
+ * @opensearch.internal
+ */
 public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
 
     private final PagedBytes.Reader bytes;
@@ -84,6 +89,11 @@ public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
         return ordinals.ordinals(new ValuesHolder(bytes, termOrdToBytesOffset));
     }
 
+    /**
+     * Value holder for paged bytes leaf field data
+     *
+     * @opensearch.internal
+     */
     private static class ValuesHolder implements Ordinals.ValuesHolder {
 
         private final BytesRef scratch = new BytesRef();

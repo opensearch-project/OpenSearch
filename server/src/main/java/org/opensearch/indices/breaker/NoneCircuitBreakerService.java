@@ -37,6 +37,8 @@ import org.opensearch.common.breaker.NoopCircuitBreaker;
 
 /**
  * Class that returns a breaker that never breaks
+ *
+ * @opensearch.internal
  */
 public class NoneCircuitBreakerService extends CircuitBreakerService {
 

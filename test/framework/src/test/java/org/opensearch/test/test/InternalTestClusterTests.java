@@ -31,7 +31,7 @@
 
 package org.opensearch.test.test;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -86,7 +86,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
 
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();
-        boolean masterNodes = randomBoolean();
+        boolean clusterManagerNodes = randomBoolean();
         int minNumDataNodes = randomIntBetween(0, 9);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 10);
         String clusterName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
@@ -98,7 +98,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         InternalTestCluster cluster0 = new InternalTestCluster(
             clusterSeed,
             baseDir,
-            masterNodes,
+            clusterManagerNodes,
             randomBoolean(),
             minNumDataNodes,
             maxNumDataNodes,
@@ -112,7 +112,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         InternalTestCluster cluster1 = new InternalTestCluster(
             clusterSeed,
             baseDir,
-            masterNodes,
+            clusterManagerNodes,
             randomBoolean(),
             minNumDataNodes,
             maxNumDataNodes,
@@ -165,23 +165,23 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
     }
 
     public void testBeforeTest() throws Exception {
-        final boolean autoManageMinMasterNodes = randomBoolean();
+        final boolean autoManageMinClusterManagerNodes = randomBoolean();
         long clusterSeed = randomLong();
-        final boolean masterNodes;
+        final boolean clusterManagerNodes;
         final int minNumDataNodes;
         final int maxNumDataNodes;
-        final int bootstrapMasterNodeIndex;
-        if (autoManageMinMasterNodes) {
-            masterNodes = randomBoolean();
+        final int bootstrapClusterManagerNodeIndex;
+        if (autoManageMinClusterManagerNodes) {
+            clusterManagerNodes = randomBoolean();
             minNumDataNodes = randomIntBetween(0, 3);
             maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
-            bootstrapMasterNodeIndex = -1;
+            bootstrapClusterManagerNodeIndex = -1;
         } else {
-            // if we manage min master nodes, we need to lock down the number of nodes
+            // if we manage min cluster-manager nodes, we need to lock down the number of nodes
             minNumDataNodes = randomIntBetween(0, 4);
             maxNumDataNodes = minNumDataNodes;
-            masterNodes = false;
-            bootstrapMasterNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
+            clusterManagerNodes = false;
+            bootstrapClusterManagerNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
         }
         final int numClientNodes = randomIntBetween(0, 2);
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
@@ -191,9 +191,9 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
                     .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                     .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-                if (autoManageMinMasterNodes == false) {
+                if (autoManageMinClusterManagerNodes == false) {
                     assert minNumDataNodes == maxNumDataNodes;
-                    assert masterNodes == false;
+                    assert clusterManagerNodes == false;
                 }
                 return settings.build();
             }
@@ -209,8 +209,8 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         InternalTestCluster cluster0 = new InternalTestCluster(
             clusterSeed,
             createTempDir(),
-            masterNodes,
-            autoManageMinMasterNodes,
+            clusterManagerNodes,
+            autoManageMinClusterManagerNodes,
             minNumDataNodes,
             maxNumDataNodes,
             "clustername",
@@ -220,13 +220,13 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             mockPlugins(),
             Function.identity()
         );
-        cluster0.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
+        cluster0.setBootstrapClusterManagerNodeIndex(bootstrapClusterManagerNodeIndex);
 
         InternalTestCluster cluster1 = new InternalTestCluster(
             clusterSeed,
             createTempDir(),
-            masterNodes,
-            autoManageMinMasterNodes,
+            clusterManagerNodes,
+            autoManageMinClusterManagerNodes,
             minNumDataNodes,
             maxNumDataNodes,
             "clustername",
@@ -236,7 +236,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             mockPlugins(),
             Function.identity()
         );
-        cluster1.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
+        cluster1.setBootstrapClusterManagerNodeIndex(bootstrapClusterManagerNodeIndex);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
@@ -265,7 +265,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
 
     public void testDataFolderAssignmentAndCleaning() throws IOException, InterruptedException {
         long clusterSeed = randomLong();
-        boolean masterNodes = randomBoolean();
+        boolean clusterManagerNodes = randomBoolean();
         // we need one stable node
         final int minNumDataNodes = 2;
         final int maxNumDataNodes = 2;
@@ -291,7 +291,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         InternalTestCluster cluster = new InternalTestCluster(
             clusterSeed,
             baseDir,
-            masterNodes,
+            clusterManagerNodes,
             true,
             minNumDataNodes,
             maxNumDataNodes,
@@ -304,13 +304,13 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         );
         try {
             cluster.beforeTest(random());
-            final int originalMasterCount = cluster.numMasterNodes();
+            final int originalClusterManagerCount = cluster.numMasterNodes();
             final Map<String, Path[]> shardNodePaths = new HashMap<>();
             for (String name : cluster.getNodeNames()) {
                 shardNodePaths.put(name, getNodePaths(cluster, name));
             }
             String poorNode = randomValueOtherThanMany(
-                n -> originalMasterCount == 1 && n.equals(cluster.getMasterName()),
+                n -> originalClusterManagerCount == 1 && n.equals(cluster.getMasterName()),
                 () -> randomFrom(cluster.getNodeNames())
             );
             Path dataPath = getNodePaths(cluster, poorNode)[0];
@@ -398,17 +398,19 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             Function.identity()
         );
         cluster.beforeTest(random());
+        // TODO: Remove this line, and replace 'clusterManagerRole' with CLUSTER_MANAGER_ROLE, after MASTER_ROLE is removed.
+        // It is added in 2.0, along with the introduction of CLUSTER_MANAGER_ROLE, aims to test the 2 roles have the same effect.
+        DiscoveryNodeRole clusterManagerRole = randomFrom(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE);
         List<DiscoveryNodeRole> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false
-                ? DiscoveryNodeRole.MASTER_ROLE
-                : // last node and still no master
-                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
+            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(clusterManagerRole) == false
+                ? clusterManagerRole  // last node and still no cluster-manager
+                : randomFrom(clusterManagerRole, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
             roles.add(role);
         }
 
-        cluster.setBootstrapMasterNodeIndex(
-            randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(DiscoveryNodeRole.MASTER_ROLE)).count() - 1)
+        cluster.setBootstrapClusterManagerNodeIndex(
+            randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(clusterManagerRole)).count() - 1)
         );
 
         try {
@@ -416,8 +418,8 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             for (int i = 0; i < numNodes; i++) {
                 final DiscoveryNodeRole role = roles.get(i);
                 final String node;
-                if (role == DiscoveryNodeRole.MASTER_ROLE) {
-                    node = cluster.startMasterOnlyNode();
+                if (role == clusterManagerRole) {
+                    node = cluster.startClusterManagerOnlyNode();
                 } else if (role == DiscoveryNodeRole.DATA_ROLE) {
                     node = cluster.startDataOnlyNode();
                 } else if (role == DiscoveryNodeRole.INGEST_ROLE) {
@@ -438,7 +440,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
                 DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
                 List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
-                    result.computeIfAbsent(DiscoveryNodeRole.MASTER_ROLE, k -> new HashSet<>()).addAll(paths);
+                    result.computeIfAbsent(clusterManagerRole, k -> new HashSet<>()).addAll(paths);
                 } else if (node.isDataNode()) {
                     result.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else {

@@ -38,6 +38,8 @@ import java.util.List;
  * Represents the logic to upgrade a setting.
  *
  * @param <T> the type of the underlying setting
+ *
+ * @opensearch.internal
  */
 public interface SettingUpgrader<T> {
 

@@ -34,13 +34,18 @@ package org.opensearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -54,11 +59,36 @@ import java.util.function.Function;
  */
 final class S3ClientSettings {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(S3ClientSettings.class);
+
     // prefix for s3 client settings
     private static final String PREFIX = "s3.client.";
 
     /** Placeholder client name for normalizing client settings in the repository settings. */
     private static final String PLACEHOLDER_CLIENT = "placeholder";
+
+    // Properties to support using IAM Roles for Service Accounts (IRSA)
+
+    /** The identity token file for connecting to s3. */
+    static final Setting.AffixSetting<String> IDENTITY_TOKEN_FILE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "identity_token_file",
+        key -> SecureSetting.simpleString(key, Property.NodeScope)
+    );
+
+    /** The role ARN (Amazon Resource Name) for connecting to s3. */
+    static final Setting.AffixSetting<SecureString> ROLE_ARN_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "role_arn",
+        key -> SecureSetting.secureString(key, null)
+    );
+
+    /** The role session name for connecting to s3. */
+    static final Setting.AffixSetting<SecureString> ROLE_SESSION_NAME_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "role_session_name",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** The access key (ie login id) for connecting to s3. */
     static final Setting.AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(
@@ -95,6 +125,13 @@ final class S3ClientSettings {
         key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
     );
 
+    /** The protocol to use to connect to s3. */
+    static final Setting.AffixSetting<ProxySettings.ProxyType> PROXY_TYPE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.type",
+        key -> new Setting<>(key, "direct", s -> ProxySettings.ProxyType.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
+    );
+
     /** The host name of a proxy to connect to s3 through. */
     static final Setting.AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(
         PREFIX,
@@ -106,7 +143,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(
         PREFIX,
         "proxy.port",
-        key -> Setting.intSetting(key, 80, 0, 1 << 16, Property.NodeScope)
+        key -> Setting.intSetting(key, 80, 0, (1 << 16) - 1, Property.NodeScope)
     );
 
     /** The username of a proxy to connect to s3 through. */
@@ -175,25 +212,17 @@ final class S3ClientSettings {
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;
 
+    /** Credentials to authenticate with s3 using IAM Roles for Service Accounts (IRSA). */
+    final IrsaCredentials irsaCredentials;
+
     /** The s3 endpoint the client should talk to, or empty string to use the default. */
     final String endpoint;
 
     /** The protocol to use to talk to s3. Defaults to https. */
     final Protocol protocol;
 
-    /** An optional proxy host that requests to s3 should be made through. */
-    final String proxyHost;
-
-    /** The port number the proxy host should be connected on. */
-    final int proxyPort;
-
-    // these should be "secure" yet the api for the s3 client only takes String, so storing them
-    // as SecureString here won't really help with anything
-    /** An optional username for the proxy host, for basic authentication. */
-    final String proxyUsername;
-
-    /** An optional password for the proxy host, for basic authentication. */
-    final String proxyPassword;
+    /** An optional proxy settings that requests to s3 should be made through. */
+    final ProxySettings proxySettings;
 
     /** The read timeout for the s3 client. */
     final int readTimeoutMillis;
@@ -218,27 +247,22 @@ final class S3ClientSettings {
 
     private S3ClientSettings(
         S3BasicCredentials credentials,
+        IrsaCredentials irsaCredentials,
         String endpoint,
         Protocol protocol,
-        String proxyHost,
-        int proxyPort,
-        String proxyUsername,
-        String proxyPassword,
         int readTimeoutMillis,
         int maxRetries,
         boolean throttleRetries,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         String region,
-        String signerOverride
+        String signerOverride,
+        ProxySettings proxySettings
     ) {
         this.credentials = credentials;
+        this.irsaCredentials = irsaCredentials;
         this.endpoint = endpoint;
         this.protocol = protocol;
-        this.proxyHost = proxyHost;
-        this.proxyPort = proxyPort;
-        this.proxyUsername = proxyUsername;
-        this.proxyPassword = proxyPassword;
         this.readTimeoutMillis = readTimeoutMillis;
         this.maxRetries = maxRetries;
         this.throttleRetries = throttleRetries;
@@ -246,6 +270,7 @@ final class S3ClientSettings {
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.region = region;
         this.signerOverride = signerOverride;
+        this.proxySettings = proxySettings;
     }
 
     /**
@@ -263,8 +288,10 @@ final class S3ClientSettings {
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
         final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
-        final String newProxyHost = getRepoSettingOrDefault(PROXY_HOST_SETTING, normalizedSettings, proxyHost);
-        final int newProxyPort = getRepoSettingOrDefault(PROXY_PORT_SETTING, normalizedSettings, proxyPort);
+
+        final String newProxyHost = getRepoSettingOrDefault(PROXY_HOST_SETTING, normalizedSettings, proxySettings.getHostName());
+        final int newProxyPort = getRepoSettingOrDefault(PROXY_PORT_SETTING, normalizedSettings, proxySettings.getPort());
+
         final int newReadTimeoutMillis = Math.toIntExact(
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis()
         );
@@ -286,8 +313,8 @@ final class S3ClientSettings {
         final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
         if (Objects.equals(endpoint, newEndpoint)
             && protocol == newProtocol
-            && Objects.equals(proxyHost, newProxyHost)
-            && proxyPort == newProxyPort
+            && Objects.equals(proxySettings.getHostName(), newProxyHost)
+            && proxySettings.getPort() == newProxyPort
             && newReadTimeoutMillis == readTimeoutMillis
             && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
@@ -298,21 +325,21 @@ final class S3ClientSettings {
             && Objects.equals(signerOverride, newSignerOverride)) {
             return this;
         }
+
+        validateInetAddressFor(newProxyHost);
         return new S3ClientSettings(
             newCredentials,
+            irsaCredentials,
             newEndpoint,
             newProtocol,
-            newProxyHost,
-            newProxyPort,
-            proxyUsername,
-            proxyPassword,
             newReadTimeoutMillis,
             newMaxRetries,
             newThrottleRetries,
             newPathStyleAccess,
             newDisableChunkedEncoding,
             newRegion,
-            newSignerOverride
+            newSignerOverride,
+            proxySettings.recreateWithNewHostAndPort(newProxyHost, newProxyPort)
         );
     }
 
@@ -398,29 +425,86 @@ final class S3ClientSettings {
         }
     }
 
+    private static IrsaCredentials loadIrsaCredentials(Settings settings, String clientName) {
+        String identityTokenFile = getConfigValue(settings, clientName, IDENTITY_TOKEN_FILE_SETTING);
+        try (
+            SecureString roleArn = getConfigValue(settings, clientName, ROLE_ARN_SETTING);
+            SecureString roleSessionName = getConfigValue(settings, clientName, ROLE_SESSION_NAME_SETTING)
+        ) {
+            if (identityTokenFile.length() != 0 || roleArn.length() != 0 || roleSessionName.length() != 0) {
+                return new IrsaCredentials(identityTokenFile.toString(), roleArn.toString(), roleSessionName.toString());
+            }
+
+            return null;
+        }
+    }
+
     // pkg private for tests
     /** Parse settings for a single client. */
     static S3ClientSettings getClientSettings(final Settings settings, final String clientName) {
-        try (
-            SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
-            SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)
-        ) {
-            return new S3ClientSettings(
-                S3ClientSettings.loadCredentials(settings, clientName),
-                getConfigValue(settings, clientName, ENDPOINT_SETTING),
-                getConfigValue(settings, clientName, PROTOCOL_SETTING),
-                getConfigValue(settings, clientName, PROXY_HOST_SETTING),
-                getConfigValue(settings, clientName, PROXY_PORT_SETTING),
-                proxyUsername.toString(),
-                proxyPassword.toString(),
-                Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
-                getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
-                getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
-                getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
-                getConfigValue(settings, clientName, REGION),
-                getConfigValue(settings, clientName, SIGNER_OVERRIDE)
+        final Protocol awsProtocol = getConfigValue(settings, clientName, PROTOCOL_SETTING);
+        return new S3ClientSettings(
+            S3ClientSettings.loadCredentials(settings, clientName),
+            S3ClientSettings.loadIrsaCredentials(settings, clientName),
+            getConfigValue(settings, clientName, ENDPOINT_SETTING),
+            awsProtocol,
+            Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
+            getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
+            getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
+            getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
+            getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
+            getConfigValue(settings, clientName, REGION),
+            getConfigValue(settings, clientName, SIGNER_OVERRIDE),
+            validateAndCreateProxySettings(settings, clientName, awsProtocol)
+        );
+    }
+
+    static ProxySettings validateAndCreateProxySettings(final Settings settings, final String clientName, final Protocol awsProtocol) {
+        ProxySettings.ProxyType proxyType = getConfigValue(settings, clientName, PROXY_TYPE_SETTING);
+        final String proxyHost = getConfigValue(settings, clientName, PROXY_HOST_SETTING);
+        final int proxyPort = getConfigValue(settings, clientName, PROXY_PORT_SETTING);
+        final SecureString proxyUserName = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
+        final SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING);
+        if (awsProtocol != Protocol.HTTPS && proxyType == ProxySettings.ProxyType.DIRECT && Strings.hasText(proxyHost)) {
+            // This is backward compatibility for the current behaviour.
+            // The default value for Protocol settings is HTTPS,
+            // The expectation of ex-developers that protocol is the same as the proxy protocol
+            // which is a separate setting for AWS SDK.
+            // In this case, proxy type should be the same as a protocol,
+            // when proxy host and port have been set
+            proxyType = ProxySettings.ProxyType.valueOf(awsProtocol.name());
+            deprecationLogger.deprecate(
+                PROTOCOL_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                "Using of "
+                    + PROTOCOL_SETTING.getConcreteSettingForNamespace(clientName).getKey()
+                    + " as proxy type is deprecated and will be removed in future releases. Please use "
+                    + PROXY_TYPE_SETTING.getConcreteSettingForNamespace(clientName).getKey()
+                    + " instead to specify proxy type."
             );
+        }
+        // Validate proxy settings
+        if (proxyType == ProxySettings.ProxyType.DIRECT
+            && (proxyPort != 80 || Strings.hasText(proxyHost) || Strings.hasText(proxyUserName) || Strings.hasText(proxyPassword))) {
+            throw new SettingsException("S3 proxy port or host or username or password have been set but proxy type is not defined.");
+        }
+        if (proxyType != ProxySettings.ProxyType.DIRECT && Strings.isEmpty(proxyHost)) {
+            throw new SettingsException("S3 proxy type has been set but proxy host or port is not defined.");
+        }
+        if (proxyType == ProxySettings.ProxyType.DIRECT) {
+            return ProxySettings.NO_PROXY_SETTINGS;
+        }
+        if (awsProtocol == Protocol.HTTP && proxyType == ProxySettings.ProxyType.SOCKS) {
+            throw new SettingsException("SOCKS proxy is not supported for HTTP protocol");
+        }
+        validateInetAddressFor(proxyHost);
+        return new ProxySettings(proxyType, proxyHost, proxyPort, proxyUserName.toString(), proxyPassword.toString());
+    }
+
+    static void validateInetAddressFor(final String proxyHost) {
+        try {
+            InetAddress.getByName(proxyHost);
+        } catch (final UnknownHostException e) {
+            throw new SettingsException("S3 proxy host is unknown.", e);
         }
     }
 
@@ -433,19 +517,17 @@ final class S3ClientSettings {
             return false;
         }
         final S3ClientSettings that = (S3ClientSettings) o;
-        return proxyPort == that.proxyPort
-            && readTimeoutMillis == that.readTimeoutMillis
+        return readTimeoutMillis == that.readTimeoutMillis
             && maxRetries == that.maxRetries
             && throttleRetries == that.throttleRetries
             && Objects.equals(credentials, that.credentials)
             && Objects.equals(endpoint, that.endpoint)
             && protocol == that.protocol
-            && Objects.equals(proxyHost, that.proxyHost)
-            && Objects.equals(proxyUsername, that.proxyUsername)
-            && Objects.equals(proxyPassword, that.proxyPassword)
+            && proxySettings.equals(that.proxySettings)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
             && Objects.equals(region, that.region)
-            && Objects.equals(signerOverride, that.signerOverride);
+            && Objects.equals(signerOverride, that.signerOverride)
+            && Objects.equals(irsaCredentials, that.irsaCredentials);
     }
 
     @Override
@@ -454,10 +536,7 @@ final class S3ClientSettings {
             credentials,
             endpoint,
             protocol,
-            proxyHost,
-            proxyPort,
-            proxyUsername,
-            proxyPassword,
+            proxySettings,
             readTimeoutMillis,
             maxRetries,
             throttleRetries,
@@ -477,5 +556,52 @@ final class S3ClientSettings {
             return getConfigValue(normalizedSettings, PLACEHOLDER_CLIENT, setting);
         }
         return defaultValue;
+    }
+
+    /**
+     * Class to store IAM Roles for Service Accounts (IRSA) credentials
+     * See please: https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html
+     */
+    static class IrsaCredentials {
+        private final String identityTokenFile;
+        private final String roleArn;
+        private final String roleSessionName;
+
+        IrsaCredentials(String identityTokenFile, String roleArn, String roleSessionName) {
+            this.identityTokenFile = Strings.isNullOrEmpty(identityTokenFile) ? null : identityTokenFile;
+            this.roleArn = Strings.isNullOrEmpty(roleArn) ? null : roleArn;
+            this.roleSessionName = Strings.isNullOrEmpty(roleSessionName) ? "s3-sdk-java-" + System.currentTimeMillis() : roleSessionName;
+        }
+
+        public String getIdentityTokenFile() {
+            return identityTokenFile;
+        }
+
+        public String getRoleArn() {
+            return roleArn;
+        }
+
+        public String getRoleSessionName() {
+            return roleSessionName;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final IrsaCredentials that = (IrsaCredentials) o;
+            return Objects.equals(identityTokenFile, that.identityTokenFile)
+                && Objects.equals(roleArn, that.roleArn)
+                && Objects.equals(roleSessionName, that.roleSessionName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(identityTokenFile, roleArn, roleSessionName);
+        }
     }
 }

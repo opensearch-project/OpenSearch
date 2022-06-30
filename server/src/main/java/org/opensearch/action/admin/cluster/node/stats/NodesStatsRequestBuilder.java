@@ -36,6 +36,11 @@ import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport builder for obtaining OpenSearch Node Stats
+ *
+ * @opensearch.internal
+ */
 public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
     NodesStatsRequest,
     NodesStatsResponse,

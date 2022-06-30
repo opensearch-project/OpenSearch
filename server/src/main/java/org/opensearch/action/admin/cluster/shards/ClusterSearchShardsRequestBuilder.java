@@ -33,10 +33,15 @@
 package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+/**
+ * Transport request builder for searching shards
+ *
+ * @opensearch.internal
+ */
+public class ClusterSearchShardsRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     ClusterSearchShardsRequest,
     ClusterSearchShardsResponse,
     ClusterSearchShardsRequestBuilder> {

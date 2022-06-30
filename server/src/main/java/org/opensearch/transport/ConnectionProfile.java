@@ -48,6 +48,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * A connection profile describes how many connection are established to specific node for each of the available request types.
  * ({@link org.opensearch.transport.TransportRequestOptions.Type}). This allows to tailor a connection towards a specific usage.
+ *
+ * @opensearch.internal
  */
 public final class ConnectionProfile {
 
@@ -100,7 +102,7 @@ public final class ConnectionProfile {
         builder.setCompressionEnabled(TransportSettings.TRANSPORT_COMPRESS.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
-        // if we are not master eligible we don't need a dedicated channel to publish the state
+        // if we are not cluster-manager eligible we don't need a dedicated channel to publish the state
         builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
         // if we are not a data-node we don't need any dedicated channels for recovery
         builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
@@ -172,6 +174,8 @@ public final class ConnectionProfile {
 
     /**
      * A builder to build a new {@link ConnectionProfile}
+     *
+     * @opensearch.internal
      */
     public static class Builder {
         private final List<ConnectionTypeHandle> handles = new ArrayList<>();

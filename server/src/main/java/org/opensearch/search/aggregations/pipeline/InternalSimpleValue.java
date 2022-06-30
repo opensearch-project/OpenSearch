@@ -44,6 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of simple value pipeline
+ *
+ * @opensearch.internal
+ */
 public class InternalSimpleValue extends InternalNumericMetricsAggregation.SingleValue implements SimpleValue {
     public static final String NAME = "simple_value";
     protected final double value;

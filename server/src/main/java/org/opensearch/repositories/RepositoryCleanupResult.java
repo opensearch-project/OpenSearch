@@ -43,6 +43,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Result of a repository cleanup action
+ *
+ * @opensearch.internal
+ */
 public final class RepositoryCleanupResult implements Writeable, ToXContentObject {
 
     public static final ObjectParser<RepositoryCleanupResult, Void> PARSER = new ObjectParser<>(

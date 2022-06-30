@@ -385,8 +385,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path) {
         Configuration configuration = pluginAndModuleConfigurations.computeIfAbsent(
             path,
-            key -> project.getConfigurations()
-                .detachedConfiguration(project.getDependencies().project(Map.of("path", path, "configuration", "zip")))
+            key -> project.getConfigurations().detachedConfiguration(project.getDependencies().project(new HashMap<String, String>() {
+                {
+                    put("path", path);
+                    put("configuration", "zip");
+                }
+            }))
         );
         Provider<File> fileProvider = configuration.getElements()
             .map(
@@ -677,10 +681,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
         currentDistro += 1;
         applyConfig();
         setting("node.attr.upgraded", "true");
-    }
-
-    private boolean isSettingTrue(String name) {
-        return Boolean.valueOf(settings.getOrDefault(name, "false").toString());
     }
 
     private void copyExtraConfigFiles() {
@@ -977,7 +977,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(opensearchProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
-        stopHandle(opensearchProcess.toHandle(), true);
+        stopProcess(opensearchProcess.toHandle(), true);
         reaper.unregister(toString());
         if (tailLogs) {
             logFileContents("Standard output of node", currentConfig.stdoutFile);
@@ -1002,7 +1002,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         this.nameCustomization = nameCustomizer;
     }
 
-    private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
+    private void stopProcess(ProcessHandle processHandle, boolean forcibly) {
         // No-op if the process has already exited by itself.
         if (processHandle.isAlive() == false) {
             LOGGER.info("Process was not running when we tried to terminate it.");
@@ -1041,7 +1041,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
                 throw new TestClustersException("Was not able to terminate " + currentConfig.command + " process for " + this);
             }
         } finally {
-            children.forEach(each -> stopHandle(each, forcibly));
+            children.forEach(each -> stopProcess(each, forcibly));
+        }
+
+        waitForProcessToExit(processHandle);
+        if (processHandle.isAlive()) {
+            throw new TestClustersException("Was not able to terminate " + currentConfig.command + " process for " + this);
         }
     }
 

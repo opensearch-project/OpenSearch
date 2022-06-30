@@ -36,6 +36,11 @@ import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.search.lookup.SearchLookup;
 
+/**
+ * Script for sorting strings
+ *
+ * @opensearch.internal
+ */
 public abstract class StringSortScript extends AbstractSortScript {
 
     public static final String[] PARAMETERS = {};
@@ -50,6 +55,8 @@ public abstract class StringSortScript extends AbstractSortScript {
 
     /**
      * A factory to construct {@link StringSortScript} instances.
+     *
+     * @opensearch.internal
      */
     public interface LeafFactory {
         StringSortScript newInstance(LeafReaderContext ctx) throws IOException;
@@ -57,6 +64,8 @@ public abstract class StringSortScript extends AbstractSortScript {
 
     /**
      * A factory to construct stateful {@link StringSortScript} factories for a specific index.
+     *
+     * @opensearch.internal
      */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);

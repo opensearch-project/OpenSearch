@@ -1,0 +1,69 @@
+{
+  "cat.cluster_manager":{
+    "documentation":{
+      "url":"https://opensearch.org/docs/latest/opensearch/rest-api/cat/cat-master/",
+      "description":"Returns information about the cluster-manager node."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_cat/cluster_manager",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_cat/master",
+          "methods":[
+            "GET"
+          ],
+          "deprecated":{
+            "version":"2.0.0",
+            "description":"To promote inclusive language, please use '/_cat/cluster_manager' instead."
+          }
+        }
+      ]
+    },
+    "params":{
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      },
+      "local":{
+        "type":"boolean",
+        "description":"Return local information, do not retrieve the state from cluster-manager node (default: false)"
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout for connection to master node",
+        "deprecated":{
+          "version":"2.0.0",
+          "description":"To promote inclusive language, use 'cluster_manager_timeout' instead."
+        }
+      },
+      "cluster_manager_timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout for connection to cluster-manager node"
+      },
+      "h":{
+        "type":"list",
+        "description":"Comma-separated list of column names to display"
+      },
+      "help":{
+        "type":"boolean",
+        "description":"Return help information",
+        "default":false
+      },
+      "s":{
+        "type":"list",
+        "description":"Comma-separated list of column names or column aliases to sort by"
+      },
+      "v":{
+        "type":"boolean",
+        "description":"Verbose mode. Display column headers",
+        "default":false
+      }
+    }
+  }
+}

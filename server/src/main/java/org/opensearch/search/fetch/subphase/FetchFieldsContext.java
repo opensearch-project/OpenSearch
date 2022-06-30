@@ -35,6 +35,8 @@ import java.util.List;
 
 /**
  * The context needed to retrieve fields.
+ *
+ * @opensearch.internal
  */
 public class FetchFieldsContext {
     private final List<FieldAndFormat> fields;

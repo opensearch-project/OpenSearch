@@ -39,6 +39,11 @@ import org.opensearch.search.aggregations.metrics.ParsedSingleValueNumericMetric
 
 import java.io.IOException;
 
+/**
+ * A simple value agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedSimpleValue extends ParsedSingleValueNumericMetricsAggregation implements SimpleValue {
 
     @Override

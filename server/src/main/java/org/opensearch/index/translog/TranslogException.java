@@ -38,6 +38,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if there are any failures in the translog
+ *
+ * @opensearch.internal
+ */
 public class TranslogException extends OpenSearchException {
 
     public TranslogException(ShardId shardId, String msg) {

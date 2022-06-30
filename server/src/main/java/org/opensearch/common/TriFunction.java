@@ -39,6 +39,8 @@ package org.opensearch.common;
  * @param <T> the type of the second argument
  * @param <U> the type of the third argument
  * @param <R> the return type
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface TriFunction<S, T, U, R> {

@@ -103,6 +103,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The action samples cluster state on the receiving node to reroute to node with primary copy and on the
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
+ *
+ * @opensearch.internal
  */
 public abstract class TransportReplicationAction<
     Request extends ReplicationRequest<Request>,
@@ -384,6 +386,11 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
+    /**
+     * Asynchronous primary action
+     *
+     * @opensearch.internal
+     */
     class AsyncPrimaryAction extends AbstractRunnable {
         private final ActionListener<Response> onCompletionListener;
         private final ReplicationTask replicationTask;
@@ -552,6 +559,11 @@ public abstract class TransportReplicationAction<
 
     }
 
+    /**
+     * The Primary Result
+     *
+     * @opensearch.internal
+     */
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>, Response extends ReplicationResponse>
         implements
             ReplicationOperation.PrimaryResult<ReplicaRequest> {
@@ -601,6 +613,11 @@ public abstract class TransportReplicationAction<
         }
     }
 
+    /**
+     * The replica result
+     *
+     * @opensearch.internal
+     */
     public static class ReplicaResult {
         final Exception finalFailure;
 
@@ -643,6 +660,11 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
+    /**
+     * Thrown if there are any errors retrying on the replica
+     *
+     * @opensearch.internal
+     */
     public static class RetryOnReplicaException extends OpenSearchException {
 
         public RetryOnReplicaException(ShardId shardId, String msg) {
@@ -655,6 +677,11 @@ public abstract class TransportReplicationAction<
         }
     }
 
+    /**
+     * Asynchronous replica action
+     *
+     * @opensearch.internal
+     */
     private final class AsyncReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
         private final ActionListener<ReplicaResponse> onCompletionListener;
         private final IndexShard replica;
@@ -797,6 +824,8 @@ public abstract class TransportReplicationAction<
      * node with primary copy.
      *
      * Resolves index and shard id for the request before routing it to target node
+     *
+     * @opensearch.internal
      */
     final class ReroutePhase extends AbstractRunnable {
         private final ActionListener<Response> listener;
@@ -1131,6 +1160,11 @@ public abstract class TransportReplicationAction<
         replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor, request);
     }
 
+    /**
+     * The primary shard reference
+     *
+     * @opensearch.internal
+     */
     class PrimaryShardReference
         implements
             Releasable,
@@ -1223,6 +1257,11 @@ public abstract class TransportReplicationAction<
         }
     }
 
+    /**
+     * The replica response
+     *
+     * @opensearch.internal
+     */
     public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
         private long localCheckpoint;
         private long globalCheckpoint;
@@ -1279,6 +1318,8 @@ public abstract class TransportReplicationAction<
      * interface that performs the actual {@code ReplicaRequest} on the replica
      * shards. It also encapsulates the logic required for failing the replica
      * if deemed necessary as well as marking it as stale when needed.
+     *
+     * @opensearch.internal
      */
     protected class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
 
@@ -1336,7 +1377,11 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/
+    /**
+     * a wrapper class to encapsulate a request when being sent to a specific allocation id
+     *
+     * @opensearch.internal
+     */
     public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest {
 
         /** {@link AllocationId#getId()} of the shard this request is sent to **/
@@ -1440,6 +1485,11 @@ public abstract class TransportReplicationAction<
         }
     }
 
+    /**
+     * Internal request for concrete replica
+     *
+     * @opensearch.internal
+     */
     protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {
 
         private final long globalCheckpoint;

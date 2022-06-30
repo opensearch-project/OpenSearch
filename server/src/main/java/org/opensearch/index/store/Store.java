@@ -50,6 +50,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -63,10 +64,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -140,6 +141,8 @@ import static java.util.Collections.unmodifiableMap;
  *          store.decRef();
  *      }
  * </pre>
+ *
+ * @opensearch.internal
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
     /**
@@ -273,6 +276,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * Convenience wrapper around the {@link #getMetadata(IndexCommit)} method for null input.
+     */
+    public MetadataSnapshot getMetadata() throws IOException {
+        return getMetadata(null, false);
+    }
+
+    /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
      *
@@ -311,6 +321,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } finally {
             lock.unlock();
         }
+    }
+
+    /**
+     * Returns a new {@link MetadataSnapshot} for the given {@link SegmentInfos} object.
+     * In contrast to {@link #getMetadata(IndexCommit)}, this method is useful for scenarios
+     * where we need to construct a MetadataSnapshot from an in-memory SegmentInfos object that
+     * may not have a IndexCommit associated with it, such as with segment replication.
+     */
+    public MetadataSnapshot getMetadata(SegmentInfos segmentInfos) throws IOException {
+        return new MetadataSnapshot(segmentInfos, directory, logger);
     }
 
     /**
@@ -475,7 +495,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Directory dir = new NIOFSDirectory(indexLocation)
         ) {
             failIfCorrupted(dir);
-            return new MetadataSnapshot(null, dir, logger);
+            return new MetadataSnapshot((IndexCommit) null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
@@ -669,9 +689,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     directory.deleteFile(reason, existingFile);
                     // FNF should not happen since we hold a write lock?
                 } catch (IOException ex) {
-                    if (existingFile.startsWith(IndexFileNames.SEGMENTS)
-                        || existingFile.equals(IndexFileNames.OLD_SEGMENTS_GEN)
-                        || existingFile.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
+                    if (existingFile.startsWith(IndexFileNames.SEGMENTS) || existingFile.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
                         // TODO do we need to also fail this if we can't delete the pending commit file?
                         // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit
                         // point around?
@@ -682,10 +700,55 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
             }
             directory.syncMetaData();
-            final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
+            final Store.MetadataSnapshot metadataOrEmpty = getMetadata();
             verifyAfterCleanup(sourceMetadata, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * This method deletes every file in this store that is not contained in either the remote or local metadata snapshots.
+     * This method is used for segment replication when the in memory SegmentInfos can be ahead of the on disk segment file.
+     * In this case files from both snapshots must be preserved. Verification has been done that all files are present on disk.
+     * @param reason         the reason for this cleanup operation logged for each deleted file
+     * @param localSnapshot  The local snapshot from in memory SegmentInfos.
+     * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
+     */
+    public void cleanupAndPreserveLatestCommitPoint(String reason, MetadataSnapshot localSnapshot) throws IOException {
+        // fetch a snapshot from the latest on disk Segments_N file. This can be behind
+        // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
+        metadataLock.writeLock().lock();
+        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+            cleanupFiles(reason, localSnapshot, getMetadata(readLastCommittedSegmentsInfo()));
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    private void cleanupFiles(String reason, MetadataSnapshot localSnapshot, @Nullable MetadataSnapshot additionalSnapshot)
+        throws IOException {
+        assert metadataLock.isWriteLockedByCurrentThread();
+        for (String existingFile : directory.listAll()) {
+            if (Store.isAutogenerated(existingFile)
+                || localSnapshot.contains(existingFile)
+                || (additionalSnapshot != null && additionalSnapshot.contains(existingFile))) {
+                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete
+                // checksum)
+                continue;
+            }
+            try {
+                directory.deleteFile(reason, existingFile);
+            } catch (IOException ex) {
+                if (existingFile.startsWith(IndexFileNames.SEGMENTS) || existingFile.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
+                    // TODO do we need to also fail this if we can't delete the pending commit file?
+                    // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit
+                    // point around?
+                    throw new IllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
+                }
+                logger.debug(() -> new ParameterizedMessage("failed to delete file [{}]", existingFile), ex);
+                // ignore, we don't really care, will get deleted later on
+            }
         }
     }
 
@@ -736,6 +799,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         shardLock.setDetails("closing shard");
     }
 
+    /**
+     * A store directory
+     *
+     * @opensearch.internal
+     */
     static final class StoreDirectory extends FilterDirectory {
 
         private final Logger deletesLogger;
@@ -792,6 +860,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * change concurrently for safety reasons.
      *
      * @see StoreFileMetadata
+     *
+     * @opensearch.internal
      */
     public static final class MetadataSnapshot implements Iterable<StoreFileMetadata>, Writeable {
         private final Map<String, StoreFileMetadata> metadata;
@@ -815,7 +885,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         MetadataSnapshot(IndexCommit commit, Directory directory, Logger logger) throws IOException {
-            LoadedMetadata loadedMetadata = loadMetadata(commit, directory, logger);
+            this(loadMetadata(commit, directory, logger));
+        }
+
+        MetadataSnapshot(SegmentInfos segmentInfos, Directory directory, Logger logger) throws IOException {
+            this(loadMetadata(segmentInfos, directory, logger));
+        }
+
+        private MetadataSnapshot(LoadedMetadata loadedMetadata) {
             metadata = loadedMetadata.fileMetadata;
             commitUserData = loadedMetadata.userData;
             numDocs = loadedMetadata.numDocs;
@@ -865,6 +942,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return numDocs;
         }
 
+        /**
+         * Metadata that is currently loaded
+         *
+         * @opensearch.internal
+         */
         static class LoadedMetadata {
             final Map<String, StoreFileMetadata> fileMetadata;
             final Map<String, String> userData;
@@ -878,40 +960,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
-            long numDocs;
-            Map<String, StoreFileMetadata> builder = new HashMap<>();
-            Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                numDocs = Lucene.getNumDocs(segmentCommitInfos);
-                commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
-                // we don't know which version was used to write so we take the max version.
-                Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion();
-                for (SegmentCommitInfo info : segmentCommitInfos) {
-                    final Version version = info.info.getVersion();
-                    if (version == null) {
-                        // version is written since 3.1+: we should have already hit IndexFormatTooOld.
-                        throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
-                    }
-                    if (version.onOrAfter(maxVersion)) {
-                        maxVersion = version;
-                    }
-                    for (String file : info.files()) {
-                        checksumFromLuceneFile(
-                            directory,
-                            file,
-                            builder,
-                            logger,
-                            version,
-                            SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file))
-                        );
-                    }
-                }
-                if (maxVersion == null) {
-                    maxVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
-                }
-                final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
-                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
+                return loadMetadata(segmentCommitInfos, directory, logger);
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
                 throw ex;
@@ -937,6 +988,40 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
                 throw ex;
             }
+        }
+
+        static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger) throws IOException {
+            long numDocs = Lucene.getNumDocs(segmentInfos);
+            Map<String, String> commitUserDataBuilder = new HashMap<>();
+            commitUserDataBuilder.putAll(segmentInfos.getUserData());
+            Map<String, StoreFileMetadata> builder = new HashMap<>();
+            // we don't know which version was used to write so we take the max version.
+            Version maxVersion = segmentInfos.getMinSegmentLuceneVersion();
+            for (SegmentCommitInfo info : segmentInfos) {
+                final Version version = info.info.getVersion();
+                if (version == null) {
+                    // version is written since 3.1+: we should have already hit IndexFormatTooOld.
+                    throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
+                }
+                if (version.onOrAfter(maxVersion)) {
+                    maxVersion = version;
+                }
+                for (String file : info.files()) {
+                    checksumFromLuceneFile(
+                        directory,
+                        file,
+                        builder,
+                        logger,
+                        version,
+                        SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file))
+                    );
+                }
+            }
+            if (maxVersion == null) {
+                maxVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+            }
+            final String segmentsFile = segmentInfos.getSegmentsFileName();
+            checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }
 
@@ -1053,9 +1138,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final List<StoreFileMetadata> perCommitStoreFiles = new ArrayList<>();
 
             for (StoreFileMetadata meta : this) {
-                if (IndexFileNames.OLD_SEGMENTS_GEN.equals(meta.name())) { // legacy
-                    continue; // we don't need that file at all
-                }
                 final String segmentId = IndexFileNames.parseSegmentName(meta.name());
                 final String extension = IndexFileNames.getExtension(meta.name());
                 if (IndexFileNames.SEGMENTS.equals(segmentId)
@@ -1095,14 +1177,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 Collections.unmodifiableList(different),
                 Collections.unmodifiableList(missing)
             );
-            assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) ? 1 : 0)
-                : "some files are missing recoveryDiff size: ["
-                    + recoveryDiff.size()
-                    + "] metadata size: ["
-                    + this.metadata.size()
-                    + "] contains  segments.gen: ["
-                    + metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN)
-                    + "]";
+            assert recoveryDiff.size() == this.metadata.size() : "some files are missing recoveryDiff size: ["
+                + recoveryDiff.size()
+                + "] metadata size: ["
+                + this.metadata.size()
+                + "]";
             return recoveryDiff;
         }
 
@@ -1168,6 +1247,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * A class representing the diff between a recovery source and recovery target
      *
      * @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot)
+     *
+     * @opensearch.internal
      */
     public static final class RecoveryDiff {
         /**
@@ -1217,6 +1298,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return Long.toString(digest, Character.MAX_RADIX);
     }
 
+    /**
+     * Class to verify the lucene index output
+     *
+     * @opensearch.internal
+     */
     static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
 
         private final StoreFileMetadata metadata;
@@ -1236,7 +1322,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             String footerDigest = null;
             if (metadata.checksum().equals(actualChecksum) && writtenBytes == metadata.length()) {
                 ByteArrayIndexInput indexInput = new ByteArrayIndexInput("checksum", this.footerChecksum);
-                footerDigest = digestToString(indexInput.readLong());
+                footerDigest = digestToString(CodecUtil.readBELong(indexInput));
                 if (metadata.checksum().equals(footerDigest)) {
                     return;
                 }
@@ -1315,6 +1401,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * This class supports random access (it is possible to seek backward and forward) in order to accommodate retry
      * mechanism that is used in some repository plugins (S3 for example). However, the checksum is only calculated on
      * the first read. All consecutive reads of the same data are not used to calculate the checksum.
+     *
+     * @opensearch.internal
      */
     static class VerifyingIndexInput extends ChecksumIndexInput {
         private final IndexInput input;
@@ -1393,9 +1481,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // skipping the verified portion
                     input.seek(verifiedPosition);
                     // and checking unverified
-                    skipBytes(pos - verifiedPosition);
+                    super.seek(pos);
                 } else {
-                    skipBytes(pos - getFilePointer());
+                    super.seek(pos);
                 }
             }
         }
@@ -1425,8 +1513,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             throw new UnsupportedOperationException();
         }
 
-        public long getStoredChecksum() throws IOException {
-            return new BytesStreamInput(checksum).readLong();
+        public long getStoredChecksum() {
+            try {
+                return CodecUtil.readBELong(new ByteArrayDataInput(checksum));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         public long verify() throws CorruptIndexException, IOException {
@@ -1483,6 +1575,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * A listener that is executed once the store is closed and all references to it are released
+     *
+     * @opensearch.internal
      */
     public interface OnClose extends Consumer<ShardLock> {
         OnClose EMPTY = new OnClose() {
@@ -1597,27 +1691,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * commit on the replica will cause exception as the new last commit c3 will have recovery_translog_gen=1. The recovery
      * translog generation of a commit is calculated based on the current local checkpoint. The local checkpoint of c3 is 1
      * while the local checkpoint of c2 is 2.
-     * <p>
-     * 3. Commit without translog can be used in recovery. An old index, which was created before multiple-commits is introduced
-     * (v6.2), may not have a safe commit. If that index has a snapshotted commit without translog and an unsafe commit,
-     * the policy can consider the snapshotted commit as a safe commit for recovery even the commit does not have translog.
      */
-    public void trimUnsafeCommits(
-        final long lastSyncedGlobalCheckpoint,
-        final long minRetainedTranslogGen,
-        final org.opensearch.Version indexVersionCreated
-    ) throws IOException {
+    public void trimUnsafeCommits(final Path translogPath) throws IOException {
         metadataLock.writeLock().lock();
         try {
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
-            if (existingCommits.isEmpty()) {
-                throw new IllegalArgumentException("No index found to trim");
-            }
-            final IndexCommit lastIndexCommitCommit = existingCommits.get(existingCommits.size() - 1);
-            final String translogUUID = lastIndexCommitCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final IndexCommit startingIndexCommit;
-            // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
-            startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
+            assert existingCommits.isEmpty() == false : "No index found to trim";
+            final IndexCommit lastIndexCommit = existingCommits.get(existingCommits.size() - 1);
+            final String translogUUID = lastIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
+            final IndexCommit startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
 
             if (translogUUID.equals(startingIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY)) == false) {
                 throw new IllegalStateException(
@@ -1628,7 +1711,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         + "]"
                 );
             }
-            if (startingIndexCommit.equals(lastIndexCommitCommit) == false) {
+            if (startingIndexCommit.equals(lastIndexCommit) == false) {
                 try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened

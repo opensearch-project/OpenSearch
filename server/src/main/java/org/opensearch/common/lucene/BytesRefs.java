@@ -35,6 +35,11 @@ package org.opensearch.common.lucene;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 
+/**
+ * Base bytes ref.
+ *
+ * @opensearch.internal
+ */
 public class BytesRefs {
 
     /**

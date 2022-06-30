@@ -46,10 +46,17 @@ import java.util.Objects;
  *
  * A field alias has no concrete field mappings of its own, but instead points to another field by
  * its path. Once defined, an alias can be used in place of the concrete field name in search requests.
+ *
+ * @opensearch.internal
  */
 public final class FieldAliasMapper extends Mapper {
     public static final String CONTENT_TYPE = "alias";
 
+    /**
+     * Parameter names
+     *
+     * @opensearch.internal
+     */
     public static class Names {
         public static final String PATH = "path";
     }
@@ -136,6 +143,11 @@ public final class FieldAliasMapper extends Mapper {
         }
     }
 
+    /**
+     * The type parser
+     *
+     * @opensearch.internal
+     */
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
@@ -149,6 +161,11 @@ public final class FieldAliasMapper extends Mapper {
         }
     }
 
+    /**
+     * The bulider for the field alias field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends Mapper.Builder<FieldAliasMapper.Builder> {
         private String name;
         private String path;

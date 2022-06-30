@@ -46,6 +46,8 @@ import java.util.Map;
 
 /**
  * A plugin that provides alternative directory implementations.
+ *
+ * @opensearch.api
  */
 public interface IndexStorePlugin {
 
@@ -62,6 +64,22 @@ public interface IndexStorePlugin {
          * @throws IOException if an IOException occurs while opening the directory
          */
         Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException;
+    }
+
+    /**
+     * An interface that describes how to create a new remote directory instance per shard.
+     */
+    @FunctionalInterface
+    interface RemoteDirectoryFactory {
+        /**
+         * Creates a new remote directory per shard. This method is called once per shard on shard creation.
+         * @param repositoryName repository name
+         * @param indexSettings the shards index settings
+         * @param shardPath the path the shard is using
+         * @return a new RemoteDirectory instance
+         * @throws IOException if an IOException occurs while opening the directory
+         */
+        Directory newDirectory(String repositoryName, IndexSettings indexSettings, ShardPath shardPath) throws IOException;
     }
 
     /**

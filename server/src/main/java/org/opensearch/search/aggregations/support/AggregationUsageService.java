@@ -38,12 +38,22 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
+/**
+ * Service to track telemetry about aggregations
+ *
+ * @opensearch.internal
+ */
 public class AggregationUsageService implements ReportingService<AggregationInfo> {
     private final Map<String, Map<String, LongAdder>> aggs;
     private final AggregationInfo info;
 
     public static final String OTHER_SUBTYPE = "other";
 
+    /**
+     * Builder for the Agg usage service to track telemetry
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private final Map<String, Map<String, LongAdder>> aggs;
 

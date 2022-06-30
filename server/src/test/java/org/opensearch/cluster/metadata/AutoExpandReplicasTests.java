@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
@@ -146,7 +145,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
 
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
-            DiscoveryNode localNode = createNode(DiscoveryNodeRole.MASTER_ROLE); // local node is the master
+            DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the cluster-manager
             allNodes.add(localNode);
             int numDataNodes = randomIntBetween(3, 5);
             List<DiscoveryNode> dataNodes = new ArrayList<>(numDataNodes);
@@ -244,10 +243,10 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
             DiscoveryNode oldNode = createNode(
-                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_1),
-                DiscoveryNodeRole.MASTER_ROLE,
+                VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.V_1_2_1),
+                DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
                 DiscoveryNodeRole.DATA_ROLE
-            ); // local node is the master
+            ); // local node is the cluster-manager
             allNodes.add(oldNode);
             ClusterState state = ClusterStateCreationUtils.state(oldNode, oldNode, allNodes.toArray(new DiscoveryNode[0]));
 
@@ -266,11 +265,11 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 state = cluster.reroute(state, new ClusterRerouteRequest());
             }
 
-            DiscoveryNode newNode = createNode(LegacyESVersion.V_7_6_0, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local
-                                                                                                                                     // node
-                                                                                                                                     // is
-                                                                                                                                     // the
-                                                                                                                                     // master
+            DiscoveryNode newNode = createNode(Version.V_1_3_0, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local
+                                                                                                                                      // node
+                                                                                                                                      // is
+                                                                                                                                      // the
+                                                                                                                                      // cluster_manager
 
             state = cluster.addNodes(state, Collections.singletonList(newNode));
 

@@ -38,6 +38,8 @@ import java.nio.ByteBuffer;
 
 /**
  * Abstraction of an array of byte values.
+ *
+ * @opensearch.internal
  */
 public interface ByteArray extends BigArray {
 

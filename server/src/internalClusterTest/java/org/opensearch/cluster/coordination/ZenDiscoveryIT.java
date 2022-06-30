@@ -60,7 +60,7 @@ import java.util.concurrent.TimeoutException;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.DISCOVERY;
 import static org.opensearch.test.NodeRoles.dataNode;
-import static org.opensearch.test.NodeRoles.masterOnlyNode;
+import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -71,10 +71,10 @@ import static org.hamcrest.Matchers.notNullValue;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
 
-    public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
+    public void testNoShardRelocationsOccurWhenElectedClusterManagerNodeFails() throws Exception {
 
-        Settings masterNodeSettings = masterOnlyNode();
-        internalCluster().startNodes(2, masterNodeSettings);
+        Settings clusterManagerNodeSettings = clusterManagerOnlyNode();
+        internalCluster().startNodes(2, clusterManagerNodeSettings);
         Settings dateNodeSettings = dataNode();
         internalCluster().startNodes(2, dateNodeSettings);
         ClusterHealthResponse clusterHealthResponse = client().admin()
@@ -89,27 +89,27 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureSearchable("test");
         RecoveryResponse r = client().admin().indices().prepareRecoveries("test").get();
-        int numRecoveriesBeforeNewMaster = r.shardRecoveryStates().get("test").size();
+        int numRecoveriesBeforeNewClusterManager = r.shardRecoveryStates().get("test").size();
 
-        final String oldMaster = internalCluster().getMasterName();
+        final String oldClusterManager = internalCluster().getMasterName();
         internalCluster().stopCurrentMasterNode();
         assertBusy(() -> {
             String current = internalCluster().getMasterName();
             assertThat(current, notNullValue());
-            assertThat(current, not(equalTo(oldMaster)));
+            assertThat(current, not(equalTo(oldClusterManager)));
         });
         ensureSearchable("test");
 
         r = client().admin().indices().prepareRecoveries("test").get();
-        int numRecoveriesAfterNewMaster = r.shardRecoveryStates().get("test").size();
-        assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
+        int numRecoveriesAfterNewClusterManager = r.shardRecoveryStates().get("test").size();
+        assertThat(numRecoveriesAfterNewClusterManager, equalTo(numRecoveriesBeforeNewClusterManager));
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws InterruptedException, ExecutionException, TimeoutException {
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String node1 = internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
-        Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, masterNode);
+        Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, clusterManagerNode);
         final ClusterState state = clusterService.state();
         Metadata.Builder mdBuilder = Metadata.builder(state.metadata());
         mdBuilder.putCustom(CustomMetadata.TYPE, new CustomMetadata("data"));

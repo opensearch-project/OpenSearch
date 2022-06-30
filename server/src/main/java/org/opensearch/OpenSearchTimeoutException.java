@@ -39,7 +39,7 @@ import java.io.IOException;
 /**
  * The same as {@link java.util.concurrent.TimeoutException} simply a runtime one.
  *
- *
+ * @opensearch.internal
  */
 public class OpenSearchTimeoutException extends OpenSearchException {
     public OpenSearchTimeoutException(StreamInput in) throws IOException {

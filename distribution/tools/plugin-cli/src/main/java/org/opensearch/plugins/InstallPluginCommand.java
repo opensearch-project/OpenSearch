@@ -218,11 +218,23 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             Arrays.asList("b", "batch"),
             "Enable batch mode explicitly, automatic confirmation of security permission"
         );
-        this.arguments = parser.nonOptions("plugin id");
+        this.arguments = parser.nonOptions("plugin <name|Zip File|URL>");
     }
 
     @Override
     protected void printAdditionalHelp(Terminal terminal) {
+        terminal.println("Plugins are packaged as zip files. Each packaged plugin must contain a plugin properties file.");
+        terminal.println("");
+
+        // List possible plugin id inputs
+        terminal.println("The install command takes a plugin id, which may be any of the following:");
+        terminal.println("  An official opensearch plugin name");
+        terminal.println("  Maven coordinates to a plugin zip");
+        terminal.println("  A URL to a plugin zip");
+        terminal.println("  A local zip file");
+        terminal.println("");
+
+        // List official opensearch plugin names
         terminal.println("The following official plugins may be installed by name:");
         for (String plugin : OFFICIAL_PLUGINS) {
             terminal.println("  " + plugin);
@@ -257,8 +269,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
-                final Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch);
-                final Path extractedZip = unzip(pluginZip, env.pluginsFile());
+                final Path pluginZip = download(terminal, pluginId, env.tmpDir(), isBatch);
+                final Path extractedZip = unzip(pluginZip, env.pluginsDir());
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
                 terminal.println("-> Installed " + pluginInfo.getName() + " with folder name " + pluginInfo.getTargetFolderName());
@@ -362,7 +374,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 stagingHash
             );
         } else {
-            baseUrl = String.format(Locale.ROOT, "https://artifacts.opensearch.org/releases/plugins/%s/%s", pluginId, version);
+            baseUrl = String.format(
+                Locale.ROOT,
+                "https://artifacts.opensearch.org/releases/plugins/%s/%s",
+                pluginId,
+                Build.CURRENT.getQualifiedVersion()
+            );
         }
         final String platformUrl = String.format(
             Locale.ROOT,
@@ -803,14 +820,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         PluginsService.verifyCompatibility(info);
 
         // checking for existing version of the plugin
-        verifyPluginName(env.pluginsFile(), info.getName());
+        verifyPluginName(env.pluginsDir(), info.getName());
 
-        PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
+        PluginsService.checkForFailedPluginRemovals(env.pluginsDir());
 
         terminal.println(VERBOSE, info.toString());
 
         // check for jar hell before any copying
-        jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
+        jarHellCheck(info, pluginRoot, env.pluginsDir(), env.modulesDir());
 
         return info;
     }
@@ -860,21 +877,21 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Path policy = tmpRoot.resolve(PluginInfo.OPENSEARCH_PLUGIN_POLICY);
         final Set<String> permissions;
         if (Files.exists(policy)) {
-            permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
+            permissions = PluginSecurity.parsePermissions(policy, env.tmpDir());
         } else {
             permissions = Collections.emptySet();
         }
         PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
 
         String targetFolderName = info.getTargetFolderName();
-        final Path destination = env.pluginsFile().resolve(targetFolderName);
+        final Path destination = env.pluginsDir().resolve(targetFolderName);
         deleteOnFailure.add(destination);
 
         installPluginSupportFiles(
             info,
             tmpRoot,
-            env.binFile().resolve(targetFolderName),
-            env.configFile().resolve(targetFolderName),
+            env.binDir().resolve(targetFolderName),
+            env.configDir().resolve(targetFolderName),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);

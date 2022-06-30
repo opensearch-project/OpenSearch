@@ -46,6 +46,8 @@ import java.util.Map;
 
 /**
  * An index document action request builder.
+ *
+ * @opensearch.internal
  */
 public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder>
     implements
@@ -57,14 +59,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     public IndexRequestBuilder(OpenSearchClient client, IndexAction action, @Nullable String index) {
         super(client, action, new IndexRequest(index));
-    }
-
-    /**
-     * Sets the type to index the document to.
-     */
-    public IndexRequestBuilder setType(String type) {
-        request.type(type);
-        return this;
     }
 
     /**

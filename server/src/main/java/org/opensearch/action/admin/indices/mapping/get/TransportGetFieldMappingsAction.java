@@ -50,6 +50,11 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Transport action to get field mappings.
+ *
+ * @opensearch.internal
+ */
 public class TransportGetFieldMappingsAction extends HandledTransportAction<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     private final ClusterService clusterService;
@@ -81,9 +86,8 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         if (concreteIndices.length == 0) {
             listener.onResponse(new GetFieldMappingsResponse(emptyMap()));
         } else {
-            boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.types().length == 1 && request.fields().length == 1;
             for (final String index : concreteIndices) {
-                GetFieldMappingsIndexRequest shardRequest = new GetFieldMappingsIndexRequest(request, index, probablySingleFieldRequest);
+                GetFieldMappingsIndexRequest shardRequest = new GetFieldMappingsIndexRequest(request, index);
                 shardAction.execute(shardRequest, new ActionListener<GetFieldMappingsResponse>() {
                     @Override
                     public void onResponse(GetFieldMappingsResponse result) {
@@ -107,7 +111,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     }
 
     private GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
-        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>>> mergedResponses = new HashMap<>();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mergedResponses = new HashMap<>();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
             if (element instanceof GetFieldMappingsResponse) {

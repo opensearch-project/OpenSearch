@@ -74,6 +74,8 @@ import static org.opensearch.action.admin.cluster.node.tasks.list.TransportListT
  * <li>Look up the task and return it if it exists
  * <li>If it doesn't then look up the task from the results index
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class TransportGetTaskAction extends HandledTransportAction<GetTaskRequest, GetTaskResponse> {
     private final ThreadPool threadPool;
@@ -206,7 +208,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * coordinating node if the node is no longer part of the cluster.
      */
     void getFinishedTaskFromIndex(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, TaskResultsService.TASK_TYPE, request.getTaskId().toString());
+        GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
 
         client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {

@@ -83,12 +83,26 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 
+/**
+ * Main Master Node Service
+ *
+ * @opensearch.internal
+ */
 public class MasterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(MasterService.class);
 
     public static final Setting<TimeValue> MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
         "cluster.service.slow_master_task_logging_threshold",
         TimeValue.timeValueSeconds(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+    // The setting below is going to replace the above.
+    // To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+    public static final Setting<TimeValue> CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+        "cluster.service.slow_cluster_manager_task_logging_threshold",
+        MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -111,8 +125,11 @@ public class MasterService extends AbstractLifecycleComponent {
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
-        this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
+        this.slowTaskLoggingThreshold = CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+            this::setSlowTaskLoggingThreshold
+        );
 
         this.threadPool = threadPool;
     }
@@ -216,14 +233,14 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     public static boolean assertMasterUpdateThread() {
-        assert isMasterUpdateThread() : "not called from the master service thread";
+        assert isMasterUpdateThread() : "not called from the cluster-manager service thread";
         return true;
     }
 
     public static boolean assertNotMasterUpdateThread(String reason) {
         assert isMasterUpdateThread() == false : "Expected current thread ["
             + Thread.currentThread()
-            + "] to not be the master service thread. Reason: ["
+            + "] to not be the cluster-maanger service thread. Reason: ["
             + reason
             + "]";
         return true;
@@ -232,16 +249,16 @@ public class MasterService extends AbstractLifecycleComponent {
     private void runTasks(TaskInputs taskInputs) {
         final String summary = taskInputs.summary;
         if (!lifecycle.started()) {
-            logger.debug("processing [{}]: ignoring, master service not started", summary);
+            logger.debug("processing [{}]: ignoring, cluster-manager service not started", summary);
             return;
         }
 
         logger.debug("executing cluster state update for [{}]", summary);
         final ClusterState previousClusterState = state();
 
-        if (!previousClusterState.nodes().isLocalNodeElectedMaster() && taskInputs.runOnlyWhenMaster()) {
-            logger.debug("failing [{}]: local node is no longer master", summary);
-            taskInputs.onNoLongerMaster();
+        if (!previousClusterState.nodes().isLocalNodeElectedMaster() && taskInputs.runOnlyWhenClusterManager()) {
+            logger.debug("failing [{}]: local node is no longer cluster-manager", summary);
+            taskInputs.onNoLongerClusterManager();
             return;
         }
 
@@ -390,7 +407,7 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterState newClusterState = executionResult.resultingState;
 
         if (previousClusterState != newClusterState) {
-            // only the master controls the version numbers
+            // only the cluster-manager controls the version numbers
             Builder builder = incrementVersion(newClusterState);
             if (previousClusterState.routingTable() != newClusterState.routingTable()) {
                 builder.routingTable(
@@ -604,7 +621,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 listener.onNoLongerMaster(source);
             } catch (Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage("exception thrown by listener while notifying no longer master from [{}]", source),
+                    () -> new ParameterizedMessage(
+                        "exception thrown by listener while notifying no longer cluster-manager from [{}]",
+                        source
+                    ),
                     e
                 );
             }
@@ -710,7 +730,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private final AckedClusterStateTaskListener ackedTaskListener;
         private final CountDown countDown;
-        private final DiscoveryNode masterNode;
+        private final DiscoveryNode clusterManagerNode;
         private final ThreadPool threadPool;
         private final long clusterStateVersion;
         private volatile Scheduler.Cancellable ackTimeoutCallback;
@@ -725,11 +745,11 @@ public class MasterService extends AbstractLifecycleComponent {
             this.ackedTaskListener = ackedTaskListener;
             this.clusterStateVersion = clusterStateVersion;
             this.threadPool = threadPool;
-            this.masterNode = nodes.getMasterNode();
+            this.clusterManagerNode = nodes.getMasterNode();
             int countDown = 0;
             for (DiscoveryNode node : nodes) {
-                // we always wait for at least the master node
-                if (node.equals(masterNode) || ackedTaskListener.mustAck(node)) {
+                // we always wait for at least the cluster-manager node
+                if (node.equals(clusterManagerNode) || ackedTaskListener.mustAck(node)) {
                     countDown++;
                 }
             }
@@ -759,7 +779,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
-            if (node.equals(masterNode) == false && ackedTaskListener.mustAck(node) == false) {
+            if (node.equals(clusterManagerNode) == false && ackedTaskListener.mustAck(node) == false) {
                 return;
             }
             if (e == null) {
@@ -867,11 +887,11 @@ public class MasterService extends AbstractLifecycleComponent {
             this.updateTasks = updateTasks;
         }
 
-        boolean runOnlyWhenMaster() {
+        boolean runOnlyWhenClusterManager() {
             return executor.runOnlyOnMaster();
         }
 
-        void onNoLongerMaster() {
+        void onNoLongerClusterManager() {
             updateTasks.forEach(task -> task.listener.onNoLongerMaster(task.source()));
         }
     }

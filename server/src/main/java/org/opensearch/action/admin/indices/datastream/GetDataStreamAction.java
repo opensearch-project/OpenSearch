@@ -40,8 +40,8 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -73,6 +73,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Transport action for getting a datastream
+ *
+ * @opensearch.internal
+ */
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
     public static final GetDataStreamAction INSTANCE = new GetDataStreamAction();
@@ -82,7 +87,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         super(NAME, Response::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    /**
+     * Request for getting data streams
+     *
+     * @opensearch.internal
+     */
+    public static class Request extends ClusterManagerNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
 
@@ -143,9 +153,19 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
     }
 
+    /**
+     * Response for getting data streams
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField DATASTREAMS_FIELD = new ParseField("data_streams");
 
+        /**
+         * Data streams information
+         *
+         * @opensearch.internal
+         */
         public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo> implements ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
@@ -262,7 +282,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
+    /**
+     * Transport Action for getting data streams
+     *
+     * @opensearch.internal
+     */
+    public static class TransportAction extends TransportClusterManagerNodeReadAction<Request, Response> {
 
         private static final Logger logger = LogManager.getLogger(TransportAction.class);
 

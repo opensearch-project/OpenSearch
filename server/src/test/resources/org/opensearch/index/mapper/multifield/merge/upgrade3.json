@@ -1,5 +1,5 @@
 {
-    "person":{
+    "_doc":{
         "properties":{
             "name":{
                 "type": "text",

@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Response over the transport interface
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportResponse extends TransportMessage {
 
     /**
@@ -53,6 +58,11 @@ public abstract class TransportResponse extends TransportMessage {
         super(in);
     }
 
+    /**
+     * Empty transport response
+     *
+     * @opensearch.internal
+     */
     public static class Empty extends TransportResponse {
         public static final Empty INSTANCE = new Empty();
 

@@ -55,6 +55,7 @@ import org.gradle.plugins.ide.idea.model.IdeaModel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -168,7 +169,11 @@ public abstract class GradleUtils {
         project.getPluginManager().withPlugin("idea", p -> {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
             idea.getModule().setTestSourceDirs(testSourceSet.getJava().getSrcDirs());
-            idea.getModule().getScopes().put(testSourceSet.getName(), Map.of("plus", List.of(runtimeClasspathConfiguration)));
+            idea.getModule().getScopes().put(testSourceSet.getName(), new HashMap<String, Collection<Configuration>>() {
+                {
+                    put("plus", Arrays.asList(runtimeClasspathConfiguration));
+                }
+            });
         });
         project.getPluginManager().withPlugin("eclipse", p -> {
             EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);

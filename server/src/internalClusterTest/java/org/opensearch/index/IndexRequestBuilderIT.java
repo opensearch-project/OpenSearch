@@ -53,13 +53,13 @@ public class IndexRequestBuilderIT extends OpenSearchIntegTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("test_field", "foobar");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[] {
-            client().prepareIndex("test", "test").setSource((Object) "test_field", (Object) "foobar"),
-            client().prepareIndex("test", "test").setSource("{\"test_field\" : \"foobar\"}", XContentType.JSON),
-            client().prepareIndex("test", "test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
-            client().prepareIndex("test", "test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
-            client().prepareIndex("test", "test")
+            client().prepareIndex("test").setSource("test_field", "foobar"),
+            client().prepareIndex("test").setSource("{\"test_field\" : \"foobar\"}", XContentType.JSON),
+            client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
+            client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
+            client().prepareIndex("test")
                 .setSource(BytesReference.toBytes(new BytesArray("{\"test_field\" : \"foobar\"}")), XContentType.JSON),
-            client().prepareIndex("test", "test").setSource(map) };
+            client().prepareIndex("test").setSource(map) };
         indexRandom(true, builders);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")).get();
         OpenSearchAssertions.assertHitCount(searchResponse, builders.length);
@@ -67,7 +67,7 @@ public class IndexRequestBuilderIT extends OpenSearchIntegTestCase {
 
     public void testOddNumberOfSourceObjects() {
         try {
-            client().prepareIndex("test", "test").setSource("test_field", "foobar", new Object());
+            client().prepareIndex("test").setSource("test_field", "foobar", new Object());
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("The number of object passed must be even but was [3]"));

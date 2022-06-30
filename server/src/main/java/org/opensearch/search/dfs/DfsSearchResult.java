@@ -49,6 +49,11 @@ import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 
+/**
+ * Result from a Distributed Frequency Search phase
+ *
+ * @opensearch.internal
+ */
 public class DfsSearchResult extends SearchPhaseResult {
 
     private static final Term[] EMPTY_TERMS = new Term[0];

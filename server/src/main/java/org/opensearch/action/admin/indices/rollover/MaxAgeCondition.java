@@ -43,6 +43,8 @@ import java.io.IOException;
 /**
  * Condition for index maximum age. Evaluates to <code>true</code>
  * when the index is at least {@link #value} old
+ *
+ * @opensearch.internal
  */
 public class MaxAgeCondition extends Condition<TimeValue> {
     public static final String NAME = "max_age";

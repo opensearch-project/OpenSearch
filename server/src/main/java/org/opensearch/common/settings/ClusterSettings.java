@@ -32,7 +32,6 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -149,6 +148,8 @@ import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid cluster level settings.
+ *
+ * @opensearch.internal
  */
 public final class ClusterSettings extends AbstractScopedSettings {
 
@@ -272,7 +273,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
                 InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
                 DestructiveOperations.REQUIRES_NAME_SETTING,
-                NoMasterBlockService.NO_MASTER_BLOCK_SETTING,
+                NoMasterBlockService.NO_MASTER_BLOCK_SETTING,  // deprecated
+                NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING,
                 GatewayService.EXPECTED_DATA_NODES_SETTING,
                 GatewayService.EXPECTED_MASTER_NODES_SETTING,
                 GatewayService.EXPECTED_NODES_SETTING,
@@ -332,7 +334,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexModule.NODE_STORE_ALLOW_MMAP,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 ClusterService.USER_DEFINED_METADATA,
-                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,  // deprecated
+                MasterService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
@@ -539,7 +542,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
                 Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
                 TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
-                ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
+                ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,  // deprecated
+                ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING,
                 ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
                 LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
                 HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
@@ -549,10 +553,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 FsHealthService.REFRESH_INTERVAL_SETTING,
                 FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
                 FsHealthService.HEALTHY_TIMEOUT_SETTING,
-                TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
+                NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FLAT_SKEW_SETTING,
                 ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED,
                 ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED,
                 ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW,

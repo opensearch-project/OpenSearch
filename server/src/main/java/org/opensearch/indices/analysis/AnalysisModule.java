@@ -74,6 +74,8 @@ import static org.opensearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
 /**
  * Sets up {@link AnalysisRegistry}.
+ *
+ * @opensearch.internal
  */
 public final class AnalysisModule {
     static {
@@ -228,7 +230,7 @@ public final class AnalysisModule {
         }));
         /* Note that "stop" is available in lucene-core but it's pre-built
          * version uses a set of English stop words that are in
-         * lucene-analyzers-common so "stop" is defined in the analysis-common
+         * lucene-analysis-common so "stop" is defined in the analysis-common
          * module. */
 
         for (AnalysisPlugin plugin : plugins) {

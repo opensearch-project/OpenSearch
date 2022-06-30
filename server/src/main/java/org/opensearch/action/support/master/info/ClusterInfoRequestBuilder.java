@@ -33,50 +33,20 @@ package org.opensearch.action.support.master.info;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.util.ArrayUtils;
 
+/**
+ * Transport request builder for cluster information
+ *
+ * @opensearch.internal
+ */
 public abstract class ClusterInfoRequestBuilder<
     Request extends ClusterInfoRequest<Request>,
     Response extends ActionResponse,
-    Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends MasterNodeReadOperationRequestBuilder<
-        Request,
-        Response,
-        Builder> {
+    Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends
+    org.opensearch.action.support.clustermanager.info.ClusterInfoRequestBuilder<Request, Response, Builder> {
 
     protected ClusterInfoRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder setIndices(String... indices) {
-        request.indices(indices);
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder addIndices(String... indices) {
-        request.indices(ArrayUtils.concat(request.indices(), indices));
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder setTypes(String... types) {
-        request.types(types);
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder addTypes(String... types) {
-        request.types(ArrayUtils.concat(request.types(), types));
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder setIndicesOptions(IndicesOptions indicesOptions) {
-        request.indicesOptions(indicesOptions);
-        return (Builder) this;
     }
 }

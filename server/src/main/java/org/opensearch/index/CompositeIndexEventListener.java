@@ -51,6 +51,8 @@ import java.util.List;
 
 /**
  * A composite {@link IndexEventListener} that forwards all callbacks to an immutable list of IndexEventListener
+ *
+ * @opensearch.internal
  */
 final class CompositeIndexEventListener implements IndexEventListener {
 

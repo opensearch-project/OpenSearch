@@ -36,6 +36,11 @@ import org.opensearch.common.settings.SecureString;
 
 import java.util.Random;
 
+/**
+ * UUID utility class.
+ *
+ * @opensearch.internal
+ */
 public class UUIDs {
 
     private static final RandomBasedUUIDGenerator RANDOM_UUID_GENERATOR = new RandomBasedUUIDGenerator();

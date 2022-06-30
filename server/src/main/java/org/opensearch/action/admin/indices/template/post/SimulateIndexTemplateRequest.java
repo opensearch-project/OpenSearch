@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.template.post;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -43,7 +43,13 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<SimulateIndexTemplateRequest> {
+/**
+ * Transport Request for handling simulating an index template either by name (looking it up in the
+ * cluster state), or by a provided template configuration
+ *
+ * @opensearch.internal
+ */
+public class SimulateIndexTemplateRequest extends ClusterManagerNodeReadRequest<SimulateIndexTemplateRequest> {
 
     private String indexName;
 

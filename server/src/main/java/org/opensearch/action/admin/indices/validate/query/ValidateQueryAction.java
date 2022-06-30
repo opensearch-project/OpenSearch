@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.validate.query;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Action to Validate a Query
+ *
+ * @opensearch.internal
+ */
 public class ValidateQueryAction extends ActionType<ValidateQueryResponse> {
 
     public static final ValidateQueryAction INSTANCE = new ValidateQueryAction();

@@ -91,7 +91,7 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
         BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapper.parse(new SourceToParse("test", "_doc", "1", bytes, XContentType.JSON))
+            () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON))
         );
         assertTrue(
             e.getCause().getMessage().contains("Field [" + rfMetaField + "] is a metadata field and cannot be added inside a document.")

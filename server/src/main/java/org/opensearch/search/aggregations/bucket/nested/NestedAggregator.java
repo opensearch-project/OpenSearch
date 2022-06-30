@@ -60,6 +60,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs that match a nested path
+ *
+ * @opensearch.internal
+ */
 public class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField PATH_FIELD = new ParseField("path");
@@ -82,9 +87,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
 
-        Query parentFilter = parentObjectMapper != null
-            ? parentObjectMapper.nestedTypeFilter()
-            : Queries.newNonNestedFilter(context.mapperService().getIndexSettings().getIndexVersionCreated());
+        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter() : Queries.newNonNestedFilter();
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);
@@ -227,6 +230,11 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         }
     }
 
+    /**
+     * A cached scorable doc
+     *
+     * @opensearch.internal
+     */
     private static class CachedScorable extends Scorable {
         int doc;
         float score;

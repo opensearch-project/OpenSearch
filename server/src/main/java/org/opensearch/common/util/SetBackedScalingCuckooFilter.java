@@ -61,6 +61,8 @@ import java.util.function.Consumer;
  * <p>
  * This datastructure scales as more values are inserted by growing the list of CuckooFilters.
  * Final size is dependent on the cardinality of data inserted, and the precision specified.
+ *
+ * @opensearch.internal
  */
 public class SetBackedScalingCuckooFilter implements Writeable {
 

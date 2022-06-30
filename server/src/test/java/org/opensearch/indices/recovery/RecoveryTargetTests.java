@@ -41,12 +41,12 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.indices.recovery.RecoveryState.FileDetail;
-import org.opensearch.indices.recovery.RecoveryState.Index;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex.FileMetadata;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.recovery.RecoveryState.Stage;
-import org.opensearch.indices.recovery.RecoveryState.Timer;
 import org.opensearch.indices.recovery.RecoveryState.Translog;
 import org.opensearch.indices.recovery.RecoveryState.VerifyIndex;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -63,9 +63,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -124,77 +122,86 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         }
     }
 
-    public void testTimers() throws Throwable {
-        final Timer timer;
-        Streamer<Timer> streamer;
+    public void testTimer() throws Throwable {
         AtomicBoolean stop = new AtomicBoolean();
-        if (randomBoolean()) {
-            timer = new Timer();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new Timer(in);
-                }
-            };
-        } else if (randomBoolean()) {
-            timer = new Index();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new Index(in);
-                }
-            };
-        } else if (randomBoolean()) {
-            timer = new VerifyIndex();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new VerifyIndex(in);
-                }
-            };
-        } else {
-            timer = new Translog();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new Translog(in);
-                }
-            };
-        }
+        final ReplicationTimer timer = new ReplicationTimer();
+        Streamer<ReplicationTimer> streamer = new Streamer<>(stop, timer) {
+            @Override
+            ReplicationTimer createObj(StreamInput in) throws IOException {
+                return new ReplicationTimer(in);
+            }
+        };
+        doTimerTest(timer, streamer);
+    }
 
+    public void testIndexTimer() throws Throwable {
+        AtomicBoolean stop = new AtomicBoolean();
+        ReplicationLuceneIndex index = new ReplicationLuceneIndex();
+        Streamer<ReplicationLuceneIndex> streamer = new Streamer<>(stop, index) {
+            @Override
+            ReplicationLuceneIndex createObj(StreamInput in) throws IOException {
+                return new ReplicationLuceneIndex(in);
+            }
+        };
+        doTimerTest(index, streamer);
+    }
+
+    public void testVerifyIndexTimer() throws Throwable {
+        AtomicBoolean stop = new AtomicBoolean();
+        VerifyIndex verifyIndex = new VerifyIndex();
+        Streamer<VerifyIndex> streamer = new Streamer<>(stop, verifyIndex) {
+            @Override
+            VerifyIndex createObj(StreamInput in) throws IOException {
+                return new VerifyIndex(in);
+            }
+        };
+        doTimerTest(verifyIndex, streamer);
+    }
+
+    public void testTranslogTimer() throws Throwable {
+        AtomicBoolean stop = new AtomicBoolean();
+        Translog translog = new Translog();
+        Streamer<Translog> streamer = new Streamer<>(stop, translog) {
+            @Override
+            Translog createObj(StreamInput in) throws IOException {
+                return new Translog(in);
+            }
+        };
+        doTimerTest(translog, streamer);
+    }
+
+    private void doTimerTest(ReplicationTimer timer, Streamer<? extends ReplicationTimer> streamer) throws Exception {
         timer.start();
-        assertThat(timer.startTime(), greaterThan(0L));
-        assertThat(timer.stopTime(), equalTo(0L));
-        Timer lastRead = streamer.serializeDeserialize();
+        assertTrue(timer.startTime() > 0);
+        assertEquals(0, timer.stopTime());
+        ReplicationTimer lastRead = streamer.serializeDeserialize();
         final long time = lastRead.time();
-        assertThat(time, lessThanOrEqualTo(timer.time()));
-        assertBusy(() -> assertThat("timer timer should progress compared to captured one ", time, lessThan(timer.time())));
-        assertThat("captured time shouldn't change", lastRead.time(), equalTo(time));
+        assertBusy(() -> assertTrue("timer timer should progress compared to captured one ", time < timer.time()));
+        assertEquals("captured time shouldn't change", time, lastRead.time());
 
-        if (randomBoolean()) {
-            timer.stop();
-            assertThat(timer.stopTime(), greaterThanOrEqualTo(timer.startTime()));
-            assertThat(timer.time(), greaterThan(0L));
-            lastRead = streamer.serializeDeserialize();
-            assertThat(lastRead.startTime(), equalTo(timer.startTime()));
-            assertThat(lastRead.time(), equalTo(timer.time()));
-            assertThat(lastRead.stopTime(), equalTo(timer.stopTime()));
-        }
+        timer.stop();
+        assertTrue(timer.stopTime() >= timer.startTime());
+        assertTrue(timer.time() > 0);
+        // validate captured time
+        lastRead = streamer.serializeDeserialize();
+        assertEquals(timer.startTime(), lastRead.startTime());
+        assertEquals(timer.time(), lastRead.time());
+        assertEquals(timer.stopTime(), lastRead.stopTime());
 
         timer.reset();
-        assertThat(timer.startTime(), equalTo(0L));
-        assertThat(timer.time(), equalTo(0L));
-        assertThat(timer.stopTime(), equalTo(0L));
+        assertEquals(0, timer.startTime());
+        assertEquals(0, timer.time());
+        assertEquals(0, timer.stopTime());
+        // validate captured time
         lastRead = streamer.serializeDeserialize();
-        assertThat(lastRead.startTime(), equalTo(0L));
-        assertThat(lastRead.time(), equalTo(0L));
-        assertThat(lastRead.stopTime(), equalTo(0L));
-
+        assertEquals(0, lastRead.startTime());
+        assertEquals(0, lastRead.time());
+        assertEquals(0, lastRead.stopTime());
     }
 
     public void testIndex() throws Throwable {
-        FileDetail[] files = new FileDetail[randomIntBetween(1, 20)];
-        ArrayList<FileDetail> filesToRecover = new ArrayList<>();
+        FileMetadata[] files = new FileMetadata[randomIntBetween(1, 20)];
+        ArrayList<FileMetadata> filesToRecover = new ArrayList<>();
         long totalFileBytes = 0;
         long totalReusedBytes = 0;
         int totalReused = 0;
@@ -202,7 +209,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
             final int fileLength = randomIntBetween(1, 1000);
             final boolean reused = randomBoolean();
             totalFileBytes += fileLength;
-            files[i] = new FileDetail("f_" + i, fileLength, reused);
+            files[i] = new FileMetadata("f_" + i, fileLength, reused);
             if (reused) {
                 totalReused++;
                 totalReusedBytes += fileLength;
@@ -212,7 +219,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         }
 
         Collections.shuffle(Arrays.asList(files), random());
-        final RecoveryState.Index index = new RecoveryState.Index();
+        final ReplicationLuceneIndex index = new ReplicationLuceneIndex();
         assertThat(index.bytesStillToRecover(), equalTo(-1L));
 
         if (randomBoolean()) {
@@ -239,11 +246,11 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         // before we start we must report 0
         assertThat(index.recoveredFilesPercent(), equalTo((float) 0.0));
         assertThat(index.recoveredBytesPercent(), equalTo((float) 0.0));
-        assertThat(index.sourceThrottling().nanos(), equalTo(Index.UNKNOWN));
-        assertThat(index.targetThrottling().nanos(), equalTo(Index.UNKNOWN));
+        assertThat(index.sourceThrottling().nanos(), equalTo(ReplicationLuceneIndex.UNKNOWN));
+        assertThat(index.targetThrottling().nanos(), equalTo(ReplicationLuceneIndex.UNKNOWN));
 
         index.start();
-        for (FileDetail file : files) {
+        for (FileMetadata file : files) {
             index.addFileDetail(file.name(), file.length(), file.reused());
         }
 
@@ -271,24 +278,24 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         }
         AtomicBoolean streamShouldStop = new AtomicBoolean();
 
-        Streamer<Index> backgroundReader = new Streamer<RecoveryState.Index>(streamShouldStop, index) {
+        Streamer<ReplicationLuceneIndex> backgroundReader = new Streamer<ReplicationLuceneIndex>(streamShouldStop, index) {
             @Override
-            Index createObj(StreamInput in) throws IOException {
-                return new Index(in);
+            ReplicationLuceneIndex createObj(StreamInput in) throws IOException {
+                return new ReplicationLuceneIndex(in);
             }
         };
 
         backgroundReader.start();
 
         long recoveredBytes = 0;
-        long sourceThrottling = Index.UNKNOWN;
-        long targetThrottling = Index.UNKNOWN;
+        long sourceThrottling = ReplicationLuceneIndex.UNKNOWN;
+        long targetThrottling = ReplicationLuceneIndex.UNKNOWN;
         while (bytesToRecover > 0) {
-            FileDetail file = randomFrom(filesToRecover);
+            FileMetadata file = randomFrom(filesToRecover);
             final long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));
             final long throttledOnSource = rarely() ? randomIntBetween(10, 200) : 0;
             index.addSourceThrottling(throttledOnSource);
-            if (sourceThrottling == Index.UNKNOWN) {
+            if (sourceThrottling == ReplicationLuceneIndex.UNKNOWN) {
                 sourceThrottling = throttledOnSource;
             } else {
                 sourceThrottling += throttledOnSource;
@@ -296,7 +303,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
             index.addRecoveredBytesToFile(file.name(), toRecover);
             file.addRecoveredBytes(toRecover);
             final long throttledOnTarget = rarely() ? randomIntBetween(10, 200) : 0;
-            if (targetThrottling == Index.UNKNOWN) {
+            if (targetThrottling == ReplicationLuceneIndex.UNKNOWN) {
                 targetThrottling = throttledOnTarget;
             } else {
                 targetThrottling += throttledOnTarget;
@@ -318,7 +325,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         logger.info("testing serialized information");
         streamShouldStop.set(true);
         backgroundReader.join();
-        final Index lastRead = backgroundReader.lastRead();
+        final ReplicationLuceneIndex lastRead = backgroundReader.lastRead();
         assertThat(lastRead.fileDetails().toArray(), arrayContainingInAnyOrder(index.fileDetails().toArray()));
         assertThat(lastRead.startTime(), equalTo(index.startTime()));
         if (completeRecovery) {
@@ -536,12 +543,12 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
     }
 
     public void testConcurrentModificationIndexFileDetailsMap() throws InterruptedException {
-        final Index index = new Index();
+        final ReplicationLuceneIndex index = new ReplicationLuceneIndex();
         final AtomicBoolean stop = new AtomicBoolean(false);
-        Streamer<Index> readWriteIndex = new Streamer<Index>(stop, index) {
+        Streamer<ReplicationLuceneIndex> readWriteIndex = new Streamer<ReplicationLuceneIndex>(stop, index) {
             @Override
-            Index createObj(StreamInput in) throws IOException {
-                return new Index(in);
+            ReplicationLuceneIndex createObj(StreamInput in) throws IOException {
+                return new ReplicationLuceneIndex(in);
             }
         };
         Thread modifyThread = new Thread() {
@@ -561,14 +568,14 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
     }
 
     public void testFileHashCodeAndEquals() {
-        FileDetail f = new FileDetail("foo", randomIntBetween(0, 100), randomBoolean());
-        FileDetail anotherFile = new FileDetail(f.name(), f.length(), f.reused());
+        FileMetadata f = new FileMetadata("foo", randomIntBetween(0, 100), randomBoolean());
+        FileMetadata anotherFile = new FileMetadata(f.name(), f.length(), f.reused());
         assertEquals(f, anotherFile);
         assertEquals(f.hashCode(), anotherFile.hashCode());
         int iters = randomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
-            f = new FileDetail("foo", randomIntBetween(0, 100), randomBoolean());
-            anotherFile = new FileDetail(f.name(), randomIntBetween(0, 100), randomBoolean());
+            f = new FileMetadata("foo", randomIntBetween(0, 100), randomBoolean());
+            anotherFile = new FileMetadata(f.name(), randomIntBetween(0, 100), randomBoolean());
             if (f.equals(anotherFile)) {
                 assertEquals(f.hashCode(), anotherFile.hashCode());
             } else if (f.hashCode() != anotherFile.hashCode()) {

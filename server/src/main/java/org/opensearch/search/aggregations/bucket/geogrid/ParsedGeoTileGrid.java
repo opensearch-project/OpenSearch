@@ -37,6 +37,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A geotile grid result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedGeoTileGrid extends ParsedGeoGrid {
 
     private static final ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(

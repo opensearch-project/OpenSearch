@@ -55,9 +55,9 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.MasterNodeRequest;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
-import org.opensearch.action.support.master.TransportMasterNodeActionUtils;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
+import org.opensearch.action.support.clustermanager.TransportMasterNodeActionUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -259,7 +259,8 @@ public class ClusterStateChanges {
             null,
             actionFilters
         );
-        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService);
+        final SystemIndices systemIndices = new SystemIndices(emptyMap());
+        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService, systemIndices);
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(
             clusterService,
             allocationService,
@@ -290,7 +291,7 @@ public class ClusterStateChanges {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             threadPool,
             xContentRegistry,
-            new SystemIndices(emptyMap()),
+            systemIndices,
             true
         );
 
@@ -462,14 +463,19 @@ public class ClusterStateChanges {
         }
     }
 
-    private <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> ClusterState execute(
-        TransportMasterNodeAction<Request, Response> masterNodeAction,
+    private <Request extends ClusterManagerNodeRequest<Request>, Response extends ActionResponse> ClusterState execute(
+        TransportClusterManagerNodeAction<Request, Response> masterNodeAction,
         Request request,
         ClusterState clusterState
     ) {
         return executeClusterStateUpdateTask(clusterState, () -> {
             try {
-                TransportMasterNodeActionUtils.runMasterOperation(masterNodeAction, request, clusterState, new PlainActionFuture<>());
+                TransportMasterNodeActionUtils.runClusterManagerOperation(
+                    masterNodeAction,
+                    request,
+                    clusterState,
+                    new PlainActionFuture<>()
+                );
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

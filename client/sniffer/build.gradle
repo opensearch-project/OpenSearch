@@ -30,8 +30,8 @@
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
-targetCompatibility = JavaVersion.VERSION_1_8
-sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_11
+sourceCompatibility = JavaVersion.VERSION_11
 
 group = 'org.opensearch.client'
 archivesBaseName = 'opensearch-rest-client-sniffer'
@@ -88,7 +88,6 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
-  'org.apache.log4j.Category',
   'org.apache.log4j.Level',
   'org.apache.log4j.Logger',
   'org.apache.log4j.Priority',

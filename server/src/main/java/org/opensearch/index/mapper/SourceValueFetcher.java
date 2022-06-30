@@ -48,6 +48,8 @@ import java.util.Set;
  * to implement value fetching.
  *
  * Field types that handle arrays directly should instead use {@link ArraySourceValueFetcher}.
+ *
+ * @opensearch.internal
  */
 public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;

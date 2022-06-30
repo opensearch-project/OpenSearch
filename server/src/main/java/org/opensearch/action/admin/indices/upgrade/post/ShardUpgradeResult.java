@@ -41,6 +41,11 @@ import org.opensearch.index.shard.ShardId;
 import java.io.IOException;
 import java.text.ParseException;
 
+/**
+ * Result for Upgrading a Shard
+ *
+ * @opensearch.internal
+ */
 class ShardUpgradeResult implements Writeable {
 
     private ShardId shardId;
