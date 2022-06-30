@@ -47,5 +47,5 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              Gradle Check (Jenkins) Completed with ${{ env.result }}: ${{ env.workflow_url }}
+              Gradle Check (Jenkins) Completed with **RESULT: ${{ env.result }}**: ${{ env.workflow_url }}
               (Re-commit to this PR or restart github action to run gradle check again)
