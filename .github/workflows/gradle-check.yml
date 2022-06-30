@@ -23,12 +23,10 @@ jobs:
           ref: main
 
       - name: Trigger jenkins workflow to run gradle check
-        run: bash scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
-
-      - name: Upload Coverage Report
-        uses: codecov/codecov-action@v2
-        with:
-          files: ./codeCoverage.xml
+        run: |
+            set -e
+            set -o pipefail
+            bash scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()
@@ -37,6 +35,11 @@ jobs:
             RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
             echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
             echo "result=$RESULT" >> $GITHUB_ENV
+
+      - name: Upload Coverage Report
+        uses: codecov/codecov-action@v2
+        with:
+          files: ./codeCoverage.xml
 
       - name: Create comment
         if: always()
