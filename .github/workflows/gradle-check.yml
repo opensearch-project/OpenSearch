@@ -41,11 +41,20 @@ jobs:
         with:
           files: ./codeCoverage.xml
 
-      - name: Create comment
-        if: always()
+      - name: Create Comment Success
+        if: success()
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              Gradle Check (Jenkins) Completed with **RESULT: ${{ env.result }}**: ${{ env.workflow_url }}
+              Gradle Check (Jenkins) Completed with **RESULT: ${{ env.result }}** :white_check_mark: : ${{ env.workflow_url }}
+              (Re-commit to this PR or restart github action to run gradle check again)
+
+      - name: Create Comment Failure
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+              Gradle Check (Jenkins) Completed with **RESULT: ${{ env.result }}** :x: : ${{ env.workflow_url }}
               (Re-commit to this PR or restart github action to run gradle check again)
