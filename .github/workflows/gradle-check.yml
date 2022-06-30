@@ -23,12 +23,10 @@ jobs:
           ref: main
 
       - name: Trigger jenkins workflow to run gradle check
-        run: bash scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
-
-      - name: Upload Coverage Report
-        uses: codecov/codecov-action@v2
-        with:
-          files: ./codeCoverage.xml
+        run: |
+            set -e
+            set -o pipefail
+            bash scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()
@@ -38,11 +36,26 @@ jobs:
             echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
             echo "result=$RESULT" >> $GITHUB_ENV
 
-      - name: Create comment
-        if: always()
+      - name: Upload Coverage Report
+        if: success()
+        uses: codecov/codecov-action@v2
+        with:
+          files: ./codeCoverage.xml
+
+      - name: Create Comment Success
+        if: success()
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              Gradle Check (Jenkins) Completed with ${{ env.result }}: ${{ env.workflow_url }}
+              Gradle Check (Jenkins) Completed with **RESULT: ${{ env.result }}** :white_check_mark: : ${{ env.workflow_url }}
+              (Re-commit to this PR or restart github action to run gradle check again)
+
+      - name: Create Comment Failure
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+              Gradle Check (Jenkins) Completed with **RESULT: ${{ env.result }}** :x: : ${{ env.workflow_url }}
               (Re-commit to this PR or restart github action to run gradle check again)
