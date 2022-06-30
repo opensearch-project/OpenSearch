@@ -236,6 +236,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         return new IndexScopedSettings(settings, this, metadata);
     }
 
+    public void registerSetting(Setting<?> setting) {
+        validateSettingKey(setting);
+        super.registerSetting(setting);
+    }
+
     @Override
     protected void validateSettingKey(Setting setting) {
         if (setting.getKey().startsWith("index.") == false) {

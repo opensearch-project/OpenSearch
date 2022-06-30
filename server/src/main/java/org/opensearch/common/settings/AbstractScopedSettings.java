@@ -122,7 +122,7 @@ public abstract class AbstractScopedSettings {
             }
         }
         this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
-        this.keySettings = Collections.unmodifiableMap(keySettings);
+        this.keySettings = keySettings;
     }
 
     protected void validateSettingKey(Setting<?> setting) {
@@ -142,6 +142,24 @@ public abstract class AbstractScopedSettings {
         keySettings = other.keySettings;
         settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
         settingUpdaters.addAll(other.settingUpdaters);
+    }
+
+    protected void registerSetting(Setting<?> setting) {
+        if (setting.hasComplexMatcher()) {
+            Setting<?> overlappingSetting = findOverlappingSetting(setting, complexMatchers);
+            if (overlappingSetting != null) {
+                throw new IllegalArgumentException(
+                    "complex setting key: ["
+                        + setting.getKey()
+                        + "] overlaps existing setting key: ["
+                        + overlappingSetting.getKey()
+                        + "]"
+                );
+            }
+            complexMatchers.putIfAbsent(setting.getKey(), setting);
+        } else {
+            keySettings.putIfAbsent(setting.getKey(), setting);
+        }
     }
 
     /**

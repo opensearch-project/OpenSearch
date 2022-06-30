@@ -179,6 +179,21 @@ public class SettingsModule implements Module {
         binder.bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
+    public void registerDynamicSetting(Setting<?> setting) {
+        try {
+            registerSetting(setting);
+            if (setting.hasNodeScope()) {
+                clusterSettings.registerSetting(setting);
+            }
+            if(setting.hasIndexScope()) {
+                indexScopedSettings.registerSetting(setting);
+            }
+            logger.info("Registered new Setting: " + setting.getKey() +  " successfully ");
+        } catch(Exception e) {
+            logger.error("Could not register setting " + setting.getKey());
+        }
+    }
+
     /**
      * Registers a new setting. This method should be used by plugins in order to expose any custom settings the plugin defines.
      * Unless a setting is registered the setting is unusable. If a setting is never the less specified the node will reject
