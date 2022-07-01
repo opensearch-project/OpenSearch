@@ -240,7 +240,7 @@ public final class RestClientBuilder {
     }
 
     /**
-     * Whether the REST client should use Transfer-Encoding: chunked for compress requests"
+     * Whether the REST client should use Transfer-Encoding: chunked for requests or not"
      *
      * @param chunkedTransferEncodingEnabled flag for enabling Transfer-Encoding: chunked
      */
