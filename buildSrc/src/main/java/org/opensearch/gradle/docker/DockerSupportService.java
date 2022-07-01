@@ -118,9 +118,9 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
                     // Since we use a multi-stage Docker build, check the Docker version meets minimum requirement
                     lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
-                    if (LOGGER.isInfoEnabled()) {
-                        LOGGER.info("Docker binary found at: {}", dockerPath);
-                        LOGGER.info("Docker version check: {}", lastResult.toString());
+                    if (LOGGER.isDebugEnabled()) {
+                        LOGGER.debug("Docker binary found at: {}", dockerPath);
+                        LOGGER.debug("Docker version check: {}", lastResult.toString());
                     }
 
                     if (lastResult.isSuccess()) {
@@ -137,9 +137,9 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                             if (lastResult.isSuccess() && composePath.isPresent()) {
                                 Result composeCmdCheck = runCommand(composePath.get(), "version");
                                 isComposeAvailable = composeCmdCheck.isSuccess();
-                                if (LOGGER.isInfoEnabled()) {
-                                    LOGGER.info("Docker-compose binary found at: {}", composePath);
-                                    LOGGER.info("Docker-compose version check: {}", composeCmdCheck.toString());
+                                if (LOGGER.isDebugEnabled()) {
+                                    LOGGER.debug("Docker-compose binary found at: {}", composePath);
+                                    LOGGER.debug("Docker-compose version check: {}", composeCmdCheck.toString());
                                 }
                             }
                         }
