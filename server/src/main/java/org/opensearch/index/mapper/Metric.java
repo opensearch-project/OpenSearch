@@ -13,8 +13,10 @@ import java.util.Optional;
 
 /**
  * Abstracts supported metrics for dense_vector and KNN search
+ *
+ * @opensearch.internal
  */
-public enum Metric {
+enum Metric {
     L2,
     COSINE,
     DOT_PRODUCT;

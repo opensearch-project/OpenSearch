@@ -29,8 +29,10 @@ import java.util.Map;
 
 /**
  * Field Mapper for Dense vector type. Extends ParametrizedFieldMapper in order to easily configure mapping parameters.
+ *
+ * @opensearch.internal
  */
-public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
+public final class DenseVectorFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
 
@@ -55,12 +57,12 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
             int value = XContentMapValues.nodeIntegerValue(o);
             if (value > MAX_DIMENSION) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "[dimension] value cannot be greater than %d for vector [%s]", MAX_DIMENSION, name)
+                    String.format(Locale.ROOT, "[dimension] value %d cannot be greater than %d for vector [%s]", value, MAX_DIMENSION, name)
                 );
             }
             if (value <= 0) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "[dimension] value must be greater than 0 for vector [%s]", name)
+                    String.format(Locale.ROOT, "[dimension] value %d must be greater than 0 for vector [%s]", value, name)
                 );
             }
             return value;
@@ -130,17 +132,15 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
 
         private final int dimension;
         private final KnnContext knnContext;
-        private final boolean hasDocValues;
 
         public DenseVectorFieldType(String name, int dimension, KnnContext knnContext) {
             this(name, Collections.emptyMap(), dimension, knnContext, false);
         }
 
         public DenseVectorFieldType(String name, Map<String, String> meta, int dimension, KnnContext knnContext, boolean hasDocValues) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, false, false, hasDocValues, TextSearchInfo.NONE, meta);
             this.dimension = dimension;
             this.knnContext = knnContext;
-            this.hasDocValues = hasDocValues;
         }
 
         @Override

@@ -273,10 +273,7 @@ public class DenseVectorFieldTypeTests extends OpenSearchSingleNodeTestCase {
             IllegalArgumentException.class,
             () -> parser.parse("type", new CompressedXContent(Strings.toString(mappingInvalidDimension)))
         );
-        org.hamcrest.MatcherAssert.assertThat(
-            exceptionInvalidDimension.getMessage(),
-            containsString("[dimension] value cannot be greater than 1024 for vector")
-        );
+        assertEquals(exceptionInvalidDimension.getMessage(), "[dimension] value 1200 cannot be greater than 1024 for vector [field]");
 
         XContentBuilder mappingDimentionsMismatch = XContentFactory.jsonBuilder()
             .startObject()

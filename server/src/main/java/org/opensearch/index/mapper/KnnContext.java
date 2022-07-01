@@ -17,8 +17,10 @@ import java.util.Objects;
 
 /**
  * Abstracts KNN segment of dense_vector field type
+ *
+ * @opensearch.internal
  */
-public class KnnContext implements ToXContentFragment, Writeable {
+public final class KnnContext implements ToXContentFragment, Writeable {
 
     private final Metric metric;
     private final KnnAlgorithmContext knnAlgorithmContext;
