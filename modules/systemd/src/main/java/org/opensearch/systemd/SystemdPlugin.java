@@ -68,20 +68,10 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     @SuppressWarnings("unused")
     public SystemdPlugin() {
-        this(true, Build.CURRENT.type(), System.getenv("OPENSEARCH_SD_NOTIFY"));
+        this(System.getenv("OPENSEARCH_SD_NOTIFY"));
     }
 
-    SystemdPlugin(final boolean assertIsPackageDistribution, final Build.Type buildType, final String esSDNotify) {
-        final boolean isPackageDistribution = buildType == Build.Type.DEB || buildType == Build.Type.RPM;
-        if (assertIsPackageDistribution) {
-            // our build is configured to only include this module in the package distributions
-            assert isPackageDistribution : buildType;
-        }
-        if (isPackageDistribution == false) {
-            logger.debug("disabling sd_notify as the build type [{}] is not a package distribution", buildType);
-            enabled = false;
-            return;
-        }
+    SystemdPlugin(final String esSDNotify) {
         logger.trace("OPENSEARCH_SD_NOTIFY is set to [{}]", esSDNotify);
         if (esSDNotify == null) {
             enabled = false;
