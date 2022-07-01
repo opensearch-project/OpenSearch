@@ -44,6 +44,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
@@ -2691,8 +2692,10 @@ public class IndexShardTests extends IndexShardTestCase {
         Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) target.remoteStore().directory()).getDelegate()).getDelegate();
         ((BaseDirectoryWrapper) remoteDirectory).setCheckIndexOnClose(false);
 
+        // extra0 file is added as a part of https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
+        // Safe to remove without impacting the test
         for (String file : remoteDirectory.listAll()) {
-            if (file.equals("extra0")) {
+            if (ExtrasFS.isExtra(file)) {
                 remoteDirectory.deleteFile(file);
             }
         }

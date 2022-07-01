@@ -227,25 +227,35 @@ public class RestoreService implements ClusterStateApplier {
                         logger.warn("Remote store restore is not supported for non-existent index. Skipping: {}", index);
                         continue;
                     }
-                    if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
-                        throw new IllegalStateException(
-                            "cannot restore index ["
-                                + index
-                                + "] because an open index "
-                                + "with same name already exists in the cluster. Close the existing index"
-                        );
-                    }
                     if (currentIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE, false)) {
-                        IndexId indexId = new IndexId(index, currentIndexMetadata.getIndexUUID());
+                        if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
+                            throw new IllegalStateException(
+                                "cannot restore index ["
+                                    + index
+                                    + "] because an open index "
+                                    + "with same name already exists in the cluster. Close the existing index"
+                            );
+                        }
+                        IndexMetadata updatedIndexMetadata = IndexMetadata.builder(currentIndexMetadata)
+                            .state(IndexMetadata.State.OPEN)
+                            .version(1 + currentIndexMetadata.getVersion())
+                            .mappingVersion(1 + currentIndexMetadata.getMappingVersion())
+                            .settingsVersion(1 + currentIndexMetadata.getSettingsVersion())
+                            .aliasesVersion(1 + currentIndexMetadata.getAliasesVersion())
+                            .build();
+
+                        IndexId indexId = new IndexId(index, updatedIndexMetadata.getIndexUUID());
 
                         RemoteStoreRecoverySource recoverySource = new RemoteStoreRecoverySource(
                             restoreUUID,
-                            currentIndexMetadata.getCreationVersion(),
+                            updatedIndexMetadata.getCreationVersion(),
                             indexId
                         );
-                        rtBuilder.addAsRemoteStoreRestore(currentIndexMetadata, recoverySource);
+                        rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource);
+                        blocks.updateBlocks(updatedIndexMetadata);
+                        mdBuilder.put(updatedIndexMetadata, true);
                         indicesToBeRestored.add(index);
-                        totalShards += currentIndexMetadata.getNumberOfShards();
+                        totalShards += updatedIndexMetadata.getNumberOfShards();
                     } else {
                         logger.warn("Remote store is not enabled for index: {}", index);
                     }
