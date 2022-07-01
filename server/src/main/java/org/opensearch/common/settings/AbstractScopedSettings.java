@@ -121,7 +121,7 @@ public abstract class AbstractScopedSettings {
                 keySettings.putIfAbsent(setting.getKey(), setting);
             }
         }
-        this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
+        this.complexMatchers = complexMatchers;
         this.keySettings = keySettings;
     }
 
