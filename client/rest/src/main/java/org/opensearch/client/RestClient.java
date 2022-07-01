@@ -36,6 +36,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.HttpEntityWrapper;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -644,6 +645,8 @@ public class RestClient implements Closeable {
                     } else {
                         entity = new ContentCompressingEntity(entity);
                     }
+                } else if (chunkedTransferEncodingEnabled) {
+                    entity = new ChunkedHttpEntity(entity);
                 }
                 ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(entity);
             } else {
@@ -1042,6 +1045,28 @@ public class RestClient implements Closeable {
             }
 
             return size;
+        }
+    }
+
+    public static class ChunkedHttpEntity extends HttpEntityWrapper {
+        /**
+         * Creates a {@link ChunkedHttpEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         */
+        public ChunkedHttpEntity(HttpEntity entity) {
+            super(entity);
+        }
+
+        /**
+         * A chunked entity requires transfer-encoding:chunked in http headers
+         * which requires isChunked to be true
+         *
+         * @return true
+         */
+        @Override
+        public boolean isChunked() {
+            return true;
         }
     }
 
