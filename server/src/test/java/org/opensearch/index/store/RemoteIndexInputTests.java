@@ -44,6 +44,7 @@ public class RemoteIndexInputTests extends OpenSearchTestCase {
         when(inputStream.read()).thenReturn(10);
 
         assertEquals(10, remoteIndexInput.readByte());
+        assertEquals(1, remoteIndexInput.getFilePointer());
 
         verify(inputStream).read(any());
     }
@@ -52,13 +53,19 @@ public class RemoteIndexInputTests extends OpenSearchTestCase {
         when(inputStream.read(any())).thenThrow(new IOException("Error reading"));
 
         assertThrows(IOException.class, () -> remoteIndexInput.readByte());
+        assertEquals(0, remoteIndexInput.getFilePointer());
     }
 
     public void testReadBytes() throws IOException {
-        byte[] buffer = new byte[10];
-        remoteIndexInput.readBytes(buffer, 10, 20);
+        byte[] buffer = new byte[20];
+        when(inputStream.read(eq(buffer), anyInt(), anyInt())).thenReturn(10).thenReturn(3).thenReturn(6).thenReturn(-1);
+        remoteIndexInput.readBytes(buffer, 0, 20);
 
-        verify(inputStream).read(buffer, 10, 20);
+        verify(inputStream).read(buffer, 0, 20);
+        verify(inputStream).read(buffer, 10, 10);
+        verify(inputStream).read(buffer, 13, 7);
+        verify(inputStream).read(buffer, 19, 1);
+        assertEquals(19, remoteIndexInput.getFilePointer());
     }
 
     public void testReadBytesMultipleIterations() throws IOException {
@@ -107,8 +114,11 @@ public class RemoteIndexInputTests extends OpenSearchTestCase {
         assertThrows(IOException.class, () -> remoteIndexInput.seek(10));
     }
 
-    public void testGetFilePointer() {
-        assertThrows(UnsupportedOperationException.class, () -> remoteIndexInput.getFilePointer());
+    public void testGetFilePointer() throws IOException {
+        when(inputStream.skip(10)).thenReturn(8L);
+        assertEquals(0, remoteIndexInput.getFilePointer());
+        remoteIndexInput.seek(10);
+        assertEquals(8, remoteIndexInput.getFilePointer());
     }
 
     public void testSlice() {
