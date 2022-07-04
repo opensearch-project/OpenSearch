@@ -64,7 +64,7 @@ public class NoOpTranslogManager implements TranslogManager {
     }
 
     @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
         return false;
     }
 
@@ -102,4 +102,14 @@ public class NoOpTranslogManager implements TranslogManager {
 
     @Override
     public void skipTranslogRecovery() {}
+
+    @Override
+    public Translog.Operation readOperation(Translog.Location location) throws IOException {
+        return null;
+    }
+
+    @Override
+    public Translog.Location add(Translog.Operation operation) throws IOException {
+        return new Translog.Location(0, 0, 0);
+    }
 }

@@ -212,8 +212,6 @@ public class InternalEngine extends Engine {
     @Nullable
     private final String historyUUID;
 
-    private final String translogUUID;
-
     /**
      * UUID value that is updated every time the engine is force merged.
      */
@@ -259,7 +257,7 @@ public class InternalEngine extends Engine {
             try {
                 store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
                 final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
-                translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
+                String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
                 TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
                     @Override
                     public void onAfterTranslogSync() {
@@ -1844,7 +1842,7 @@ public class InternalEngine extends Engine {
                     try {
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        commitIndexWriter(indexWriter, translogUUID);
+                        commitIndexWriter(indexWriter, translogManager.getTranslogUUID());
                         logger.trace("finished commit for flush");
 
                         // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved

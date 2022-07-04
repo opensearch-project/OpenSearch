@@ -286,19 +286,21 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
     /**
      * Reads operations from the translog
      * @param location
-     * @return
+     * @return the translog operation
      * @throws IOException
      */
+    @Override
     public Translog.Operation readOperation(Translog.Location location) throws IOException {
         return translog.readOperation(location);
     }
 
     /**
-     * Adds operations to the translog
+     * Adds an operation to the translog
      * @param operation
-     * @return
+     * @return the location in the translog
      * @throws IOException
      */
+    @Override
     public Translog.Location add(Translog.Operation operation) throws IOException {
         return translog.add(operation);
     }
@@ -381,6 +383,14 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
      */
     public Exception getTragicExceptionIfClosed() {
         return translog.isOpen() == false ? translog.getTragicException() : null;
+    }
+
+    /**
+     * Retrieves the translog unique identifier
+     * @return the uuid of the translog
+     */
+    public String getTranslogUUID() {
+        return translog.getTranslogUUID();
     }
 
     /**

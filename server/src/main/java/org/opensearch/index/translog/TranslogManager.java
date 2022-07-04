@@ -95,6 +95,22 @@ public interface TranslogManager {
     void skipTranslogRecovery();
 
     /**
+     * Reads operations for the translog
+     * @param location the location in the translog
+     * @return the translog operation
+     * @throws IOException
+     */
+    Translog.Operation readOperation(Translog.Location location) throws IOException;
+
+    /**
+     * Adds an operation to the translog
+     * @param operation
+     * @return the location in the translog
+     * @throws IOException
+     */
+    Translog.Location add(Translog.Operation operation) throws IOException;
+
+    /**
      * Checks if the translog has a pending recovery
      */
     void ensureCanFlush();

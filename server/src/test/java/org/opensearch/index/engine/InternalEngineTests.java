@@ -893,7 +893,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
                 initialEngine.index(indexForDoc(doc));
                 if (rarely()) {
-                    initialEngine.translogManager().rollTranslogGeneration();
+                    getTranslog(initialEngine).rollGeneration();
                 } else if (rarely()) {
                     initialEngine.flush();
                 }
@@ -2795,8 +2795,8 @@ public class InternalEngineTests extends EngineTestCase {
                 equalTo(localCheckpoint)
             );
             initialEngine.ensureOpen();
-            initialEngine.translogManager().syncTranslog(); // to guarantee the global checkpoint is written to the translog
-                                                            // checkpoint
+            getTranslog(initialEngine).sync(); // to guarantee the global checkpoint is written to the translog
+                                               // checkpoint
             initialEngine.ensureOpen();
             assertThat(
                 assertAndGetInternalTranslogManager(initialEngine.translogManager()).getLastSyncedGlobalCheckpoint(),
@@ -3237,7 +3237,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                     engine.ensureOpen();
                     assertEquals(
-                        assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getTranslogUUID(),
+                        assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
                         userData.get(Translog.TRANSLOG_UUID_KEY)
                     );
                 }
@@ -3250,7 +3250,7 @@ public class InternalEngineTests extends EngineTestCase {
                         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                         engine.ensureOpen();
                         assertEquals(
-                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getTranslogUUID(),
+                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
                             userData.get(Translog.TRANSLOG_UUID_KEY)
                         );
                         TranslogHandler translogHandler = createTranslogHandler(config.getIndexSettings(), engine);
@@ -3277,7 +3277,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                     engine.ensureOpen();
                     assertEquals(
-                        assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getTranslogUUID(),
+                        assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
                         userData.get(Translog.TRANSLOG_UUID_KEY)
                     );
                     engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
@@ -3294,14 +3294,14 @@ public class InternalEngineTests extends EngineTestCase {
                         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                         engine.ensureOpen();
                         assertEquals(
-                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getTranslogUUID(),
+                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
                             userData.get(Translog.TRANSLOG_UUID_KEY)
                         );
                         engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                         userData = engine.getLastCommittedSegmentInfos().getUserData();
                         engine.ensureOpen();
                         assertEquals(
-                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getTranslogUUID(),
+                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
                             userData.get(Translog.TRANSLOG_UUID_KEY)
                         );
                     }
