@@ -851,8 +851,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(158, PeerRecoveryNotFound.class);
         ids.put(159, NodeHealthCheckFailureException.class);
         ids.put(160, NoSeedNodeLeftException.class);
-        ids.put(161, MasterTaskThrottlingException.class);
-        ids.put(162, ReplicationFailedException.class);
+        ids.put(161, ReplicationFailedException.class);
+        ids.put(162, MasterTaskThrottlingException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {

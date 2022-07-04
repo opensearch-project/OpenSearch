@@ -24,16 +24,9 @@ import java.util.concurrent.ConcurrentMap;
 public class Throttler<T> {
     protected ConcurrentMap<T, AdjustableSemaphore> semaphores = new ConcurrentHashMap<T, AdjustableSemaphore>();
 
-    private volatile boolean throttlingEnabled;
-
-    public Throttler(final boolean throttlingEnabled) {
-        this.throttlingEnabled = throttlingEnabled;
-    }
-
     /**
      * Method to acquire permits for a key type.
-     * If throttling is disabled, it will always return True,
-     * else it will return true if permits can be acquired within threshold limits.
+     * It will return true if permits can be acquired within threshold limits.
      *
      * If threshold is not set for key then also it will return True.
      *
@@ -44,7 +37,7 @@ public class Throttler<T> {
     public boolean acquire(final T type, final int permits) {
         assert permits > 0;
         AdjustableSemaphore semaphore = semaphores.get(type);
-        if (throttlingEnabled && Objects.nonNull(semaphore)) {
+        if (Objects.nonNull(semaphore)) {
             return semaphore.tryAcquire(permits);
         }
         return true;
@@ -59,7 +52,7 @@ public class Throttler<T> {
     public void release(final T type, final int permits) {
         assert permits > 0;
         AdjustableSemaphore semaphore = semaphores.get(type);
-        if (throttlingEnabled && Objects.nonNull(semaphore)) {
+        if (Objects.nonNull(semaphore)) {
             semaphore.release(permits);
             assert semaphore.availablePermits() <= semaphore.getMaxPermits();
         }
@@ -91,27 +84,10 @@ public class Throttler<T> {
         semaphores.remove(key);
     }
 
-    /**
-     * Set flag for enabling/disabling the throttling logic.
-     * Clear the state of previous semaphores with each update.
-     *
-     * @param throttlingEnabled flag repressing enabled/disabled throttling.
-     */
-    public synchronized void setThrottlingEnabled(final boolean throttlingEnabled) {
-        this.throttlingEnabled = throttlingEnabled;
-        for (T key : semaphores.keySet()) {
-            semaphores.put(key, new AdjustableSemaphore(semaphores.get(key).getMaxPermits(), true));
-        }
-    }
-
     public Integer getThrottlingLimit(final T key) {
         if (semaphores.containsKey(key)) {
             return semaphores.get(key).getMaxPermits();
         }
         return null;
-    }
-
-    public boolean isThrottlingEnabled() {
-        return throttlingEnabled;
     }
 }
