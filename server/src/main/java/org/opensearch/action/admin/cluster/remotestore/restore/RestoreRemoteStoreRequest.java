@@ -34,24 +34,21 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<RestoreRemoteStoreRequest> implements ToXContentObject {
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private boolean waitForCompletion;
+    private Boolean waitForCompletion;
 
     public RestoreRemoteStoreRequest() {}
 
     public RestoreRemoteStoreRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        waitForCompletion = in.readBoolean();
+        waitForCompletion = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeBoolean(waitForCompletion);
+        out.writeOptionalBoolean(waitForCompletion);
     }
 
     @Override
@@ -101,28 +98,6 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
     }
 
     /**
-     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
-     * For example indices that don't exist.
-     *
-     * @return the desired behaviour regarding indices to ignore and wildcard indices expression
-     */
-    public IndicesOptions indicesOptions() {
-        return indicesOptions;
-    }
-
-    /**
-     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
-     * For example indices that don't exist.
-     *
-     * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
-     * @return this request
-     */
-    public RestoreRemoteStoreRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
-        return this;
-    }
-
-    /**
      * If this parameter is set to true the operation will wait for completion of restore process before returning.
      *
      * @param waitForCompletion if true the operation will wait for completion
@@ -166,7 +141,6 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
                 }
             }
         }
-        indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
         return this;
     }
 
@@ -192,14 +166,12 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreRemoteStoreRequest that = (RestoreRemoteStoreRequest) o;
-        return waitForCompletion == that.waitForCompletion
-            && Arrays.equals(indices, that.indices)
-            && Objects.equals(indicesOptions, that.indicesOptions);
+        return waitForCompletion == that.waitForCompletion && Arrays.equals(indices, that.indices);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, waitForCompletion);
+        int result = Objects.hash(waitForCompletion);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

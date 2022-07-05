@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
-import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContent;
@@ -22,9 +21,6 @@ import org.opensearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.Map;
 import java.util.Collections;
 
@@ -39,21 +35,6 @@ public class RestoreRemoteStoreRequestTests extends AbstractWireSerializingTestC
             }
 
             instance.indices(indices);
-        }
-        if (randomBoolean()) {
-            Collection<IndicesOptions.WildcardStates> wildcardStates = randomSubsetOf(
-                Arrays.asList(IndicesOptions.WildcardStates.values())
-            );
-            Collection<IndicesOptions.Option> options = randomSubsetOf(
-                Arrays.asList(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE)
-            );
-
-            instance.indicesOptions(
-                new IndicesOptions(
-                    options.isEmpty() ? IndicesOptions.Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? IndicesOptions.WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
-                )
-            );
         }
 
         instance.waitForCompletion(randomBoolean());
@@ -95,7 +76,6 @@ public class RestoreRemoteStoreRequestTests extends AbstractWireSerializingTestC
         RestoreRemoteStoreRequest processed = new RestoreRemoteStoreRequest();
         processed.masterNodeTimeout(original.masterNodeTimeout());
         processed.waitForCompletion(original.waitForCompletion());
-        processed.indicesOptions(original.indicesOptions());
         processed.source(map);
 
         assertEquals(original, processed);
