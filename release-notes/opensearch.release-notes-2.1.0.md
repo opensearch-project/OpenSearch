@@ -11,9 +11,7 @@
 
 #### Upgrades
 
-* [Upgrade] Lucene-9.3.0-snapshot-b7231bb (#3537) ([#3555](https://github.com/opensearch-project/opensearch/pull/3555))
-* [Upgrade] Lucene-9.2.0-snapshot-ba8c3a8 (#3416) ([#3422](https://github.com/opensearch-project/opensearch/pull/3422))
-* [Upgrade] Lucene-9.2-snapshot (#2924) ([#3419](https://github.com/opensearch-project/opensearch/pull/3419))
+* Lock 2.1 release to Lucene 9.2.0. ([#3676](https://github.com/opensearch-project/opensearch/pull/3676))
 
 
 #### Deprecations
@@ -27,10 +25,6 @@
 
 ### Features/Enhancements
 
-* Restore renaming method onMaster() and offMaster() in interface LocalNodeMasterListener ([#3687](https://github.com/opensearch-project/opensearch/pull/3687))
-* Revert renaming masterOperation() to clusterManagerOperation() ([#3682](https://github.com/opensearch-project/opensearch/pull/3682))
-* Restore AcknowledgedResponse and AcknowledgedRequest to package org.opensearch.action.support.master (#3669) ([#3670](https://github.com/opensearch-project/opensearch/pull/3670))
-* Remove class org.opensearch.action.support.master.AcknowledgedResponse (#3662) ([#3668](https://github.com/opensearch-project/opensearch/pull/3668))
 * Rename package 'o.o.action.support.master' to 'o.o.action.support.clustermanager' (#3556) ([#3597](https://github.com/opensearch-project/opensearch/pull/3597))
 * Support dynamic node role (#3436) ([#3585](https://github.com/opensearch-project/opensearch/pull/3585))
 * Support use of IRSA for repository-s3 plugin credentials (#3475) ([#3486](https://github.com/opensearch-project/opensearch/pull/3486))
@@ -67,7 +61,6 @@
 
 ### Maintenance
 
-* Lock 2.1 release to Lucene 9.2.0. ([#3676](https://github.com/opensearch-project/opensearch/pull/3676))
 * Added bwc version 2.0.2 ([#3612](https://github.com/opensearch-project/opensearch/pull/3612))
 * Added bwc version 1.3.4 (#3551) ([#3583](https://github.com/opensearch-project/opensearch/pull/3583))
 * Bump guava from 18.0 to 23.0 in /plugins/ingest-attachment (#3357) ([#3534](https://github.com/opensearch-project/opensearch/pull/3534))
