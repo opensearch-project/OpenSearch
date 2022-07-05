@@ -61,7 +61,7 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoders',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
     
@@ -145,6 +145,7 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
     'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.ResultCallback',
     'io.netty.internal.tcnative.SSL',
@@ -157,6 +158,10 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
 
+    // from  io.netty.channel.unix (netty)
+    'io.netty.channel.unix.FileDescriptor',
+    'io.netty.channel.unix.UnixChannel',
+
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration'
   )
@@ -167,7 +172,8 @@ thirdPartyAudit {
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
     'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
