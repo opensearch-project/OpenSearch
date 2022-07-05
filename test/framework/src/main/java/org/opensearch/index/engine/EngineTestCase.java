@@ -111,7 +111,11 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.*;
+import org.opensearch.index.translog.InternalTranslogManager;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
@@ -148,6 +152,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
@@ -343,9 +348,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected InternalTranslogManager assertAndGetInternalTranslogManager(final TranslogManager translogManager) {
-        assert translogManager instanceof InternalTranslogManager : "expected InternalTranslogManager, got: " + translogManager.getClass();
-        InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
-        return internalTranslogManager;
+        assertThat(translogManager, instanceOf(InternalTranslogManager.class));
+        return (InternalTranslogManager) translogManager;
     }
 
     protected void assertEngineCleanedUp(Engine engine, TranslogDeletionPolicy translogDeletionPolicy) throws Exception {
