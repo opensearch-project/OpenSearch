@@ -1,7 +1,7 @@
-## 2022-07-05 Version 2.0.0-rc1 Release Notes
+## 2022-07-05 Version 2.1.0 Release Notes
 
 
-### Breaking Changes in 2.0
+### Breaking Changes in 2.1.0
 
 #### Remove Mapping types
 
