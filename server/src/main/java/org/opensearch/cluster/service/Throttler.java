@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * Base class for Throttling logic.
  * It provides throttling functionality over multiple keys.
- * It provides the functionality of enable/disable throttling using enableThrottling variable.
  *
  * @param <T> the type of key on which we want to do throttling.
  */
