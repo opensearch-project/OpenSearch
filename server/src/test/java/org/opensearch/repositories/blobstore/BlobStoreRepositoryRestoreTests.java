@@ -140,7 +140,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 new EngineConfigFactory(shard.indexSettings()),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER
+                EMPTY_EVENT_LISTENER,
+                null
             );
 
             // restore the shard
