@@ -315,6 +315,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
     }
 
     // visible for testing
+    // TODO refactor tests to remove public access to translog
     public Translog getTranslog() {
         return translog;
     }
