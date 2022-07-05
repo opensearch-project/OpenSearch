@@ -95,10 +95,20 @@ public interface TranslogManager {
     void skipTranslogRecovery();
 
     /**
-     * Returns the instance of the translog with a precondition
-     * @return the translog instance
+     * Reads operations for the translog
+     * @param location the location in the translog
+     * @return the translog operation
+     * @throws IOException
      */
-    Translog getTranslog();
+    Translog.Operation readOperation(Translog.Location location) throws IOException;
+
+    /**
+     * Adds an operation to the translog
+     * @param operation
+     * @return the location in the translog
+     * @throws IOException
+     */
+    Translog.Location add(Translog.Operation operation) throws IOException;
 
     /**
      * Checks if the translog has a pending recovery

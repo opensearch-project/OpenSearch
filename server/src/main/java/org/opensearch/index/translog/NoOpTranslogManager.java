@@ -47,7 +47,7 @@ public class NoOpTranslogManager implements TranslogManager {
     @Override
     public int recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
         throws IOException {
-        try (ReleasableLock lock = readLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
             try (Translog.Snapshot snapshot = emptyTranslogSnapshot) {
                 translogRecoveryRunner.run(snapshot);
@@ -64,7 +64,7 @@ public class NoOpTranslogManager implements TranslogManager {
     }
 
     @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
         return false;
     }
 
@@ -93,11 +93,6 @@ public class NoOpTranslogManager implements TranslogManager {
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws TranslogException {}
 
     @Override
-    public Translog getTranslog() {
-        return null;
-    }
-
-    @Override
     public void ensureCanFlush() {}
 
     @Override
@@ -107,4 +102,14 @@ public class NoOpTranslogManager implements TranslogManager {
 
     @Override
     public void skipTranslogRecovery() {}
+
+    @Override
+    public Translog.Operation readOperation(Translog.Location location) throws IOException {
+        return null;
+    }
+
+    @Override
+    public Translog.Location add(Translog.Operation operation) throws IOException {
+        return new Translog.Location(0, 0, 0);
+    }
 }
