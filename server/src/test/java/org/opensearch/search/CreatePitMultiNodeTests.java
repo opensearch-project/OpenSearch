@@ -31,7 +31,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  * Multi node integration tests for PIT creation and search operation with PIT ID.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class PitMultiNodeTests extends OpenSearchIntegTestCase {
+public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
 
     @Before
     public void setupIndex() throws ExecutionException, InterruptedException {

@@ -28,9 +28,12 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.Transport;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -53,6 +56,7 @@ public class CreatePitController {
     private final Task task;
     private final ActionListener<CreatePitResponse> listener;
     private final CreatePitRequest request;
+    private final PitService pitService;
     private static final Logger logger = LogManager.getLogger(CreatePitController.class);
     public static final Setting<TimeValue> PIT_INIT_KEEP_ALIVE = Setting.positiveTimeSetting(
         "pit.init.keep_alive",
@@ -67,7 +71,8 @@ public class CreatePitController {
         TransportSearchAction transportSearchAction,
         NamedWriteableRegistry namedWriteableRegistry,
         Task task,
-        ActionListener<CreatePitResponse> listener
+        ActionListener<CreatePitResponse> listener,
+        PitService pitService
     ) {
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
@@ -76,6 +81,7 @@ public class CreatePitController {
         this.task = task;
         this.listener = listener;
         this.request = request;
+        this.pitService = pitService;
     }
 
     /**
@@ -246,7 +252,7 @@ public class CreatePitController {
 
             @Override
             public void onFailure(final Exception e) {
-                cleanupContexts(contexts);
+                cleanupContexts(contexts, createPITResponse.getId());
                 updatePitIdListener.onFailure(e);
             }
         }, size);
@@ -255,12 +261,24 @@ public class CreatePitController {
     /**
      * Cleanup all created PIT contexts in case of failure
      */
-    private void cleanupContexts(Collection<SearchContextIdForNode> contexts) {
-        ActionListener<Integer> deleteListener = new ActionListener<>() {
+    private void cleanupContexts(Collection<SearchContextIdForNode> contexts, String pitId) {
+        ActionListener<DeletePitResponse> deleteListener = new ActionListener<>() {
             @Override
-            public void onResponse(Integer freed) {
-                // log the number of freed contexts - this is invoke and forget call
-                logger.debug(() -> new ParameterizedMessage("Cleaned up {} contexts out of {}", freed, contexts.size()));
+            public void onResponse(DeletePitResponse response) {
+                // this is invoke and forget call
+                final StringBuilder failedPitsStringBuilder = new StringBuilder();
+                response.getDeletePitResults()
+                    .stream()
+                    .filter(r -> !r.isSuccessful())
+                    .forEach(r -> failedPitsStringBuilder.append(r.getPitId()).append(","));
+                logger.warn(() -> new ParameterizedMessage("Failed to delete PIT IDs {}", failedPitsStringBuilder.toString()));
+                if (!logger.isDebugEnabled()) return;
+                final StringBuilder successfulPitsStringBuilder = new StringBuilder();
+                response.getDeletePitResults()
+                    .stream()
+                    .filter(r -> r.isSuccessful())
+                    .forEach(r -> successfulPitsStringBuilder.append(r.getPitId()).append(","));
+                logger.debug(() -> new ParameterizedMessage("Deleted PIT with IDs {}", successfulPitsStringBuilder.toString()));
             }
 
             @Override
@@ -268,6 +286,12 @@ public class CreatePitController {
                 logger.error("Cleaning up PIT contexts failed ", e);
             }
         };
-        ClearScrollController.closeContexts(clusterService.state().getNodes(), searchTransportService, contexts, deleteListener);
+        Map<String, List<PitSearchContextIdForNode>> nodeToContextsMap = new HashMap<>();
+        for (SearchContextIdForNode context : contexts) {
+            List<PitSearchContextIdForNode> contextIdsForNode = nodeToContextsMap.getOrDefault(context.getNode(), new ArrayList<>());
+            contextIdsForNode.add(new PitSearchContextIdForNode(pitId, context));
+            nodeToContextsMap.put(context.getNode(), contextIdsForNode);
+        }
+        pitService.deletePitContexts(nodeToContextsMap, deleteListener);
     }
 }
