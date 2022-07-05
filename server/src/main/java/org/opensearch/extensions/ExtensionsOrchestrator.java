@@ -190,8 +190,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
             if (!extensionsList.isEmpty()) {
                 logger.info("Loaded all extensions");
-            } else {
-                logger.info("No extensions were loaded");
             }
         } else {
             logger.info("Extensions.yml file is not present.  No extensions will be loaded.");

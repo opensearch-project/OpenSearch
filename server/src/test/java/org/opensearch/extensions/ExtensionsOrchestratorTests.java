@@ -11,6 +11,7 @@ package org.opensearch.extensions;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -150,6 +151,39 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             () -> new ExtensionsOrchestrator(settings, PathUtils.get(""))
         );
         assertEquals("access denied (\"java.io.FilePermission\" \"\" \"read\")", e.getMessage());
+    }
+
+    public void testNoExtensionsFile() throws Exception {
+        Path extensionDir = createTempDir();
+
+        Settings settings = Settings.builder().build();
+
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsOrchestrator.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "No Extensions File Present",
+                    "org.opensearch.extensions.ExtensionsOrchestrator",
+                    Level.INFO,
+                    "Extensions.yml file is not present.  No extensions will be loaded."
+                )
+            );
+
+            new ExtensionsOrchestrator(settings, extensionDir);
+
+            mockLogAppender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testEmptyExtensionsFile() throws Exception {
+        Path extensionDir = createTempDir();
+
+        List<String> extensionsYmlLines = Arrays.asList();
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
+        Settings settings = Settings.builder().build();
+
+        expectThrows(IOException.class, () -> new ExtensionsOrchestrator(settings, extensionDir));
     }
 
     public void testExtensionsInitialize() throws Exception {
