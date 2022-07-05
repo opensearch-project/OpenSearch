@@ -54,6 +54,7 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchScrollRequest;
@@ -1324,6 +1325,27 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(createPitRequest, request.getEntity());
         assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+    }
+
+    public void testDeletePit() throws IOException {
+        List<String> pitIds = new ArrayList<>();
+        pitIds.add("pitid1");
+        pitIds.add("pitid2");
+        DeletePitRequest deletePitRequest = new DeletePitRequest(pitIds);
+        Request request = RequestConverters.deletePit(deletePitRequest);
+        String endpoint = "/_search/point_in_time";
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint, request.getEndpoint());
+        assertToXContentBody(deletePitRequest, request.getEntity());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+    }
+
+    public void testDeleteAllPits() {
+        DeletePitRequest deletePitRequest = new DeletePitRequest();
+        Request request = RequestConverters.deleteAllPits(deletePitRequest);
+        String endpoint = "/_search/point_in_time/_all";
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint, request.getEndpoint());
     }
 
     public void testSearchTemplate() throws Exception {
