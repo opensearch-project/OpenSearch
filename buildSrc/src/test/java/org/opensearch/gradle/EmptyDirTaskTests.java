@@ -33,6 +33,9 @@ package org.opensearch.gradle;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.tools.ant.taskdefs.condition.Os;
@@ -65,6 +68,7 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
 
     public void testCreateEmptyDirNoPermissions() throws Exception {
         RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        RandomizedTest.assumeFalse("Functionality doesn't work in Docker", isRunningInDocker());
 
         Project project = ProjectBuilder.builder().build();
         EmptyDirTask emptyDirTask = project.getTasks().create("emptyDirTask", EmptyDirTask.class);
@@ -92,4 +96,16 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         return newEmptyFolder;
     }
 
+    private static boolean isRunningInDocker() {
+        // Only reliable existing method but may be removed in future
+        if (new File("/.dockerenv").exists()) {
+            return true;
+        }
+        // Backup 1: look for 'docker' in one of the paths in /proc/1/cgroup
+        if (Files.lines(Path.of("/proc/1/cgroup")).anyMatch(line -> line.contains("docker"))) {
+            return true;
+        }
+        // Backup 2: look for 'docker' in overlay fs
+        return Files.lines(Path.of("/proc/1/mounts")).anyMatch(line -> line.startsWith("overlay") && line.contains("docker"));
+    }
 }
