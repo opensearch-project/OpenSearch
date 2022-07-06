@@ -51,7 +51,12 @@ public class ThrottlerTests extends OpenSearchTestCase {
 
         // acquire should pass now as there is 1 available permit.
         boolean sixthCall = throttler.acquire("testKey", 1);
+        // total acquired permits = 6, available permits = 0
         assertTrue(sixthCall);
+
+        // acquire should fail now as again there is not any available permit
+        boolean seventhCall = throttler.acquire("testKey", 1);
+        assertFalse(seventhCall);
     }
 
     // Test for Throttler for keys where we haven't configured limits.

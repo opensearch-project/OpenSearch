@@ -10,7 +10,6 @@ package org.opensearch.cluster.service;
 
 import org.opensearch.common.AdjustableSemaphore;
 
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -36,7 +35,7 @@ public class Throttler<T> {
     public boolean acquire(final T type, final int permits) {
         assert permits > 0;
         AdjustableSemaphore semaphore = semaphores.get(type);
-        if (Objects.nonNull(semaphore)) {
+        if (semaphore != null) {
             return semaphore.tryAcquire(permits);
         }
         return true;
@@ -51,7 +50,7 @@ public class Throttler<T> {
     public void release(final T type, final int permits) {
         assert permits > 0;
         AdjustableSemaphore semaphore = semaphores.get(type);
-        if (Objects.nonNull(semaphore)) {
+        if (semaphore != null) {
             semaphore.release(permits);
             assert semaphore.availablePermits() <= semaphore.getMaxPermits();
         }
@@ -63,13 +62,13 @@ public class Throttler<T> {
      * @param key Key for which we want to update limit.
      * @param newLimit Updated limit.
      */
-    public synchronized void updateThrottlingLimit(final T key, final Integer newLimit) {
+    public void updateThrottlingLimit(final T key, final Integer newLimit) {
         assert newLimit >= 0;
-        if (semaphores.containsKey(key)) {
-            semaphores.get(key).setMaxPermits(newLimit);
-        } else {
-            semaphores.put(key, new AdjustableSemaphore(newLimit, true));
+        AdjustableSemaphore semaphore = semaphores.get(key);
+        if (semaphore == null) {
+            semaphore = semaphores.computeIfAbsent(key, k -> new AdjustableSemaphore(newLimit, true));
         }
+        semaphore.setMaxPermits(newLimit);
     }
 
     /**
@@ -78,14 +77,15 @@ public class Throttler<T> {
      *
      * @param key Key for which we want to remove throttling.
      */
-    public synchronized void removeThrottlingLimit(final T key) {
+    public void removeThrottlingLimit(final T key) {
         assert semaphores.containsKey(key);
         semaphores.remove(key);
     }
 
     public Integer getThrottlingLimit(final T key) {
-        if (semaphores.containsKey(key)) {
-            return semaphores.get(key).getMaxPermits();
+        AdjustableSemaphore semaphore = semaphores.get(key);
+        if (semaphore != null) {
+            return semaphore.getMaxPermits();
         }
         return null;
     }
