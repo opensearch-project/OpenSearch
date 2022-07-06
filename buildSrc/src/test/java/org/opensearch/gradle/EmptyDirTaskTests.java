@@ -34,6 +34,7 @@ package org.opensearch.gradle;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -101,11 +102,16 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         if (new File("/.dockerenv").exists()) {
             return true;
         }
-        // Backup 1: look for 'docker' in one of the paths in /proc/1/cgroup
-        if (Files.lines(Path.of("/proc/1/cgroup")).anyMatch(line -> line.contains("docker"))) {
-            return true;
+        try {
+            // Backup 1: look for 'docker' in one of the paths in /proc/1/cgroup
+            if (Files.lines(Path.of("/proc/1/cgroup")).anyMatch(line -> line.contains("docker"))) {
+                return true;
+            }
+            // Backup 2: look for 'docker' in overlay fs
+            return Files.lines(Path.of("/proc/1/mounts"))
+                    .anyMatch(line -> line.startsWith("overlay") && line.contains("docker"));
+        } catch (InvalidPathException | IOException e) {
+            return false;
         }
-        // Backup 2: look for 'docker' in overlay fs
-        return Files.lines(Path.of("/proc/1/mounts")).anyMatch(line -> line.startsWith("overlay") && line.contains("docker"));
     }
 }
