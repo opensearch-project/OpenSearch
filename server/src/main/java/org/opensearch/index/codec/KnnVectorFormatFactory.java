@@ -54,7 +54,7 @@ public class KnnVectorFormatFactory {
     }
 
     private boolean isDenseVectorFieldType(final MappedFieldType mappedFieldType) {
-        if (mappedFieldType != null && mappedFieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {
+        if (mappedFieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {
             return true;
         }
         return false;
