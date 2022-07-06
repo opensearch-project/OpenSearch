@@ -10,7 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          ref: "refs/pull/${{ github.event.number }}/merge"
+          #ref: "refs/pull/${{ github.event.number }}/merge"
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: retrieve xml
         run: curl -SLO https://build.ci.opensearch.org/job/gradle-check/lastSuccessfulBuild/artifact/codeCoverage.xml
 
