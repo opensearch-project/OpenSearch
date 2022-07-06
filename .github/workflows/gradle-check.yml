@@ -2,7 +2,7 @@ name: Gradle Check (Jenkins)
 on:
   push:
   pull_request_target:
-    types: [opened, reopened]
+    types: [opened, synchronize, reopened]
 
 jobs:
   gradle-check:
