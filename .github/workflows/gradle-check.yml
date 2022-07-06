@@ -9,6 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
+      - name: Checkout OpenSearch repo
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Setup environment variables (PR)
         if: github.event_name == 'pull_request_target'
         run: |
@@ -28,11 +33,6 @@ jobs:
             echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
             echo "pr_title=Triggerd on push for ref $ref_id on $repo_url" >> $GITHUB_ENV
             echo "pr_number=Null" >> $GITHUB_ENV
-
-      - name: Checkout OpenSearch repo
-        uses: actions/checkout@v2
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Checkout opensearch-build repo
         uses: actions/checkout@v2
