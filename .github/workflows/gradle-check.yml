@@ -8,9 +8,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
         with:
-          fetch-depth: '0'
+          ref: "refs/pull/${{ github.event.number }}/merge"
       - name: retrieve xml
         run: curl -SLO https://build.ci.opensearch.org/job/gradle-check/lastSuccessfulBuild/artifact/codeCoverage.xml
 
