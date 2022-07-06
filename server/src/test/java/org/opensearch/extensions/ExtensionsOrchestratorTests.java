@@ -10,7 +10,7 @@ package org.opensearch.extensions;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.mockito.Mockito.mock;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -31,7 +31,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -66,6 +65,7 @@ import org.opensearch.transport.nio.MockNioTransport;
 public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     private TransportService transportService;
+    private ClusterService clusterService;
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
     private final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -100,6 +100,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             null,
             Collections.emptySet()
         );
+        clusterService = createClusterService(threadPool);
     }
 
     @After
@@ -302,58 +303,24 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         Path extensionDir = createTempDir();
 
-        final ClusterService clusterService = mock(ClusterService.class);
-        ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        transportService.registerRequestHandler(
-            ExtensionsOrchestrator.REQUEST_EXTENSION_CLUSTER_STATE,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            ExtensionRequest::new,
-            (request, channel, task) -> {
-                channel.sendResponse(new ClusterStateResponse(clusterName, null, false));
-                assertNotNull(extensionsOrchestrator.handleExtensionRequest(request));
-            }
+        extensionsOrchestrator.setTransportService(transportService);
+        extensionsOrchestrator.setClusterService(clusterService);
+        ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
+        assertEquals(extensionsOrchestrator.handleExtensionRequest(clusterStateRequest).getClass(), ClusterStateResponse.class);
+
+        ExtensionRequest clusterSettingRequest = new ExtensionRequest(
+            ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS
         );
+        assertEquals(extensionsOrchestrator.handleExtensionRequest(clusterSettingRequest).getClass(), ClusterSettingsResponse.class);
 
-        transportService.registerRequestHandler(
-            ExtensionsOrchestrator.REQUEST_EXTENSION_CLUSTER_SETTINGS,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            ExtensionRequest::new,
-            (request, channel, task) -> {
-                channel.sendResponse(new ClusterSettingsResponse(clusterService));
-                assertNotNull(extensionsOrchestrator.handleExtensionRequest(request));
-            }
-        );
+        ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
+        assertEquals(extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass(), LocalNodeResponse.class);
 
-        transportService.registerRequestHandler(
-            ExtensionsOrchestrator.REQUEST_EXTENSION_LOCAL_NODE,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            ExtensionRequest::new,
-            (request, channel, task) -> {
-                channel.sendResponse(new LocalNodeResponse(clusterService));
-                assertNotNull(extensionsOrchestrator.handleExtensionRequest(request));
-            }
-        );
+        ExtensionRequest nullRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
+        assertEquals(extensionsOrchestrator.handleExtensionRequest(nullRequest), null);
 
-    }
-
-    public void testHandlerResponse() throws Exception {
-        ClusterName clusterName = new ClusterName("cluster-1");
-        ClusterStateResponse clusterStateResponse = new ClusterStateResponse(clusterName, null, false);
-        assertEquals(clusterStateResponse.getClusterName(), clusterName);
-    }
-
-    public void testExtensionRequest() throws Exception {
-        ExtensionRequest extensionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
-        assertEquals(extensionRequest.getRequestType(), ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
     }
 
     public void testOnIndexModule() throws Exception {
