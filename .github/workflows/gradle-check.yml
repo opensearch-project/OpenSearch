@@ -9,7 +9,8 @@ jobs:
     timeout-minutes: 130
     steps:
       - uses: actions/checkout@v3
-        fetch-depth: '0'
+        with:
+          fetch-depth: '0'
       - name: retrieve xml
         run: curl -SLO https://build.ci.opensearch.org/job/gradle-check/lastSuccessfulBuild/artifact/codeCoverage.xml
 
