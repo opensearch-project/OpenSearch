@@ -258,7 +258,7 @@ public class ReadOnlyEngine extends Engine {
         final long localCheckpoint = Long.parseLong(infos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         try (
-            Translog translog = new Translog(
+            Translog translog = config.getTranslogFactory().newTranslog(
                 translogConfig,
                 translogUuid,
                 translogDeletionPolicy,

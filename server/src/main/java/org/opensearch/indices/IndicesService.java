@@ -176,10 +176,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.LongSupplier;
-import java.util.function.Predicate;
+import java.util.function.*;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -267,6 +264,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final RemoteDirectoryFactory remoteDirectoryFactory;
+    private final Supplier<RepositoriesService> repositoriesServiceSupplier;
 
     @Override
     protected void doStart() {
@@ -295,7 +293,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        RemoteDirectoryFactory remoteDirectoryFactory
+        RemoteDirectoryFactory remoteDirectoryFactory,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -390,6 +389,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
+        this.repositoriesServiceSupplier = repositoriesServiceSupplier;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -750,7 +750,8 @@ public class IndicesService extends AbstractLifecycleComponent
             namedWriteableRegistry,
             this::isIdFieldDataEnabled,
             valuesSourceRegistry,
-            remoteDirectoryFactory
+            remoteDirectoryFactory,
+            repositoriesServiceSupplier
         );
     }
 

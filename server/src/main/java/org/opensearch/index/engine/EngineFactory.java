@@ -31,6 +31,8 @@
 
 package org.opensearch.index.engine;
 
+import org.opensearch.index.translog.TranslogFactory;
+
 /**
  * Simple Engine Factory
  *

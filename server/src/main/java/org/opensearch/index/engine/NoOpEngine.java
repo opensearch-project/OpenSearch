@@ -44,13 +44,7 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogManager;
-import org.opensearch.index.translog.TranslogConfig;
-import org.opensearch.index.translog.TranslogException;
-import org.opensearch.index.translog.NoOpTranslogManager;
-import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
-import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.*;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -195,7 +189,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
                             final TranslogDeletionPolicy translogDeletionPolicy = new DefaultTranslogDeletionPolicy(-1, -1, 0);
                             translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
                             try (
-                                Translog translog = new Translog(
+                                Translog translog = engineConfig.getTranslogFactory().newTranslog(
                                     translogConfig,
                                     translogUuid,
                                     translogDeletionPolicy,

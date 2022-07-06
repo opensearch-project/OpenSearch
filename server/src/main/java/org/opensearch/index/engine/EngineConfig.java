@@ -31,6 +31,7 @@
 
 package org.opensearch.index.engine;
 
+import com.sun.jna.StringArray;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.MergePolicy;
@@ -51,8 +52,10 @@ import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
@@ -147,6 +150,8 @@ public final class EngineConfig {
         Property.IndexScope,
         Property.Dynamic
     );
+
+    private final TranslogFactory translogFactory;
 
     private final TranslogConfig translogConfig;
 
@@ -253,7 +258,8 @@ public final class EngineConfig {
             retentionLeasesSupplier,
             primaryTermSupplier,
             tombstoneDocSupplier,
-            false
+            false,
+            new InternalTranslogFactory()
         );
     }
 
@@ -284,7 +290,8 @@ public final class EngineConfig {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         TombstoneDocSupplier tombstoneDocSupplier,
-        boolean isReadOnlyReplica
+        boolean isReadOnlyReplica,
+        TranslogFactory translogFactory
     ) {
         if (isReadOnlyReplica && indexSettings.isSegRepEnabled() == false) {
             throw new IllegalArgumentException("Shard can only be wired as a read only replica with Segment Replication enabled");
@@ -328,6 +335,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = primaryTermSupplier;
         this.tombstoneDocSupplier = tombstoneDocSupplier;
         this.isReadOnlyReplica = isReadOnlyReplica;
+        this.translogFactory = translogFactory;
     }
 
     /**
@@ -530,6 +538,14 @@ public final class EngineConfig {
      */
     public boolean isReadOnlyReplica() {
         return indexSettings.isSegRepEnabled() && isReadOnlyReplica;
+    }
+
+    /**
+     * Returns the underlying translog factory
+     * @return the translog factory
+     */
+    public TranslogFactory getTranslogFactory() {
+        return translogFactory;
     }
 
     /**
