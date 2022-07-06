@@ -17,7 +17,7 @@ jobs:
             echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
             echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
 
-      - Checkout OpenSearch repo
+      - name: Checkout OpenSearch repo
         uses: actions/checkout@v2
         with:
           ref: ${{ github.event.pull_request.head.sha }}
