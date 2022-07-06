@@ -29,44 +29,44 @@ jobs:
           ref: main
           path: opensearch-build
 
-#      - name: Trigger jenkins workflow to run gradle check
-#        run: |
-#            set -e
-#            set -o pipefail
-#            bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
-#
-#      - name: Setup Result Status
-#        if: always()
-#        run: |
-#            WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
-#            RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
-#            echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
-#            echo "result=$RESULT" >> $GITHUB_ENV
-#
-#      - name: Upload Coverage Report
-#        if: success()
-#        uses: codecov/codecov-action@v2
-#        with:
-#          files: ./codeCoverage.xml
-#
-#      - name: Create Comment Success
-#        if: success()
-#        uses: peter-evans/create-or-update-comment@v2
-#        with:
-#          issue-number: ${{ env.pr_number }}
-#          body: |
-#              ### Gradle Check (Jenkins) Run Completed with:
-#              * **RESULT:** ${{ env.result }} :white_check_mark:
-#              * **URL:** ${{ env.workflow_url }}
-#              * **CommitID:** ${{ env.pr_from_sha }}
-#
-#      - name: Create Comment Failure
-#        if: failure()
-#        uses: peter-evans/create-or-update-comment@v2
-#        with:
-#          issue-number: ${{ env.pr_number }}
-#          body: |
-#              ### Gradle Check (Jenkins) Run Completed with:
-#              * **RESULT:** ${{ env.result }} :x:
-#              * **URL:** ${{ env.workflow_url }}
-#              * **CommitID:** ${{ env.pr_from_sha }}
+      - name: Trigger jenkins workflow to run gradle check
+        run: |
+            set -e
+            set -o pipefail
+            bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
+
+      - name: Setup Result Status
+        if: always()
+        run: |
+            WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
+            RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+            echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
+            echo "result=$RESULT" >> $GITHUB_ENV
+
+      - name: Upload Coverage Report
+        if: success()
+        uses: codecov/codecov-action@v2
+        with:
+          files: ./codeCoverage.xml
+
+      - name: Create Comment Success
+        if: ${{ github.event_name == 'pull_request_target' && success() }}
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+              ### Gradle Check (Jenkins) Run Completed with:
+              * **RESULT:** ${{ env.result }} :white_check_mark:
+              * **URL:** ${{ env.workflow_url }}
+              * **CommitID:** ${{ env.pr_from_sha }}
+
+      - name: Create Comment Failure
+        if: ${{ github.event_name == 'pull_request_target' && failure() }}
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+              ### Gradle Check (Jenkins) Run Completed with:
+              * **RESULT:** ${{ env.result }} :x:
+              * **URL:** ${{ env.workflow_url }}
+              * **CommitID:** ${{ env.pr_from_sha }}
