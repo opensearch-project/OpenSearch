@@ -19,7 +19,7 @@ jobs:
             echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
 
       - name: Setup environment variables (Push)
-        github.event_name == 'push'
+        if: github.event_name == 'push'
         run: |
             repo_url="https://github.com/opensearch-project/OpenSearch"
             ref_id=$(git rev-parse HEAD)
