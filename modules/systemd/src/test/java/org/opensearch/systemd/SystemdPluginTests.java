@@ -32,7 +32,6 @@
 
 package org.opensearch.systemd;
 
-import org.opensearch.Build;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
@@ -66,6 +65,7 @@ public class SystemdPluginTests extends OpenSearchTestCase {
         when(threadPool.scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueSeconds(15)), eq(ThreadPool.Names.SAME)))
             .thenReturn(extender);
     }
+
     public void testIsImplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(null);
         plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
