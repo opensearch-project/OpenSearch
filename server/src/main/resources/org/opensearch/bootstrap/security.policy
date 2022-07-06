@@ -185,4 +185,3 @@ grant {
   // needed by zstd-jni and lz4-java
   permission java.lang.RuntimePermission "loadLibrary.*";
 };
-

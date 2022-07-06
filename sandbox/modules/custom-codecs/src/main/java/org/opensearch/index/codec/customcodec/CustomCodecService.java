@@ -31,15 +31,15 @@ public class CustomCodecService extends CodecService {
         } else {
             codecs.put(
                 Lucene92CustomCodec.Mode.ZSTD.name(),
-                new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.ZSTD, mapperService, logger)
+                new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.ZSTD, mapperService)
             );
             codecs.put(
                 Lucene92CustomCodec.Mode.ZSTDNODICT.name(),
-                new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.ZSTDNODICT, mapperService, logger)
+                new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.ZSTDNODICT, mapperService)
             );
             codecs.put(
                 Lucene92CustomCodec.Mode.LZ4.name(),
-                new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.LZ4, mapperService, logger)
+                new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.LZ4, mapperService)
             );
         }
         this.codecs = codecs.immutableMap();
