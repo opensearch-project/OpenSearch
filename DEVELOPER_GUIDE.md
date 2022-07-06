@@ -4,7 +4,8 @@
     - [Install Prerequisites](#install-prerequisites)
       - [JDK 11](#jdk-11)
       - [JDK 14](#jdk-14)
-      - [Runtime JDK](#runtime-jdk)
+      - [JDK 17](#jdk-17)
+      - [Custom Runtime JDK](#custom-runtime-jdk)
       - [Windows](#windows)
       - [Docker](#docker)
     - [Build](#build)
@@ -12,6 +13,7 @@
     - [Run OpenSearch](#run-opensearch)
   - [Use an Editor](#use-an-editor)
     - [IntelliJ IDEA](#intellij-idea)
+      - [Remote development using JetBrains Gateway](#remote-development-using-jetbrains-gateway)
     - [Visual Studio Code](#visual-studio-code)
     - [Eclipse](#eclipse)
   - [Project Layout](#project-layout)
@@ -49,7 +51,8 @@
   - [Submitting Changes](#submitting-changes)
   - [Backports](#backports)
   - [LineLint](#linelint)
-  - [Lucene Snapshots](#lucene-snapshots)
+- [Lucene Snapshots](#lucene-snapshots)
+- [Creating uber-JAR/fat-JAR of a module](#creating-uber-jarfat-jar-of-a-module)
 
 # Developer Guide
 
@@ -494,3 +497,16 @@ Pass a list of files or directories to limit your search.
 The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a Github worfklow executable by maintainers to build a top-down snapshot build of lucene.
 These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version.
 Example: `lucene = 10.0.0-snapshot-2e941fc`.
+
+# Creating uber-JAR/fat-JAR of a module
+An uber-JAR is the JAR, which contains classes from all the libraries, on which your project depends and, of course, the classes of current project.
+
+There might be cases where the developer would like to add some custom logic to the code of a module (like the rest client) and generate anuber-JAR that can be directly used by the dependency management tool.
+
+To do so you will be using [Gradle Shadow plugin](https://imperceptiblethoughts.com/shadow/).
+Go to the `build.gradle` file of the module for which you want to create the uber-JAR.
+Add the shadow plugin:
+```
+apply plugin: 'com.github.johnrengelman.shadow'
+```
+
