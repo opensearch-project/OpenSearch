@@ -1,23 +1,72 @@
 name: Gradle Check (Jenkins)
 on:
+  push:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, reopened]
 
 jobs:
   gradle-check:
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
-      - uses: actions/checkout@v2
+      - name: Setup environment variables
+        run: |
+            echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+            echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+            echo "pr_to_clone_url=$(jq --raw-output .pull_request.base.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+            echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+            echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+
+      - Checkout OpenSearch repo
+        uses: actions/checkout@v2
         with:
-          #ref: "refs/pull/${{ github.event.number }}/merge"
           ref: ${{ github.event.pull_request.head.sha }}
-      - name: retrieve xml
-        run: curl -SLO https://build.ci.opensearch.org/job/gradle-check/lastSuccessfulBuild/artifact/codeCoverage.xml
 
-      - name: Upload Coverage Report
-        if: success()
-        uses: codecov/codecov-action@v3
+      - name: Checkout opensearch-build repo
+        uses: actions/checkout@v2
         with:
-          files: ./codeCoverage.xml
+          repository: opensearch-project/opensearch-build
+          ref: main
+          path: opensearch-build
 
+#      - name: Trigger jenkins workflow to run gradle check
+#        run: |
+#            set -e
+#            set -o pipefail
+#            bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
+#
+#      - name: Setup Result Status
+#        if: always()
+#        run: |
+#            WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
+#            RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+#            echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
+#            echo "result=$RESULT" >> $GITHUB_ENV
+#
+#      - name: Upload Coverage Report
+#        if: success()
+#        uses: codecov/codecov-action@v2
+#        with:
+#          files: ./codeCoverage.xml
+#
+#      - name: Create Comment Success
+#        if: success()
+#        uses: peter-evans/create-or-update-comment@v2
+#        with:
+#          issue-number: ${{ env.pr_number }}
+#          body: |
+#              ### Gradle Check (Jenkins) Run Completed with:
+#              * **RESULT:** ${{ env.result }} :white_check_mark:
+#              * **URL:** ${{ env.workflow_url }}
+#              * **CommitID:** ${{ env.pr_from_sha }}
+#
+#      - name: Create Comment Failure
+#        if: failure()
+#        uses: peter-evans/create-or-update-comment@v2
+#        with:
+#          issue-number: ${{ env.pr_number }}
+#          body: |
+#              ### Gradle Check (Jenkins) Run Completed with:
+#              * **RESULT:** ${{ env.result }} :x:
+#              * **URL:** ${{ env.workflow_url }}
+#              * **CommitID:** ${{ env.pr_from_sha }}
