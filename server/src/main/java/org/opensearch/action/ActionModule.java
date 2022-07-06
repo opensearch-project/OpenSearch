@@ -42,6 +42,8 @@ import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfi
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.opensearch.action.admin.cluster.management.decommission.ClusterManagementDecommissionAction;
+import org.opensearch.action.admin.cluster.management.decommission.TransportClusterManagementDecommissionAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -275,42 +277,7 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.action.RestFieldCapabilitiesAction;
 import org.opensearch.rest.action.RestMainAction;
-import org.opensearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
-import org.opensearch.rest.action.admin.cluster.RestCancelTasksAction;
-import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
-import org.opensearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsAction;
-import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterSearchShardsAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterStatsAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
-import org.opensearch.rest.action.admin.cluster.RestCreateSnapshotAction;
-import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
-import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
-import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
-import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
-import org.opensearch.rest.action.admin.cluster.RestGetScriptContextAction;
-import org.opensearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
-import org.opensearch.rest.action.admin.cluster.RestGetSnapshotsAction;
-import org.opensearch.rest.action.admin.cluster.RestGetStoredScriptAction;
-import org.opensearch.rest.action.admin.cluster.RestGetTaskAction;
-import org.opensearch.rest.action.admin.cluster.RestListTasksAction;
-import org.opensearch.rest.action.admin.cluster.RestNodesHotThreadsAction;
-import org.opensearch.rest.action.admin.cluster.RestNodesInfoAction;
-import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
-import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
-import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
-import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
-import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
-import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
-import org.opensearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
-import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
-import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
-import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.*;
 import org.opensearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestListDanglingIndicesAction;
@@ -546,6 +513,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
+        actions.register(ClusterManagementDecommissionAction.INSTANCE, TransportClusterManagementDecommissionAction.class);
 
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
@@ -842,6 +810,7 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+        registerHandler.accept(new RestClusterManagementDecommissionAction());
     }
 
     @Override

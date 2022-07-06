@@ -40,6 +40,9 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRe
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.management.decommission.ClusterManagementDecommissionRequest;
+import org.opensearch.action.admin.cluster.management.decommission.ClusterManagementDecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.management.decommission.ClusterManagementDecommissionResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
@@ -784,4 +787,19 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Delete specified dangling indices.
      */
     ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
+
+    /**
+     * Decommission a node
+     */
+    ActionFuture<ClusterManagementDecommissionResponse> decommission(ClusterManagementDecommissionRequest request);
+
+    /**
+     * Decommission a node
+     */
+    void decommission(ClusterManagementDecommissionRequest request, ActionListener<ClusterManagementDecommissionResponse> listener);
+
+    /**
+     * Decommission a node
+     */
+    ClusterManagementDecommissionRequestBuilder prepareDecommission();
 }
