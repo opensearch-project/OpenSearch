@@ -20,11 +20,12 @@ import java.util.function.LongSupplier;
 @FunctionalInterface
 public interface TranslogFactory {
 
-    Translog newTranslog(final TranslogConfig config,
-                         final String translogUUID,
-                         TranslogDeletionPolicy deletionPolicy,
-                         final LongSupplier globalCheckpointSupplier,
-                         final LongSupplier primaryTermSupplier,
-                         final LongConsumer persistedSequenceNumberConsumer) throws IOException;
+    Translog newTranslog(
+        final TranslogConfig config,
+        final String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier primaryTermSupplier,
+        final LongConsumer persistedSequenceNumberConsumer
+    ) throws IOException;
 }
-

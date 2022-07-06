@@ -41,9 +41,13 @@ public class LocalTranslog extends Translog {
      *                                        persisted.
      */
     public LocalTranslog(
-        final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,
-        final LongSupplier globalCheckpointSupplier, final LongSupplier primaryTermSupplier,
-        final LongConsumer persistedSequenceNumberConsumer) throws IOException {
+        final TranslogConfig config,
+        final String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier primaryTermSupplier,
+        final LongConsumer persistedSequenceNumberConsumer
+    ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         Files.createDirectories(this.location);
 
@@ -126,8 +130,13 @@ public class LocalTranslog extends Translog {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
             long uncommittedGen = getMinGenerationForSeqNo(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1).translogFileGeneration;
-            return new TranslogStats(totalOperations(), sizeInBytes(), totalOperationsByMinGen(uncommittedGen),
-                sizeInBytesByMinGen(uncommittedGen), earliestLastModifiedAge());
+            return new TranslogStats(
+                totalOperations(),
+                sizeInBytes(),
+                totalOperationsByMinGen(uncommittedGen),
+                sizeInBytesByMinGen(uncommittedGen),
+                earliestLastModifiedAge()
+            );
         }
     }
 
@@ -145,16 +154,28 @@ public class LocalTranslog extends Translog {
             for (long i = checkpoint.generation; i >= minGenerationToRecoverFrom; i--) {
                 Path committedTranslogFile = location.resolve(Translog.getFilename(i));
                 if (Files.exists(committedTranslogFile) == false) {
-                    throw new TranslogCorruptedException(committedTranslogFile.toString(),
-                        "translog file doesn't exist with generation: " + i + " recovering from: " + minGenerationToRecoverFrom
-                            + " checkpoint: " + checkpoint.generation + " - translog ids must be consecutive");
+                    throw new TranslogCorruptedException(
+                        committedTranslogFile.toString(),
+                        "translog file doesn't exist with generation: "
+                            + i
+                            + " recovering from: "
+                            + minGenerationToRecoverFrom
+                            + " checkpoint: "
+                            + checkpoint.generation
+                            + " - translog ids must be consecutive"
+                    );
                 }
-                final Checkpoint readerCheckpoint = i == checkpoint.generation ? checkpoint
+                final Checkpoint readerCheckpoint = i == checkpoint.generation
+                    ? checkpoint
                     : Checkpoint.read(location.resolve(Translog.getCommitCheckpointFileName(i)));
                 final TranslogReader reader = openReader(committedTranslogFile, readerCheckpoint);
-                assert reader.getPrimaryTerm() <= primaryTermSupplier.getAsLong() :
-                    "Primary terms go backwards; current term [" + primaryTermSupplier.getAsLong() + "] translog path [ "
-                        + committedTranslogFile + ", existing term [" + reader.getPrimaryTerm() + "]";
+                assert reader.getPrimaryTerm() <= primaryTermSupplier.getAsLong() : "Primary terms go backwards; current term ["
+                    + primaryTermSupplier.getAsLong()
+                    + "] translog path [ "
+                    + committedTranslogFile
+                    + ", existing term ["
+                    + reader.getPrimaryTerm()
+                    + "]";
                 foundTranslogs.add(reader);
                 logger.debug("recovered local translog from checkpoint {}", checkpoint);
             }
@@ -162,16 +183,24 @@ public class LocalTranslog extends Translog {
 
             // when we clean up files, we first update the checkpoint with a new minReferencedTranslog and then delete them;
             // if we crash just at the wrong moment, it may be that we leave one unreferenced file behind so we delete it if there
-            IOUtils.deleteFilesIgnoringExceptions(location.resolve(Translog.getFilename(minGenerationToRecoverFrom - 1)),
-                location.resolve(Translog.getCommitCheckpointFileName(minGenerationToRecoverFrom - 1)));
+            IOUtils.deleteFilesIgnoringExceptions(
+                location.resolve(Translog.getFilename(minGenerationToRecoverFrom - 1)),
+                location.resolve(Translog.getCommitCheckpointFileName(minGenerationToRecoverFrom - 1))
+            );
 
             Path commitCheckpoint = location.resolve(Translog.getCommitCheckpointFileName(checkpoint.generation));
             if (Files.exists(commitCheckpoint)) {
                 Checkpoint checkpointFromDisk = Checkpoint.read(commitCheckpoint);
                 if (checkpoint.equals(checkpointFromDisk) == false) {
-                    throw new TranslogCorruptedException(commitCheckpoint.toString(),
-                        "checkpoint file " + commitCheckpoint.getFileName() + " already exists but has corrupted content: expected "
-                            + checkpoint + " but got " + checkpointFromDisk);
+                    throw new TranslogCorruptedException(
+                        commitCheckpoint.toString(),
+                        "checkpoint file "
+                            + commitCheckpoint.getFileName()
+                            + " already exists but has corrupted content: expected "
+                            + checkpoint
+                            + " but got "
+                            + checkpointFromDisk
+                    );
                 }
             } else {
                 copyCheckpointTo(commitCheckpoint);
@@ -187,8 +216,8 @@ public class LocalTranslog extends Translog {
 
     @Override
     public void close() throws IOException {
-        assert Translog.calledFromOutsideOrViaTragedyClose() :
-            "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
+        assert Translog.calledFromOutsideOrViaTragedyClose()
+            : "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
         if (closed.compareAndSet(false, true)) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 try {

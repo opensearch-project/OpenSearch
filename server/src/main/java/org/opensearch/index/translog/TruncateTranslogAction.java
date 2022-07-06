@@ -213,7 +213,7 @@ public class TruncateTranslogAction {
                 }
             };
             try (
-                //TODO fix it with the appropriate Translog flavor
+                // TODO fix it with the appropriate Translog flavor
                 Translog translog = new LocalTranslog(
                     translogConfig,
                     translogUUID,

@@ -31,7 +31,6 @@
 
 package org.opensearch.index.engine;
 
-import com.sun.jna.StringArray;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.MergePolicy;

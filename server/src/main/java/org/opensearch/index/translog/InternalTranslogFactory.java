@@ -15,12 +15,14 @@ import java.util.function.LongSupplier;
 public class InternalTranslogFactory implements TranslogFactory {
 
     @Override
-    public Translog newTranslog(TranslogConfig translogConfig,
-                                String translogUUID,
-                                TranslogDeletionPolicy translogDeletionPolicy,
-                                LongSupplier globalCheckpointSupplier,
-                                LongSupplier primaryTermSupplier,
-                                LongConsumer persistedSequenceNumberConsumer) throws IOException {
+    public Translog newTranslog(
+        TranslogConfig translogConfig,
+        String translogUUID,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier primaryTermSupplier,
+        LongConsumer persistedSequenceNumberConsumer
+    ) throws IOException {
 
         return new LocalTranslog(
             translogConfig,

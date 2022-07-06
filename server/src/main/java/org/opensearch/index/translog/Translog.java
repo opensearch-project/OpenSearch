@@ -71,7 +71,6 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -743,7 +742,6 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
      */
     abstract boolean ensureSynced(Location location) throws IOException;
-
 
     /**
      * Ensures that all locations in the given stream have been synced / written to the underlying storage.
