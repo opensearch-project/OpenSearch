@@ -41,7 +41,7 @@ public final class DenseVectorFieldMapper extends FieldMapper {
     /**
      * Define the max dimension a knn_vector mapping can have.
      */
-    public static final int MAX_DIMENSION = 1024;
+    private static final int MAX_DIMENSION = 1024;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;

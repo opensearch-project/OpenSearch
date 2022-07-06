@@ -25,14 +25,14 @@ public class KnnAlgorithmContext implements ToXContentFragment, Writeable {
     private static final String PARAMETERS = "parameters";
     private static final String NAME = "name";
 
+    private static final int MAX_NUMBER_OF_ALGORITHM_PARAMETERS = 50;
+
     private final Method method;
     private final Map<String, Object> parameters;
 
-    private static final int MAX_NUMBER_OF_ALGORITHM_PARAMETERS = 50;
-
     public KnnAlgorithmContext(Method method, Map<String, Object> parameters) {
-        this.method = method;
-        this.parameters = parameters;
+        this.method = Objects.requireNonNull(method, "[method] for knn algorithm context cannot be null");
+        this.parameters = Objects.requireNonNull(parameters, "[parameters] for knn algorithm context cannot be null");
     }
 
     public Method getMethod() {
@@ -78,9 +78,7 @@ public class KnnAlgorithmContext implements ToXContentFragment, Writeable {
                 parameters = ((Map<String, Object>) value).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
                     Object v = e.getValue();
                     if (v instanceof Map) {
-                        throw new MapperParsingException(
-                            String.format(Locale.ROOT, "Unable to parse parameter [%s] for [algorithm]", e.getValue())
-                        );
+                        throw new MapperParsingException(String.format(Locale.ROOT, "Unable to parse parameter [%s] for [algorithm]", v));
                     }
                     return v;
                 }));
@@ -105,19 +103,17 @@ public class KnnAlgorithmContext implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(NAME, method.name());
         if (parameters == null) {
-            builder.field(PARAMETERS, (String) null);
-        } else {
-            builder.startObject(PARAMETERS);
-            parameters.forEach((key, value) -> {
-                try {
-                    builder.field(key, value);
-                } catch (IOException ioe) {
-                    throw new RuntimeException("Unable to generate xcontent for method component");
-                }
-
-            });
-            builder.endObject();
+            return builder.field(PARAMETERS, (String) null);
         }
+        builder.startObject(PARAMETERS);
+        parameters.forEach((key, value) -> {
+            try {
+                builder.field(key, value);
+            } catch (IOException ioe) {
+                throw new RuntimeException("Unable to generate xcontent for method component");
+            }
+        });
+        builder.endObject();
         return builder;
     }
 

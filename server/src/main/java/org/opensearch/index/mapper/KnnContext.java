@@ -22,13 +22,14 @@ import java.util.Objects;
  */
 public final class KnnContext implements ToXContentFragment, Writeable {
 
-    private final Metric metric;
-    private final KnnAlgorithmContext knnAlgorithmContext;
     private static final String KNN_METRIC_NAME = "metric";
     private static final String ALGORITHM = "algorithm";
 
+    private final Metric metric;
+    private final KnnAlgorithmContext knnAlgorithmContext;
+
     KnnContext(final Metric metric, final KnnAlgorithmContext knnAlgorithmContext) {
-        this.metric = metric;
+        this.metric = Objects.requireNonNull(metric, "[metric] for knn context cannot be null");
         this.knnAlgorithmContext = knnAlgorithmContext;
     }
 

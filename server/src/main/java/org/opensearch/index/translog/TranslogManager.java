@@ -98,15 +98,15 @@ public interface TranslogManager {
      * Reads operations for the translog
      * @param location the location in the translog
      * @return the translog operation
-     * @throws IOException
+     * @throws IOException if an {@link IOException} occurs while executing method
      */
     Translog.Operation readOperation(Translog.Location location) throws IOException;
 
     /**
      * Adds an operation to the translog
-     * @param operation
+     * @param operation translog operation
      * @return the location in the translog
-     * @throws IOException
+     * @throws IOException if an {@link IOException} occurs while executing method
      */
     Translog.Location add(Translog.Operation operation) throws IOException;
 

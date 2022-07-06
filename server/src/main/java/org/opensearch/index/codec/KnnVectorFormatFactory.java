@@ -8,7 +8,6 @@ package org.opensearch.index.codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene92.Lucene92Codec;
 import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
-import org.opensearch.index.mapper.DenseVectorFieldMapper;
 import org.opensearch.index.mapper.KnnAlgorithmContext;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -54,10 +53,7 @@ public class KnnVectorFormatFactory {
     }
 
     private boolean isDenseVectorFieldType(final MappedFieldType mappedFieldType) {
-        if (mappedFieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {
-            return true;
-        }
-        return false;
+        return mappedFieldType instanceof DenseVectorFieldType;
     }
 
     private int getIntegerParam(Map<String, Object> methodParams, String name) {
