@@ -509,4 +509,3 @@ Add the shadow plugin:
 ```
 apply plugin: 'com.github.johnrengelman.shadow'
 ```
-
