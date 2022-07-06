@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.apache.lucene.codecs.experimental;
+package org.opensearch.index.codec.customcodec;
 
 import com.github.luben.zstd.*;
 import java.io.IOException;

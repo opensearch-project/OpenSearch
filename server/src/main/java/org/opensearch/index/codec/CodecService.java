@@ -36,8 +36,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene92.Lucene92Codec;
 import org.apache.lucene.codecs.lucene92.Lucene92Codec.Mode;
-import org.apache.lucene.codecs.experimental.Lucene92CustomCodec;
-import org.apache.lucene.codecs.experimental.PerFieldMappingPostingFormatCustomCodec;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.index.mapper.MapperService;
@@ -60,28 +58,15 @@ public class CodecService {
     public static final String BEST_COMPRESSION_CODEC = "best_compression";
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
-    /** zstd (with and without dictionary) and lz4 (native) compression */
-    public static final String ZSTD_CODEC = "zstd";
-    public static final String ZSTD_NO_DICT_CODEC = "zstd_no_dict";
-    public static final String LZ4_NATIVE_CODEC = "lz4_native";
 
     public CodecService(@Nullable MapperService mapperService, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene92Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene92Codec(Mode.BEST_COMPRESSION));
-            codecs.put(ZSTD_CODEC, new Lucene92CustomCodec(Lucene92CustomCodec.Mode.ZSTD));
-            codecs.put(ZSTD_NO_DICT_CODEC, new Lucene92CustomCodec(Lucene92CustomCodec.Mode.ZSTD_NO_DICT));
-            codecs.put(LZ4_NATIVE_CODEC, new Lucene92CustomCodec(Lucene92CustomCodec.Mode.LZ4_NATIVE));
         } else {
             codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
             codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
-            codecs.put(ZSTD_CODEC, new PerFieldMappingPostingFormatCustomCodec(Lucene92CustomCodec.Mode.ZSTD, mapperService));
-            codecs.put(
-                ZSTD_NO_DICT_CODEC,
-                new PerFieldMappingPostingFormatCustomCodec(Lucene92CustomCodec.Mode.ZSTD_NO_DICT, mapperService)
-            );
-            codecs.put(LZ4_NATIVE_CODEC, new PerFieldMappingPostingFormatCustomCodec(Lucene92CustomCodec.Mode.LZ4_NATIVE, mapperService));
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {

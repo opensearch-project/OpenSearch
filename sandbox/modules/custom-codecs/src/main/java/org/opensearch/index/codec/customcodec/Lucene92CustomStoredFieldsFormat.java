@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.apache.lucene.codecs.experimental;
+package org.opensearch.index.codec.customcodec;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -20,35 +20,40 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 
-/** Stored field format used by plugaable codec */
+/** Stored field format used by pluggable codec */
 public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
-
-    private static final int ZSTD_BLOCK_LENGTH = 10 * 48 * 1024;
-    private static final int LZ4_NATIVE_BLOCK_LENGTH = 10 * 8 * 1024;
-    private static final int ZSTD_MAX_DOCS_PER_BLOCK = 4096;
-    private static final int ZSTD_BLOCK_SHIFT = 10;
-    private static final int LZ4_MAX_DOCS_PER_BLOCK = 1024;
-    private static final int LZ4_BLOCK_SHIFT = 10;
-
-    private final CompressionMode ZSTD_MODE;
-    private final CompressionMode ZSTD_MODE_NO_DICT;
-    private final CompressionMode LZ4_MODE;
-
-    private final Lucene92CustomCodec.Mode mode;
 
     public static final String MODE_KEY = Lucene92CustomStoredFieldsFormat.class.getSimpleName() + ".mode";
 
+    private static final int ZSTD_BLOCK_LENGTH = 10 * 48 * 1024;
+    private static final int ZSTD_MAX_DOCS_PER_BLOCK = 4096;
+    private static final int ZSTD_BLOCK_SHIFT = 10;
+
+    private static final int LZ4_BLOCK_LENGTH = 10 * 8 * 1024;
+    private static final int LZ4_MAX_DOCS_PER_BLOCK = 1024;
+    private static final int LZ4_BLOCK_SHIFT = 10;
+
+    private final CompressionMode zstdCompressionMode;
+    private final CompressionMode zstdNoDictCompressionMode;
+    private final CompressionMode lz4CompressionMode;
+
+    private final Lucene92CustomCodec.Mode mode;
+
     /** default constructor */
     public Lucene92CustomStoredFieldsFormat() {
-        this(Lucene92CustomCodec.Mode.LZ4_NATIVE, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
+        this(Lucene92CustomCodec.Mode.LZ4, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
+    }
+
+    public Lucene92CustomStoredFieldsFormat(Lucene92CustomCodec.Mode mode) {
+        this(mode, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
     }
 
     /** Stored fields format with specified compression algo. */
     public Lucene92CustomStoredFieldsFormat(Lucene92CustomCodec.Mode mode, int compressionLevel) {
         this.mode = Objects.requireNonNull(mode);
-        ZSTD_MODE = new ZstdCompressionMode(compressionLevel);
-        ZSTD_MODE_NO_DICT = new ZstdNoDictCompressionMode(compressionLevel);
-        LZ4_MODE = new LZ4CompressionMode();
+        zstdCompressionMode = new ZstdCompressionMode(compressionLevel);
+        zstdNoDictCompressionMode = new ZstdNoDictCompressionMode(compressionLevel);
+        lz4CompressionMode = new Lz4CompressionMode();
     }
 
     @Override
@@ -77,24 +82,24 @@ public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
             case ZSTD:
                 return new Lucene90CompressingStoredFieldsFormat(
                     "CustomStoredFieldsZstd",
-                    ZSTD_MODE,
+                    zstdCompressionMode,
                     ZSTD_BLOCK_LENGTH,
                     ZSTD_MAX_DOCS_PER_BLOCK,
                     ZSTD_BLOCK_SHIFT
                 );
-            case ZSTD_NO_DICT:
+            case ZSTDNODICT:
                 return new Lucene90CompressingStoredFieldsFormat(
                     "CustomStoredFieldsZstdNoDict",
-                    ZSTD_MODE_NO_DICT,
+                    zstdNoDictCompressionMode,
                     ZSTD_BLOCK_LENGTH,
                     ZSTD_MAX_DOCS_PER_BLOCK,
                     ZSTD_BLOCK_SHIFT
                 );
-            case LZ4_NATIVE:
+            case LZ4:
                 return new Lucene90CompressingStoredFieldsFormat(
                     "CustomStoredFieldsLz4",
-                    LZ4_MODE,
-                    LZ4_NATIVE_BLOCK_LENGTH,
+                    lz4CompressionMode,
+                    LZ4_BLOCK_LENGTH,
                     LZ4_MAX_DOCS_PER_BLOCK,
                     LZ4_BLOCK_SHIFT
                 );

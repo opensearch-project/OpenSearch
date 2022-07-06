@@ -6,80 +6,51 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
-package org.opensearch.index.codec;
+package org.opensearch.index.codec.customcodec;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene92.Lucene92Codec;
-import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.instanceOf;
+@LuceneTestCase.SuppressCodecs("*") // we test against default codec so never get a random one here!
+public class CustomCodecTests extends OpenSearchTestCase {
 
-@SuppressCodecs("*") // we test against default codec so never get a random one here!
-public class CodecTests extends OpenSearchTestCase {
-
-    public void testResolveDefaultCodecs() throws Exception {
-        CodecService codecService = createCodecService();
-        assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene92Codec.class));
+    public void testZstdCompression() throws Exception {
+        Codec codec = createCodecService().codec("ZSTD");
+        assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.ZSTD, codec);
     }
 
-    public void testDefault() throws Exception {
-        Codec codec = createCodecService().codec("default");
-        assertStoredFieldsCompressionEquals(Lucene92Codec.Mode.BEST_SPEED, codec);
+    public void testZstdNoDictCompression() throws Exception {
+        Codec codec = createCodecService().codec("ZSTDNODICT");
+        assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.ZSTDNODICT, codec);
     }
 
-    public void testBestCompression() throws Exception {
-        Codec codec = createCodecService().codec("best_compression");
-        assertStoredFieldsCompressionEquals(Lucene92Codec.Mode.BEST_COMPRESSION, codec);
+    public void testLz4NativeCompression() throws Exception {
+        Codec codec = createCodecService().codec("LZ4");
+        assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.LZ4, codec);
     }
 
-    // write some docs with it, inspect .si to see this was the used compression
-    private void assertStoredFieldsCompressionEquals(Lucene92Codec.Mode expected, Codec actual) throws Exception {
+    private void assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode expected, Codec actual) throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(null);
         iwc.setCodec(actual);
@@ -89,9 +60,9 @@ public class CodecTests extends OpenSearchTestCase {
         iw.close();
         DirectoryReader ir = DirectoryReader.open(dir);
         SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
-        String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
+        String v = sr.getSegmentInfo().info.getAttribute(Lucene92CustomStoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
-        assertEquals(expected, Lucene92Codec.Mode.valueOf(v));
+        assertEquals(expected, Lucene92CustomCodec.Mode.valueOf(v));
         ir.close();
         dir.close();
     }
@@ -114,5 +85,4 @@ public class CodecTests extends OpenSearchTestCase {
         );
         return new CodecService(service, LogManager.getLogger("test"));
     }
-
 }

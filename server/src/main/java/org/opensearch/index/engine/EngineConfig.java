@@ -123,9 +123,6 @@ public final class EngineConfig {
             case "default":
             case "best_compression":
             case "lucene_default":
-            case "zstd":
-            case "zstd_no_dict":
-            case "lz4_native":
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones

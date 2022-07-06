@@ -134,10 +134,6 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
-  // lz4 (native) and zstd
-  api "org.lz4:lz4-java:${versions.lz4}"
-  api "com.github.luben:zstd-jni:${versions.zstd}"
-
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -224,11 +220,6 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 tasks.named("processResources").configure {
     dependsOn generateModulesList, generatePluginsList
 }
-
-// lz4-java uses sun.misc.Unsafe in the UnsafeUtils class.
-thirdPartyAudit.ignoreViolations(
-  'net.jpountz.util.UnsafeUtils'
-)
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(

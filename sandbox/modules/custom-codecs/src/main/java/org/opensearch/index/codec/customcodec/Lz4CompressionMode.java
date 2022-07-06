@@ -6,10 +6,12 @@
  * compatible open source license.
  */
 
-package org.apache.lucene.codecs.experimental;
+package org.opensearch.index.codec.customcodec;
 
-import com.github.luben.zstd.Zstd;
 import java.io.IOException;
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4FastDecompressor;
 import org.apache.lucene.codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
@@ -18,52 +20,37 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 
-/** Zstandard Compression Mode */
-public class ZstdNoDictCompressionMode extends CompressionMode {
+/** LZ4 JNI based Compression Mode */
+public class Lz4CompressionMode extends CompressionMode {
 
     private static final int NUM_SUB_BLOCKS = 10;
-    private static final int DEFAULT_COMPRESSION_LEVEL = 6;
-
-    private final int compressionLevel;
 
     /** default constructor */
-    protected ZstdNoDictCompressionMode() {
-        this.compressionLevel = DEFAULT_COMPRESSION_LEVEL;
-    }
-
-    /** compression mode for a given compression level */
-    protected ZstdNoDictCompressionMode(int compressionLevel) {
-        this.compressionLevel = compressionLevel;
-    }
+    protected Lz4CompressionMode() {}
 
     @Override
     public Compressor newCompressor() {
-        return new ZSTDCompressor(compressionLevel);
+        return new Lz4CompressionMode.LZ4InnerCompressor();
     }
 
     @Override
     public Decompressor newDecompressor() {
-        return new ZSTDDecompressor();
+        return new Lz4CompressionMode.LZ4InnerDecompressor();
     }
 
-    /** zstandard compressor */
-    private static final class ZSTDCompressor extends Compressor {
+    /** LZ4 compressor */
+    private static final class LZ4InnerCompressor extends Compressor {
+        private byte[] compressedBuffer;
+        private final LZ4Compressor compressor;
 
-        private final int compressionLevel;
-        byte[] compressedBuffer;
-
-        /** compressor with a given compresion level */
-        public ZSTDCompressor(int compressionLevel) {
-            this.compressionLevel = compressionLevel;
+        /** Default constructor */
+        public LZ4InnerCompressor() {
             compressedBuffer = BytesRef.EMPTY_BYTES;
+            compressor = LZ4Factory.nativeInstance().fastCompressor();
         }
 
         @Override
-        public void close() throws IOException {}
-
-        @Override
         public void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
-
             int blockLength = (len + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
             out.writeVInt(blockLength);
 
@@ -77,33 +64,30 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
                     return;
                 }
 
-                final int maxCompressedLength = (int) Zstd.compressBound(l);
+                final int maxCompressedLength = compressor.maxCompressedLength(l);
                 compressedBuffer = ArrayUtil.grow(compressedBuffer, maxCompressedLength);
 
-                int compressedSize = (int) Zstd.compressByteArray(
-                    compressedBuffer,
-                    0,
-                    compressedBuffer.length,
-                    bytes,
-                    start,
-                    l,
-                    this.compressionLevel
-                );
+                int compressedSize = compressor.compress(bytes, start, l, compressedBuffer, 0, compressedBuffer.length);
 
                 out.writeVInt(compressedSize);
                 out.writeBytes(compressedBuffer, compressedSize);
             }
         }
+
+        @Override
+        public void close() throws IOException {}
     }
 
-    /** zstandard decompressor */
-    private static final class ZSTDDecompressor extends Decompressor {
+    /** LZ4 decompressor */
+    private static final class LZ4InnerDecompressor extends Decompressor {
 
-        private byte[] compressed;
+        private byte[] compressedBuffer;
+        private final LZ4FastDecompressor decompressor;
 
         /** default decompressor */
-        public ZSTDDecompressor() {
-            compressed = BytesRef.EMPTY_BYTES;
+        public LZ4InnerDecompressor() {
+            compressedBuffer = BytesRef.EMPTY_BYTES;
+            decompressor = LZ4Factory.nativeInstance().fastDecompressor();
         }
 
         @Override
@@ -135,18 +119,18 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
                 if (compressedLength == 0) {
                     return;
                 }
-                compressed = ArrayUtil.grow(compressed, compressedLength);
-                in.readBytes(compressed, 0, compressedLength);
+                compressedBuffer = ArrayUtil.grow(compressedBuffer, compressedLength);
+                in.readBytes(compressedBuffer, 0, compressedLength);
 
                 int l = Math.min(blockLength, originalLength - offsetInBlock);
                 bytes.bytes = ArrayUtil.grow(bytes.bytes, bytes.length + l);
 
                 byte[] output = new byte[l];
 
-                final int uncompressed = (int) Zstd.decompressByteArray(output, 0, l, compressed, 0, compressedLength);
-                System.arraycopy(output, 0, bytes.bytes, bytes.length, uncompressed);
+                decompressor.decompress(compressedBuffer, 0, output, 0, l);
+                System.arraycopy(output, 0, bytes.bytes, bytes.length, l);
 
-                bytes.length += uncompressed;
+                bytes.length += l;
                 offsetInBlock += blockLength;
             }
 
@@ -157,7 +141,7 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
 
         @Override
         public Decompressor clone() {
-            return new ZSTDDecompressor();
+            return new LZ4InnerDecompressor();
         }
     }
 }
