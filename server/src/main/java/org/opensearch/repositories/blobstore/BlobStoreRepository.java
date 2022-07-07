@@ -236,12 +236,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     /**
+     * Setting to set batch size of stale blobs to be deleted.
+     */
+    public static final Setting<Integer> MAX_SHARD_BLOB_DELETE_BATCH_SIZE = Setting.intSetting(
+        "max_shard_blob_delete_batch_size",
+        1000,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Setting to disable writing the {@code index.latest} blob which enables the contents of this repository to be used with a
      * url-repository.
      */
     public static final Setting<Boolean> SUPPORT_URL_REPO = Setting.boolSetting("support_url_repo", true, Setting.Property.NodeScope);
 
     protected final boolean supportURLRepo;
+
+    private final int maxShardBlobDeleteBatch;
 
     private final boolean compress;
 
@@ -358,6 +369,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         readOnly = metadata.settings().getAsBoolean("readonly", false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
+        maxShardBlobDeleteBatch = MAX_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
     }
 
     @Override
@@ -902,15 +914,57 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onResponse(null);
             return;
         }
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-            try {
-                deleteFromContainer(blobContainer(), filesToDelete);
-                l.onResponse(null);
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("{} Failed to delete some blobs during snapshot delete", snapshotIds), e);
-                throw e;
+
+        final BlockingQueue<List<String>> staleFilesToDeleteInBatch = new LinkedBlockingQueue<>();
+        final List<String> partition = new ArrayList<>();
+
+        try {
+            for (String key : filesToDelete) {
+                partition.add(key);
+                if (maxShardBlobDeleteBatch == partition.size()) {
+                    staleFilesToDeleteInBatch.add(new ArrayList<>(partition));
+                    partition.clear();
+                }
             }
-        }));
+            if (partition.isEmpty() == false) {
+                staleFilesToDeleteInBatch.add(new ArrayList<>(partition));
+            }
+            final GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(
+                ActionListener.wrap(r -> { listener.onResponse(null); }, listener::onFailure),
+                staleFilesToDeleteInBatch.size()
+            );
+
+            // Start as many workers as fit into the snapshot pool at once at the most
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), staleFilesToDeleteInBatch.size());
+            for (int i = 0; i < workers; ++i) {
+                executeStaleShardDelete(staleFilesToDeleteInBatch, groupedListener);
+            }
+
+        } catch (Exception e) {
+            // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
+            // Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
+            // bubbling up and breaking the snapshot functionality.
+            assert false : e;
+            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale shard blobs", snapshotIds), e);
+            listener.onFailure(e);
+        }
+    }
+
+    private void executeStaleShardDelete(BlockingQueue<List<String>> staleFilesToDeleteInBatch, GroupedActionListener<Void> listener)
+        throws InterruptedException {
+        List<String> filesToDelete = staleFilesToDeleteInBatch.poll(0L, TimeUnit.MILLISECONDS);
+        if (filesToDelete != null) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+                try {
+                    deleteFromContainer(blobContainer(), filesToDelete);
+                    l.onResponse(null);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("{} Failed to delete blobs during snapshot delete", metadata.name()), e);
+                    throw e;
+                }
+                executeStaleShardDelete(staleFilesToDeleteInBatch, listener);
+            }));
+        }
     }
 
     // updates the shard state metadata for shards of a snapshot that is to be deleted. Also computes the files to be cleaned up.
