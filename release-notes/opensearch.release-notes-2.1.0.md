@@ -138,4 +138,3 @@
 * Support use of IRSA for repository-s3 plugin credentials: added YAML Rest test case (#3499) ([#3520](https://github.com/opensearch-project/opensearch/pull/3520))
 * Fix testSetAdditionalRolesCanAddDeprecatedMasterRole() by removing the initial assertion (#3441) ([#3443](https://github.com/opensearch-project/opensearch/pull/3443))
 * [TEST] Add back necessary tests for deprecated settings that are replaced during applying inclusive naming (#2825) ([#3353](https://github.com/opensearch-project/opensearch/pull/3353))
-
