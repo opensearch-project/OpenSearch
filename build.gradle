@@ -580,6 +580,11 @@ reporting {
   }
 }
 
+// Enable XML test reports for Jenkins integration
+tasks.withType(TestTaskReports).configureEach {
+  junitXml.enabled = true
+}
+
 tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
   dependsOn tasks.named('testAggregateTestReport', TestReport)
 }
