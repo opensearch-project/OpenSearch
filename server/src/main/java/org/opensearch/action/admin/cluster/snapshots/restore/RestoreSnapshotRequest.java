@@ -42,6 +42,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -80,6 +81,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     private boolean includeAliases = true;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+    private String storageType;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -480,6 +482,15 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         return snapshotUuid;
     }
 
+    public RestoreSnapshotRequest storageType(String storageType) {
+        this.storageType = storageType;
+        return this;
+    }
+
+    public String storageType() {
+        return storageType;
+    }
+
     /**
      * Parses restore definition
      *
@@ -536,6 +547,16 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                     ignoreIndexSettings((List<String>) entry.getValue());
                 } else {
                     throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
+                }
+            } else if (name.equals("storage_type")) {
+                if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOTS)) {
+                    if (entry.getValue() instanceof String) {
+                        storageType((String) entry.getValue());
+                    } else {
+                        throw new IllegalArgumentException("malformed storage_type");
+                    }
+                } else {
+                    throw new IllegalArgumentException("Unknown parameter " + name);
                 }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {

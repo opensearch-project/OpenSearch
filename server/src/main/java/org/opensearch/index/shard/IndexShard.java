@@ -679,7 +679,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.shardRouting = newRouting;
 
             assert this.shardRouting.primary() == false || this.shardRouting.started() == false || // note that we use started and not
-                                                                                                   // active to avoid relocating shards
+            // active to avoid relocating shards
                 this.indexShardOperationPermits.isBlocked() || // if permits are blocked, we are still transitioning
                 this.replicationTracker.isPrimaryMode() : "a started primary with non-pending operation term must be in primary mode "
                     + this.shardRouting;
@@ -1991,7 +1991,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 translogRecoveryStats::incrementRecoveredOperations
             );
         };
-        loadGlobalCheckpointToReplicationTracker();
+
+        // Do not load the global checkpoint if this is a remote snapshot index
+        if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexSettings) == false) {
+            loadGlobalCheckpointToReplicationTracker();
+        }
+
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().translogManager()
             .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
@@ -3257,10 +3262,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 writeReason = "routing changed from " + currentRouting + " to " + newRouting;
             }
             logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
+
+            final ShardStateMetadata.DataLocation dataLocation = IndexSettings.SNAPSHOT_REPOSITORY.exists(indexSettings.getSettings())
+                ? ShardStateMetadata.DataLocation.REMOTE
+                : ShardStateMetadata.DataLocation.LOCAL;
             final ShardStateMetadata newShardStateMetadata = new ShardStateMetadata(
                 newRouting.primary(),
                 indexSettings.getUUID(),
-                newRouting.allocationId()
+                newRouting.allocationId(),
+                dataLocation
             );
             ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardPath.getShardStatePath());
         } else {

@@ -52,6 +52,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.snapshots.Snapshot;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -418,14 +419,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         /**
          * Initializes a new empty index, to be restored from a snapshot
          */
-        public Builder initializeAsNewRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
+        public Builder initializeAsNewRestore(IndexMetadata indexMetadata, RecoverySource recoverySource, IntSet ignoreShards) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.NEW_INDEX_RESTORED,
-                "restore_source["
-                    + recoverySource.snapshot().getRepository()
-                    + "/"
-                    + recoverySource.snapshot().getSnapshotId().getName()
-                    + "]"
+                createRecoverySourceMessage(recoverySource)
             );
             return initializeAsRestore(indexMetadata, recoverySource, ignoreShards, true, unassignedInfo);
         }
@@ -433,16 +430,23 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         /**
          * Initializes an existing index, to be restored from a snapshot
          */
-        public Builder initializeAsRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource) {
+        public Builder initializeAsRestore(IndexMetadata indexMetadata, RecoverySource recoverySource) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
-                "restore_source["
-                    + recoverySource.snapshot().getRepository()
-                    + "/"
-                    + recoverySource.snapshot().getSnapshotId().getName()
-                    + "]"
+                createRecoverySourceMessage(recoverySource)
             );
             return initializeAsRestore(indexMetadata, recoverySource, null, false, unassignedInfo);
+        }
+
+        private static String createRecoverySourceMessage(RecoverySource recoverySource) {
+            final String innerMessage;
+            if (recoverySource instanceof SnapshotRecoverySource) {
+                final Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
+                innerMessage = snapshot.getRepository() + "/" + snapshot.getSnapshotId().getName();
+            } else {
+                innerMessage = recoverySource.toString();
+            }
+            return "restore_source[" + innerMessage + "]";
         }
 
         /**

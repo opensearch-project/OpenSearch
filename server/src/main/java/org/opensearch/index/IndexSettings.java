@@ -79,6 +79,27 @@ public final class IndexSettings {
     private static final String MERGE_ON_FLUSH_DEFAULT_POLICY = "default";
     private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
 
+    public static final Setting<String> SNAPSHOT_REPOSITORY = Setting.simpleString(
+        "index.experimental.snapshot.repository",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+    public static final Setting<String> SNAPSHOT_ID_UUID = Setting.simpleString(
+        "index.experimental.snapshot.id.uuid",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+    public static final Setting<String> SNAPSHOT_ID_NAME = Setting.simpleString(
+        "index.experimental.snapshot.id.name",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+    public static final Setting<String> SNAPSHOT_INDEX_ID = Setting.simpleString(
+        "index.experimental.snapshot.index.id",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
         "index.query.default_field",
         Collections.singletonList("*"),

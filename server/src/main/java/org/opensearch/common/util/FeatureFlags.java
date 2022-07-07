@@ -29,6 +29,8 @@ public class FeatureFlags {
      */
     public static final String REMOTE_STORE = "opensearch.experimental.feature.remote_store.enabled";
 
+    public static final String SEARCHABLE_SNAPSHOTS = "opensearch.experimental.feature.searchable_snapshots.enabled";
+
     /**
      * Used to test feature flags whose values are expected to be booleans.
      * This method returns true if the value is "true" (case-insensitive),

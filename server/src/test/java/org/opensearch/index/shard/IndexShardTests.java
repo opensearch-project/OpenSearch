@@ -236,17 +236,17 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardId id = new ShardId("foo", "fooUUID", 1);
             boolean primary = randomBoolean();
             AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
-            ShardStateMetadata state1 = new ShardStateMetadata(primary, "fooUUID", allocationId);
+            ShardStateMetadata state1 = new ShardStateMetadata(primary, "fooUUID", allocationId, ShardStateMetadata.DataLocation.LOCAL);
             write(state1, env.availableShardPaths(id));
             ShardStateMetadata shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state1);
 
-            ShardStateMetadata state2 = new ShardStateMetadata(primary, "fooUUID", allocationId);
+            ShardStateMetadata state2 = new ShardStateMetadata(primary, "fooUUID", allocationId, ShardStateMetadata.DataLocation.LOCAL);
             write(state2, env.availableShardPaths(id));
             shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state1);
 
-            ShardStateMetadata state3 = new ShardStateMetadata(primary, "fooUUID", allocationId);
+            ShardStateMetadata state3 = new ShardStateMetadata(primary, "fooUUID", allocationId, ShardStateMetadata.DataLocation.LOCAL);
             write(state3, env.availableShardPaths(id));
             shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state3);
@@ -266,7 +266,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(shardStateMetadata, getShardStateMetadata(shard));
         assertEquals(
             shardStateMetadata,
-            new ShardStateMetadata(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId())
+            new ShardStateMetadata(
+                routing.primary(),
+                shard.indexSettings().getUUID(),
+                routing.allocationId(),
+                ShardStateMetadata.DataLocation.LOCAL
+            )
         );
 
         routing = TestShardRouting.relocate(shard.shardRouting, "some node", 42L);
@@ -275,7 +280,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(shardStateMetadata, getShardStateMetadata(shard));
         assertEquals(
             shardStateMetadata,
-            new ShardStateMetadata(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId())
+            new ShardStateMetadata(
+                routing.primary(),
+                shard.indexSettings().getUUID(),
+                routing.allocationId(),
+                ShardStateMetadata.DataLocation.LOCAL
+            )
         );
         closeShards(shard);
     }
@@ -310,7 +320,12 @@ public class IndexShardTests extends IndexShardTestCase {
         if (shardRouting == null) {
             return null;
         } else {
-            return new ShardStateMetadata(shardRouting.primary(), shard.indexSettings().getUUID(), shardRouting.allocationId());
+            return new ShardStateMetadata(
+                shardRouting.primary(),
+                shard.indexSettings().getUUID(),
+                shardRouting.allocationId(),
+                ShardStateMetadata.DataLocation.LOCAL
+            );
         }
     }
 
@@ -327,19 +342,28 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardStateMetadata meta = new ShardStateMetadata(
             randomBoolean(),
             randomRealisticUnicodeOfCodepointLengthBetween(1, 10),
-            allocationId
+            allocationId,
+            ShardStateMetadata.DataLocation.LOCAL
         );
 
-        assertEquals(meta, new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId));
-        assertEquals(meta.hashCode(), new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId).hashCode());
+        assertEquals(meta, new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId, meta.dataLocation));
+        assertEquals(
+            meta.hashCode(),
+            new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId, meta.dataLocation).hashCode()
+        );
 
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID, meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", randomAllocationId())));
+        assertNotEquals(meta, new ShardStateMetadata(!meta.primary, meta.indexUUID, meta.allocationId, meta.dataLocation));
+        assertNotEquals(meta, new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", meta.allocationId, meta.dataLocation));
+        assertNotEquals(meta, new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", randomAllocationId(), meta.dataLocation));
         Set<Integer> hashCodes = new HashSet<>();
         for (int i = 0; i < 30; i++) { // just a sanity check that we impl hashcode
             allocationId = randomBoolean() ? null : randomAllocationId();
-            meta = new ShardStateMetadata(randomBoolean(), randomRealisticUnicodeOfCodepointLengthBetween(1, 10), allocationId);
+            meta = new ShardStateMetadata(
+                randomBoolean(),
+                randomRealisticUnicodeOfCodepointLengthBetween(1, 10),
+                allocationId,
+                ShardStateMetadata.DataLocation.LOCAL
+            );
             hashCodes.add(meta.hashCode());
         }
         assertTrue("more than one unique hashcode expected but got: " + hashCodes.size(), hashCodes.size() > 1);

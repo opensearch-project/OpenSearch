@@ -56,17 +56,25 @@ public final class ShardStateMetadata {
     private static final String PRIMARY_KEY = "primary";
     private static final String INDEX_UUID_KEY = "index_uuid";
     private static final String ALLOCATION_ID_KEY = "allocation_id";
+    private static final String DATA_LOCATION_KEY = "data_location";
+
+    public enum DataLocation {
+        LOCAL,
+        REMOTE
+    }
 
     public final String indexUUID;
     public final boolean primary;
     @Nullable
     public final AllocationId allocationId; // can be null if we read from legacy format (see fromXContent and MultiDataPathUpgrader)
+    public final DataLocation dataLocation;
 
-    public ShardStateMetadata(boolean primary, String indexUUID, AllocationId allocationId) {
+    public ShardStateMetadata(boolean primary, String indexUUID, AllocationId allocationId, DataLocation dataLocation) {
         assert indexUUID != null;
         this.primary = primary;
         this.indexUUID = indexUUID;
         this.allocationId = allocationId;
+        this.dataLocation = Objects.requireNonNull(dataLocation);
     }
 
     @Override
@@ -89,6 +97,9 @@ public final class ShardStateMetadata {
         if (Objects.equals(allocationId, that.allocationId) == false) {
             return false;
         }
+        if (Objects.equals(dataLocation, that.dataLocation) == false) {
+            return false;
+        }
 
         return true;
     }
@@ -98,17 +109,16 @@ public final class ShardStateMetadata {
         int result = indexUUID.hashCode();
         result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
         result = 31 * result + (primary ? 1 : 0);
+        result = 31 * result + dataLocation.hashCode();
         return result;
     }
 
     @Override
     public String toString() {
-        return "primary [" + primary + "], allocation [" + allocationId + "]";
+        return "primary [" + primary + "], allocation [" + allocationId + "], data location [" + dataLocation + "]";
     }
 
-    public static final MetadataStateFormat<ShardStateMetadata> FORMAT = new MetadataStateFormat<ShardStateMetadata>(
-        SHARD_STATE_FILE_PREFIX
-    ) {
+    public static final MetadataStateFormat<ShardStateMetadata> FORMAT = new MetadataStateFormat<>(SHARD_STATE_FILE_PREFIX) {
 
         @Override
         protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
@@ -124,6 +134,11 @@ public final class ShardStateMetadata {
             if (shardStateMetadata.allocationId != null) {
                 builder.field(ALLOCATION_ID_KEY, shardStateMetadata.allocationId);
             }
+            // Omit the data location field if it is LOCAL (the implicit default)
+            // to maintain forward compatibility for local indices
+            if (shardStateMetadata.dataLocation != DataLocation.LOCAL) {
+                builder.field(DATA_LOCATION_KEY, shardStateMetadata.dataLocation);
+            }
         }
 
         @Override
@@ -136,6 +151,7 @@ public final class ShardStateMetadata {
             String currentFieldName = null;
             String indexUUID = IndexMetadata.INDEX_UUID_NA_VALUE;
             AllocationId allocationId = null;
+            DataLocation dataLocation = DataLocation.LOCAL;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -144,6 +160,13 @@ public final class ShardStateMetadata {
                         primary = parser.booleanValue();
                     } else if (INDEX_UUID_KEY.equals(currentFieldName)) {
                         indexUUID = parser.text();
+                    } else if (DATA_LOCATION_KEY.equals(currentFieldName)) {
+                        final String stringValue = parser.text();
+                        try {
+                            dataLocation = DataLocation.valueOf(stringValue);
+                        } catch (IllegalArgumentException e) {
+                            throw new CorruptStateException("unexpected value for data location [" + stringValue + "]");
+                        }
                     } else {
                         throw new CorruptStateException("unexpected field in shard state [" + currentFieldName + "]");
                     }
@@ -160,7 +183,7 @@ public final class ShardStateMetadata {
             if (primary == null) {
                 throw new CorruptStateException("missing value for [primary] in shard state");
             }
-            return new ShardStateMetadata(primary, indexUUID, allocationId);
+            return new ShardStateMetadata(primary, indexUUID, allocationId, dataLocation);
         }
     };
 }
