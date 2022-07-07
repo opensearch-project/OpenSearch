@@ -10,6 +10,13 @@ package org.opensearch.extensions;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.mock;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 import java.io.IOException;
@@ -59,6 +66,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 
@@ -66,6 +74,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private ClusterService clusterService;
+    private MockNioTransport transport;
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
     private final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -75,7 +84,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     @Before
     public void setup() throws Exception {
         Settings settings = Settings.builder().put("cluster.name", "test").build();
-        MockNioTransport transport = new MockNioTransport(
+        transport = new MockNioTransport(
             settings,
             Version.CURRENT,
             threadPool,
@@ -318,8 +327,30 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
         assertEquals(extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass(), LocalNodeResponse.class);
 
-        ExtensionRequest nullRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
-        assertEquals(extensionsOrchestrator.handleExtensionRequest(nullRequest), null);
+        ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
+        Exception exception = expectThrows(Exception.class, () -> extensionsOrchestrator.handleExtensionRequest(exceptionRequest));
+        assertEquals(exception.getMessage(), "Handler not present for the provided request");
+    }
+
+    public void testRegisterHandler() throws Exception {
+        Path extensionDir = createTempDir();
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        TransportService mockTransportService = spy(
+            new TransportService(
+                Settings.EMPTY,
+                mock(Transport.class),
+                null,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                x -> null,
+                null,
+                Collections.emptySet()
+            )
+        );
+
+        extensionsOrchestrator.setTransportService(mockTransportService);
+        verify(mockTransportService, times(3)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
 
