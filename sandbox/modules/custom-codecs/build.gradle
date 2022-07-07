@@ -32,4 +32,3 @@ thirdPartyAudit.ignoreViolations(
 
 yamlRestTest.enabled = false;
 testingConventions.enabled = false;
-
