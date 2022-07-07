@@ -33,6 +33,7 @@
 package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -103,13 +104,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogConfig;
-import org.opensearch.index.translog.TranslogCorruptedException;
-import org.opensearch.index.translog.TranslogDeletionPolicy;
-import org.opensearch.index.translog.TranslogManager;
-import org.opensearch.index.translog.TranslogException;
-import org.opensearch.index.translog.InternalTranslogManager;
+import org.opensearch.index.translog.*;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -133,8 +128,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -150,7 +143,7 @@ public class InternalEngine extends Engine {
      */
     private volatile long lastDeleteVersionPruneTimeMSec;
 
-    private final TranslogManager translogManager;
+    private final InternalTranslogManager translogManager;
     private final OpenSearchConcurrentMergeScheduler mergeScheduler;
 
     private final IndexWriter indexWriter;
@@ -177,6 +170,7 @@ public class InternalEngine extends Engine {
     // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttling
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
+    private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     // max_seq_no_of_updates_or_deletes tracks the max seq_no of update or delete operations that have been processed in this engine.
@@ -250,7 +244,7 @@ public class InternalEngine extends Engine {
         ExternalReaderManager externalReaderManager = null;
         OpenSearchReaderManager internalReaderManager = null;
         EngineMergeScheduler scheduler = null;
-        TranslogManager translogManagerRef = null;
+        InternalTranslogManager translogManagerRef = null;
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
@@ -259,7 +253,7 @@ public class InternalEngine extends Engine {
             try {
                 store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
                 final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
-                final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
+                String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
                 TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
                     @Override
                     public void onAfterTranslogSync() {
@@ -488,6 +482,21 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean isTranslogSyncNeeded() {
+        return translogManager.isTranslogSyncNeeded();
+    }
+
+    @Override
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        return translogManager.ensureTranslogSynced(locations);
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        translogManager.syncTranslog();
+    }
+
+    @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
@@ -516,6 +525,60 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            if (pendingTranslogRecovery.get() == false) {
+                throw new IllegalStateException("Engine has already been recovered");
+            }
+            try {
+                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo);
+            } catch (Exception e) {
+                try {
+                    pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
+                    failEngine("failed to recover from translog", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                throw e;
+            }
+        }
+        return this;
+    }
+
+    @Override
+    public void skipTranslogRecovery() {
+        translogManager.skipTranslogRecovery();
+    }
+
+    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+        final int opsRecovered;
+        final long localCheckpoint = getProcessedLocalCheckpoint();
+        if (localCheckpoint < recoverUpToSeqNo) {
+            try (Translog.Snapshot snapshot = translogManager.getTranslog().newSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
+                opsRecovered = translogRecoveryRunner.run(this, snapshot);
+            } catch (Exception e) {
+                throw new EngineException(shardId, "failed to recover from translog", e);
+            }
+        } else {
+            opsRecovered = 0;
+        }
+        // flush if we recovered something or if we have references to older translogs
+        // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
+        assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
+        pendingTranslogRecovery.set(false); // we are good - now we can commit
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
+                opsRecovered,
+                translogManager.getTranslog().currentFileGeneration()
+            )
+        );
+        flush(false, true);
+        translogManager.getTranslog().trimUnreferencedReaders();
+    }
+
     private void bootstrapAppendOnlyInfoFromWriter(IndexWriter writer) {
         for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
             if (MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID.equals(entry.getKey())) {
@@ -525,27 +588,6 @@ public class InternalEngine extends Engine {
                 updateAutoIdTimestamp(Long.parseLong(entry.getValue()), true);
             }
         }
-    }
-
-    private Translog openTranslog(
-        EngineConfig engineConfig,
-        TranslogDeletionPolicy translogDeletionPolicy,
-        LongSupplier globalCheckpointSupplier,
-        LongConsumer persistedSequenceNumberConsumer
-    ) throws IOException {
-
-        final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
-        final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
-        // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-        return new Translog(
-            translogConfig,
-            translogUUID,
-            translogDeletionPolicy,
-            globalCheckpointSupplier,
-            engineConfig.getPrimaryTermSupplier(),
-            persistedSequenceNumberConsumer
-        );
     }
 
     // Package private for testing purposes only
@@ -579,17 +621,6 @@ public class InternalEngine extends Engine {
     @Override
     public long getWritingBytes() {
         return indexWriter.getFlushingBytes() + versionMap.getRefreshingBytes();
-    }
-
-    /**
-     * Reads the current stored history ID from the IW commit data.
-     */
-    private String loadHistoryUUID(Map<String, String> commitData) {
-        final String uuid = commitData.get(HISTORY_UUID_KEY);
-        if (uuid == null) {
-            throw new IllegalStateException("commit doesn't contain history uuid");
-        }
-        return uuid;
     }
 
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
@@ -1937,6 +1968,21 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public void trimUnreferencedTranslogFiles() throws EngineException {
+
+    }
+
+    @Override
+    public boolean shouldRollTranslogGeneration() {
+        return false;
+    }
+
+    @Override
+    public void rollTranslogGeneration() throws EngineException {
+
+    }
+
     private void refreshLastCommittedSegmentInfos() {
         /*
          * we have to inc-ref the store here since if the engine is closed by a tragic event
@@ -2390,8 +2436,18 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
+        return 0;
+    }
+
+    @Override
     public boolean isThrottled() {
         return throttle.isThrottled();
+    }
+
+    @Override
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
+
     }
 
     boolean throttleLockIsHeldByCurrentThread() {  // to be used in assertions and tests only
@@ -2715,7 +2771,7 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshotFromTranslogFile(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange)
         throws IOException {
-        return getTranslog().newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
+        return translogManager.getTranslog().newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNo) throws IOException {
@@ -2743,6 +2799,16 @@ public class InternalEngine extends Engine {
      */
     public final long getMinRetainedSeqNo() {
         return softDeletesPolicy.getMinRetainedSeqNo();
+    }
+
+    @Override
+    public TranslogStats getTranslogStats() {
+        return null;
+    }
+
+    @Override
+    public Translog.Location getTranslogLastWriteLocation() {
+        return null;
     }
 
     public Closeable acquireHistoryRetentionLock() {

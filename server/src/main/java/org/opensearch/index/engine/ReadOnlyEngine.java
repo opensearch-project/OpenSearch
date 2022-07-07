@@ -44,6 +44,7 @@ import org.opensearch.Version;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -66,6 +67,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.
@@ -330,6 +332,21 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public boolean isTranslogSyncNeeded() {
+        return translogManager.isTranslogSyncNeeded();
+    }
+
+    @Override
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        return translogManager.ensureTranslogSynced(locations);
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        translogManager.syncTranslog();
+    }
+
+    @Override
     public Closeable acquireHistoryRetentionLock() {
         return () -> {};
     }
@@ -374,6 +391,16 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public long getMinRetainedSeqNo() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TranslogStats getTranslogStats() {
+        return translogManager.getTranslogStats();
+    }
+
+    @Override
+    public Translog.Location getTranslogLastWriteLocation() {
+        return translogManager.getTranslogLastWriteLocation();
     }
 
     @Override
@@ -456,8 +483,51 @@ public class ReadOnlyEngine extends Engine {
     public void deactivateThrottling() {}
 
     @Override
+    public void trimUnreferencedTranslogFiles() {
+        translogManager.trimUnreferencedTranslogFiles();
+    }
+
+    @Override
+    public boolean shouldRollTranslogGeneration() {
+        return translogManager.shouldRollTranslogGeneration();
+    }
+
+    @Override
+    public void rollTranslogGeneration() {
+        translogManager.rollTranslogGeneration();
+    }
+
+    @Override
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
+        return 0;
+    }
+
+    @Override
     public int fillSeqNoGaps(long primaryTerm) {
         return 0;
+    }
+
+    @Override
+    public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            try (Translog.Snapshot snapshot = newEmptySnapshot()) {
+                translogRecoveryRunner.run(this, snapshot);
+            } catch (final Exception e) {
+                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+            }
+        }
+        return this;
+    }
+
+    @Override
+    public void skipTranslogRecovery() {
+        translogManager.skipTranslogRecovery();
+    }
+
+    @Override
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) {
+        translogManager.trimOperationsFromTranslog(belowTerm, aboveSeqNo);
     }
 
     @Override
