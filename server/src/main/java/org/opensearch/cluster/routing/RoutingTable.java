@@ -41,6 +41,7 @@ import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
@@ -562,6 +563,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetadata.getIndex())
                 .initializeAsFromOpenToClose(indexMetadata);
             return add(indexRoutingBuilder);
+        }
+
+        public Builder addAsRemoteStoreRestore(IndexMetadata indexMetadata, RemoteStoreRecoverySource recoverySource) {
+            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetadata.getIndex())
+                .initializeAsRemoteStoreRestore(indexMetadata, recoverySource);
+            add(indexRoutingBuilder);
+            return this;
         }
 
         public Builder addAsRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource) {

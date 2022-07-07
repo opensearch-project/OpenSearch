@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-
 /**
  * A helper class that allows access to package private APIs for testing.
  */
@@ -77,7 +75,7 @@ public class ShardRoutingHelper {
         return routing.moveToUnassigned(info);
     }
 
-    public static ShardRouting newWithRestoreSource(ShardRouting routing, SnapshotRecoverySource recoverySource) {
+    public static ShardRouting newWithRestoreSource(ShardRouting routing, RecoverySource recoverySource) {
         return new ShardRouting(
             routing.shardId(),
             routing.currentNodeId(),

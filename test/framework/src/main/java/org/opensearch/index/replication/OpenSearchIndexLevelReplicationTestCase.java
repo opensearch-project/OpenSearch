@@ -218,7 +218,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         protected ReplicationGroup(final IndexMetadata indexMetadata) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
+            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer, null);
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
             updateAllocationIDsOnPrimary();
@@ -345,7 +345,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 null,
                 getEngineFactory(replicaRouting),
                 () -> {},
-                retentionLeaseSyncer
+                retentionLeaseSyncer,
+                null
             );
             addReplica(replica);
             return replica;
@@ -386,7 +387,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 getEngineConfigFactory(new IndexSettings(indexMetadata, indexMetadata.getSettings())),
                 () -> {},
                 retentionLeaseSyncer,
-                EMPTY_EVENT_LISTENER
+                EMPTY_EVENT_LISTENER,
+                null
             );
             replicas.add(newReplica);
             if (replicationTargets != null) {
