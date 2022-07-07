@@ -74,7 +74,7 @@ jobs:
               * **CommitID:** ${{ env.pr_from_sha }}
 
       - name: Create Comment Failure
-        if: ${{ github.event_name == 'pull_request_target' && failure() }}
+        if: ${{ github.event_name == 'pull_request_target' && !success() }}
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
