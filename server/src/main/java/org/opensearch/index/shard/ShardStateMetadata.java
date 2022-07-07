@@ -56,17 +56,39 @@ public final class ShardStateMetadata {
     private static final String PRIMARY_KEY = "primary";
     private static final String INDEX_UUID_KEY = "index_uuid";
     private static final String ALLOCATION_ID_KEY = "allocation_id";
+    private static final String INDEX_DATA_LOCATION_KEY = "index_data_location";
+
+    /**
+     * Enumeration of types of data locations for an index
+     */
+    public enum IndexDataLocation {
+        /**
+         * Indicates index data is on the local disk
+         */
+        LOCAL,
+        /**
+         * Indicates index data is remote, such as for a searchable snapshot
+         * index
+         */
+        REMOTE
+    }
 
     public final String indexUUID;
     public final boolean primary;
     @Nullable
     public final AllocationId allocationId; // can be null if we read from legacy format (see fromXContent and MultiDataPathUpgrader)
+    public final IndexDataLocation indexDataLocation;
 
     public ShardStateMetadata(boolean primary, String indexUUID, AllocationId allocationId) {
+        this(primary, indexUUID, allocationId, IndexDataLocation.LOCAL);
+    }
+
+    public ShardStateMetadata(boolean primary, String indexUUID, AllocationId allocationId, IndexDataLocation indexDataLocation) {
         assert indexUUID != null;
         this.primary = primary;
         this.indexUUID = indexUUID;
         this.allocationId = allocationId;
+        this.indexDataLocation = Objects.requireNonNull(indexDataLocation);
     }
 
     @Override
@@ -89,6 +111,9 @@ public final class ShardStateMetadata {
         if (Objects.equals(allocationId, that.allocationId) == false) {
             return false;
         }
+        if (Objects.equals(indexDataLocation, that.indexDataLocation) == false) {
+            return false;
+        }
 
         return true;
     }
@@ -98,17 +123,16 @@ public final class ShardStateMetadata {
         int result = indexUUID.hashCode();
         result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
         result = 31 * result + (primary ? 1 : 0);
+        result = 31 * result + indexDataLocation.hashCode();
         return result;
     }
 
     @Override
     public String toString() {
-        return "primary [" + primary + "], allocation [" + allocationId + "]";
+        return "primary [" + primary + "], allocation [" + allocationId + "], index data location [" + indexDataLocation + "]";
     }
 
-    public static final MetadataStateFormat<ShardStateMetadata> FORMAT = new MetadataStateFormat<ShardStateMetadata>(
-        SHARD_STATE_FILE_PREFIX
-    ) {
+    public static final MetadataStateFormat<ShardStateMetadata> FORMAT = new MetadataStateFormat<>(SHARD_STATE_FILE_PREFIX) {
 
         @Override
         protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
@@ -124,6 +148,11 @@ public final class ShardStateMetadata {
             if (shardStateMetadata.allocationId != null) {
                 builder.field(ALLOCATION_ID_KEY, shardStateMetadata.allocationId);
             }
+            // Omit the index data location field if it is LOCAL (the implicit default)
+            // to maintain compatibility for local indices
+            if (shardStateMetadata.indexDataLocation != IndexDataLocation.LOCAL) {
+                builder.field(INDEX_DATA_LOCATION_KEY, shardStateMetadata.indexDataLocation);
+            }
         }
 
         @Override
@@ -136,6 +165,7 @@ public final class ShardStateMetadata {
             String currentFieldName = null;
             String indexUUID = IndexMetadata.INDEX_UUID_NA_VALUE;
             AllocationId allocationId = null;
+            IndexDataLocation indexDataLocation = IndexDataLocation.LOCAL;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -144,6 +174,13 @@ public final class ShardStateMetadata {
                         primary = parser.booleanValue();
                     } else if (INDEX_UUID_KEY.equals(currentFieldName)) {
                         indexUUID = parser.text();
+                    } else if (INDEX_DATA_LOCATION_KEY.equals(currentFieldName)) {
+                        final String stringValue = parser.text();
+                        try {
+                            indexDataLocation = IndexDataLocation.valueOf(stringValue);
+                        } catch (IllegalArgumentException e) {
+                            throw new CorruptStateException("unexpected value for data location [" + stringValue + "]");
+                        }
                     } else {
                         throw new CorruptStateException("unexpected field in shard state [" + currentFieldName + "]");
                     }
@@ -160,7 +197,7 @@ public final class ShardStateMetadata {
             if (primary == null) {
                 throw new CorruptStateException("missing value for [primary] in shard state");
             }
-            return new ShardStateMetadata(primary, indexUUID, allocationId);
+            return new ShardStateMetadata(primary, indexUUID, allocationId, indexDataLocation);
         }
     };
 }
