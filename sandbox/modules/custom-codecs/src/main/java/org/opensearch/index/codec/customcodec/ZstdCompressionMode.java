@@ -32,7 +32,11 @@ public class ZstdCompressionMode extends CompressionMode {
         this.compressionLevel = DEFAULT_COMPRESSION_LEVEL;
     }
 
-    /** compression mode for a given compression level */
+    /**
+     * Creates a new instance.
+     *
+     * @param compressionLevel The compression level to use.
+     */
     protected ZstdCompressionMode(int compressionLevel) {
         this.compressionLevel = compressionLevel;
     }

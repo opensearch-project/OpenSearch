@@ -18,7 +18,7 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 
-/** Zstandard Compression Mode */
+/** ZSTD Compression Mode (without a dictionary support). */
 public class ZstdNoDictCompressionMode extends CompressionMode {
 
     private static final int NUM_SUB_BLOCKS = 10;
@@ -31,7 +31,11 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
         this.compressionLevel = DEFAULT_COMPRESSION_LEVEL;
     }
 
-    /** compression mode for a given compression level */
+    /**
+     * Creates a new instance with the given compression level.
+     *
+     * @param compressionLevel The compression level.
+     */
     protected ZstdNoDictCompressionMode(int compressionLevel) {
         this.compressionLevel = compressionLevel;
     }

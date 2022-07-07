@@ -8,13 +8,23 @@
 
 package org.opensearch.index.codec.customcodec;
 
-/** Custom codec for different compression algorithm */
+/**
+ * ZstdNoDictCodec provides ZSTD compressor without a dictionary support.
+ */
 public class ZstdNoDictCodec extends Lucene92CustomCodec {
 
+    /**
+     * Creates a new ZstdNoDictCodec instance with the default compression level.
+     */
     public ZstdNoDictCodec() {
         this(DEFAULT_COMPRESSION_LEVEL);
     }
 
+    /**
+     * Creates a new ZstdNoDictCodec instance.
+     *
+     * @param compressionLevel The compression level.
+     */
     public ZstdNoDictCodec(int compressionLevel) {
         super(Mode.ZSTDNODICT, compressionLevel);
     }

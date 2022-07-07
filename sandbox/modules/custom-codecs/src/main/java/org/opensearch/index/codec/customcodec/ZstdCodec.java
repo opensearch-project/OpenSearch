@@ -8,14 +8,23 @@
 
 package org.opensearch.index.codec.customcodec;
 
-/** Custom codec for different compression algorithm */
+/**
+ * ZstdCodec provides ZSTD compressor using the <a href="https://github.com/luben/zstd-jni">zstd-jni</a> library.
+ */
 public class ZstdCodec extends Lucene92CustomCodec {
 
-    /** new codec for a given compression algorithm and compression level */
+    /**
+     * Creates a new ZstdCodec instance with the default compression level.
+     */
     public ZstdCodec() {
         this(DEFAULT_COMPRESSION_LEVEL);
     }
 
+    /**
+     * Creates a new ZstdCodec instance.
+     *
+     * @param compressionLevel The compression level.
+     */
     public ZstdCodec(int compressionLevel) {
         super(Mode.ZSTD, compressionLevel);
     }

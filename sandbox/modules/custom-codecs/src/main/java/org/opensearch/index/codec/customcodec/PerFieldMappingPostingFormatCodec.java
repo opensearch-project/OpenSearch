@@ -10,12 +10,16 @@ package org.opensearch.index.codec.customcodec;
 
 import org.opensearch.index.mapper.MapperService;
 
+/** PerFieldMappingPostingFormatCodec. {@link org.opensearch.index.codec.PerFieldMappingPostingFormatCodec} */
 public class PerFieldMappingPostingFormatCodec extends Lucene92CustomCodec {
 
-    private final MapperService mapperService;
-
+    /**
+     * Creates a new instance.
+     *
+     * @param compressionMode The compression mode (ZSTD, ZSTDNODICT, or LZ4).
+     * @param mapperService The mapper service.
+     */
     public PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode compressionMode, MapperService mapperService) {
         super(compressionMode);
-        this.mapperService = mapperService;
     }
 }

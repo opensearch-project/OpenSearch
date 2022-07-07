@@ -8,15 +8,16 @@
 
 package org.opensearch.index.codec.customcodec;
 
-/** Custom codec for different compression algorithm */
+/**
+ * Lz4Codec provides a native LZ4 implementation based on the <a href="https://github.com/lz4/lz4-java">lz4-java</a> library.
+ */
 public class Lz4Codec extends Lucene92CustomCodec {
 
+    /**
+     * Creates a new Lz4Codec instance.
+     */
     public Lz4Codec() {
-        this(DEFAULT_COMPRESSION_LEVEL);
-    }
-
-    public Lz4Codec(int compressionLevel) {
-        super(Mode.LZ4, compressionLevel);
+        super(Mode.LZ4);
     }
 
     @Override

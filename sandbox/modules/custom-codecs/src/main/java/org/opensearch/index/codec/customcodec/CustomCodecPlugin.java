@@ -19,6 +19,10 @@ import java.util.Optional;
  * A plugin that implements zstd (with and without dictionary) and lz4 (native) compression algorithms.
  */
 public class CustomCodecPlugin extends Plugin implements EnginePlugin {
+
+    /** Creates a new instance */
+    public CustomCodecPlugin() {}
+
     /**
      * @param indexSettings is the default indexSettings
      * @return the engine factory

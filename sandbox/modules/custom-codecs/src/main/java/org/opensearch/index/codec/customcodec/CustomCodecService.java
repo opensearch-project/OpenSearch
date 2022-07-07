@@ -18,9 +18,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * CustomCodecService provides ZSTD, ZSTDNODICT, and LZ4 compressors to be used in use-case specific file formats.
+ */
 public class CustomCodecService extends CodecService {
     private final Map<String, Codec> codecs;
 
+    /**
+     * Creates a new CustomCodecService.
+     *
+     * @param mapperService A mapper service.
+     * @param logger A logger.
+     */
     public CustomCodecService(MapperService mapperService, Logger logger) {
         super(mapperService, logger);
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
