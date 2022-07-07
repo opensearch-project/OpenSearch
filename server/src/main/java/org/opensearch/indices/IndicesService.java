@@ -111,6 +111,7 @@ import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
+import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -133,6 +134,7 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.RemoteDirectoryFactory;
+import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -773,6 +775,9 @@ public class IndicesService extends AbstractLifecycleComponent
             if (idxSettings.isSegRepEnabled()) {
                 return new NRTReplicationEngineFactory();
             }
+            if (idxSettings.getIndexMetadata().getIndex().getName().startsWith("restored_")) {
+                return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
+            }
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {
             assert engineFactories.get(0).isPresent();
@@ -864,7 +869,13 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            checkpointPublisher,
+            repositoriesService
+        );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS

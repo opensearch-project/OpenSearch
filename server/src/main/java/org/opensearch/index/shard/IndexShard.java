@@ -676,7 +676,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.shardRouting = newRouting;
 
             assert this.shardRouting.primary() == false || this.shardRouting.started() == false || // note that we use started and not
-                                                                                                   // active to avoid relocating shards
+            // active to avoid relocating shards
                 this.indexShardOperationPermits.isBlocked() || // if permits are blocked, we are still transitioning
                 this.replicationTracker.isPrimaryMode() : "a started primary with non-pending operation term must be in primary mode "
                     + this.shardRouting;
@@ -1938,7 +1938,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 translogRecoveryStats::incrementRecoveredOperations
             );
         };
-        loadGlobalCheckpointToReplicationTracker();
+        //loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().translogManager()
             .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), Long.MAX_VALUE);

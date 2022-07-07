@@ -569,7 +569,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS,
                 ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT,
                 ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS,
-                IndexingPressure.MAX_INDEXING_BYTES
+                IndexingPressure.MAX_INDEXING_BYTES,
+
+                IndexSettings.SNAPSHOT_REPOSITORY,
+                IndexSettings.SNAPSHOT_INDEX_NAME,
+                IndexSettings.SNAPSHOT_INDEX_ID,
+                IndexSettings.SNAPSHOT_ID_NAME,
+                IndexSettings.SNAPSHOT_ID_UUID
             )
         )
     );

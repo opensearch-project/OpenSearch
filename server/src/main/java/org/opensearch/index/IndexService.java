@@ -87,6 +87,7 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.breaker.CircuitBreakerService;
@@ -96,6 +97,9 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.threadpool.ThreadPool;
@@ -433,7 +437,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final SegmentReplicationCheckpointPublisher checkpointPublisher
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final RepositoriesService repositoriesService
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -523,7 +528,22 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 );
             }
 
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            final Directory directory;
+            if (IndexSettings.SNAPSHOT_REPOSITORY.exists(this.indexSettings.getSettings())) {
+                try {
+                    final Repository repository = repositoriesService.repository(
+                        IndexSettings.SNAPSHOT_REPOSITORY.get(this.indexSettings.getSettings()));
+                    directory = new RemoteSnapshotDirectoryFactory().newDirectory(this.indexSettings, path, repository);
+                } catch (RepositoryMissingException e) {
+                    throw new IllegalArgumentException(
+                        "Repository should be created before creating index with remote_store enabled setting",
+                        e
+                    );
+                }
+            } else {
+                directory = directoryFactory.newDirectory(this.indexSettings, path);
+            }
+
             store = new Store(
                 shardId,
                 this.indexSettings,

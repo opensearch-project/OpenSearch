@@ -44,7 +44,6 @@ import org.opensearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
-import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.io.stream.StreamInput;
@@ -417,14 +416,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         /**
          * Initializes a new empty index, to be restored from a snapshot
          */
-        public Builder initializeAsNewRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
+        public Builder initializeAsNewRestore(IndexMetadata indexMetadata, RecoverySource recoverySource, IntSet ignoreShards) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.NEW_INDEX_RESTORED,
-                "restore_source["
-                    + recoverySource.snapshot().getRepository()
-                    + "/"
-                    + recoverySource.snapshot().getSnapshotId().getName()
-                    + "]"
+                "restore_source[" + "/" + "]"
             );
             return initializeAsRestore(indexMetadata, recoverySource, ignoreShards, true, unassignedInfo);
         }
@@ -432,14 +427,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         /**
          * Initializes an existing index, to be restored from a snapshot
          */
-        public Builder initializeAsRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource) {
+        public Builder initializeAsRestore(IndexMetadata indexMetadata, RecoverySource recoverySource) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
-                "restore_source["
-                    + recoverySource.snapshot().getRepository()
-                    + "/"
-                    + recoverySource.snapshot().getSnapshotId().getName()
-                    + "]"
+                "restore_source[" + "/" + "]"
             );
             return initializeAsRestore(indexMetadata, recoverySource, null, false, unassignedInfo);
         }
@@ -449,7 +440,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          */
         private Builder initializeAsRestore(
             IndexMetadata indexMetadata,
-            SnapshotRecoverySource recoverySource,
+            RecoverySource recoverySource,
             IntSet ignoreShards,
             boolean asNew,
             UnassignedInfo unassignedInfo

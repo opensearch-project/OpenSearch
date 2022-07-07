@@ -39,6 +39,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.repositories.Repository;
 
 import java.io.IOException;
 import java.util.Collections;

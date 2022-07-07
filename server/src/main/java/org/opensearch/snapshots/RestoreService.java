@@ -126,7 +126,7 @@ import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
  * method reads information about snapshot and metadata from repository. In update cluster state task it checks restore
  * preconditions, restores global state if needed, creates {@link RestoreInProgress} record with list of shards that needs
  * to be restored and adds this shard to the routing table using
- * {@link RoutingTable.Builder#addAsRestore(IndexMetadata, SnapshotRecoverySource)} method.
+ * {@link RoutingTable.Builder#addAsRestore(IndexMetadata, RecoverySource)} method.
  * <p>
  * Individual shards are getting restored as part of normal recovery process in
  * {@link IndexShard#restoreFromRepository} )}
@@ -340,20 +340,31 @@ public class RestoreService implements ClusterStateApplier {
                                 .getMaxNodeVersion()
                                 .minimumIndexCompatibilityVersion();
                             for (Map.Entry<String, String> indexEntry : indices.entrySet()) {
+                                String renamedIndexName = indexEntry.getKey();
                                 String index = indexEntry.getValue();
                                 boolean partial = checkPartial(index);
-                                SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
-                                    restoreUUID,
-                                    snapshot,
-                                    snapshotInfo.version(),
-                                    repositoryData.resolveIndexId(index)
-                                );
-                                String renamedIndexName = indexEntry.getKey();
-                                IndexMetadata snapshotIndexMetadata = metadata.index(index);
-                                snapshotIndexMetadata = updateIndexSettings(
-                                    snapshotIndexMetadata,
+
+                                final RecoverySource recoverySource;
+                                if (renamedIndexName.startsWith("restored_")) {
+                                    recoverySource = RecoverySource.EmptyStoreRecoverySource.INSTANCE;
+                                } else {
+                                    recoverySource = new SnapshotRecoverySource(
+                                        restoreUUID,
+                                        snapshot,
+                                        snapshotInfo.version(),
+                                        repositoryData.resolveIndexId(index)
+                                    );
+                                }
+
+                                IndexMetadata snapshotIndexMetadata = updateIndexSettings(
+                                    metadata.index(index),
                                     request.indexSettings(),
                                     request.ignoreIndexSettings()
+                                );
+                                snapshotIndexMetadata = addSnapshotToIndexSettings(
+                                    snapshotIndexMetadata,
+                                    snapshot,
+                                    repositoryData.resolveIndexId(index)
                                 );
                                 try {
                                     snapshotIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(
@@ -1125,5 +1136,17 @@ public class RestoreService implements ClusterStateApplier {
         } catch (Exception t) {
             logger.warn("Failed to update restore state ", t);
         }
+    }
+
+    private static IndexMetadata addSnapshotToIndexSettings(IndexMetadata metadata, Snapshot snapshot, IndexId indexId) {
+        final Settings newSettings = Settings.builder()
+            .put(IndexSettings.SNAPSHOT_REPOSITORY.getKey(), snapshot.getRepository())
+            .put(IndexSettings.SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
+            .put(IndexSettings.SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
+            .put(IndexSettings.SNAPSHOT_INDEX_ID.getKey(), indexId.getId())
+            .put(IndexSettings.SNAPSHOT_INDEX_NAME.getKey(), indexId.getName())
+            .put(metadata.getSettings())
+            .build();
+        return IndexMetadata.builder(metadata).settings(newSettings).build();
     }
 }

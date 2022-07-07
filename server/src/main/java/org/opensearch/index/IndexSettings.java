@@ -73,6 +73,21 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIEL
  * @opensearch.internal
  */
 public final class IndexSettings {
+    public static final Setting<String> SNAPSHOT_REPOSITORY = Setting.simpleString(
+        "index.experimental.snapshot.repository",
+        Property.IndexScope
+    );
+    public static final Setting<String> SNAPSHOT_ID_UUID = Setting.simpleString("index.experimental.snapshot.id.uuid", Property.IndexScope);
+    public static final Setting<String> SNAPSHOT_ID_NAME = Setting.simpleString("index.experimental.snapshot.id.name", Property.IndexScope);
+    public static final Setting<String> SNAPSHOT_INDEX_ID = Setting.simpleString(
+        "index.experimental.snapshot.index.id",
+        Property.IndexScope
+    );
+    public static final Setting<String> SNAPSHOT_INDEX_NAME = Setting.simpleString(
+        "index.experimental.snapshot.index.name",
+        Property.IndexScope
+    );
+
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
         "index.query.default_field",
         Collections.singletonList("*"),
