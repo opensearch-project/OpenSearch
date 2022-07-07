@@ -16,7 +16,7 @@ public class ZstdNoDictCodec extends Lucene92CustomCodec {
     }
 
     public ZstdNoDictCodec(int compressionLevel) {
-        super(Mode.ZSTDNODICT);
+        super(Mode.ZSTDNODICT, compressionLevel);
     }
 
     @Override

@@ -17,7 +17,7 @@ public class ZstdCodec extends Lucene92CustomCodec {
     }
 
     public ZstdCodec(int compressionLevel) {
-        super(Mode.ZSTD);
+        super(Mode.ZSTD, compressionLevel);
     }
 
     @Override

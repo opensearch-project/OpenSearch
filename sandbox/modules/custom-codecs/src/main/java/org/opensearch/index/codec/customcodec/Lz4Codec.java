@@ -16,7 +16,7 @@ public class Lz4Codec extends Lucene92CustomCodec {
     }
 
     public Lz4Codec(int compressionLevel) {
-        super(Mode.LZ4);
+        super(Mode.LZ4, compressionLevel);
     }
 
     @Override
