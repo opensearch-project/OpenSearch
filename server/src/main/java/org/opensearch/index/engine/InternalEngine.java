@@ -33,6 +33,7 @@
 package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -104,12 +105,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogCorruptedException;
-import org.opensearch.index.translog.TranslogDeletionPolicy;
-import org.opensearch.index.translog.TranslogManager;
-import org.opensearch.index.translog.TranslogException;
-import org.opensearch.index.translog.InternalTranslogManager;
+import org.opensearch.index.translog.*;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -175,6 +171,7 @@ public class InternalEngine extends Engine {
     // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttling
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
+    private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     // max_seq_no_of_updates_or_deletes tracks the max seq_no of update or delete operations that have been processed in this engine.
@@ -482,6 +479,21 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean isTranslogSyncNeeded() {
+        return translogManager.isTranslogSyncNeeded();
+    }
+
+    @Override
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        return translogManager.ensureTranslogSynced(locations);
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        translogManager.syncTranslog();
+    }
+
+    @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
@@ -508,6 +520,60 @@ public class InternalEngine extends Engine {
                     + "]";
             return numNoOpsAdded;
         }
+    }
+
+    @Override
+    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            if (pendingTranslogRecovery.get() == false) {
+                throw new IllegalStateException("Engine has already been recovered");
+            }
+            try {
+                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo);
+            } catch (Exception e) {
+                try {
+                    pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
+                    failEngine("failed to recover from translog", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                throw e;
+            }
+        }
+        return this;
+    }
+
+    @Override
+    public void skipTranslogRecovery() {
+        translogManager.skipTranslogRecovery();
+    }
+
+    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+        final int opsRecovered;
+        final long localCheckpoint = getProcessedLocalCheckpoint();
+        if (localCheckpoint < recoverUpToSeqNo) {
+            try (Translog.Snapshot snapshot = translogManager.getTranslog().newSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
+                opsRecovered = translogRecoveryRunner.run(this, snapshot);
+            } catch (Exception e) {
+                throw new EngineException(shardId, "failed to recover from translog", e);
+            }
+        } else {
+            opsRecovered = 0;
+        }
+        // flush if we recovered something or if we have references to older translogs
+        // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
+        assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
+        pendingTranslogRecovery.set(false); // we are good - now we can commit
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
+                opsRecovered,
+                translogManager.getTranslog().currentFileGeneration()
+            )
+        );
+        flush(false, true);
+        translogManager.getTranslog().trimUnreferencedReaders();
     }
 
     private void bootstrapAppendOnlyInfoFromWriter(IndexWriter writer) {
@@ -1879,6 +1945,21 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public void trimUnreferencedTranslogFiles() throws EngineException {
+
+    }
+
+    @Override
+    public boolean shouldRollTranslogGeneration() {
+        return false;
+    }
+
+    @Override
+    public void rollTranslogGeneration() throws EngineException {
+
+    }
+
     private void refreshLastCommittedSegmentInfos() {
         /*
          * we have to inc-ref the store here since if the engine is closed by a tragic event
@@ -2365,8 +2446,18 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
+        return 0;
+    }
+
+    @Override
     public boolean isThrottled() {
         return throttle.isThrottled();
+    }
+
+    @Override
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
+
     }
 
     boolean throttleLockIsHeldByCurrentThread() {  // to be used in assertions and tests only
@@ -2705,6 +2796,16 @@ public class InternalEngine extends Engine {
      */
     public final long getMinRetainedSeqNo() {
         return softDeletesPolicy.getMinRetainedSeqNo();
+    }
+
+    @Override
+    public TranslogStats getTranslogStats() {
+        return null;
+    }
+
+    @Override
+    public Translog.Location getTranslogLastWriteLocation() {
+        return null;
     }
 
     public Closeable acquireHistoryRetentionLock() {

@@ -27,6 +27,7 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
+import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 /**
  * This is an {@link Engine} implementation intended for replica shards when Segment Replication
@@ -46,7 +48,7 @@ import java.util.function.BiFunction;
  *
  * @opensearch.internal
  */
-public class NRTReplicationEngine extends Engine {
+public class NRTReplicationEngine extends Engine implements LifecycleAware {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
     private final NRTReplicationReaderManager readerManager;
@@ -148,6 +150,11 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
+        translogManager.trimOperationsFromTranslog(belowTerm, aboveSeqNo);
+    }
+
+    @Override
     public IndexResult index(Index index) throws IOException {
         ensureOpen();
         IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
@@ -194,6 +201,21 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
+    public boolean isTranslogSyncNeeded() {
+        return translogManager.isTranslogSyncNeeded();
+    }
+
+    @Override
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        return translogManager.ensureTranslogSynced(locations);
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        translogManager.syncTranslog();
+    }
+
+    @Override
     public Closeable acquireHistoryRetentionLock() {
         throw new UnsupportedOperationException("Not implemented");
     }
@@ -222,6 +244,16 @@ public class NRTReplicationEngine extends Engine {
     @Override
     public long getMinRetainedSeqNo() {
         return localCheckpointTracker.getProcessedCheckpoint();
+    }
+
+    @Override
+    public TranslogStats getTranslogStats() {
+        return translogManager.getTranslogStats();
+    }
+
+    @Override
+    public Translog.Location getTranslogLastWriteLocation() {
+        return translogManager.getTranslogLastWriteLocation();
     }
 
     @Override
@@ -272,6 +304,21 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {}
+
+    @Override
+    public void trimUnreferencedTranslogFiles() throws EngineException {
+        translogManager.trimUnreferencedTranslogFiles();
+    }
+
+    @Override
+    public boolean shouldRollTranslogGeneration() {
+        return translogManager.shouldRollTranslogGeneration();
+    }
+
+    @Override
+    public void rollTranslogGeneration() throws EngineException {
+        translogManager.rollTranslogGeneration();
+    }
 
     @Override
     public void forceMerge(
@@ -326,8 +373,23 @@ public class NRTReplicationEngine extends Engine {
     public void deactivateThrottling() {}
 
     @Override
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
+        return 0;
+    }
+
+    @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         return 0;
+    }
+
+    @Override
+    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+        throw new UnsupportedOperationException("Read only replicas do not have an IndexWriter and cannot recover from a translog.");
+    }
+
+    @Override
+    public void skipTranslogRecovery() {
+        translogManager.skipTranslogRecovery();
     }
 
     @Override
