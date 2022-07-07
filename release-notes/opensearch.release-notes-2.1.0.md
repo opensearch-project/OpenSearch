@@ -1,20 +1,16 @@
 ## 2022-07-07 Version 2.1.0 Release Notes
 
-
-### Breaking Changes in 2.1.0
-
-#### Remove Mapping types
+### Remove Mapping types
 
 * [Type removal] Remove type from BulkRequestParser (#3423) ([#3431](https://github.com/opensearch-project/opensearch/pull/3431))
-* [Type removal] _type removal from tests of yaml tests (#3406) ([#3414](https://github.com/opensearch-project/opensearch/pull/3414)
+* [Type removal] _type removal from tests of yaml tests (#3406) ([#3414](https://github.com/opensearch-project/opensearch/pull/3414))
 * [Backport 2.x] Add type mapping removal bwc tests for indexing, searching, snapshots ([#2921](https://github.com/opensearch-project/opensearch/pull/2921))
 
-#### Upgrades
+### Upgrades
 
 * Lock 2.1 release to Lucene 9.2.0. ([#3676](https://github.com/opensearch-project/opensearch/pull/3676))
 
-
-#### Deprecations
+### Deprecations
 
 * [2.x] Deprecate public methods and variables with master term in package 'org.opensearch.action.support.master' (#3617) ([#3643](https://github.com/opensearch-project/opensearch/pull/3643))
 * Deprecate classes in org.opensearch.action.support.master (#3593) ([#3609](https://github.com/opensearch-project/opensearch/pull/3609))
@@ -67,7 +63,6 @@
 * Removing unused method from TransportSearchAction (#3437) ([#3445](https://github.com/opensearch-project/opensearch/pull/3445))
 * Fix Lucene-snapshots repo for jdk 17. (#3396) ([#3404](https://github.com/opensearch-project/opensearch/pull/3404))
 * Temporary adding Apache Lucene repositories for snapshots (#3042) ([#3047](https://github.com/opensearch-project/opensearch/pull/3047))
-* [Remove] MainResponse version override cluster setting (#3031) ([#3032](https://github.com/opensearch-project/opensearch/pull/3032))
 * Excluding system indices from max shard limit validator (#2894) ([#2911](https://github.com/opensearch-project/opensearch/pull/2911))
 * [Backport] [2.x] Bugfix to guard against stack overflow errors caused by very large reg-ex input  ([#2817](https://github.com/opensearch-project/opensearch/pull/2817))
 
