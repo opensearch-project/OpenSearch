@@ -14,7 +14,7 @@ apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
   name 'custom-codecs'
-  description 'A plugin that implements zstd (with and without dictionary) and lz4 (native) compression algorithms.'
+  description 'A plugin that implements custom codecs, including zstd and lz4 (native).'
   classname 'org.opensearch.index.codec.customcodec.CustomCodecPlugin'
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
