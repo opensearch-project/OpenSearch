@@ -1,5 +1,6 @@
 name: Gradle Check (Jenkins)
 on:
+  push:
   pull_request_target:
     types: [opened, synchronize, reopened]
 
@@ -8,7 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
-      - name: Setup environment variables
+      - name: Checkout OpenSearch repo
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup environment variables (PR)
+        if: github.event_name == 'pull_request_target'
         run: |
             echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
             echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
@@ -16,17 +23,30 @@ jobs:
             echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
             echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
 
+      - name: Setup environment variables (Push)
+        if: github.event_name == 'push'
+        run: |
+            repo_url="https://github.com/opensearch-project/OpenSearch"
+            ref_id=$(git rev-parse HEAD)
+            branch_name=$(git rev-parse --abbrev-ref HEAD)
+            echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
+            echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
+            echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
+            echo "pr_title=Push trigger $branch_name $ref_id $repo_url" >> $GITHUB_ENV
+            echo "pr_number=Null" >> $GITHUB_ENV
+
       - name: Checkout opensearch-build repo
         uses: actions/checkout@v2
         with:
           repository: opensearch-project/opensearch-build
           ref: main
+          path: opensearch-build
 
       - name: Trigger jenkins workflow to run gradle check
         run: |
             set -e
             set -o pipefail
-            bash scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
+            bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()
@@ -43,7 +63,7 @@ jobs:
           files: ./codeCoverage.xml
 
       - name: Create Comment Success
-        if: success()
+        if: ${{ github.event_name == 'pull_request_target' && success() }}
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
@@ -54,7 +74,7 @@ jobs:
               * **CommitID:** ${{ env.pr_from_sha }}
 
       - name: Create Comment Failure
-        if: failure()
+        if: ${{ github.event_name == 'pull_request_target' && failure() }}
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
