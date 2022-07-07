@@ -35,6 +35,8 @@ package org.opensearch.snapshots;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.Metadata;
@@ -46,6 +48,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.RepositoryVerificationException;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -327,5 +330,56 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         } catch (RepositoryVerificationException ex) {
             assertThat(ex.getMessage(), containsString("is not shared"));
         }
+    }
+
+    public void testSnapshotShardBlobDelete() throws Exception {
+        Client client = client();
+        Path repositoryPath = randomRepoPath();
+        final String repositoryName = "test-repo";
+        final String firstSnapshot = "first-snapshot";
+        final String secondSnapshot = "second-snapshot";
+        final String indexName = "test-idx";
+
+        logger.info("-->  creating repository at {}", repositoryPath.toAbsolutePath());
+        createRepository(
+            "test-repo",
+            "mock",
+            Settings.builder().put("location", repositoryPath).put(BlobStoreRepository.MAX_SHARD_BLOB_DELETE_BATCH_SIZE.getKey(), 10)
+        );
+
+        logger.info("--> creating index-0 and ingest data");
+        createIndex(indexName);
+        ensureGreen();
+        for (int j = 0; j < 10; j++) {
+            index(indexName, "_doc", Integer.toString(10 + j), "foo", "bar" + 10 + j);
+        }
+        refresh();
+
+        logger.info("--> creating first snapshot");
+        createFullSnapshot(repositoryName, firstSnapshot);
+
+        int numberOfFiles = numberOfFiles(repositoryPath);
+
+        logger.info("--> adding some more documents to test index");
+        for (int j = 0; j < 10; ++j) {
+            final BulkRequest bulkRequest = new BulkRequest();
+            for (int i = 0; i < 100; ++i) {
+                bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+            }
+            client().bulk(bulkRequest).get();
+        }
+        refresh();
+
+        logger.info("--> creating second snapshot");
+        createFullSnapshot(repositoryName, secondSnapshot);
+
+        // Delete second snapshot
+        logger.info("--> delete second snapshot");
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, secondSnapshot).get();
+
+        logger.info("--> make sure that number of files is back to what it was when the first snapshot was made");
+        assertFileCount(repositoryPath, numberOfFiles);
+
+        logger.info("--> done");
     }
 }
