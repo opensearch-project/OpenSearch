@@ -27,12 +27,12 @@ jobs:
         if: github.event_name == 'push'
         run: |
             repo_url="https://github.com/opensearch-project/OpenSearch"
-            ref_id=$(git rev-parse --short HEAD)
+            ref_id=$(git rev-parse HEAD)
             branch_name=$(git rev-parse --abbrev-ref HEAD)
             echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
             echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
             echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
-            echo "pr_title=Push trigger $ref_id $branch_name $repo_url" >> $GITHUB_ENV
+            echo "pr_title=Push trigger $branch_name $ref_id $repo_url" >> $GITHUB_ENV
             echo "pr_number=Null" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
