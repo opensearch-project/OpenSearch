@@ -28,10 +28,11 @@ jobs:
         run: |
             repo_url="https://github.com/opensearch-project/OpenSearch"
             ref_id=$(git rev-parse HEAD)
+            branch_name=$(git rev-parse --abbrev-ref HEAD)
             echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
             echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
             echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
-            echo "pr_title=Triggerd on push for ref $ref_id on $repo_url" >> $GITHUB_ENV
+            echo "pr_title=Triggerd on push for $branch_name $ref_id on $repo_url" >> $GITHUB_ENV
             echo "pr_number=Null" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
