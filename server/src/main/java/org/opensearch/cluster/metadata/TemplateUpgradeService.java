@@ -40,7 +40,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
@@ -165,7 +165,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
         for (Map.Entry<String, BytesReference> change : changes.entrySet()) {
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(change.getKey()).source(change.getValue(), XContentType.JSON);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1));
             client.admin().indices().putTemplate(request, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
@@ -187,7 +187,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
         for (String template : deletions) {
             DeleteIndexTemplateRequest request = new DeleteIndexTemplateRequest(template);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1));
             client.admin().indices().deleteTemplate(request, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {

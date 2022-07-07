@@ -123,13 +123,13 @@ public class TransportAddIndexBlockAction extends TransportClusterManagerNodeAct
     }
 
     @Override
-    protected void masterOperation(AddIndexBlockRequest request, ClusterState state, ActionListener<AddIndexBlockResponse> listener)
+    protected void clusterManagerOperation(AddIndexBlockRequest request, ClusterState state, ActionListener<AddIndexBlockResponse> listener)
         throws Exception {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final Task task,
         final AddIndexBlockRequest request,
         final ClusterState state,
@@ -144,7 +144,7 @@ public class TransportAddIndexBlockAction extends TransportClusterManagerNodeAct
         final AddIndexBlockClusterStateUpdateRequest addBlockRequest = new AddIndexBlockClusterStateUpdateRequest(
             request.getBlock(),
             task.getId()
-        ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
+        ).ackTimeout(request.timeout()).masterNodeTimeout(request.clusterManagerNodeTimeout()).indices(concreteIndices);
         indexStateService.addIndexBlock(addBlockRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
             logger.debug(() -> new ParameterizedMessage("failed to mark indices as readonly [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);

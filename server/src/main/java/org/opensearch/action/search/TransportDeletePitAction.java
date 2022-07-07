@@ -32,6 +32,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
     private TransportSearchAction transportSearchAction;
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
+    private final PitService pitService;
 
     @Inject
     public TransportDeletePitAction(
@@ -40,13 +41,15 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
         NamedWriteableRegistry namedWriteableRegistry,
         TransportSearchAction transportSearchAction,
         ClusterService clusterService,
-        SearchTransportService searchTransportService
+        SearchTransportService searchTransportService,
+        PitService pitService
     ) {
         super(DeletePitAction.NAME, transportService, actionFilters, DeletePitRequest::new);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.transportSearchAction = transportSearchAction;
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
+        this.pitService = pitService;
     }
 
     /**
@@ -76,7 +79,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
                 nodeToContextsMap.put(contextIdForNode.getNode(), contexts);
             }
         }
-        SearchUtils.deletePitContexts(nodeToContextsMap, listener, clusterService.state(), searchTransportService);
+        pitService.deletePitContexts(nodeToContextsMap, listener);
     }
 
     /**
@@ -85,7 +88,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
     private void deleteAllPits(ActionListener<DeletePitResponse> listener) {
         // TODO: Use list all PITs to delete all PITs in case of remote cluster use case
         int size = clusterService.state().getNodes().getSize();
-        ActionListener groupedActionListener = SearchUtils.getDeletePitGroupedListener(listener, size);
+        ActionListener groupedActionListener = pitService.getDeletePitGroupedListener(listener, size);
         for (final DiscoveryNode node : clusterService.state().getNodes()) {
             try {
                 Transport.Connection connection = searchTransportService.getConnection(null, node);

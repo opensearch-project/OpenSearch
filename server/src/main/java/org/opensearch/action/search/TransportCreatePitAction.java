@@ -40,6 +40,7 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
     private final ClusterService clusterService;
     private final TransportSearchAction transportSearchAction;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final PitService pitService;
 
     @Inject
     public TransportCreatePitAction(
@@ -48,7 +49,8 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         SearchTransportService searchTransportService,
         ClusterService clusterService,
         TransportSearchAction transportSearchAction,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        PitService pitService
     ) {
         super(CreatePitAction.NAME, transportService, actionFilters, in -> new CreatePitRequest(in));
         this.transportService = transportService;
@@ -56,6 +58,7 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         this.clusterService = clusterService;
         this.transportSearchAction = transportSearchAction;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.pitService = pitService;
     }
 
     @Override
@@ -67,7 +70,8 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
             transportSearchAction,
             namedWriteableRegistry,
             task,
-            listener
+            listener,
+            pitService
         );
         final StepListener<SearchResponse> createPitListener = new StepListener<>();
         final ActionListener<CreatePitResponse> updatePitIdListener = ActionListener.wrap(r -> listener.onResponse(r), e -> {

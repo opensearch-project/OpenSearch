@@ -218,6 +218,8 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
+
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 CreatePitController controller = new CreatePitController(
                     request,
                     searchTransportService,
@@ -225,7 +227,8 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     transportSearchAction,
                     namedWriteableRegistry,
                     task,
-                    createPitListener
+                    createPitListener,
+                    pitService
                 );
 
                 ActionListener<CreatePitResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
@@ -308,7 +311,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
-
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 CreatePitController controller = new CreatePitController(
                     request,
                     searchTransportService,
@@ -316,7 +319,8 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     transportSearchAction,
                     namedWriteableRegistry,
                     task,
-                    createPitListener
+                    createPitListener,
+                    pitService
                 );
 
                 ActionListener<CreatePitResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
@@ -408,6 +412,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 CreatePitController controller = new CreatePitController(
                     request,
                     searchTransportService,
@@ -415,7 +420,8 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     transportSearchAction,
                     namedWriteableRegistry,
                     task,
-                    createPitListener
+                    createPitListener,
+                    pitService
                 );
 
                 CountDownLatch latch = new CountDownLatch(1);
@@ -497,6 +503,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 };
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 CreatePitController controller = new CreatePitController(
                     request,
                     searchTransportService,
@@ -504,7 +511,8 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     transportSearchAction,
                     namedWriteableRegistry,
                     task,
-                    createPitListener
+                    createPitListener,
+                    pitService
                 );
 
                 CountDownLatch latch = new CountDownLatch(1);

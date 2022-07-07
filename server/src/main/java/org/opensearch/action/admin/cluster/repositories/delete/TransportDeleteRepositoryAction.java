@@ -34,7 +34,7 @@ package org.opensearch.action.admin.cluster.repositories.delete;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -95,7 +95,7 @@ public class TransportDeleteRepositoryAction extends TransportClusterManagerNode
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteRepositoryRequest request,
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

@@ -46,4 +46,29 @@ public abstract class SegmentReplicationTransportRequest extends TransportReques
         out.writeString(this.targetAllocationId);
         targetNode.writeTo(out);
     }
+
+    public long getReplicationId() {
+        return replicationId;
+    }
+
+    public String getTargetAllocationId() {
+        return targetAllocationId;
+    }
+
+    public DiscoveryNode getTargetNode() {
+        return targetNode;
+    }
+
+    @Override
+    public String toString() {
+        return "SegmentReplicationTransportRequest{"
+            + "replicationId="
+            + replicationId
+            + ", targetAllocationId='"
+            + targetAllocationId
+            + '\''
+            + ", targetNode="
+            + targetNode
+            + '}';
+    }
 }

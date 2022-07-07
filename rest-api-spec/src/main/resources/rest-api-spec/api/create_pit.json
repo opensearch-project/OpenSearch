@@ -4,7 +4,7 @@
       "url":"https://opensearch.org/docs/latest/opensearch/rest-api/point_in_time/",
       "description":"Creates point in time context."
     },
-    "stability":"stable",
+    "stability":"experimental",
     "url":{
       "paths":[
         {

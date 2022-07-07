@@ -108,7 +108,7 @@ public class MappingUpdatedAction {
     /**
      * Update mappings on the cluster-manager node, waiting for the change to be committed,
      * but not for the mapping update to be applied on all nodes. The timeout specified by
-     * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#masterNodeTimeout()}),
+     * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#clusterManagerNodeTimeout()}),
      * potentially waiting for a cluster-manager node to be available.
      */
     public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
@@ -142,7 +142,7 @@ public class MappingUpdatedAction {
         PutMappingRequest putMappingRequest = new PutMappingRequest();
         putMappingRequest.setConcreteIndex(index);
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
-        putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
+        putMappingRequest.clusterManagerNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
         if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             client.execute(

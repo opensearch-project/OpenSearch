@@ -28,23 +28,23 @@ public class DeletePitInfo extends TransportResponse implements Writeable, ToXCo
     /**
      * This will be true if PIT reader contexts are deleted ond also if contexts are not found.
      */
-    private final boolean succeeded;
+    private final boolean successful;
 
     private final String pitId;
 
-    public DeletePitInfo(boolean succeeded, String pitId) {
-        this.succeeded = succeeded;
+    public DeletePitInfo(boolean successful, String pitId) {
+        this.successful = successful;
         this.pitId = pitId;
     }
 
     public DeletePitInfo(StreamInput in) throws IOException {
-        succeeded = in.readBoolean();
+        successful = in.readBoolean();
         pitId = in.readString();
 
     }
 
-    public boolean isSucceeded() {
-        return succeeded;
+    public boolean isSuccessful() {
+        return successful;
     }
 
     public String getPitId() {
@@ -53,7 +53,7 @@ public class DeletePitInfo extends TransportResponse implements Writeable, ToXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(succeeded);
+        out.writeBoolean(successful);
         out.writeString(pitId);
     }
 
@@ -64,19 +64,20 @@ public class DeletePitInfo extends TransportResponse implements Writeable, ToXCo
     );
 
     static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("succeeded"));
+        PARSER.declareBoolean(constructorArg(), new ParseField("successful"));
         PARSER.declareString(constructorArg(), new ParseField("pitId"));
     }
 
-    private static final ParseField SUCCEEDED = new ParseField("succeeded");
+    private static final ParseField SUCCESSFUL = new ParseField("successful");
     private static final ParseField PIT_ID = new ParseField("pitId");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(SUCCEEDED.getPreferredName(), succeeded);
+        builder.field(SUCCESSFUL.getPreferredName(), successful);
         builder.field(PIT_ID.getPreferredName(), pitId);
         builder.endObject();
         return builder;
     }
+
 }

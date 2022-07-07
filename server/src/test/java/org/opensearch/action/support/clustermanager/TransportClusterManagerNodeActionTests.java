@@ -229,7 +229,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             listener.onResponse(new Response()); // default implementation, overridden in specific tests
         }
 
@@ -252,7 +252,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (clusterManagerOperationFailure) {
                     listener.onFailure(exception);
                 } else {
@@ -278,7 +278,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         final boolean retryableBlock = randomBoolean();
         final boolean unblockBeforeTimeout = randomBoolean();
 
-        Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(unblockBeforeTimeout ? 60 : 0));
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(unblockBeforeTimeout ? 60 : 0));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlock block = new ClusterBlock(1, "", retryableBlock, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
@@ -324,7 +324,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
     public void testCheckBlockThrowsException() throws InterruptedException {
         boolean throwExceptionOnRetry = randomBoolean();
-        Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(60));
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(60));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlock block = new ClusterBlock(1, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
@@ -377,7 +377,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     }
 
     public void testClusterManagerNotAvailable() throws ExecutionException, InterruptedException {
-        Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(0));
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(0));
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
@@ -418,7 +418,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     public void testDelegateToFailingClusterManager() throws ExecutionException, InterruptedException {
         boolean failsWithConnectTransportException = randomBoolean();
         boolean rejoinSameClusterManager = failsWithConnectTransportException && randomBoolean();
-        Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
         DiscoveryNode clusterManagerNode = this.remoteNode;
         setState(
             clusterService,
@@ -502,7 +502,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     }
 
     public void testClusterManagerFailoverAfterStepDown() throws ExecutionException, InterruptedException {
-        Request request = new Request().masterNodeTimeout(TimeValue.timeValueHours(1));
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueHours(1));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         final Response response = new Response();
@@ -511,7 +511,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+                throws Exception {
                 // The other node has become cluster-manager, simulate failures of this node while publishing cluster state through
                 // ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));

@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.reroute;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
+import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.common.io.stream.StreamInput;
@@ -163,12 +163,12 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
             && Objects.equals(explain, other.explain)
             && Objects.equals(timeout, other.timeout)
             && Objects.equals(retryFailed, other.retryFailed)
-            && Objects.equals(masterNodeTimeout, other.masterNodeTimeout);
+            && Objects.equals(clusterManagerNodeTimeout, other.clusterManagerNodeTimeout);
     }
 
     @Override
     public int hashCode() {
         // Override equals and hashCode for testing
-        return Objects.hash(commands, dryRun, explain, timeout, retryFailed, masterNodeTimeout);
+        return Objects.hash(commands, dryRun, explain, timeout, retryFailed, clusterManagerNodeTimeout);
     }
 }

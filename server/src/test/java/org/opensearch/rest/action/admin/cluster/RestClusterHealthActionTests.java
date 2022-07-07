@@ -81,7 +81,7 @@ public class RestClusterHealthActionTests extends OpenSearchTestCase {
         assertThat(clusterHealthRequest.indices().length, equalTo(1));
         assertThat(clusterHealthRequest.indices()[0], equalTo(index));
         assertThat(clusterHealthRequest.local(), equalTo(local));
-        assertThat(clusterHealthRequest.masterNodeTimeout(), equalTo(TimeValue.parseTimeValue(clusterManagerTimeout, "test")));
+        assertThat(clusterHealthRequest.clusterManagerNodeTimeout(), equalTo(TimeValue.parseTimeValue(clusterManagerTimeout, "test")));
         assertThat(clusterHealthRequest.timeout(), equalTo(TimeValue.parseTimeValue(timeout, "test")));
         assertThat(clusterHealthRequest.waitForStatus(), equalTo(waitForStatus));
         assertThat(clusterHealthRequest.waitForNoRelocatingShards(), equalTo(waitForNoRelocatingShards));

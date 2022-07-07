@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.settings.put;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
+import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -233,7 +233,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             return false;
         }
         UpdateSettingsRequest that = (UpdateSettingsRequest) o;
-        return masterNodeTimeout.equals(that.masterNodeTimeout)
+        return clusterManagerNodeTimeout.equals(that.clusterManagerNodeTimeout)
             && timeout.equals(that.timeout)
             && Objects.equals(settings, that.settings)
             && Objects.equals(indicesOptions, that.indicesOptions)
@@ -243,7 +243,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public int hashCode() {
-        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
+        return Objects.hash(clusterManagerNodeTimeout, timeout, settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
     }
 
 }

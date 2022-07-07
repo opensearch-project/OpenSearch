@@ -56,7 +56,9 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
         UpdateSettingsRequest mutation = copyRequest(request);
         List<Runnable> mutators = new ArrayList<>();
         Supplier<TimeValue> timeValueSupplier = () -> TimeValue.parseTimeValue(OpenSearchTestCase.randomTimeValue(), "_setting");
-        mutators.add(() -> mutation.masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout(), timeValueSupplier)));
+        mutators.add(
+            () -> mutation.clusterManagerNodeTimeout(randomValueOtherThan(request.clusterManagerNodeTimeout(), timeValueSupplier))
+        );
         mutators.add(() -> mutation.timeout(randomValueOtherThan(request.timeout(), timeValueSupplier)));
         mutators.add(() -> mutation.settings(mutateSettings(request.settings())));
         mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
@@ -87,7 +89,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
         UpdateSettingsRequest request = randomBoolean()
             ? new UpdateSettingsRequest(randomSettings(0, 2))
             : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
-        request.masterNodeTimeout(randomTimeValue());
+        request.clusterManagerNodeTimeout(randomTimeValue());
         request.timeout(randomTimeValue());
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         request.setPreserveExisting(randomBoolean());
@@ -96,7 +98,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
 
     private static UpdateSettingsRequest copyRequest(UpdateSettingsRequest request) {
         UpdateSettingsRequest result = new UpdateSettingsRequest(request.settings(), request.indices());
-        result.masterNodeTimeout(request.masterNodeTimeout());
+        result.clusterManagerNodeTimeout(request.clusterManagerNodeTimeout());
         result.timeout(request.timeout());
         result.indicesOptions(request.indicesOptions());
         result.setPreserveExisting(request.isPreserveExisting());

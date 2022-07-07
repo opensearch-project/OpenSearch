@@ -4,7 +4,7 @@
       "url":"https://opensearch.org/docs/latest/opensearch/rest-api/point_in_time/",
       "description":"Deletes one or more point in time searches based on the IDs passed."
     },
-    "stability":"stable",
+    "stability":"experimental",
     "url":{
       "paths":[
         {
@@ -16,7 +16,8 @@
       ]
     },
     "body":{
-      "description":"A comma-separated list of pit IDs to clear"
+      "description":"A comma-separated list of pit IDs to clear",
+      "required":true
     }
   }
 }

@@ -178,20 +178,22 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
                     transportSearchAction,
                     clusterServiceMock,
-                    searchTransportService
+                    searchTransportService,
+                    pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
                 DeletePitResponse dr = future.get();
                 assertTrue(dr.getDeletePitResults().get(0).getPitId().equals("pitId"));
-                assertTrue(dr.getDeletePitResults().get(0).isSucceeded());
+                assertTrue(dr.getDeletePitResults().get(0).isSuccessful());
                 assertEquals(3, deleteNodesInvoked.size());
 
             }
@@ -236,20 +238,22 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
                     transportSearchAction,
                     clusterServiceMock,
-                    searchTransportService
+                    searchTransportService,
+                    pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
                 action.execute(task, deletePITRequest, future);
                 DeletePitResponse dr = future.get();
                 assertTrue(dr.getDeletePitResults().get(0).getPitId().equals("pitId"));
-                assertTrue(dr.getDeletePitResults().get(0).isSucceeded());
+                assertTrue(dr.getDeletePitResults().get(0).isSuccessful());
                 assertEquals(3, deleteNodesInvoked.size());
 
             }
@@ -303,13 +307,15 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
                     transportSearchAction,
                     clusterServiceMock,
-                    searchTransportService
+                    searchTransportService,
+                    pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -360,13 +366,15 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
                     transportSearchAction,
                     clusterServiceMock,
-                    searchTransportService
+                    searchTransportService,
+                    pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -426,13 +434,15 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
                     transportSearchAction,
                     clusterServiceMock,
-                    searchTransportService
+                    searchTransportService,
+                    pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -486,13 +496,15 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
                     transportSearchAction,
                     clusterServiceMock,
-                    searchTransportService
+                    searchTransportService,
+                    pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -542,13 +554,15 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
                     transportSearchAction,
                     clusterServiceMock,
-                    searchTransportService
+                    searchTransportService,
+                    pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -602,13 +616,15 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
                     transportSearchAction,
                     clusterServiceMock,
-                    searchTransportService
+                    searchTransportService,
+                    pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
