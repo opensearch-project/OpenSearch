@@ -165,7 +165,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         throws IOException {
         final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
-        final Store.RecoveryDiff diff = snapshot.recoveryDiff(localMetadata);
+        final Store.RecoveryDiff diff = snapshot.recoveryDiff(localMetadata, true);
         logger.debug("Replication diff {}", diff);
         // Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming snapshot
         // from

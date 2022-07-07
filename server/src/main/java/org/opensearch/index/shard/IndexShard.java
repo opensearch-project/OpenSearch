@@ -2072,31 +2072,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void recoverTranslogFromLuceneChangesSnapshot() {
         assert indexSettings.isSegRepEnabled() && shardRouting.primary() == false;
-            long startingSeqNo;
-            try {
-                final MetadataSnapshot metadata = store.getMetadata();
-                startingSeqNo = Long.parseLong(metadata.getCommitUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            } catch (IOException e) {
-                throw new OpenSearchException("fail", e);
-            }
-            try(
-                final Translog.Snapshot snapshot = getEngine().newChangesSnapshot("replication", startingSeqNo, Long.MAX_VALUE, false, true)) {
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    Engine.Result result = applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
-                    if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-                        throw new MapperException("mapping updates are not allowed [" + operation + "]");
-                    }
-                    if (result.getFailure() != null) {
-                        if (Assertions.ENABLED && result.getFailure() instanceof MapperException == false) {
-                            throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
-                        }
-                        ExceptionsHelper.reThrowIfNotNull(result.getFailure());
-                    }
+        long startingSeqNo;
+        try {
+            final MetadataSnapshot metadata = store.getMetadata();
+            startingSeqNo = Math.max(0, Long.parseLong(metadata.getCommitUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
+        } catch (IOException e) {
+            throw new OpenSearchException("fail", e);
+        }
+        try (final Translog.Snapshot snapshot = getEngine().newChangesSnapshot("replication", startingSeqNo, Long.MAX_VALUE, false, true)) {
+            Translog.Operation operation;
+            while ((operation = snapshot.next()) != null) {
+                Engine.Result result = applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
+                if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+                    throw new MapperException("mapping updates are not allowed [" + operation + "]");
                 }
-            } catch (Throwable e) {
-                logger.error("Error creating snapshot", e);
+                if (result.getFailure() != null) {
+                    if (Assertions.ENABLED && result.getFailure() instanceof MapperException == false) {
+                        throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
+                    }
+                    ExceptionsHelper.reThrowIfNotNull(result.getFailure());
+                }
             }
+        } catch (Throwable e) {
+            logger.error("Error creating snapshot", e);
+        }
     }
 
     /**

@@ -228,7 +228,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
         sendFilesFuture.actionGet();
         Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata();
-        Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata);
+        Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata, false);
         assertEquals(metas.size(), recoveryDiff.identical.size());
         assertEquals(0, recoveryDiff.different.size());
         assertEquals(0, recoveryDiff.missing.size());

@@ -583,7 +583,7 @@ public class StoreTests extends OpenSearchTestCase {
             writer.close();
             second = store.getMetadata();
         }
-        Store.RecoveryDiff diff = first.recoveryDiff(second);
+        Store.RecoveryDiff diff = first.recoveryDiff(second, false);
         assertThat(first.size(), equalTo(second.size()));
         for (StoreFileMetadata md : first) {
             assertThat(second.get(md.name()), notNullValue());
@@ -595,7 +595,7 @@ public class StoreTests extends OpenSearchTestCase {
         assertThat(diff.missing, empty());
 
         // check the self diff
-        Store.RecoveryDiff selfDiff = first.recoveryDiff(first);
+        Store.RecoveryDiff selfDiff = first.recoveryDiff(first, false);
         assertThat(selfDiff.identical.size(), equalTo(first.size()));
         assertThat(selfDiff.different, empty());
         assertThat(selfDiff.missing, empty());
@@ -618,7 +618,7 @@ public class StoreTests extends OpenSearchTestCase {
                 break;
             }
         }
-        Store.RecoveryDiff afterDeleteDiff = metadata.recoveryDiff(second);
+        Store.RecoveryDiff afterDeleteDiff = metadata.recoveryDiff(second, false);
         if (delFile != null) {
             assertThat(afterDeleteDiff.identical.size(), equalTo(metadata.size() - 2)); // segments_N + del file
             assertThat(afterDeleteDiff.different.size(), equalTo(0));
@@ -631,7 +631,7 @@ public class StoreTests extends OpenSearchTestCase {
         }
 
         // check the self diff
-        selfDiff = metadata.recoveryDiff(metadata);
+        selfDiff = metadata.recoveryDiff(metadata, false);
         assertThat(selfDiff.identical.size(), equalTo(metadata.size()));
         assertThat(selfDiff.different, empty());
         assertThat(selfDiff.missing, empty());
@@ -646,7 +646,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.close();
 
         Store.MetadataSnapshot newCommitMetadata = store.getMetadata();
-        Store.RecoveryDiff newCommitDiff = newCommitMetadata.recoveryDiff(metadata);
+        Store.RecoveryDiff newCommitDiff = newCommitMetadata.recoveryDiff(metadata, false);
         if (delFile != null) {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetadata.size() - 5)); // segments_N, del file, cfs, cfe, si for the
                                                                                                // new segment

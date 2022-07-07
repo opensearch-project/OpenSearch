@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.StepListener;
-import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;

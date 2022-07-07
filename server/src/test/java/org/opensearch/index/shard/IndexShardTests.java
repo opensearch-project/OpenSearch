@@ -3412,9 +3412,9 @@ public class IndexShardTests extends IndexShardTestCase {
             while (stop.get() == false) {
                 try {
                     Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
-                    assertEquals(0, storeFileMetadatas.recoveryDiff(readMeta).different.size());
-                    assertEquals(0, storeFileMetadatas.recoveryDiff(readMeta).missing.size());
-                    assertEquals(storeFileMetadatas.size(), storeFileMetadatas.recoveryDiff(readMeta).identical.size());
+                    assertEquals(0, storeFileMetadatas.recoveryDiff(readMeta, false).different.size());
+                    assertEquals(0, storeFileMetadatas.recoveryDiff(readMeta, false).missing.size());
+                    assertEquals(storeFileMetadatas.size(), storeFileMetadatas.recoveryDiff(readMeta, false).identical.size());
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }
@@ -3708,9 +3708,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 try {
                     Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
                     assertThat(readMeta.getNumDocs(), equalTo(numDocs));
-                    assertThat(storeFileMetadatas.recoveryDiff(readMeta).different.size(), equalTo(0));
-                    assertThat(storeFileMetadatas.recoveryDiff(readMeta).missing.size(), equalTo(0));
-                    assertThat(storeFileMetadatas.recoveryDiff(readMeta).identical.size(), equalTo(storeFileMetadatas.size()));
+                    assertThat(storeFileMetadatas.recoveryDiff(readMeta, false).different.size(), equalTo(0));
+                    assertThat(storeFileMetadatas.recoveryDiff(readMeta, false).missing.size(), equalTo(0));
+                    assertThat(storeFileMetadatas.recoveryDiff(readMeta, false).identical.size(), equalTo(storeFileMetadatas.size()));
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }

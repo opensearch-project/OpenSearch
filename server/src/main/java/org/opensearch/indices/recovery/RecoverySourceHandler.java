@@ -544,7 +544,7 @@ public class RecoverySourceHandler {
                 // Generate a "diff" of all the identical, different, and missing
                 // segment files on the target node, using the existing files on
                 // the source node
-                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
+                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot(), false);
                 for (StoreFileMetadata md : diff.identical) {
                     phase1ExistingFileNames.add(md.name());
                     phase1ExistingFileSizes.add(md.length());

@@ -27,6 +27,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -98,34 +99,53 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testDeleteOperations() {
+    public void testDeleteOperations() throws Exception {
         final String nodeA = internalCluster().startNode();
         final String nodeB = internalCluster().startNode();
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
+        final int initialDocCount = 1;
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(initialDocCount);
+            waitForDocs(initialDocCount, indexer);
+            refresh(INDEX_NAME);
+            Set<String> ids = indexer.getIds();
+            Thread.sleep(1000);
 
-        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
-        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
+            assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+            assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
 
-        client().prepareIndex(INDEX_NAME)
-            .setId("2")
-            .setSource("fooo", "baar")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-            .get();
+            final int additionalDocCount = 3;
+            final int expectedHitCount = initialDocCount + additionalDocCount;
+            indexer.start(additionalDocCount);
+            waitForDocs(expectedHitCount, indexer);
+            Thread.sleep(1000);
 
-        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
-        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
+            assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+            assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
 
-        // Now delete with blockUntilRefresh
-        client().prepareDelete(INDEX_NAME, "1").setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
-        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
-        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
+            ensureGreen(INDEX_NAME);
 
-        client().prepareDelete(INDEX_NAME, "2").setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
-        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 0);
-        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 0);
+            String id = ids.toArray()[0].toString();
+            client(nodeA).prepareDelete(INDEX_NAME, id).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+            refresh(INDEX_NAME);
+            Thread.sleep(1000);
+
+            assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount - 1);
+            assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount - 1);
+        }
     }
 
     public void testReplicationAfterForceMerge() throws Exception {

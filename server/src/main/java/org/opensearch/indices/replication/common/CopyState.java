@@ -62,7 +62,7 @@ public class CopyState extends AbstractRefCounted {
         // This ensures that the store on replicas is in sync with the store on primaries.
         this.commitRef = shard.acquireLastIndexCommit(false);
         Store.MetadataSnapshot metadata = shard.store().getMetadata(this.commitRef.get());
-        final Store.RecoveryDiff diff = metadata.recoveryDiff(this.metadataSnapshot);
+        final Store.RecoveryDiff diff = metadata.recoveryDiff(this.metadataSnapshot, false);
         this.pendingDeleteFiles = new HashSet<>(diff.missing);
         if (this.pendingDeleteFiles.isEmpty()) {
             // If there are no additional files we can release the last commit immediately.
