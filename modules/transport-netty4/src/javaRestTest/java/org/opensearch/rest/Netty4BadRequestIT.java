@@ -86,7 +86,7 @@ public class Netty4BadRequestIT extends OpenSearchRestTestCase {
             () -> client().performRequest(new Request(randomFrom("GET", "POST", "PUT"), path))
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(BAD_REQUEST.getStatus()));
-        assertThat(e, hasToString(containsString("too_long_frame_exception")));
+        assertThat(e, hasToString(containsString("too_long_http_line_exception")));
         assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));
     }
 
