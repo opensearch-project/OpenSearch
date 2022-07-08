@@ -828,7 +828,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected final void ensureOpen() {
+    public final void ensureOpen() {
         ensureOpen(null);
     }
 
