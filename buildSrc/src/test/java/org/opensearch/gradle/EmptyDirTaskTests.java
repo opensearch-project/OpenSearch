@@ -37,11 +37,12 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.tools.ant.taskdefs.condition.Os;
+import org.opensearch.gradle.test.GradleUnitTestCase;
+import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.opensearch.gradle.test.GradleUnitTestCase;
-
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 public class EmptyDirTaskTests extends GradleUnitTestCase {
 
