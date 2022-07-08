@@ -1,20 +1,5 @@
 ## 2022-07-07 Version 2.1.0 Release Notes
 
-### Remove Mapping types
-
-* [Type removal] Remove type from BulkRequestParser (#3423) ([#3431](https://github.com/opensearch-project/opensearch/pull/3431))
-* [Type removal] _type removal from tests of yaml tests (#3406) ([#3414](https://github.com/opensearch-project/opensearch/pull/3414))
-* [Backport 2.x] Add type mapping removal bwc tests for indexing, searching, snapshots ([#2921](https://github.com/opensearch-project/opensearch/pull/2921))
-
-### Upgrades
-
-* Lock 2.1 release to Lucene 9.2.0. ([#3676](https://github.com/opensearch-project/opensearch/pull/3676))
-
-### Deprecations
-
-* [2.x] Deprecate public methods and variables with master term in package 'org.opensearch.action.support.master' (#3617) ([#3643](https://github.com/opensearch-project/opensearch/pull/3643))
-* Deprecate classes in org.opensearch.action.support.master (#3593) ([#3609](https://github.com/opensearch-project/opensearch/pull/3609))
-
 ### Security Fixes
 
 * [Dependency upgrade] google-oauth-client to 1.33.3 (#3500) ([#3501](https://github.com/opensearch-project/opensearch/pull/3501))
@@ -47,6 +32,10 @@
 * [Backport 2.x] Add request parameter 'cluster_manager_timeout' as the alternative for 'master_timeout', and deprecate 'master_timeout' - in CAT APIs ([#2716](https://github.com/opensearch-project/opensearch/pull/2716))
 * Enable merge on refresh and merge on commit on Opensearch (#2535) ([#2600](https://github.com/opensearch-project/opensearch/pull/2600))
 * Concurrent Searching (Experimental) (#1500) ([#2584](https://github.com/opensearch-project/opensearch/pull/2584))
+* [Type removal] Remove type from BulkRequestParser (#3423) ([#3431](https://github.com/opensearch-project/opensearch/pull/3431))
+* [Type removal] _type removal from tests of yaml tests (#3406) ([#3414](https://github.com/opensearch-project/opensearch/pull/3414))
+* [2.x] Deprecate public methods and variables with master term in package 'org.opensearch.action.support.master' (#3617) ([#3643](https://github.com/opensearch-project/opensearch/pull/3643))
+* Deprecate classes in org.opensearch.action.support.master (#3593) ([#3609](https://github.com/opensearch-project/opensearch/pull/3609))
 
 
 ### Bug Fixes
@@ -120,6 +109,7 @@
 * Bump proto-google-common-protos from 1.16.0 to 2.8.0 in /plugins/repository-gcs (#2738) ([#2743](https://github.com/opensearch-project/opensearch/pull/2743))
 * Update to Gradle 7.4.2 (#2688) ([#2692](https://github.com/opensearch-project/opensearch/pull/2692))
 * Update Gradle to 7.4.1 (#2078) ([#2645](https://github.com/opensearch-project/opensearch/pull/2645))
+* Lock 2.1 release to Lucene 9.2.0. ([#3676](https://github.com/opensearch-project/opensearch/pull/3676))
 
 ### Refactoring
 
@@ -133,3 +123,4 @@
 * Support use of IRSA for repository-s3 plugin credentials: added YAML Rest test case (#3499) ([#3520](https://github.com/opensearch-project/opensearch/pull/3520))
 * Fix testSetAdditionalRolesCanAddDeprecatedMasterRole() by removing the initial assertion (#3441) ([#3443](https://github.com/opensearch-project/opensearch/pull/3443))
 * [TEST] Add back necessary tests for deprecated settings that are replaced during applying inclusive naming (#2825) ([#3353](https://github.com/opensearch-project/opensearch/pull/3353))
+* [Backport 2.x] Add type mapping removal bwc tests for indexing, searching, snapshots ([#2921](https://github.com/opensearch-project/opensearch/pull/2921))
