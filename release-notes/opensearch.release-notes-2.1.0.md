@@ -1,28 +1,5 @@
 ## 2022-07-07 Version 2.1.0 Release Notes
 
-
-### Breaking Changes in 2.1.0
-
-#### Remove Mapping types
-
-* [Type removal] Remove type from BulkRequestParser (#3423) ([#3431](https://github.com/opensearch-project/opensearch/pull/3431))
-* [Type removal] _type removal from tests of yaml tests (#3406) ([#3414](https://github.com/opensearch-project/opensearch/pull/3414)
-* [Backport 2.x] Add type mapping removal bwc tests for indexing, searching, snapshots ([#2921](https://github.com/opensearch-project/opensearch/pull/2921))
-
-#### Upgrades
-
-* Lock 2.1 release to Lucene 9.2.0. ([#3676](https://github.com/opensearch-project/opensearch/pull/3676))
-
-
-#### Deprecations
-
-* [2.x] Deprecate public methods and variables with master term in package 'org.opensearch.action.support.master' (#3617) ([#3643](https://github.com/opensearch-project/opensearch/pull/3643))
-* Deprecate classes in org.opensearch.action.support.master (#3593) ([#3609](https://github.com/opensearch-project/opensearch/pull/3609))
-
-### Security Fixes
-
-* [Dependency upgrade] google-oauth-client to 1.33.3 (#3500) ([#3501](https://github.com/opensearch-project/opensearch/pull/3501))
-
 ### Features/Enhancements
 
 * Rename package 'o.o.action.support.master' to 'o.o.action.support.clustermanager' (#3556) ([#3597](https://github.com/opensearch-project/opensearch/pull/3597))
@@ -51,6 +28,13 @@
 * [Backport 2.x] Add request parameter 'cluster_manager_timeout' as the alternative for 'master_timeout', and deprecate 'master_timeout' - in CAT APIs ([#2716](https://github.com/opensearch-project/opensearch/pull/2716))
 * Enable merge on refresh and merge on commit on Opensearch (#2535) ([#2600](https://github.com/opensearch-project/opensearch/pull/2600))
 * Concurrent Searching (Experimental) (#1500) ([#2584](https://github.com/opensearch-project/opensearch/pull/2584))
+* [Type removal] Remove type from BulkRequestParser (#3423) ([#3431](https://github.com/opensearch-project/opensearch/pull/3431))
+* [Type removal] _type removal from tests of yaml tests (#3406) ([#3414](https://github.com/opensearch-project/opensearch/pull/3414))
+* [2.x] Deprecate public methods and variables with master term in package 'org.opensearch.action.support.master' (#3617) ([#3643](https://github.com/opensearch-project/opensearch/pull/3643))
+* Deprecate classes in org.opensearch.action.support.master (#3593) ([#3609](https://github.com/opensearch-project/opensearch/pull/3609))
+* [TEST] Add back necessary tests for deprecated settings that are replaced during applying inclusive naming (#2825) ([#3353](https://github.com/opensearch-project/opensearch/pull/3353))
+* Support use of IRSA for repository-s3 plugin credentials: added YAML Rest test case (#3499) ([#3520](https://github.com/opensearch-project/opensearch/pull/3520))
+* [Backport 2.x] Add type mapping removal bwc tests for indexing, searching, snapshots ([#2921](https://github.com/opensearch-project/opensearch/pull/2921))
 
 
 ### Bug Fixes
@@ -67,11 +51,10 @@
 * Removing unused method from TransportSearchAction (#3437) ([#3445](https://github.com/opensearch-project/opensearch/pull/3445))
 * Fix Lucene-snapshots repo for jdk 17. (#3396) ([#3404](https://github.com/opensearch-project/opensearch/pull/3404))
 * Temporary adding Apache Lucene repositories for snapshots (#3042) ([#3047](https://github.com/opensearch-project/opensearch/pull/3047))
-* [Remove] MainResponse version override cluster setting (#3031) ([#3032](https://github.com/opensearch-project/opensearch/pull/3032))
 * Excluding system indices from max shard limit validator (#2894) ([#2911](https://github.com/opensearch-project/opensearch/pull/2911))
 * [Backport] [2.x] Bugfix to guard against stack overflow errors caused by very large reg-ex input  ([#2817](https://github.com/opensearch-project/opensearch/pull/2817))
 
-### Build & Infrastructure
+### Infrastructure
 
 * Move gradle-check code to its own scripts and upload codecov (#3742) ([#3747](https://github.com/opensearch-project/opensearch/pull/3747))
 * Optimize Gradle builds by enabling local build caching (#3718) ([#3737](https://github.com/opensearch-project/opensearch/pull/3737))
@@ -125,16 +108,13 @@
 * Bump proto-google-common-protos from 1.16.0 to 2.8.0 in /plugins/repository-gcs (#2738) ([#2743](https://github.com/opensearch-project/opensearch/pull/2743))
 * Update to Gradle 7.4.2 (#2688) ([#2692](https://github.com/opensearch-project/opensearch/pull/2692))
 * Update Gradle to 7.4.1 (#2078) ([#2645](https://github.com/opensearch-project/opensearch/pull/2645))
+* Lock 2.1 release to Lucene 9.2.0. ([#3676](https://github.com/opensearch-project/opensearch/pull/3676))
+* [Dependency upgrade] google-oauth-client to 1.33.3 (#3500) ([#3501](https://github.com/opensearch-project/opensearch/pull/3501))
 
 ### Refactoring
 
 * [Refactor] XContentType to parse Accept or Content-Type headers (#3077) ([#3103](https://github.com/opensearch-project/opensearch/pull/3103))
 * Remove usages of MultiTermQuery.setRewriteMethodsetRewriteMethod (#2997) ([#3017](https://github.com/opensearch-project/opensearch/pull/3017))
 * Refactoring GatedAutoCloseable and moving RecoveryState.Timer (#2965) ([#3014](https://github.com/opensearch-project/opensearch/pull/3014))
-
-### Tests
-
 * Fixing flakiness of ShuffleForcedMergePolicyTests (#3591) ([#3592](https://github.com/opensearch-project/opensearch/pull/3592))
-* Support use of IRSA for repository-s3 plugin credentials: added YAML Rest test case (#3499) ([#3520](https://github.com/opensearch-project/opensearch/pull/3520))
 * Fix testSetAdditionalRolesCanAddDeprecatedMasterRole() by removing the initial assertion (#3441) ([#3443](https://github.com/opensearch-project/opensearch/pull/3443))
-* [TEST] Add back necessary tests for deprecated settings that are replaced during applying inclusive naming (#2825) ([#3353](https://github.com/opensearch-project/opensearch/pull/3353))
