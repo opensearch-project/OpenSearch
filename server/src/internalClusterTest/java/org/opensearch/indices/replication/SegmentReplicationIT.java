@@ -105,7 +105,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = 1;
+        final int initialDocCount = scaledRandomIntBetween(0, 100);
         try (
             BackgroundIndexer indexer = new BackgroundIndexer(
                 INDEX_NAME,
@@ -126,7 +126,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
             assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
 
-            final int additionalDocCount = 3;
+            final int additionalDocCount = scaledRandomIntBetween(0, 100);
             final int expectedHitCount = initialDocCount + additionalDocCount;
             indexer.start(additionalDocCount);
             waitForDocs(expectedHitCount, indexer);
