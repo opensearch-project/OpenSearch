@@ -17,11 +17,9 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * Base class for Throttling logic.
  * It provides throttling functionality over multiple keys.
- *
- * @param <T> the type of key on which we want to do throttling.
  */
-public class Throttler<T> {
-    protected ConcurrentMap<T, AdjustableSemaphore> semaphores = new ConcurrentHashMap<T, AdjustableSemaphore>();
+public class Throttler {
+    protected ConcurrentMap<String, AdjustableSemaphore> semaphores = new ConcurrentHashMap<String, AdjustableSemaphore>();
 
     /**
      * Method to acquire permits for a key type.
@@ -30,14 +28,14 @@ public class Throttler<T> {
      * If Throttler is not configured for the key then it will return Optional.empty().
      * calling function need to handle this for determining the default behavior.
      *
-     * @param type Key for which we want to acquire permits.
+     * @param key Key for which we want to acquire permits.
      * @param permits Number of permits to acquire.
      * @return Optional(Boolean) True/False - Throttler is configured for key and is able to acquire the permits or not
      *                           Optional.empty() - Throttler is not configured for key
      */
-    public Optional<Boolean> acquire(final T type, final int permits) {
+    public Optional<Boolean> acquire(final String key, final int permits) {
         assert permits > 0;
-        AdjustableSemaphore semaphore = semaphores.get(type);
+        AdjustableSemaphore semaphore = semaphores.get(key);
         if (semaphore != null) {
             return Optional.of(semaphore.tryAcquire(permits));
         }
@@ -47,12 +45,12 @@ public class Throttler<T> {
     /**
      * Release the given permits for given type.
      *
-     * @param type key for which we want to release permits.
+     * @param key key for which we want to release permits.
      * @param permits number of permits to release.
      */
-    public void release(final T type, final int permits) {
+    public void release(final String key, final int permits) {
         assert permits > 0;
-        AdjustableSemaphore semaphore = semaphores.get(type);
+        AdjustableSemaphore semaphore = semaphores.get(key);
         if (semaphore != null) {
             semaphore.release(permits);
             assert semaphore.availablePermits() <= semaphore.getMaxPermits();
@@ -65,7 +63,7 @@ public class Throttler<T> {
      * @param key Key for which we want to update limit.
      * @param newLimit Updated limit.
      */
-    public void updateThrottlingLimit(final T key, final Integer newLimit) {
+    public void updateThrottlingLimit(final String key, final Integer newLimit) {
         assert newLimit >= 0;
         AdjustableSemaphore semaphore = semaphores.get(key);
         if (semaphore == null) {
@@ -80,12 +78,12 @@ public class Throttler<T> {
      *
      * @param key Key for which we want to remove throttling.
      */
-    public void removeThrottlingLimit(final T key) {
+    public void removeThrottlingLimit(final String key) {
         assert semaphores.containsKey(key);
         semaphores.remove(key);
     }
 
-    public Integer getThrottlingLimit(final T key) {
+    public Integer getThrottlingLimit(final String key) {
         AdjustableSemaphore semaphore = semaphores.get(key);
         if (semaphore != null) {
             return semaphore.getMaxPermits();

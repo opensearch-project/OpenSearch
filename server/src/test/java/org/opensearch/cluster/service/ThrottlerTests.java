@@ -19,7 +19,7 @@ import java.util.Optional;
 public class ThrottlerTests extends OpenSearchTestCase {
 
     public void testThrottling() {
-        Throttler<String> throttler = new Throttler();
+        Throttler throttler = new Throttler();
         throttler.updateThrottlingLimit("testKey", 5);
         // total acquired permits = 0, available permit = 5
 
