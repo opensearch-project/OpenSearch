@@ -861,8 +861,10 @@ public class InternalEngineTests extends EngineTestCase {
                     super.commitIndexWriter(writer, translog);
                 }
             };
-            assertThat(getTranslog(recoveringEngine).stats().getUncommittedOperations(), equalTo(docs));
-            recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+            assertThat(recoveringEngine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(docs));
+            TranslogHandler translogHandler = createTranslogHandler(initialEngine.config().getIndexSettings(), recoveringEngine);
+            recoveringEngine.translogManager()
+                .recoverFromTranslog(translogHandler, recoveringEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
             assertTrue(committed.get());
         } finally {
             IOUtils.close(recoveringEngine);
@@ -896,7 +898,9 @@ public class InternalEngineTests extends EngineTestCase {
             }
             initialEngine.close();
             recoveringEngine = new InternalEngine(initialEngine.config());
-            recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+            TranslogHandler translogHandler = createTranslogHandler(initialEngine.config().getIndexSettings(), recoveringEngine);
+            recoveringEngine.translogManager()
+                .recoverFromTranslog(translogHandler, recoveringEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
             recoveringEngine.refresh("test");
             try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), docs);
