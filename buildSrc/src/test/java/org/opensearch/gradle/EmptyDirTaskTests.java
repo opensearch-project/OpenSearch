@@ -37,11 +37,11 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.tools.ant.taskdefs.condition.Os;
-import org.opensearch.gradle.test.GradleUnitTestCase;
-import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
+import org.opensearch.gradle.test.GradleUnitTestCase;
+
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 public class EmptyDirTaskTests extends GradleUnitTestCase {
 
@@ -67,7 +67,10 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
     }
 
     public void testCreateEmptyDirNoPermissions() throws Exception {
-        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        // Test depends on Posix file permissions
+        RandomizedTest.assumeFalse("Functionality is Unix-like OS specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        // Java's Files.setPosixFilePermissions is a NOOP inside a Docker container as
+        // files are created by default with UID and GID = 0 (root).
         RandomizedTest.assumeFalse("Functionality doesn't work in Docker", isRunningInDocker());
 
         Project project = ProjectBuilder.builder().build();
