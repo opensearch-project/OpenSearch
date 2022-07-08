@@ -16,9 +16,16 @@ import org.opensearch.index.IndexSettings;
 import java.util.Optional;
 
 /**
- * A plugin that implements zstd (with and without dictionary) and lz4 (native) compression algorithms.
+ * A plugin that implements custom codecs. Current custom codecs include:
+ * <ul>
+ * <li>LZ4
+ * <li>ZSTD
+ * <li>ZSTDNODICT
+ * </ul>
+ *
+ * @opensearch.internal
  */
-public class CustomCodecPlugin extends Plugin implements EnginePlugin {
+public final class CustomCodecPlugin extends Plugin implements EnginePlugin {
 
     /** Creates a new instance */
     public CustomCodecPlugin() {}

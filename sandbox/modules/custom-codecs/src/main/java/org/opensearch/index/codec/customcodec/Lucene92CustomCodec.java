@@ -8,7 +8,8 @@
 
 package org.opensearch.index.codec.customcodec;
 
-import org.apache.lucene.codecs.*;
+import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene92.Lucene92Codec;
 
 abstract class Lucene92CustomCodec extends FilterCodec {
