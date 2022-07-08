@@ -10,6 +10,7 @@ package org.opensearch.cluster.service;
 
 import org.opensearch.common.AdjustableSemaphore;
 
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -24,21 +25,23 @@ public class Throttler<T> {
 
     /**
      * Method to acquire permits for a key type.
-     * It will return true if permits can be acquired within threshold limits.
+     * It will return true if permits can be acquired within threshold limits else false.
      *
-     * If threshold is not set for key then also it will return True.
+     * If Throttler is not configured for the key then it will return Optional.empty().
+     * calling function need to handle this for determining the default behavior.
      *
      * @param type Key for which we want to acquire permits.
      * @param permits Number of permits to acquire.
-     * @return boolean representing was it able to acquire the permits or not.
+     * @return Optional(Boolean) True/False - Throttler is configured for key and is able to acquire the permits or not
+     *                           Optional.empty() - Throttler is not configured for key
      */
-    public boolean acquire(final T type, final int permits) {
+    public Optional<Boolean> acquire(final T type, final int permits) {
         assert permits > 0;
         AdjustableSemaphore semaphore = semaphores.get(type);
         if (semaphore != null) {
-            return semaphore.tryAcquire(permits);
+            return Optional.of(semaphore.tryAcquire(permits));
         }
-        return true;
+        return Optional.empty();
     }
 
     /**

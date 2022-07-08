@@ -11,63 +11,65 @@ package org.opensearch.cluster.service;
 import org.opensearch.common.AdjustableSemaphore;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Optional;
+
 /**
  * Contains tests of {@link Throttler}
  */
 public class ThrottlerTests extends OpenSearchTestCase {
 
     public void testThrottling() {
-        Throttler throttler = new Throttler();
+        Throttler<String> throttler = new Throttler();
         throttler.updateThrottlingLimit("testKey", 5);
         // total acquired permits = 0, available permit = 5
 
-        boolean firstCall = throttler.acquire("testKey", 1);
+        Optional<Boolean> firstCall = throttler.acquire("testKey", 1);
         // total acquired permit = 1, available permit = 4
-        assertTrue(firstCall);
+        assertTrue(firstCall.get());
 
-        boolean secondCall = throttler.acquire("testKey", 2);
+        Optional<Boolean> secondCall = throttler.acquire("testKey", 2);
         // total acquired permit = 3, available permit = 2
-        assertTrue(secondCall);
+        assertTrue(secondCall.get());
 
         // since available permits are 2 and trying to acquire 4 permit, it should return false.
-        boolean thirdCall = throttler.acquire("testKey", 4);
-        assertFalse(thirdCall);
+        Optional<Boolean> thirdCall = throttler.acquire("testKey", 4);
+        assertFalse(thirdCall.get());
 
         // releasing 2 permits
         throttler.release("testKey", 2);
         // total acquired permits = 1, available permits = 4
 
-        boolean fourthCall = throttler.acquire("testKey", 4);
+        Optional<Boolean> fourthCall = throttler.acquire("testKey", 4);
         // total acquired permits = 5, available permits = 0
-        assertTrue(fourthCall);
+        assertTrue(fourthCall.get());
 
         // since available permits are 0, below acquire should return false.
-        boolean fifthCall = throttler.acquire("testKey", 1);
-        assertFalse(fifthCall);
+        Optional<Boolean> fifthCall = throttler.acquire("testKey", 1);
+        assertFalse(fifthCall.get());
 
         // updating limit of throttler to 6 permits.
         throttler.updateThrottlingLimit("testKey", 6);
         // total acquired permits = 5, available permits = 1
 
         // acquire should pass now as there is 1 available permit.
-        boolean sixthCall = throttler.acquire("testKey", 1);
+        Optional<Boolean> sixthCall = throttler.acquire("testKey", 1);
         // total acquired permits = 6, available permits = 0
-        assertTrue(sixthCall);
+        assertTrue(sixthCall.get());
 
         // acquire should fail now as again there is not any available permit
-        boolean seventhCall = throttler.acquire("testKey", 1);
-        assertFalse(seventhCall);
+        Optional<Boolean> seventhCall = throttler.acquire("testKey", 1);
+        assertFalse(seventhCall.get());
     }
 
     // Test for Throttler for keys where we haven't configured limits.
     // Default behavior for those case is to allow it.
     public void testThrottlingWithoutLimit() {
         Throttler throttler = new Throttler();
-        boolean firstCall = throttler.acquire("testKey", 1);
-        assertTrue(firstCall);
+        Optional<Boolean> firstCall = throttler.acquire("testKey", 1);
+        assertTrue(firstCall.isEmpty());
 
-        boolean secondCall = throttler.acquire("testKey", 2000);
-        assertTrue(secondCall);
+        Optional<Boolean> secondCall = throttler.acquire("testKey", 2000);
+        assertTrue(secondCall.isEmpty());
     }
 
     public void testRemoveThrottlingLimit() {
@@ -75,18 +77,18 @@ public class ThrottlerTests extends OpenSearchTestCase {
         throttler.updateThrottlingLimit("testKey", 5);
         // Total acquired permit = 0, available permit = 5
 
-        boolean firstCall = throttler.acquire("testKey", 1);
+        Optional<Boolean> firstCall = throttler.acquire("testKey", 1);
         // Total acquired permit = 1, available permit = 4
-        assertTrue(firstCall);
+        assertTrue(firstCall.get());
 
         // Since available permits are 4, below acquire should return false.
-        boolean secondCall = throttler.acquire("testKey", 5);
-        assertFalse(secondCall);
+        Optional<Boolean> secondCall = throttler.acquire("testKey", 5);
+        assertFalse(secondCall.get());
 
         // removing throttling limit for key, so it should return true for any acquire permit.
         throttler.removeThrottlingLimit("testKey");
-        boolean thirdCall = throttler.acquire("testKey", 500);
-        assertTrue(thirdCall);
+        Optional<Boolean> thirdCall = throttler.acquire("testKey", 500);
+        assertTrue(thirdCall.isEmpty());
     }
 
     public void testUpdateLimitForThrottlingSemaphore() {
