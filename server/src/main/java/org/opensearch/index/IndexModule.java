@@ -148,6 +148,14 @@ public final class IndexModule {
         Property.NodeScope
     );
 
+    public static final Setting<List<String>> INDEX_STORE_HYBRID_MMAP_EXTENSIONS = Setting.listSetting(
+        "index.store.hybrid.mmap.extensions",
+        List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"),
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
 
     // whether to use the query cache
