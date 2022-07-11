@@ -1,4 +1,5 @@
 [![codecov](https://codecov.io/gh/opensearch-project/opensearch/branch/main/graph/badge.svg)](https://codecov.io/gh/opensearch-project/opensearch)
+
 <img src="https://opensearch.org/assets/img/opensearch-logo-themed.svg" height="64px">
 
 - [Welcome!](#welcome)
