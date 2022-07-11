@@ -153,6 +153,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(InternalSettingsPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/3561")
     public void testHighWatermarkNotExceeded() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
