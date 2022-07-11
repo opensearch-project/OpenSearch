@@ -59,6 +59,7 @@ dependencies {
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 }
 
 restResources {
@@ -146,10 +147,6 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
-
-    // from  io.netty.channel.unix (netty)
-    'io.netty.channel.unix.FileDescriptor',
-    'io.netty.channel.unix.UnixChannel',
 
     // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
     'org.bouncycastle.cert.X509v3CertificateBuilder',
