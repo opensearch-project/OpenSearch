@@ -53,7 +53,6 @@ import org.opensearch.cluster.routing.IllegalShardRoutingStateException;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
-import org.opensearch.cluster.service.MasterTaskThrottlingException;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
@@ -852,7 +851,6 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(159, NodeHealthCheckFailureException.class);
         ids.put(160, NoSeedNodeLeftException.class);
         ids.put(161, ReplicationFailedException.class);
-        ids.put(162, MasterTaskThrottlingException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {
