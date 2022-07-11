@@ -391,8 +391,8 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, (ConnectionProfile) null);
     }
 
-    public void connectToNode(final DiscoveryNode node, boolean fromExtension) {
-        PlainActionFuture.get(fut -> connectToNode(node, (ConnectionProfile) null, ActionListener.map(fut, x -> null), fromExtension));
+    public void connectToNode(final DiscoveryNode node, boolean skipValidation) {
+        PlainActionFuture.get(fut -> connectToNode(node, (ConnectionProfile) null, ActionListener.map(fut, x -> null), skipValidation));
     }
 
     /**
@@ -436,25 +436,25 @@ public class TransportService extends AbstractLifecycleComponent
         final DiscoveryNode node,
         ConnectionProfile connectionProfile,
         ActionListener<Void> listener,
-        boolean fromExtension
+        boolean skipValidation
     ) {
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;
         }
-        connectionManager.connectToNode(node, connectionProfile, connectionValidator(node, fromExtension), listener);
+        connectionManager.connectToNode(node, connectionProfile, connectionValidator(node, skipValidation), listener);
     }
 
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return connectionValidator(node, false);
     }
 
-    public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node, boolean fromExtension) {
+    public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node, boolean skipValidation) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
-                if (!fromExtension && node.equals(remote) == false) {
+                if (!skipValidation && node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                 }
                 return null;
