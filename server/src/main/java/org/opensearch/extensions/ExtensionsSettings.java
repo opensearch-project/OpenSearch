@@ -8,8 +8,8 @@
 
 package org.opensearch.extensions;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * List of extension configurations from extension.yml
@@ -18,10 +18,10 @@ import java.util.Set;
  */
 public class ExtensionsSettings {
 
-    private Set<Extension> extensions;
+    private List<Extension> extensions;
 
     public ExtensionsSettings() {
-        extensions = new HashSet<Extension>();
+        extensions = new ArrayList<Extension>();
     }
 
     /**
@@ -37,6 +37,12 @@ public class ExtensionsSettings {
         private String hostAddress;
         private String port;
         private String version;
+        private String description;
+        private String opensearchVersion;
+        private String javaVersion;
+        private String className;
+        private String customFolderName;
+        private String hasNativeController;
 
         public Extension() {
             name = "";
@@ -45,6 +51,12 @@ public class ExtensionsSettings {
             hostAddress = "";
             port = "";
             version = "";
+            description = "";
+            opensearchVersion = "";
+            javaVersion = "";
+            className = "";
+            customFolderName = "";
+            hasNativeController = "false";
         }
 
         public String getName() {
@@ -97,28 +109,88 @@ public class ExtensionsSettings {
 
         @Override
         public String toString() {
-            return "Extension [uniqueId="
-                + uniqueId
+            return "Extension [className="
+                + className
+                + ", customFolderName="
+                + customFolderName
+                + ", description="
+                + description
+                + ", hasNativeController="
+                + hasNativeController
                 + ", hostAddress="
                 + hostAddress
                 + ", hostName="
                 + hostName
+                + ", javaVersion="
+                + javaVersion
                 + ", name="
                 + name
+                + ", opensearchVersion="
+                + opensearchVersion
                 + ", port="
                 + port
+                + ", uniqueId="
+                + uniqueId
                 + ", version="
                 + version
                 + "]";
         }
 
+        public String getDescription() {
+            return description;
+        }
+
+        public void setDescription(String description) {
+            this.description = description;
+        }
+
+        public String getOpensearchVersion() {
+            return opensearchVersion;
+        }
+
+        public void setOpensearchVersion(String opensearchVersion) {
+            this.opensearchVersion = opensearchVersion;
+        }
+
+        public String getJavaVersion() {
+            return javaVersion;
+        }
+
+        public void setJavaVersion(String javaVersion) {
+            this.javaVersion = javaVersion;
+        }
+
+        public String getClassName() {
+            return className;
+        }
+
+        public void setClassName(String className) {
+            this.className = className;
+        }
+
+        public String getCustomFolderName() {
+            return customFolderName;
+        }
+
+        public void setCustomFolderName(String customFolderName) {
+            this.customFolderName = customFolderName;
+        }
+
+        public String hasNativeController() {
+            return hasNativeController;
+        }
+
+        public void setHasNativeController(String hasNativeController) {
+            this.hasNativeController = hasNativeController;
+        }
+
     }
 
-    public Set<Extension> getExtensions() {
+    public List<Extension> getExtensions() {
         return extensions;
     }
 
-    public void setExtensions(Set<Extension> extensions) {
+    public void setExtensions(List<Extension> extensions) {
         this.extensions = extensions;
     }
 
