@@ -61,7 +61,7 @@ public class NoMasterBlockServiceTests extends OpenSearchTestCase {
 
     public void testBlocksWritesByDefault() {
         createService(Settings.EMPTY);
-        assertThat(noClusterManagerBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
+        assertThat(noClusterManagerBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_METADATA_WRITES));
     }
 
     public void testBlocksWritesIfConfiguredBySetting() {

@@ -54,6 +54,17 @@ public class RemoteIndexInputTests extends OpenSearchTestCase {
         verify(inputStream).read(buffer, 10, 20);
     }
 
+    public void testReadBytesMultipleIterations() throws IOException {
+        byte[] buffer = new byte[20];
+        when(inputStream.read(eq(buffer), anyInt(), anyInt())).thenReturn(10).thenReturn(3).thenReturn(6).thenReturn(-1);
+        remoteIndexInput.readBytes(buffer, 0, 20);
+
+        verify(inputStream).read(buffer, 0, 20);
+        verify(inputStream).read(buffer, 10, 10);
+        verify(inputStream).read(buffer, 13, 7);
+        verify(inputStream).read(buffer, 19, 1);
+    }
+
     public void testReadBytesIOException() throws IOException {
         byte[] buffer = new byte[10];
         when(inputStream.read(buffer, 10, 20)).thenThrow(new IOException("Error reading"));
