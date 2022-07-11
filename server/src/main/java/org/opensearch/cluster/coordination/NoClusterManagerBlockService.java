@@ -78,7 +78,7 @@ public class NoClusterManagerBlockService {
 
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>(
         "cluster.no_master_block",
-        "write",
+        "metadata_write",
         NoClusterManagerBlockService::parseNoClusterManagerBlock,
         Property.Dynamic,
         Property.NodeScope,

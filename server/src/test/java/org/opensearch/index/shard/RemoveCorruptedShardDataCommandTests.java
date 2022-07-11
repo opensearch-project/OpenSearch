@@ -59,12 +59,12 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
-import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.TranslogCorruptedException;
+import org.opensearch.index.translog.TranslogException;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.DummyShardLock;
 import org.junit.Before;
@@ -174,7 +174,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 new EngineConfigFactory(new IndexSettings(indexMetadata, settings)),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER
+                EMPTY_EVENT_LISTENER,
+                null
             ),
             true
         );
@@ -290,7 +291,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         allowShardFailures();
         // it has to fail on start up due to index.shard.check_on_startup = checksum
         final Exception exception = expectThrows(Exception.class, () -> newStartedShard(p -> corruptedShard, true));
-        final Throwable cause = exception.getCause() instanceof EngineException ? exception.getCause().getCause() : exception.getCause();
+        final Throwable cause = exception.getCause() instanceof TranslogException ? exception.getCause().getCause() : exception.getCause();
         assertThat(cause, instanceOf(TranslogCorruptedException.class));
 
         closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency
@@ -550,7 +551,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             indexShard.getEngineConfigFactory(),
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            EMPTY_EVENT_LISTENER,
+            null
         );
     }
 
