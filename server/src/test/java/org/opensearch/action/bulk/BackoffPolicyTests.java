@@ -75,4 +75,27 @@ public class BackoffPolicyTests extends OpenSearchTestCase {
             assertEquals(expectedRetries, retries.get());
         }
     }
+
+    public void testEqualJitterExponentialBackOffPolicy() {
+        int baseDelay = 10;
+        int maxDelay = 10000;
+        BackoffPolicy policy = BackoffPolicy.exponentialEqualJitterBackoff(baseDelay, maxDelay);
+        Iterator<TimeValue> iterator = policy.iterator();
+
+        // Assert equal jitter
+        int retriesTillMaxDelay = 10;
+        for (int i = 0; i < retriesTillMaxDelay; i++) {
+            TimeValue delay = iterator.next();
+            assertTrue(delay.getMillis() >= baseDelay * (1L << i) / 2);
+            assertTrue(delay.getMillis() <= baseDelay * (1L << i));
+        }
+
+        // Now policy should return max delay for next retries.
+        int retriesAfterMaxDelay = randomInt(10);
+        for (int i = 0; i < retriesAfterMaxDelay; i++) {
+            TimeValue delay = iterator.next();
+            assertTrue(delay.getMillis() >= maxDelay / 2);
+            assertTrue(delay.getMillis() <= maxDelay);
+        }
+    }
 }
