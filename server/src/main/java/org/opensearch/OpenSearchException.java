@@ -33,7 +33,6 @@
 package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
-import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
@@ -47,7 +46,6 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
@@ -791,8 +789,18 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UNKNOWN_VERSION_ADDED
         ),
         CLUSTER_MANAGER_NOT_DISCOVERED_EXCEPTION(
-            ClusterManagerNotDiscoveredException.class,
-            ClusterManagerNotDiscoveredException::new,
+            org.opensearch.discovery.ClusterManagerNotDiscoveredException.class,
+            org.opensearch.discovery.ClusterManagerNotDiscoveredException::new,
+            3,
+            UNKNOWN_VERSION_ADDED
+        ),
+        /**
+         * @deprecated As of 2.2, because supporting inclusive language, replaced by CLUSTER_MANAGER_NOT_DISCOVERED_EXCEPTION
+         */
+        @Deprecated
+        MASTER_NOT_DISCOVERED_EXCEPTION(
+            org.opensearch.discovery.MasterNotDiscoveredException.class,
+            org.opensearch.discovery.MasterNotDiscoveredException::new,
             3,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1501,7 +1509,22 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             143,
             UNKNOWN_VERSION_ADDED
         ),
-        NOT_CLUSTER_MANAGER_EXCEPTION(NotClusterManagerException.class, NotClusterManagerException::new, 144, UNKNOWN_VERSION_ADDED),
+        NOT_CLUSTER_MANAGER_EXCEPTION(
+            org.opensearch.cluster.NotClusterManagerException.class,
+            org.opensearch.cluster.NotClusterManagerException::new,
+            144,
+            UNKNOWN_VERSION_ADDED
+        ),
+        /**
+         * @deprecated As of 2.2, because supporting inclusive language, replaced by NOT_CLUSTER_MANAGER_EXCEPTION
+         */
+        @Deprecated
+        NOT_MASTER_EXCEPTION(
+            org.opensearch.cluster.NotMasterException.class,
+            org.opensearch.cluster.NotMasterException::new,
+            144,
+            UNKNOWN_VERSION_ADDED
+        ),
         STATUS_EXCEPTION(
             org.opensearch.OpenSearchStatusException.class,
             org.opensearch.OpenSearchStatusException::new,

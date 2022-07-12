@@ -32,6 +32,10 @@
 
 package org.opensearch.discovery;
 
+import org.opensearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 /**
  * Exception when the cluster-manager is not discovered
  *
@@ -53,4 +57,7 @@ public class MasterNotDiscoveredException extends ClusterManagerNotDiscoveredExc
         super(message);
     }
 
+    public MasterNotDiscoveredException(StreamInput in) throws IOException {
+        super(in);
+    }
 }
