@@ -84,7 +84,7 @@ public final class RestClientBuilder {
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
-    private boolean chunkedTransferEncodingEnabled = true;
+    private boolean chunkedTransferEncodingEnabled = false;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.

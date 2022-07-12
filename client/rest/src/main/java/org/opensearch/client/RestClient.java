@@ -144,7 +144,17 @@ public class RestClient implements Closeable {
         boolean strictDeprecationMode,
         boolean compressionEnabled
     ) {
-        this(client, defaultHeaders, nodes, pathPrefix, failureListener, nodeSelector, strictDeprecationMode, compressionEnabled, true);
+        this(
+            client,
+            defaultHeaders,
+            nodes,
+            pathPrefix,
+            failureListener,
+            nodeSelector,
+            strictDeprecationMode,
+            compressionEnabled,
+            false // chunkedTransferEncodingEnabled
+        );
     }
 
     RestClient(
@@ -640,13 +650,9 @@ public class RestClient implements Closeable {
         if (entity != null) {
             if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
                 if (compressionEnabled) {
-                    if (chunkedTransferEncodingEnabled) {
-                        entity = new ContentCompressingChunkedEntity(entity);
-                    } else {
-                        entity = new ContentCompressingEntity(entity);
-                    }
-                } else if (chunkedTransferEncodingEnabled) {
-                    entity = new ChunkedHttpEntity(entity);
+                    entity = new ContentCompressingEntity(entity, chunkedTransferEncodingEnabled);
+                } else {
+                    entity = new ContentHttpEntity(entity, chunkedTransferEncodingEnabled);
                 }
                 ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(entity);
             } else {
@@ -975,31 +981,8 @@ public class RestClient implements Closeable {
     /**
      * A gzip compressing entity that also implements {@code getContent()}.
      */
-    public static class ContentCompressingChunkedEntity extends GzipCompressingEntity {
-
-        /**
-         * Creates a {@link ContentCompressingChunkedEntity} instance with the provided HTTP entity.
-         *
-         * @param entity the HTTP entity.
-         */
-        public ContentCompressingChunkedEntity(HttpEntity entity) {
-            super(entity);
-        }
-
-        @Override
-        public InputStream getContent() throws IOException {
-            ByteArrayInputOutputStream out = new ByteArrayInputOutputStream(1024);
-            try (GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
-                wrappedEntity.writeTo(gzipOut);
-            }
-            return out.asInput();
-        }
-    }
-
-    /**
-     * A gzip compressing entity that also implements {@code getContent()}.
-     */
     public static class ContentCompressingEntity extends GzipCompressingEntity {
+        private boolean chunked;
 
         /**
          * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
@@ -1007,7 +990,18 @@ public class RestClient implements Closeable {
          * @param entity the HTTP entity.
          */
         public ContentCompressingEntity(HttpEntity entity) {
+            this(entity, false);
+        }
+
+        /**
+         * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         * @param chunked force enable/disable chunked transfer-encoding.
+         */
+        public ContentCompressingEntity(HttpEntity entity, boolean chunked) {
             super(entity);
+            this.chunked = chunked;
         }
 
         @Override
@@ -1026,36 +1020,55 @@ public class RestClient implements Closeable {
          */
         @Override
         public boolean isChunked() {
-            return false;
+            return chunked;
         }
 
         /**
-         * A gzip entity requires content length in http headers
-         * as it doesn't work with chunked encoding for sigv4
+         * A gzip entity requires content length in http headers.
          *
          * @return content length of gzip entity
          */
         @Override
         public long getContentLength() {
-            long size;
-            try (InputStream is = getContent()) {
-                size = is.readAllBytes().length;
-            } catch (IOException ex) {
-                size = -1L;
-            }
+            if (isChunked()) {
+                return -1L;
+            } else {
+                long size;
+                try (InputStream is = getContent()) {
+                    size = is.readAllBytes().length;
+                } catch (IOException ex) {
+                    size = -1L;
+                }
 
-            return size;
+                return size;
+            }
         }
     }
 
-    public static class ChunkedHttpEntity extends HttpEntityWrapper {
+    /**
+     * An entity that lets the caller specify the return value of {@code isChunked()}.
+     */
+    public static class ContentHttpEntity extends HttpEntityWrapper {
+        private boolean chunked;
+
         /**
-         * Creates a {@link ChunkedHttpEntity} instance with the provided HTTP entity.
+         * Creates a {@link ContentHttpEntity} instance with the provided HTTP entity.
          *
          * @param entity the HTTP entity.
          */
-        public ChunkedHttpEntity(HttpEntity entity) {
+        public ContentHttpEntity(HttpEntity entity) {
+            this(entity, true);
+        }
+
+        /**
+         * Creates a {@link ContentHttpEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         * @param chunked force enable/disable chunked transfer-encoding.
+         */
+        public ContentHttpEntity(HttpEntity entity, boolean chunked) {
             super(entity);
+            this.chunked = chunked;
         }
 
         /**
@@ -1066,7 +1079,7 @@ public class RestClient implements Closeable {
          */
         @Override
         public boolean isChunked() {
-            return true;
+            return chunked;
         }
     }
 
