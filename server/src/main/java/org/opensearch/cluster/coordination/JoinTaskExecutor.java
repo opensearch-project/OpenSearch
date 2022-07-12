@@ -37,7 +37,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -156,7 +156,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 "processing node joins, but we are not the cluster-manager. current cluster-manager: {}",
                 currentNodes.getMasterNode()
             );
-            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not cluster-manager for join request");
+            throw new NotClusterManagerException("Node [" + currentNodes.getLocalNode() + "] not cluster-manager for join request");
         } else {
             newState = ClusterState.builder(currentState);
         }
@@ -278,7 +278,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
-            .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
+            .blocks(
+                ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID)
+            )
             .build();
         logger.trace("becomeClusterManagerAndTrimConflictingNodes: {}", tmpState.nodes());
         allocationService.cleanCaches();

@@ -88,8 +88,8 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
  *
  * @opensearch.internal
  */
-public class MasterService extends AbstractLifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(MasterService.class);
+public class ClusterManagerService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(ClusterManagerService.class);
 
     public static final Setting<TimeValue> MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
         "cluster.service.slow_master_task_logging_threshold",
@@ -122,7 +122,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
 
-    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterManagerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -825,7 +825,7 @@ public class MasterService extends AbstractLifecycleComponent {
             if (previousClusterState != clusterTasksResult.resultingState
                 && previousClusterState.nodes().isLocalNodeElectedMaster()
                 && (clusterTasksResult.resultingState.nodes().isLocalNodeElectedMaster() == false)) {
-                throw new AssertionError("update task submitted to MasterService cannot remove master");
+                throw new AssertionError("update task submitted to ClusterManagerService cannot remove cluster-manager");
             }
         } catch (Exception e) {
             logger.trace(

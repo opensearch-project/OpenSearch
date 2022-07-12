@@ -37,7 +37,7 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankEvalResponseTests extends OpenSearchTestCase {
 
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
-        new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
+        new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES)),
         new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
         new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98)),
         new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),

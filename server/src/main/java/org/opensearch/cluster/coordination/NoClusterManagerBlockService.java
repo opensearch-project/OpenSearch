@@ -46,7 +46,7 @@ import java.util.EnumSet;
  *
  * @opensearch.internal
  */
-public class NoMasterBlockService {
+public class NoClusterManagerBlockService {
     public static final int NO_MASTER_BLOCK_ID = 2;
     public static final ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(
         NO_MASTER_BLOCK_ID,
@@ -79,7 +79,7 @@ public class NoMasterBlockService {
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>(
         "cluster.no_master_block",
         "metadata_write",
-        NoMasterBlockService::parseNoClusterManagerBlock,
+        NoClusterManagerBlockService::parseNoClusterManagerBlock,
         Property.Dynamic,
         Property.NodeScope,
         Property.Deprecated
@@ -89,14 +89,14 @@ public class NoMasterBlockService {
     public static final Setting<ClusterBlock> NO_CLUSTER_MANAGER_BLOCK_SETTING = new Setting<>(
         "cluster.no_cluster_manager_block",
         NO_MASTER_BLOCK_SETTING,
-        NoMasterBlockService::parseNoClusterManagerBlock,
+        NoClusterManagerBlockService::parseNoClusterManagerBlock,
         Property.Dynamic,
         Property.NodeScope
     );
 
     private volatile ClusterBlock noClusterManagerBlock;
 
-    public NoMasterBlockService(Settings settings, ClusterSettings clusterSettings) {
+    public NoClusterManagerBlockService(Settings settings, ClusterSettings clusterSettings) {
         this.noClusterManagerBlock = NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(NO_CLUSTER_MANAGER_BLOCK_SETTING, this::setNoMasterBlock);
     }

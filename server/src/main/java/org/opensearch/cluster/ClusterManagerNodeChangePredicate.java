@@ -41,9 +41,9 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public final class MasterNodeChangePredicate {
+public final class ClusterManagerNodeChangePredicate {
 
-    private MasterNodeChangePredicate() {
+    private ClusterManagerNodeChangePredicate() {
 
     }
 

@@ -53,9 +53,9 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  *
  * @opensearch.api
  */
-public class RestMasterAction extends AbstractCatAction {
+public class RestClusterManagerAction extends AbstractCatAction {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMasterAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterManagerAction.class);
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
