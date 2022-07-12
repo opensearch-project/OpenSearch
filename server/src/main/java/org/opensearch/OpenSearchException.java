@@ -1601,6 +1601,15 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.indices.replication.common.ReplicationFailedException::new,
             161,
             V_2_1_0
+        ),
+        /**
+         * TODO: Change the version number of check as per version in which this change will be merged.
+         */
+        MASTER_TASK_THROTTLED_EXCEPTION(
+            org.opensearch.cluster.service.MasterTaskThrottlingException.class,
+            org.opensearch.cluster.service.MasterTaskThrottlingException::new,
+            162,
+            Version.V_3_0_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;
