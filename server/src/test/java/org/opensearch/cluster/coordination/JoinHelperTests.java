@@ -37,7 +37,7 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
@@ -186,7 +186,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
 
         assertThat(
             JoinHelper.FailedJoinAttempt.getLogLevel(
-                new RemoteTransportException("caused by NotMasterException", new NotMasterException("test"))
+                new RemoteTransportException("caused by NotClusterManagerException", new NotClusterManagerException("test"))
             ),
             is(Level.DEBUG)
         );

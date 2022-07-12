@@ -35,21 +35,21 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class NoMasterBlockServiceTests extends OpenSearchTestCase {
+public class NoClusterManagerBlockServiceTests extends OpenSearchTestCase {
 
-    private NoMasterBlockService noClusterManagerBlockService;
+    private NoClusterManagerBlockService noClusterManagerBlockService;
     private ClusterSettings clusterSettings;
 
     private void createService(Settings settings) {
         clusterSettings = new ClusterSettings(settings, BUILT_IN_CLUSTER_SETTINGS);
-        noClusterManagerBlockService = new NoMasterBlockService(settings, clusterSettings);
+        noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
     }
 
     private void assertDeprecatedWarningEmitted() {

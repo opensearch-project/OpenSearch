@@ -24,37 +24,45 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.cluster;
+package org.opensearch.discovery;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
- * Thrown when a node join request or a cluster-manager ping reaches a node which is not
- * currently acting as a cluster-manager or when a cluster state update task is to be executed
- * on a node that is no longer cluster-manager.
+ * Exception when the cluster-manager is not discovered
  *
  * @opensearch.internal
  */
-public class NotMasterException extends OpenSearchException {
+public class ClusterManagerNotDiscoveredException extends OpenSearchException {
 
-    public NotMasterException(String msg) {
-        super(msg);
+    public ClusterManagerNotDiscoveredException() {
+        super("");
     }
 
-    public NotMasterException(StreamInput in) throws IOException {
-        super(in);
+    public ClusterManagerNotDiscoveredException(Throwable cause) {
+        super(cause);
+    }
+
+    public ClusterManagerNotDiscoveredException(String message) {
+        super(message);
     }
 
     @Override
-    public Throwable fillInStackTrace() {
-        return this;
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
+    }
+
+    public ClusterManagerNotDiscoveredException(StreamInput in) throws IOException {
+        super(in);
     }
 }
