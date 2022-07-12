@@ -1621,6 +1621,15 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.cluster.decommission.NodeDecommissionedException::new,
             164,
             V_2_4_0
+        ),
+        /**
+         * TODO: Change the version number of check as per version in which this change will be merged.
+         */
+        MASTER_TASK_THROTTLED_EXCEPTION(
+            org.opensearch.cluster.service.MasterTaskThrottlingException.class,
+            org.opensearch.cluster.service.MasterTaskThrottlingException::new,
+            165,
+            Version.V_3_0_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

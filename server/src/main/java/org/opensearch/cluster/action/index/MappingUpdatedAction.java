@@ -41,6 +41,7 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.Client;
 import org.opensearch.client.IndicesAdminClient;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.AdjustableSemaphore;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -52,8 +53,6 @@ import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.mapper.Mapping;
-
-import java.util.concurrent.Semaphore;
 
 /**
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
@@ -182,36 +181,5 @@ public class MappingUpdatedAction {
             return (RuntimeException) root;
         }
         return new UncategorizedExecutionException("Failed execution", root);
-    }
-
-    /**
-     * An adjustable semaphore
-     *
-     * @opensearch.internal
-     */
-    static class AdjustableSemaphore extends Semaphore {
-
-        private final Object maxPermitsMutex = new Object();
-        private int maxPermits;
-
-        AdjustableSemaphore(int maxPermits, boolean fair) {
-            super(maxPermits, fair);
-            this.maxPermits = maxPermits;
-        }
-
-        void setMaxPermits(int permits) {
-            synchronized (maxPermitsMutex) {
-                final int diff = Math.subtractExact(permits, maxPermits);
-                if (diff > 0) {
-                    // add permits
-                    release(diff);
-                } else if (diff < 0) {
-                    // remove permits
-                    reducePermits(Math.negateExact(diff));
-                }
-
-                maxPermits = permits;
-            }
-        }
     }
 }
