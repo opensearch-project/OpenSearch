@@ -3654,7 +3654,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         @Override
-        protected void masterOperation(
+        protected void clusterManagerOperation(
             UpdateIndexShardSnapshotStatusRequest request,
             ClusterState state,
             ActionListener<UpdateIndexShardSnapshotStatusResponse> listener

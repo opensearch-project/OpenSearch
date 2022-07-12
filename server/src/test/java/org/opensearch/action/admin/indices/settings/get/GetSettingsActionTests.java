@@ -84,9 +84,13 @@ public class GetSettingsActionTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
+        protected void clusterManagerOperation(
+            GetSettingsRequest request,
+            ClusterState state,
+            ActionListener<GetSettingsResponse> listener
+        ) {
             ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
-            super.masterOperation(request, stateWithIndex, listener);
+            super.clusterManagerOperation(request, stateWithIndex, listener);
         }
     }
 

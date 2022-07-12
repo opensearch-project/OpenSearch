@@ -380,6 +380,13 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public long getProcessedLocalCheckpoint() {
+        // the read-only engine does not process checkpoints, so its
+        // processed checkpoint is identical to its persisted one.
+        return getPersistedLocalCheckpoint();
+    }
+
+    @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return new SeqNoStats(seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint(), globalCheckpoint);
     }
