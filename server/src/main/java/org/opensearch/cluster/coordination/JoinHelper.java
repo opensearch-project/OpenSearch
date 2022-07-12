@@ -143,9 +143,8 @@ public class JoinHelper {
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
-                // The current state that ClusterManagerService uses might have been updated by a (different) cluster-manager in a higher
-                // term
-                // already
+                // The current state that ClusterManagerService uses might have been updated by a (different) cluster-manager
+                // in a higher term already
                 // Stop processing the current cluster state update, as there's no point in continuing to compute it as
                 // it will later be rejected by Coordinator.publish(...) anyhow
                 if (currentState.term() > term) {
