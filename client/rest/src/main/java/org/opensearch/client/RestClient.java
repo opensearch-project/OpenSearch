@@ -132,7 +132,7 @@ public class RestClient implements Closeable {
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
-    private final boolean chunkedEnabled;
+    private final Optional<Boolean> chunkedEnabled;
 
     RestClient(
         CloseableHttpAsyncClient client,
@@ -153,7 +153,7 @@ public class RestClient implements Closeable {
             nodeSelector,
             strictDeprecationMode,
             compressionEnabled,
-            false // chunkedEnabled
+            null // use Entity.isChunked
         );
     }
 
@@ -167,6 +167,30 @@ public class RestClient implements Closeable {
         boolean strictDeprecationMode,
         boolean compressionEnabled,
         boolean chunkedEnabled
+    ) {
+        this(
+            client,
+            defaultHeaders,
+            nodes,
+            pathPrefix,
+            failureListener,
+            nodeSelector,
+            strictDeprecationMode,
+            compressionEnabled,
+            Optional.of(chunkedEnabled)
+        );
+    }
+
+    RestClient(
+        CloseableHttpAsyncClient client,
+        Header[] defaultHeaders,
+        List<Node> nodes,
+        String pathPrefix,
+        FailureListener failureListener,
+        NodeSelector nodeSelector,
+        boolean strictDeprecationMode,
+        boolean compressionEnabled,
+        Optional<Boolean> chunkedEnabled
     ) {
         this.client = client;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
@@ -615,7 +639,7 @@ public class RestClient implements Closeable {
         URI uri,
         HttpEntity entity,
         boolean compressionEnabled,
-        boolean chunkedEnabled
+        Optional<Boolean> chunkedEnabled
     ) {
         switch (method.toUpperCase(Locale.ROOT)) {
             case HttpDeleteWithEntity.METHOD_NAME:
@@ -645,13 +669,13 @@ public class RestClient implements Closeable {
         HttpRequestBase httpRequest,
         HttpEntity entity,
         boolean compressionEnabled,
-        boolean chunkedEnabled
+        Optional<Boolean> chunkedEnabled
     ) {
         if (entity != null) {
             if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
                 if (compressionEnabled) {
                     entity = new ContentCompressingEntity(entity, chunkedEnabled);
-                } else {
+                } else if (chunkedEnabled != null && chunkedEnabled.isPresent()) {
                     entity = new ContentHttpEntity(entity, chunkedEnabled);
                 }
                 ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(entity);
@@ -822,13 +846,7 @@ public class RestClient implements Closeable {
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
-            this.httpRequest = createHttpRequest(
-                request.getMethod(),
-                uri,
-                request.getEntity(),
-                compressionEnabled,
-                chunkedEnabled
-            );
+            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled, chunkedEnabled);
             this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
             setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
@@ -982,7 +1000,7 @@ public class RestClient implements Closeable {
      * A gzip compressing entity that also implements {@code getContent()}.
      */
     public static class ContentCompressingEntity extends GzipCompressingEntity {
-        private boolean chunked;
+        private Optional<Boolean> chunkedEnabled;
 
         /**
          * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
@@ -990,18 +1008,18 @@ public class RestClient implements Closeable {
          * @param entity the HTTP entity.
          */
         public ContentCompressingEntity(HttpEntity entity) {
-            this(entity, false);
+            this(entity, null);
         }
 
         /**
          * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
          *
          * @param entity the HTTP entity.
-         * @param chunked force enable/disable chunked transfer-encoding.
+         * @param chunkedEnabled force enable/disable chunked transfer-encoding.
          */
-        public ContentCompressingEntity(HttpEntity entity, boolean chunked) {
+        public ContentCompressingEntity(HttpEntity entity, Optional<Boolean> chunkedEnabled) {
             super(entity);
-            this.chunked = chunked;
+            this.chunkedEnabled = chunkedEnabled;
         }
 
         @Override
@@ -1020,7 +1038,7 @@ public class RestClient implements Closeable {
          */
         @Override
         public boolean isChunked() {
-            return chunked;
+            return chunkedEnabled != null && chunkedEnabled.isPresent() ? chunkedEnabled.get() : super.isChunked();
         }
 
         /**
@@ -1030,17 +1048,21 @@ public class RestClient implements Closeable {
          */
         @Override
         public long getContentLength() {
-            if (isChunked()) {
-                return -1L;
-            } else {
-                long size;
-                try (InputStream is = getContent()) {
-                    size = is.readAllBytes().length;
-                } catch (IOException ex) {
-                    size = -1L;
-                }
+            if (chunkedEnabled != null && chunkedEnabled.isPresent()) {
+                if (chunkedEnabled.get()) {
+                    return -1L;
+                } else {
+                    long size;
+                    try (InputStream is = getContent()) {
+                        size = is.readAllBytes().length;
+                    } catch (IOException ex) {
+                        size = -1L;
+                    }
 
-                return size;
+                    return size;
+                }
+            } else {
+                return super.getContentLength();
             }
         }
     }
@@ -1049,7 +1071,7 @@ public class RestClient implements Closeable {
      * An entity that lets the caller specify the return value of {@code isChunked()}.
      */
     public static class ContentHttpEntity extends HttpEntityWrapper {
-        private boolean chunked;
+        private Optional<Boolean> chunkedEnabled;
 
         /**
          * Creates a {@link ContentHttpEntity} instance with the provided HTTP entity.
@@ -1057,18 +1079,18 @@ public class RestClient implements Closeable {
          * @param entity the HTTP entity.
          */
         public ContentHttpEntity(HttpEntity entity) {
-            this(entity, true);
+            this(entity, null);
         }
 
         /**
          * Creates a {@link ContentHttpEntity} instance with the provided HTTP entity.
          *
          * @param entity the HTTP entity.
-         * @param chunked force enable/disable chunked transfer-encoding.
+         * @param chunkedEnabled force enable/disable chunked transfer-encoding.
          */
-        public ContentHttpEntity(HttpEntity entity, boolean chunked) {
+        public ContentHttpEntity(HttpEntity entity, Optional<Boolean> chunkedEnabled) {
             super(entity);
-            this.chunked = chunked;
+            this.chunkedEnabled = chunkedEnabled;
         }
 
         /**
@@ -1079,7 +1101,7 @@ public class RestClient implements Closeable {
          */
         @Override
         public boolean isChunked() {
-            return chunked;
+            return chunkedEnabled != null && chunkedEnabled.isPresent() ? chunkedEnabled.get() : super.isChunked();
         }
     }
 

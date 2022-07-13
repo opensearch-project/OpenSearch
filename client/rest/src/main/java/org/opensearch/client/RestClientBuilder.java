@@ -46,6 +46,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
@@ -84,7 +85,7 @@ public final class RestClientBuilder {
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
-    private boolean chunkedEnabled = false;
+    private Optional<Boolean> chunkedEnabled;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -242,10 +243,10 @@ public final class RestClientBuilder {
     /**
      * Whether the REST client should use Transfer-Encoding: chunked for requests or not"
      *
-     * @param chunkedEnabled flag for enabling Transfer-Encoding: chunked
+     * @param chunkedEnabled force enable/disable chunked transfer-encoding.
      */
-    public RestClientBuilder setchunkedEnabled(boolean chunkedEnabled) {
-        this.chunkedEnabled = chunkedEnabled;
+    public RestClientBuilder setChunkedEnabled(boolean chunkedEnabled) {
+        this.chunkedEnabled = Optional.of(chunkedEnabled);
         return this;
     }
 
