@@ -1002,7 +1002,7 @@ public class RestClient implements Closeable {
                 } else {
                     long size;
                     try (InputStream is = getContent()) {
-                        size = is.readAllBytes().length;
+                        size = length(is, 1024);
                     } catch (IOException ex) {
                         size = -1L;
                     }
@@ -1012,6 +1012,16 @@ public class RestClient implements Closeable {
             } else {
                 return super.getContentLength();
             }
+        }
+
+        public static int length(InputStream inputStream, int chunkSize) throws IOException {
+            byte[] buffer = new byte[chunkSize];
+            int chunkBytesRead = 0;
+            int length = 0;
+            while ((chunkBytesRead = inputStream.read(buffer)) != -1) {
+                length += chunkBytesRead;
+            }
+            return length;
         }
     }
 
