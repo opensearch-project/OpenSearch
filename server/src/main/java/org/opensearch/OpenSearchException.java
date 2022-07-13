@@ -1499,8 +1499,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UNKNOWN_VERSION_ADDED
         ),
         NOT_CLUSTER_MANAGER_EXCEPTION(
-            org.opensearch.cluster.NotMasterException.class,
-            org.opensearch.cluster.NotMasterException::new,
+            org.opensearch.cluster.NotClusterManagerException.class,
+            org.opensearch.cluster.NotClusterManagerException::new,
             144,
             UNKNOWN_VERSION_ADDED
         ),
