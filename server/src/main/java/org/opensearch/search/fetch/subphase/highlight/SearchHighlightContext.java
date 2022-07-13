@@ -154,6 +154,12 @@ public class SearchHighlightContext {
 
         private int phraseLimit = -1;
 
+        private int maxAnalyzerOffset = -1;
+
+        public int maxAnalyzerOffset() {
+            return maxAnalyzerOffset;
+        }
+
         public int fragmentCharSize() {
             return fragmentCharSize;
         }
@@ -330,6 +336,11 @@ public class SearchHighlightContext {
 
             Builder phraseLimit(int phraseLimit) {
                 fieldOptions.phraseLimit = phraseLimit;
+                return this;
+            }
+
+            Builder maxAnalyzerOffset(int maxAnalyzerOffset) {
+                fieldOptions.maxAnalyzerOffset = maxAnalyzerOffset;
                 return this;
             }
 

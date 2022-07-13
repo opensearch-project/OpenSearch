@@ -92,6 +92,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField OPTIONS_FIELD = new ParseField("options");
     public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
     public static final ParseField MATCHED_FIELDS_FIELD = new ParseField("matched_fields");
+    public static final ParseField MAX_ANALYZER_OFFSET_FIELD = new ParseField("max_analyzer_offset");
 
     protected String[] preTags;
 
@@ -129,6 +130,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected Boolean requireFieldMatch;
 
+    protected int maxAnalyzerOffset;
+
     public AbstractHighlighterBuilder() {}
 
     protected AbstractHighlighterBuilder(AbstractHighlighterBuilder<?> template, QueryBuilder queryBuilder) {
@@ -150,6 +153,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         phraseLimit = template.phraseLimit;
         options = template.options;
         requireFieldMatch = template.requireFieldMatch;
+        maxAnalyzerOffset = template.maxAnalyzerOffset;
     }
 
     /**
@@ -543,6 +547,21 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
+     * Sets the maximum offset for the highlighter
+     * @param maxAnalyzerOffset the maximum offset that the highlighter will consider
+     * @return this for chaining
+     */
+    @SuppressWarnings("unchecked")
+    public HB maxAnalyzerOffset(int maxAnalyzerOffset) {
+        this.maxAnalyzerOffset = maxAnalyzerOffset;
+        return (HB) this;
+    }
+
+    public int maxAnalyzerOffset() {
+        return this.maxAnalyzerOffset;
+    }
+
+    /**
      * Forces the highlighting to highlight fields based on the source even if fields are stored separately.
      */
     @SuppressWarnings("unchecked")
@@ -623,6 +642,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (phraseLimit != null) {
             builder.field(PHRASE_LIMIT_FIELD.getPreferredName(), phraseLimit);
         }
+        if (maxAnalyzerOffset > 0) {
+            builder.field(MAX_ANALYZER_OFFSET_FIELD.getPreferredName(), maxAnalyzerOffset);
+        }
     }
 
     static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<XContentParser, HB, HB> setupParser(ObjectParser<HB, Void> parser) {
@@ -642,6 +664,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
         parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
+        parser.declareInt(HB::maxAnalyzerOffset, MAX_ANALYZER_OFFSET_FIELD);
         parser.declareObject(HB::options, (XContentParser p, Void c) -> {
             try {
                 return p.map();

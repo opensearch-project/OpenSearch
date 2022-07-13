@@ -43,7 +43,6 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.uhighlight.UnifiedHighlighter.HighlightFlag;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
@@ -79,6 +78,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final int noMatchSize;
     private final FieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
+    private final int fieldMaxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -113,7 +113,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         int noMatchSize,
         int maxPassages,
         Predicate<String> fieldMatcher,
-        int maxAnalyzedOffset
+        int maxAnalyzedOffset,
+        int fieldMaxAnalyzedOffset
     ) throws IOException {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
@@ -126,6 +127,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.setFieldMatcher(fieldMatcher);
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
+        this.fieldMaxAnalyzedOffset = fieldMaxAnalyzedOffset;
     }
 
     /**
@@ -141,7 +143,10 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
+
+        if ((fieldMaxAnalyzedOffset < 0 || fieldMaxAnalyzedOffset > maxAnalyzedOffset)
+            && (offsetSource == OffsetSource.ANALYSIS)
+            && (fieldValueLength > maxAnalyzedOffset)) {
             throw new IllegalArgumentException(
                 "The length of ["
                     + field
