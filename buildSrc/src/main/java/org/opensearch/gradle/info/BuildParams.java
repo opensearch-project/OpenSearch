@@ -33,14 +33,9 @@ package org.opensearch.gradle.info;
 
 import org.opensearch.gradle.BwcVersions;
 import org.gradle.api.JavaVersion;
-import org.gradle.api.Project;
-import org.gradle.process.ExecResult;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Modifier;
-import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -150,29 +145,6 @@ public class BuildParams {
 
     public static boolean isSnapshotBuild() {
         return value(BuildParams.isSnapshotBuild);
-    }
-
-    /**
-     * Using 'git' command line (if available), tries to fetch the commit date of the current revision
-     * @return commit date of the current revision or 0 if it is not available
-     */
-    public static long getGitRevisionDate(Project project) {
-        // Try to get last commit date as Unix timestamp
-        try (ByteArrayOutputStream stdout = new ByteArrayOutputStream()) {
-            final ExecResult result = project.exec(spec -> {
-                spec.setIgnoreExitValue(true);
-                spec.setStandardOutput(stdout);
-                spec.commandLine("git", "log", "-1", "--format=%ct");
-            });
-
-            if (result.getExitValue() == 0) {
-                return Long.parseLong(stdout.toString(StandardCharsets.UTF_8).replaceAll("\\s", "")) * 1000; /* seconds to millis */
-            }
-        } catch (IOException | NumberFormatException ex) {
-            /* fall back to default Unix epoch timestamp */
-        }
-
-        return 0;
     }
 
     private static <T> T value(T object) {
