@@ -283,7 +283,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     /**
      * Add a listener for on/off local node cluster-manager events
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #addLocalNodeClusterManagerListener(LocalNodeMasterListener)}
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #addLocalNodeClusterManagerListener}
      */
     @Deprecated
     public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {

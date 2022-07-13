@@ -214,11 +214,27 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * Add a listener for on/off local node cluster-manager events
      */
-    public void addLocalNodeMasterListener(LocalNodeClusterManagerListener listener) {
+    public void addLocalNodeClusterManagerListener(LocalNodeClusterManagerListener listener) {
         clusterApplierService.addLocalNodeClusterManagerListener(listener);
     }
 
-    public ClusterManagerService getMasterService() {
+    /**
+     * Add a listener for on/off local node cluster-manager events
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #addLocalNodeClusterManagerListener}
+     */
+    @Deprecated
+    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
+        addLocalNodeClusterManagerListener(listener);
+    }
+    public ClusterManagerService getClusterManagerService() {
+        return clusterManagerService;
+    }
+
+    /**
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerService}
+     */
+    @Deprecated
+    public MasterService getMasterService() {
         return clusterManagerService;
     }
 
