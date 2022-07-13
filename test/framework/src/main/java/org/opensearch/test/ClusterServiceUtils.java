@@ -47,7 +47,7 @@ import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
@@ -61,8 +61,8 @@ import static junit.framework.TestCase.fail;
 
 public class ClusterServiceUtils {
 
-    public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
-        MasterService clusterManagerService = new MasterService(
+    public static ClusterManagerService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
+        ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_cluster_manager_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
@@ -77,7 +77,7 @@ public class ClusterServiceUtils {
         return clusterManagerService;
     }
 
-    public static MasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
+    public static ClusterManagerService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).clusterManagerNodeId(localNode.getId()))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
@@ -114,7 +114,7 @@ public class ClusterServiceUtils {
         }
     }
 
-    public static void setState(MasterService executor, ClusterState clusterState) {
+    public static void setState(ClusterManagerService executor, ClusterState clusterState) {
         CountDownLatch latch = new CountDownLatch(1);
         executor.submitStateUpdateTask("test setting state", new ClusterStateUpdateTask() {
             @Override

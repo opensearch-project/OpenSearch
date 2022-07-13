@@ -40,7 +40,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -142,7 +142,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
                             ActionListener.completeWith(listener, () -> buildResponse(request, newState));
                         } else {
                             listener.onFailure(
-                                new NotMasterException(
+                                new NotClusterManagerException(
                                     "cluster-manager stepped down waiting for metadata version " + request.waitForMetadataVersion()
                                 )
                             );

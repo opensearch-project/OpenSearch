@@ -39,7 +39,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.opensearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -256,7 +256,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
             if (randomBoolean()) {
                 transport.handleRemoteError(
                     requestId,
-                    randomFrom(new NotMasterException("simulated"), new FailedToCommitClusterStateException("simulated"))
+                    randomFrom(new NotClusterManagerException("simulated"), new FailedToCommitClusterStateException("simulated"))
                 );
             } else {
                 if (randomBoolean()) {

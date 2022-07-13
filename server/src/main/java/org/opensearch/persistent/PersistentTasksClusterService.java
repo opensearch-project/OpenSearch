@@ -41,7 +41,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -381,7 +381,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn("failed to reassign persistent tasks", e);
-                if (e instanceof NotMasterException == false) {
+                if (e instanceof NotClusterManagerException == false) {
                     // There must be a task that's worth rechecking because there was one
                     // that caused this method to be called and the method failed to assign it,
                     // but only do this if the node is still the master

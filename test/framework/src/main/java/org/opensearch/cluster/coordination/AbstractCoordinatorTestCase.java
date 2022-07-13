@@ -54,7 +54,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.FakeThreadPoolMasterService;
+import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
@@ -139,7 +139,7 @@ import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHEC
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_ID;
 import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -1513,7 +1513,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         }
     }
 
-    static class AckedFakeThreadPoolClusterManagerService extends FakeThreadPoolMasterService {
+    static class AckedFakeThreadPoolClusterManagerService extends FakeThreadPoolClusterManagerService {
 
         AckCollector nextAckCollector = new AckCollector();
 

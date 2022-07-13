@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.LocalNodeMasterListener;
+import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -88,10 +88,10 @@ public final class ConsistentSettingsService {
     }
 
     /**
-     * Returns a {@link LocalNodeMasterListener} that will publish hashes of all the settings passed in the constructor. These hashes are
+     * Returns a {@link LocalNodeClusterManagerListener} that will publish hashes of all the settings passed in the constructor. These hashes are
      * published by the cluster-manager node only. Note that this is not designed for {@link SecureSettings} implementations that are mutable.
      */
-    public LocalNodeMasterListener newHashPublisher() {
+    public LocalNodeClusterManagerListener newHashPublisher() {
         // eagerly compute hashes to be published
         final Map<String, String> computedHashesOfConsistentSettings = computeHashesOfConsistentSecureSettings();
         return new HashesPublisher(computedHashesOfConsistentSettings, clusterService);
@@ -246,7 +246,7 @@ public final class ConsistentSettingsService {
         }
     }
 
-    static final class HashesPublisher implements LocalNodeMasterListener {
+    static final class HashesPublisher implements LocalNodeClusterManagerListener {
 
         // eagerly compute hashes to be published
         final Map<String, String> computedHashesOfConsistentSettings;

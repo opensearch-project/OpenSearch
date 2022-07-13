@@ -39,7 +39,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -50,7 +50,7 @@ import java.util.function.BiFunction;
 
 /**
  * A {@link BatchedRerouteService} is a {@link RerouteService} that batches together reroute requests to avoid unnecessary extra reroutes.
- * This component only does meaningful work on the elected cluster-manager node. Reroute requests will fail with a {@link NotMasterException} on
+ * This component only does meaningful work on the elected cluster-manager node. Reroute requests will fail with a {@link NotClusterManagerException} on
  * other nodes.
  *
  * @opensearch.internal
@@ -147,7 +147,10 @@ public class BatchedRerouteService implements RerouteService {
                             pendingRerouteListeners = null;
                         }
                     }
-                    ActionListener.onFailure(currentListeners, new NotMasterException("delayed reroute [" + reason + "] cancelled"));
+                    ActionListener.onFailure(
+                        currentListeners,
+                        new NotClusterManagerException("delayed reroute [" + reason + "] cancelled")
+                    );
                     // no big deal, the new cluster-manager will reroute again
                 }
 

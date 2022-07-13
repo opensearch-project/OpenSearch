@@ -39,7 +39,7 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
-import org.opensearch.cluster.LocalNodeMasterListener;
+import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
@@ -62,7 +62,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class ClusterService extends AbstractLifecycleComponent {
-    private final MasterService masterService;
+    private final ClusterManagerService clusterManagerService;
 
     private final ClusterApplierService clusterApplierService;
 
@@ -92,7 +92,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         this(
             settings,
             clusterSettings,
-            new MasterService(settings, clusterSettings, threadPool),
+            new ClusterManagerService(settings, clusterSettings, threadPool),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }
@@ -100,12 +100,12 @@ public class ClusterService extends AbstractLifecycleComponent {
     public ClusterService(
         Settings settings,
         ClusterSettings clusterSettings,
-        MasterService masterService,
+        ClusterManagerService clusterManagerService,
         ClusterApplierService clusterApplierService
     ) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.masterService = masterService;
+        this.clusterManagerService = clusterManagerService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -131,18 +131,18 @@ public class ClusterService extends AbstractLifecycleComponent {
     @Override
     protected synchronized void doStart() {
         clusterApplierService.start();
-        masterService.start();
+        clusterManagerService.start();
     }
 
     @Override
     protected synchronized void doStop() {
-        masterService.stop();
+        clusterManagerService.stop();
         clusterApplierService.stop();
     }
 
     @Override
     protected synchronized void doClose() {
-        masterService.close();
+        clusterManagerService.close();
         clusterApplierService.close();
     }
 
@@ -214,12 +214,12 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * Add a listener for on/off local node cluster-manager events
      */
-    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
+    public void addLocalNodeMasterListener(LocalNodeClusterManagerListener listener) {
         clusterApplierService.addLocalNodeClusterManagerListener(listener);
     }
 
-    public MasterService getMasterService() {
-        return masterService;
+    public ClusterManagerService getMasterService() {
+        return clusterManagerService;
     }
 
     /**
@@ -242,7 +242,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public static boolean assertClusterOrMasterStateThread() {
         assert Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
-            || Thread.currentThread().getName().contains(MasterService.MASTER_UPDATE_THREAD_NAME)
+            || Thread.currentThread().getName().contains(ClusterManagerService.MASTER_UPDATE_THREAD_NAME)
             : "not called from the master/cluster state update thread";
         return true;
     }
@@ -333,6 +333,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskConfig config,
         final ClusterStateTaskExecutor<T> executor
     ) {
-        masterService.submitStateUpdateTasks(source, tasks, config, executor);
+        clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
     }
 }

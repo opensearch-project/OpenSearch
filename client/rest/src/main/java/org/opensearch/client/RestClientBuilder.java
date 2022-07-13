@@ -46,6 +46,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
@@ -84,6 +85,7 @@ public final class RestClientBuilder {
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
+    private Optional<Boolean> chunkedEnabled;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -100,6 +102,7 @@ public final class RestClientBuilder {
             }
         }
         this.nodes = nodes;
+        this.chunkedEnabled = Optional.empty();
     }
 
     /**
@@ -239,6 +242,16 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Whether the REST client should use Transfer-Encoding: chunked for requests or not"
+     *
+     * @param chunkedEnabled force enable/disable chunked transfer-encoding.
+     */
+    public RestClientBuilder setChunkedEnabled(boolean chunkedEnabled) {
+        this.chunkedEnabled = Optional.of(chunkedEnabled);
+        return this;
+    }
+
+    /**
      * Creates a new {@link RestClient} based on the provided configuration.
      */
     public RestClient build() {
@@ -248,16 +261,34 @@ public final class RestClientBuilder {
         CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
             (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
         );
-        RestClient restClient = new RestClient(
-            httpClient,
-            defaultHeaders,
-            nodes,
-            pathPrefix,
-            failureListener,
-            nodeSelector,
-            strictDeprecationMode,
-            compressionEnabled
-        );
+
+        RestClient restClient = null;
+
+        if (chunkedEnabled.isPresent()) {
+            restClient = new RestClient(
+                httpClient,
+                defaultHeaders,
+                nodes,
+                pathPrefix,
+                failureListener,
+                nodeSelector,
+                strictDeprecationMode,
+                compressionEnabled,
+                chunkedEnabled.get()
+            );
+        } else {
+            restClient = new RestClient(
+                httpClient,
+                defaultHeaders,
+                nodes,
+                pathPrefix,
+                failureListener,
+                nodeSelector,
+                strictDeprecationMode,
+                compressionEnabled
+            );
+        }
+
         httpClient.start();
         return restClient;
     }
