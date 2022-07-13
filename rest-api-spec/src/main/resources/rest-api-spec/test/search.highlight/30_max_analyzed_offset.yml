@@ -36,7 +36,8 @@ setup:
           body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
 
-"Unified highlighter on a field WITHOUT OFFSETS using max_analyzer_offset should PASS":
+---
+"Unified highlighter on a field WITHOUT OFFSETS using max_analyzer_offset should SUCCEED":
   - do:
       search:
           rest_total_hits_as_int: true
