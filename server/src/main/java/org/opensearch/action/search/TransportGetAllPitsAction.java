@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Transport action to get all PIT contexts
+ * Transport action to get all active PIT contexts across all nodes
  */
 public class TransportGetAllPitsAction extends TransportNodesAction<
     GetAllPitNodesRequest,
@@ -73,7 +73,7 @@ public class TransportGetAllPitsAction extends TransportNodesAction<
     }
 
     /**
-     * This node specific operation retrieves all node specific information
+     * This node specific operation retrieves all active PIT IDs in a node
      */
     @Override
     protected GetAllPitNodeResponse nodeOperation(GetAllPitNodeRequest request) {

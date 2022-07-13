@@ -17,7 +17,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Request to get all active PIT IDs in set of nodes
+ * Request to get all active PIT IDs from all nodes of cluster
  */
 public class GetAllPitNodesRequest extends BaseNodesRequest<GetAllPitNodesRequest> {
     @Inject

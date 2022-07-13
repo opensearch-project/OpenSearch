@@ -15,6 +15,9 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Inner node get all pits request
+ */
 public class GetAllPitNodeRequest extends BaseNodeRequest {
     GetAllPitNodesRequest request;
 

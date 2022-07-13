@@ -46,11 +46,13 @@ public class RestGetAllPitsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(false);
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        );
         clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) throws IOException {
+            public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 final List<DiscoveryNode> nodes = new LinkedList<>();
                 for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().getDataNodes().values()) {
                     DiscoveryNode node = cursor.value;
@@ -64,7 +66,7 @@ public class RestGetAllPitsAction extends BaseRestHandler {
                     public RestResponse buildResponse(final GetAllPitNodesResponse getAllPITNodesResponse) throws Exception {
                         try (XContentBuilder builder = channel.newBuilder()) {
                             builder.startObject();
-                            builder.field("pitIds", getAllPITNodesResponse.getPITIDs());
+                            builder.field("pits", getAllPITNodesResponse.getPITIDs());
                             builder.endObject();
                             return new BytesRestResponse(RestStatus.OK, builder);
                         }

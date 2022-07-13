@@ -41,7 +41,15 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.action.search.*;
+import org.opensearch.action.search.DeletePitInfo;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.ListPitInfo;
+import org.opensearch.action.search.PitSearchContextIdForNode;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.action.search.SearchType;
+import org.opensearch.action.search.UpdatePitContextRequest;
+import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
@@ -1454,7 +1462,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         for (ReaderContext ctx : activeReaders.values()) {
             if (ctx instanceof PitReaderContext) {
                 final PitReaderContext context = (PitReaderContext) ctx;
-                ListPitInfo pitInfo = new ListPitInfo(context.getPitId(), context.getCreationTime());
+                ListPitInfo pitInfo = new ListPitInfo(context.getPitId(), context.getCreationTime(), context.getKeepAlive());
                 pitContextsInfo.add(pitInfo);
             }
         }

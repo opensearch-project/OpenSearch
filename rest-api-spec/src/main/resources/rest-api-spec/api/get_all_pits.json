@@ -1,0 +1,19 @@
+{
+  "get_all_pits":{
+    "documentation":{
+      "url":"https://opensearch.org/docs/latest/opensearch/rest-api/point_in_time/",
+      "description":"Get all active point in time searches."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_search/point_in_time/all",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

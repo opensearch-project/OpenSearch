@@ -24,6 +24,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * This class transforms active PIT objects from all nodes to unique PIT objects
+ */
 public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeResponse> implements ToXContentObject {
     List<ListPitInfo> pitsInfo = new ArrayList<>();
 

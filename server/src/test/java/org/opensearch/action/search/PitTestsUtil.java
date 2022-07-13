@@ -8,7 +8,14 @@
 
 package org.opensearch.action.search;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.junit.Assert;
 import org.opensearch.Version;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -21,8 +28,12 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
 
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
+import static org.opensearch.test.OpenSearchIntegTestCase.client;
 import static org.opensearch.test.OpenSearchTestCase.between;
 import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
 import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
@@ -80,5 +91,42 @@ public class PitTestsUtil {
             }
         }
         return SearchContextId.encode(array.asList(), aliasFilters, version);
+    }
+
+    public static void assertUsingGetAllPits(Client client, String id, long creationTime) throws ExecutionException, InterruptedException {
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.local(false);
+        clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().state(clusterStateRequest).get();
+        final List<DiscoveryNode> nodes = new LinkedList<>();
+        for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().getDataNodes().values()) {
+            DiscoveryNode node = cursor.value;
+            nodes.add(node);
+        }
+        DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
+        nodes.toArray(disNodesArr);
+        GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
+        ActionFuture<GetAllPitNodesResponse> execute1 = client.execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+        GetAllPitNodesResponse getPitResponse = execute1.get();
+        Assert.assertTrue(getPitResponse.getPITIDs().get(0).getPitId().contains(id));
+        Assert.assertEquals(getPitResponse.getPITIDs().get(0).getCreationTime(), creationTime);
+    }
+
+    public static void assertGetAllPitsEmpty(Client client) throws ExecutionException, InterruptedException {
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.local(false);
+        clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().state(clusterStateRequest).get();
+        final List<DiscoveryNode> nodes = new LinkedList<>();
+        for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().getDataNodes().values()) {
+            DiscoveryNode node = cursor.value;
+            nodes.add(node);
+        }
+        DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
+        nodes.toArray(disNodesArr);
+        GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
+        ActionFuture<GetAllPitNodesResponse> execute1 = client.execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+        GetAllPitNodesResponse getPitResponse = execute1.get();
+        Assert.assertEquals(0, getPitResponse.getPITIDs().size());
     }
 }

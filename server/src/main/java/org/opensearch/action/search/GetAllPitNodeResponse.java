@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Response which holds information about all PIT contexts in a node
+ * Inner node get all pits response
  */
 public class GetAllPitNodeResponse extends BaseNodeResponse implements ToXContentFragment {
 

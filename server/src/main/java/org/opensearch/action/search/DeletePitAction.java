@@ -17,7 +17,7 @@ import org.opensearch.action.ActionType;
 public class DeletePitAction extends ActionType<DeletePitResponse> {
 
     public static final DeletePitAction INSTANCE = new DeletePitAction();
-    public static final String NAME = "indices:admin/read/pit/delete";
+    public static final String NAME = "indices:data/read/point_in_time/delete";
 
     private DeletePitAction() {
         super(NAME, DeletePitResponse::new);

@@ -117,6 +117,10 @@ public class ReaderContext implements Releasable {
         return lastAccessTime;
     }
 
+    public long getKeepAlive() {
+        return keepAlive.get();
+    }
+
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) {
