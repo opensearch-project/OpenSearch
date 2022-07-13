@@ -1006,7 +1006,7 @@ public class RestClient implements Closeable {
          */
         @Override
         public boolean isChunked() {
-            return chunkedEnabled.isPresent() ? chunkedEnabled.get() : super.isChunked();
+            return chunkedEnabled.orElseGet(super::isChunked);
         }
 
         /**
@@ -1070,7 +1070,7 @@ public class RestClient implements Closeable {
          */
         @Override
         public boolean isChunked() {
-            return chunkedEnabled.isPresent() ? chunkedEnabled.get() : super.isChunked();
+            return chunkedEnabled.orElseGet(super::isChunked);
         }
     }
 
