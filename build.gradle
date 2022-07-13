@@ -28,6 +28,9 @@
  * under the License.
  */
 
+import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
+
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
@@ -37,11 +40,15 @@ import org.opensearch.gradle.Version
 import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.plugin.PluginBuildPlugin
+import org.opensearch.gradle.tar.SymbolicLinkPreservingTar
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.EclipseJdt
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.gradle.api.Project;
+import org.gradle.process.ExecResult;
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
+
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
 plugins {
@@ -149,6 +156,30 @@ Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectE
   def (String key, String value) = it.split('=')
   return [key, value]
 }
+
+    /**
+     * Using 'git' command line (if available), tries to fetch the commit date of the current revision
+     * @return commit date of the current revision or 0 if it is not available
+     */
+long gitRevisionDate = {
+  // Try to get last commit date as Unix timestamp
+  try (ByteArrayOutputStream stdout = new ByteArrayOutputStream()) {
+     ExecResult result = project.exec(spec -> {
+        spec.setIgnoreExitValue(true);
+        spec.setStandardOutput(stdout);
+        spec.commandLine("git", "log", "-1", "--format=%ct");
+     });
+
+    if (result.getExitValue() == 0) {
+      return Long.parseLong(stdout.toString(StandardCharsets.UTF_8).replaceAll("\\s", "")) * 1000; /* seconds to millis */
+    }
+  } catch (IOException | GradleException | NumberFormatException ex) {
+    /* fall back to default Unix epoch timestamp */
+  }
+
+  return 0;
+}()
+
 
 // injecting groovy property variables into all projects
 allprojects {
@@ -282,11 +313,15 @@ allprojects {
   }
 
   // support for reproducible builds
-  tasks.withType(AbstractArchiveTask).configureEach {
+  tasks.withType(AbstractArchiveTask).configureEach { task ->
     // ignore file timestamps
     // be consistent in archive file order
-    preserveFileTimestamps = false
-    reproducibleFileOrder = true
+    task.preserveFileTimestamps = false
+    task.reproducibleFileOrder = true
+    if (task instanceof SymbolicLinkPreservingTar) {
+      // Replace file timestamps with latest Git revision date (if available)
+      task.lastModifiedTimestamp = gitRevisionDate 
+    }
   }
 
   project.afterEvaluate {
