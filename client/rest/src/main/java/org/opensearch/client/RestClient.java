@@ -142,55 +142,8 @@ public class RestClient implements Closeable {
         FailureListener failureListener,
         NodeSelector nodeSelector,
         boolean strictDeprecationMode,
-        boolean compressionEnabled
-    ) {
-        this(
-            client,
-            defaultHeaders,
-            nodes,
-            pathPrefix,
-            failureListener,
-            nodeSelector,
-            strictDeprecationMode,
-            compressionEnabled,
-            null // use Entity.isChunked
-        );
-    }
-
-    RestClient(
-        CloseableHttpAsyncClient client,
-        Header[] defaultHeaders,
-        List<Node> nodes,
-        String pathPrefix,
-        FailureListener failureListener,
-        NodeSelector nodeSelector,
-        boolean strictDeprecationMode,
         boolean compressionEnabled,
         boolean chunkedEnabled
-    ) {
-        this(
-            client,
-            defaultHeaders,
-            nodes,
-            pathPrefix,
-            failureListener,
-            nodeSelector,
-            strictDeprecationMode,
-            compressionEnabled,
-            Optional.of(chunkedEnabled)
-        );
-    }
-
-    RestClient(
-        CloseableHttpAsyncClient client,
-        Header[] defaultHeaders,
-        List<Node> nodes,
-        String pathPrefix,
-        FailureListener failureListener,
-        NodeSelector nodeSelector,
-        boolean strictDeprecationMode,
-        boolean compressionEnabled,
-        Optional<Boolean> chunkedEnabled
     ) {
         this.client = client;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
@@ -199,7 +152,28 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
-        this.chunkedEnabled = chunkedEnabled;
+        this.chunkedEnabled = Optional.of(chunkedEnabled);
+        setNodes(nodes);
+    }
+
+    RestClient(
+        CloseableHttpAsyncClient client,
+        Header[] defaultHeaders,
+        List<Node> nodes,
+        String pathPrefix,
+        FailureListener failureListener,
+        NodeSelector nodeSelector,
+        boolean strictDeprecationMode,
+        boolean compressionEnabled
+    ) {
+        this.client = client;
+        this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
+        this.failureListener = failureListener;
+        this.pathPrefix = pathPrefix;
+        this.nodeSelector = nodeSelector;
+        this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
+        this.compressionEnabled = compressionEnabled;
+        this.chunkedEnabled = null;
         setNodes(nodes);
     }
 

@@ -260,17 +260,34 @@ public final class RestClientBuilder {
         CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
             (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
         );
-        RestClient restClient = new RestClient(
-            httpClient,
-            defaultHeaders,
-            nodes,
-            pathPrefix,
-            failureListener,
-            nodeSelector,
-            strictDeprecationMode,
-            compressionEnabled,
-            chunkedEnabled
-        );
+
+        RestClient restClient = null;
+
+        if (chunkedEnabled != null) {
+            restClient = new RestClient(
+                httpClient,
+                defaultHeaders,
+                nodes,
+                pathPrefix,
+                failureListener,
+                nodeSelector,
+                strictDeprecationMode,
+                compressionEnabled,
+                chunkedEnabled.get()
+            );
+        } else {
+            restClient = new RestClient(
+                httpClient,
+                defaultHeaders,
+                nodes,
+                pathPrefix,
+                failureListener,
+                nodeSelector,
+                strictDeprecationMode,
+                compressionEnabled
+            );
+        }
+
         httpClient.start();
         return restClient;
     }
