@@ -40,7 +40,7 @@ public class DecommissionedAttributesMetadata extends AbstractNamedDiffable<Cust
     private final List<DecommissionedAttributeMetadata> decommissionedAttributes;
 
     /**
-     * Constructs new decommissioned attribute metadata
+     * Constructs new decommissioned attributes metadata
      *
      * @param decommissionedAttributes list of decommissionedAttribute
      */
@@ -51,11 +51,14 @@ public class DecommissionedAttributesMetadata extends AbstractNamedDiffable<Cust
     /**
      * Creates a new instance that has the given attribute name moved to the given {@code values}.
      *
-     * @param name   attribute name
-     * @param values new attribute values
+     * @param name                    attribute name
+     * @param decommissionedAttribute new decommissioned attribute metadata
      * @return new instance with updated attribute values
      */
-    public DecommissionedAttributesMetadata withUpdatedAttributeValues(String name, List<String> values) {
+    public DecommissionedAttributesMetadata withUpdatedAttributeValues(
+        String name,
+        DecommissionedAttributeMetadata.DecommissionedAttribute decommissionedAttribute
+    ) {
         int indexOfAttribute = -1;
         for (int i = 0; i < decommissionedAttributes.size(); i++) {
             if (decommissionedAttributes.get(i).name().equals(name)) {
@@ -69,7 +72,7 @@ public class DecommissionedAttributesMetadata extends AbstractNamedDiffable<Cust
         final List<DecommissionedAttributeMetadata> updatedDecommissionedAttributes = new ArrayList<>(decommissionedAttributes);
         updatedDecommissionedAttributes.set(
             indexOfAttribute,
-            new DecommissionedAttributeMetadata(decommissionedAttributes.get(indexOfAttribute), values));
+            new DecommissionedAttributeMetadata(decommissionedAttributes.get(indexOfAttribute), decommissionedAttribute));
         return new DecommissionedAttributesMetadata(updatedDecommissionedAttributes);
     }
 
@@ -109,7 +112,7 @@ public class DecommissionedAttributesMetadata extends AbstractNamedDiffable<Cust
 
     /**
      * Checks if this instance and the given instance share the same decommissioned attributes by checking that this instances' attributes and the
-     * attributes in {@code other} are equal or only differ in their values of {@link DecommissionedAttributeMetadata#values()}.
+     * attributes in {@code other} are equal or only differ in their attribute values of {@link DecommissionedAttributeMetadata#decommissionedAttribute()}.
      *
      * @param other other decommissioned attributes metadata
      * @return {@code true} iff both instances contain the same decommissioned attributes apart from differences in attribute values
@@ -169,21 +172,30 @@ public class DecommissionedAttributesMetadata extends AbstractNamedDiffable<Cust
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String name = parser.currentName();
-                token = parser.nextToken();
-                List<String> values = new ArrayList<>();
-
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    values.add(parser.text());
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    throw new OpenSearchParseException("failed to parse decommission attribute [{}], expected object", name);
+                }
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        String currentFieldName = parser.currentName();
+                        List<String> values = new ArrayList<>();
+                        token = parser.nextToken();
                         if (token == XContentParser.Token.VALUE_STRING) {
                             values.add(parser.text());
-                        } else {
-                            parser.skipChildren();
-                        }
+                        } else if (token == XContentParser.Token.START_ARRAY) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                if (token == XContentParser.Token.VALUE_STRING) {
+                                    values.add(parser.text());
+                                } else {
+                                    parser.skipChildren();
+                                }
+                            }
+                        } else throw new OpenSearchParseException("failed to parse attribute [{}], unknown type", name);
+                        decommissionedAttributes.add(new DecommissionedAttributeMetadata(name, currentFieldName, values));
+                    } else {
+                        throw new OpenSearchParseException("failed to parse attribute [{}]", name);
                     }
-                } else throw new OpenSearchParseException("failed to parse attribute [{}], unknown type", name);
-                decommissionedAttributes.add(new DecommissionedAttributeMetadata(name, values));
+                }
             }
         }
         return new DecommissionedAttributesMetadata(decommissionedAttributes);
@@ -209,12 +221,13 @@ public class DecommissionedAttributesMetadata extends AbstractNamedDiffable<Cust
      * Serializes information about a single decommissioned attribute
      *
      * @param decommissionedAttribute decommissioned attribute metadata
-     * @param builder    XContent builder
-     * @param params     serialization parameters
+     * @param builder                 XContent builder
+     * @param params                  serialization parameters
      */
     public static void toXContent(DecommissionedAttributeMetadata decommissionedAttribute, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray(decommissionedAttribute.name());
-        for (String value : decommissionedAttribute.values()) {
+        builder.startObject(decommissionedAttribute.name());
+        builder.startArray(decommissionedAttribute.decommissionedAttribute().key());
+        for (String value : decommissionedAttribute.decommissionedAttribute().values()) {
             builder.value(value);
         }
         builder.endArray();
