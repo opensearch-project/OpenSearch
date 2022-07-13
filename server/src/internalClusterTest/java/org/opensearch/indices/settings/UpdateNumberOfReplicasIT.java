@@ -45,11 +45,11 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 import java.util.EnumSet;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
@@ -604,6 +604,36 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
             client().admin().indices().prepareGetSettings("test-index").get().getSetting("test-index", "index.number_of_replicas")
         );
         assertThat(numberOfReplicas, equalTo(0));
+    }
+
+    public void testAwarenessReplicaBalance() {
+        createIndex("aware-replica", Settings.builder().put("index.number_of_replicas", 0).build());
+        manageReplicaBalanceSetting(true);
+
+        try {
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("aware-replica")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2))
+                .execute()
+                .actionGet();
+            fail("should have thrown an exception about the replica  count");
+
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("aware-replica")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                .execute()
+                .actionGet();
+
+        } catch (IllegalArgumentException e) {
+            assertEquals(
+                "Validation Failed: 1: expected total copies needs to be a multiple of total awareness attributes [2];",
+                e.getMessage()
+            );
+        } finally {
+            manageReplicaBalanceSetting(false);
+        }
     }
 
 }

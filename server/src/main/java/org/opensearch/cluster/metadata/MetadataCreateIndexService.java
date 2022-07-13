@@ -59,6 +59,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -102,6 +103,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -145,6 +147,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private AwarenessReplicaBalance awarenessReplicaBalance;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -158,7 +161,8 @@ public class MetadataCreateIndexService {
         final ThreadPool threadPool,
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final AwarenessReplicaBalance awarenessReplicaBalance
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -172,6 +176,7 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
+        this.awarenessReplicaBalance = awarenessReplicaBalance;
     }
 
     /**
@@ -1164,6 +1169,16 @@ public class MetadataCreateIndexService {
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }
+
+        int replicaCount = settings.getAsInt(
+            IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+            INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(Settings.EMPTY)
+        );
+        Optional<String> error = awarenessReplicaBalance.validate(replicaCount);
+        if (error.isPresent()) {
+            validationErrors.add(error.get());
+        }
+
         return validationErrors;
     }
 
