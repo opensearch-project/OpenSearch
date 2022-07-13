@@ -110,7 +110,7 @@ public class RestClientCompressionTests extends RestClientTestCase {
         InetSocketAddress address = httpServer.getAddress();
         return RestClient.builder(new HttpHost(address.getHostString(), address.getPort(), "http"))
             .setCompressionEnabled(enableCompression)
-            .setChunkedTransferEncodingEnabled(chunkedEnabled)
+            .setchunkedEnabled(chunkedEnabled)
             .build();
     }
 

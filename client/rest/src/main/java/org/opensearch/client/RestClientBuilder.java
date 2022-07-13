@@ -84,7 +84,7 @@ public final class RestClientBuilder {
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
-    private boolean chunkedTransferEncodingEnabled = false;
+    private boolean chunkedEnabled = false;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -242,10 +242,10 @@ public final class RestClientBuilder {
     /**
      * Whether the REST client should use Transfer-Encoding: chunked for requests or not"
      *
-     * @param chunkedTransferEncodingEnabled flag for enabling Transfer-Encoding: chunked
+     * @param chunkedEnabled flag for enabling Transfer-Encoding: chunked
      */
-    public RestClientBuilder setChunkedTransferEncodingEnabled(boolean chunkedTransferEncodingEnabled) {
-        this.chunkedTransferEncodingEnabled = chunkedTransferEncodingEnabled;
+    public RestClientBuilder setchunkedEnabled(boolean chunkedEnabled) {
+        this.chunkedEnabled = chunkedEnabled;
         return this;
     }
 
@@ -268,7 +268,7 @@ public final class RestClientBuilder {
             nodeSelector,
             strictDeprecationMode,
             compressionEnabled,
-            chunkedTransferEncodingEnabled
+            chunkedEnabled
         );
         httpClient.start();
         return restClient;

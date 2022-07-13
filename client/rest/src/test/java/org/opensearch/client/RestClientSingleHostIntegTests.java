@@ -178,7 +178,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
         final RestClientBuilder restClientBuilder = RestClient.builder(
             new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort())
-        ).setDefaultHeaders(defaultHeaders).setChunkedTransferEncodingEnabled(false);
+        ).setDefaultHeaders(defaultHeaders).setchunkedEnabled(false);
         if (pathPrefix.length() > 0) {
             restClientBuilder.setPathPrefix(pathPrefix);
         }
