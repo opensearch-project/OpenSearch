@@ -166,8 +166,7 @@ public class BuildParams {
             });
 
             if (result.getExitValue() == 0) {
-                return Long.parseLong(new String(stdout.toByteArray(), StandardCharsets.UTF_8).replaceAll("\\s", ""))
-                    * 1000; /* seconds to millis */
+                return Long.parseLong(stdout.toString(StandardCharsets.UTF_8).replaceAll("\\s", "")) * 1000; /* seconds to millis */
             }
         } catch (IOException | NumberFormatException ex) {
             /* fall back to default Unix epoch timestamp */
