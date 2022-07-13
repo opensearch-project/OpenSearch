@@ -41,11 +41,28 @@ public class ClusterManagerServiceRenamedSettingTests extends OpenSearchTestCase
     }
 
     /**
+     * Validate the both settings are known and supported,
+     * and validate the both settings can be called from the deprecated MasterService class.
+     */
+    public void testMasterServiceSettingsExist() {
+        Set<Setting<?>> settings = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+        assertTrue(
+            "Both 'cluster.service.slow_cluster_manager_task_logging_threshold' and its predecessor should be supported built-in settings",
+            settings.containsAll(
+                Arrays.asList(
+                    MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    MasterService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                )
+            )
+        );
+    }
+
+    /**
      * Validate the default value of the both settings is the same.
      */
     public void testSettingFallback() {
         assertEquals(
-            ClusterManagerService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY),
+            MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY),
             ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY)
         );
     }
@@ -60,8 +77,8 @@ public class ClusterManagerServiceRenamedSettingTests extends OpenSearchTestCase
             ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings)
         );
         assertEquals(
-            ClusterManagerService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.getDefault(Settings.EMPTY),
-            ClusterManagerService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings)
+            MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.getDefault(Settings.EMPTY),
+            MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings)
 
         );
     }
@@ -76,7 +93,7 @@ public class ClusterManagerServiceRenamedSettingTests extends OpenSearchTestCase
             ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings)
 
         );
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { ClusterManagerService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING });
     }
 
     /**
@@ -92,8 +109,8 @@ public class ClusterManagerServiceRenamedSettingTests extends OpenSearchTestCase
             ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings)
 
         );
-        assertEquals(TimeValue.timeValueSeconds(8), ClusterManagerService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { ClusterManagerService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING });
+        assertEquals(TimeValue.timeValueSeconds(8), MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING });
     }
 
 }
