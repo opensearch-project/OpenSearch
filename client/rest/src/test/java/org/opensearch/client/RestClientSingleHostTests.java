@@ -138,6 +138,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             failureListener,
             NodeSelector.ANY,
             strictDeprecationMode,
+            false,
             false
         );
     }
