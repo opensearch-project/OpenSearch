@@ -248,6 +248,15 @@ public class SettingsModuleTests extends ModuleTestCase {
 
         module.registerDynamicSetting(Setting.floatSetting("some.custom.setting2", 1.0f, Property.NodeScope));
         assertNotNull(module.getClusterSettings().get("some.custom.setting2"));
+
+        // verify if some.custom.setting still exists
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+
+        // verify exception is thrown when setting registration fails
+        expectThrows(
+            SettingsException.class,
+            () -> module.registerDynamicSetting(Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope))
+        );
     }
 
     public void testDynamicIndexSettingsRegistration() {
@@ -260,5 +269,14 @@ public class SettingsModuleTests extends ModuleTestCase {
 
         module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope));
         assertNotNull(module.getIndexScopedSettings().get("index.custom.setting2"));
+
+        // verify if some.custom.setting still exists
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+
+        // verify exception is thrown when setting registration fails
+        expectThrows(
+            SettingsException.class,
+            () -> module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope))
+        );
     }
 }

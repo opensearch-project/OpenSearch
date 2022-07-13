@@ -145,6 +145,7 @@ public abstract class AbstractScopedSettings {
     }
 
     protected void registerSetting(Setting<?> setting) {
+        validateSettingKey(setting);
         if (setting.hasComplexMatcher()) {
             Setting<?> overlappingSetting = findOverlappingSetting(setting, complexMatchers);
             if (overlappingSetting != null) {

@@ -179,6 +179,11 @@ public class SettingsModule implements Module {
         binder.bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
+    /**
+     * Dynamically registers a new Setting at Runtime. This method is mostly used by plugins/extensions
+     * to register new settings at runtime. Settings can be of Node Scope or Index Scope.
+     * @param setting which is being registered in the cluster.
+     */
     public void registerDynamicSetting(Setting<?> setting) {
         try {
             registerSetting(setting);
@@ -191,6 +196,7 @@ public class SettingsModule implements Module {
             logger.info("Registered new Setting: " + setting.getKey() + " successfully ");
         } catch (Exception e) {
             logger.error("Could not register setting " + setting.getKey());
+            throw new SettingsException("Could not register setting:" + setting.getKey());
         }
     }
 
