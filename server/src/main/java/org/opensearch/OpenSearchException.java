@@ -794,16 +794,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             3,
             UNKNOWN_VERSION_ADDED
         ),
-        /**
-         * @deprecated As of 2.2, because supporting inclusive language, replaced by CLUSTER_MANAGER_NOT_DISCOVERED_EXCEPTION
-         */
-        @Deprecated
-        MASTER_NOT_DISCOVERED_EXCEPTION(
-            org.opensearch.discovery.MasterNotDiscoveredException.class,
-            org.opensearch.discovery.MasterNotDiscoveredException::new,
-            3,
-            UNKNOWN_VERSION_ADDED
-        ),
         OPENSEARCH_SECURITY_EXCEPTION(
             org.opensearch.OpenSearchSecurityException.class,
             org.opensearch.OpenSearchSecurityException::new,
@@ -1512,16 +1502,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         NOT_CLUSTER_MANAGER_EXCEPTION(
             org.opensearch.cluster.NotClusterManagerException.class,
             org.opensearch.cluster.NotClusterManagerException::new,
-            144,
-            UNKNOWN_VERSION_ADDED
-        ),
-        /**
-         * @deprecated As of 2.2, because supporting inclusive language, replaced by NOT_CLUSTER_MANAGER_EXCEPTION
-         */
-        @Deprecated
-        NOT_MASTER_EXCEPTION(
-            org.opensearch.cluster.NotMasterException.class,
-            org.opensearch.cluster.NotMasterException::new,
             144,
             UNKNOWN_VERSION_ADDED
         ),
