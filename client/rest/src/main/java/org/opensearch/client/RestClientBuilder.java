@@ -102,6 +102,7 @@ public final class RestClientBuilder {
             }
         }
         this.nodes = nodes;
+        this.chunkedEnabled = Optional.empty();
     }
 
     /**
@@ -263,7 +264,7 @@ public final class RestClientBuilder {
 
         RestClient restClient = null;
 
-        if (chunkedEnabled != null) {
+        if (chunkedEnabled.isPresent()) {
             restClient = new RestClient(
                 httpClient,
                 defaultHeaders,

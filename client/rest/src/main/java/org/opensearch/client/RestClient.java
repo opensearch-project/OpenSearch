@@ -173,7 +173,7 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
-        this.chunkedEnabled = null;
+        this.chunkedEnabled = Optional.empty();
         setNodes(nodes);
     }
 
@@ -637,12 +637,12 @@ public class RestClient implements Closeable {
         if (entity != null) {
             if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
                 if (compressionEnabled) {
-                    if (chunkedEnabled != null) {
+                    if (chunkedEnabled.isPresent()) {
                         entity = new ContentCompressingEntity(entity, chunkedEnabled.get());
                     } else {
                         entity = new ContentCompressingEntity(entity);
                     }
-                } else if (chunkedEnabled != null) {
+                } else if (chunkedEnabled.isPresent()) {
                     entity = new ContentHttpEntity(entity, chunkedEnabled.get());
                 }
                 ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(entity);
@@ -976,7 +976,7 @@ public class RestClient implements Closeable {
          */
         public ContentCompressingEntity(HttpEntity entity) {
             super(entity);
-            this.chunkedEnabled = null;
+            this.chunkedEnabled = Optional.empty();
         }
 
         /**
@@ -1006,7 +1006,7 @@ public class RestClient implements Closeable {
          */
         @Override
         public boolean isChunked() {
-            return chunkedEnabled != null && chunkedEnabled.isPresent() ? chunkedEnabled.get() : super.isChunked();
+            return chunkedEnabled.isPresent() ? chunkedEnabled.get() : super.isChunked();
         }
 
         /**
@@ -1016,7 +1016,7 @@ public class RestClient implements Closeable {
          */
         @Override
         public long getContentLength() {
-            if (chunkedEnabled != null && chunkedEnabled.isPresent()) {
+            if (chunkedEnabled.isPresent()) {
                 if (chunkedEnabled.get()) {
                     return -1L;
                 } else {
@@ -1048,7 +1048,7 @@ public class RestClient implements Closeable {
          */
         public ContentHttpEntity(HttpEntity entity) {
             super(entity);
-            this.chunkedEnabled = null;
+            this.chunkedEnabled = Optional.empty();
         }
 
         /**
@@ -1070,7 +1070,7 @@ public class RestClient implements Closeable {
          */
         @Override
         public boolean isChunked() {
-            return chunkedEnabled != null && chunkedEnabled.isPresent() ? chunkedEnabled.get() : super.isChunked();
+            return chunkedEnabled.isPresent() ? chunkedEnabled.get() : super.isChunked();
         }
     }
 
