@@ -128,7 +128,6 @@ import org.opensearch.index.store.StoreUtils;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogStats;
-import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -4037,8 +4036,7 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch closeDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
-                throws IOException {
+            public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
                 readyToCloseLatch.countDown();
                 try {
                     closeDoneLatch.await();
@@ -4096,8 +4094,7 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch snapshotDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
-                throws IOException {
+            public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
                 Engine internalEngine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
                 readyToSnapshotLatch.countDown();
                 try {
