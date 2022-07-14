@@ -55,7 +55,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Main Cluster Service
@@ -64,8 +63,6 @@ import java.util.Objects;
  */
 public class ClusterService extends AbstractLifecycleComponent {
     private final ClusterManagerService clusterManagerService;
-    @Deprecated
-    private MasterService masterService = null;
 
     private final ClusterApplierService clusterApplierService;
 
@@ -115,20 +112,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_METADATA, (first, second) -> {}, (first, second) -> {});
         this.clusterApplierService = clusterApplierService;
-    }
-
-    /**
-     * @deprecated As of 2.2, because supporting inclusive language.
-     */
-    @Deprecated
-    public ClusterService(
-        Settings settings,
-        ClusterSettings clusterSettings,
-        MasterService masterService,
-        ClusterApplierService clusterApplierService
-    ) {
-        this(settings, clusterSettings, (ClusterManagerService) masterService, clusterApplierService);
-        this.masterService = masterService;
     }
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
@@ -235,19 +218,8 @@ public class ClusterService extends AbstractLifecycleComponent {
         clusterApplierService.addLocalNodeMasterListener(listener);
     }
 
-    public ClusterManagerService getClusterManagerService() {
+    public ClusterManagerService getMasterService() {
         return clusterManagerService;
-    }
-
-    /**
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerService()}
-     */
-    @Deprecated
-    public MasterService getMasterService() {
-        return Objects.requireNonNullElseGet(
-            masterService,
-            () -> new MasterService(settings, clusterSettings, clusterManagerService.threadPool)
-        );
     }
 
     /**
