@@ -48,8 +48,8 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
-import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.FakeThreadPoolMasterService;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
@@ -87,14 +87,14 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             }
         };
 
-        final ClusterManagerService clusterManagerService = new FakeThreadPoolClusterManagerService(
+        final MasterService masterService = new FakeThreadPoolMasterService(
             "test",
             "clusterManagerService",
             threadPool,
             r -> { fail("cluster-manager service should not run any tasks"); }
         );
 
-        final ClusterService clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
+        final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(settings, clusterService, threadPool, client);
@@ -103,8 +103,8 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
 
         clusterService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
         clusterApplierService.setInitialState(ClusterState.builder(new ClusterName("cluster")).nodes(noClusterManager).build());
-        clusterManagerService.setClusterStatePublisher((clusterChangedEvent, publishListener, ackListener) -> fail("should not publish"));
-        clusterManagerService.setClusterStateSupplier(clusterApplierService::state);
+        masterService.setClusterStatePublisher((clusterChangedEvent, publishListener, ackListener) -> fail("should not publish"));
+        masterService.setClusterStateSupplier(clusterApplierService::state);
         clusterService.start();
 
         final AtomicBoolean becameClusterManager1 = new AtomicBoolean();
