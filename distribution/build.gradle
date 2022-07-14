@@ -217,7 +217,7 @@ ext.restTestExpansions = [
 // loop over modules to also setup cross task dependencies and increment our modules counter
 project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { Project module ->
   if (module.name == 'systemd') {
-    // the systemd module is only included in the package distributions
+    // the systemd module is only included in the package distributions or in linux and freebsd archives
     return
   }
   File licenses = new File(module.projectDir, 'licenses')
@@ -367,7 +367,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (BuildParams.isSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
-        if (project.path.startsWith(':distribution:packages')) {
+        if (project.path.startsWith(':distribution:packages') || ['freebsd-x64','linux-x64', 'linux-arm64'].contains(platform)) {
           from(buildSystemdModuleTaskProvider)
         }
       }
