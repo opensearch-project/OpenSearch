@@ -124,7 +124,7 @@ public class TranslogHandler implements TranslogRecoveryRunner {
             opsRecovered++;
             appliedOperations.incrementAndGet();
         }
-        engine.translogManager().syncTranslog();
+        engine.syncTranslog();
         return opsRecovered;
     }
 

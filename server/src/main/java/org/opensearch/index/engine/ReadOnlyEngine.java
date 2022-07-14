@@ -283,7 +283,6 @@ public class ReadOnlyEngine extends Engine {
         return readerManager;
     }
 
-    @Override
     public TranslogManager translogManager() {
         return translogManager;
     }
@@ -408,7 +407,6 @@ public class ReadOnlyEngine extends Engine {
         return seqNoStats.getLocalCheckpoint();
     }
 
-    @Override
     public long getProcessedLocalCheckpoint() {
         // the read-only engine does not process checkpoints, so its
         // processed checkpoint is identical to its persisted one.

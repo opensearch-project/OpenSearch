@@ -82,7 +82,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogStats;
@@ -170,8 +169,6 @@ public abstract class Engine implements Closeable {
     public final EngineConfig config() {
         return engineConfig;
     }
-
-    public abstract TranslogManager translogManager();
 
     protected abstract SegmentInfos getLastCommittedSegmentInfos();
 
@@ -858,12 +855,6 @@ public abstract class Engine implements Closeable {
      * @return the persisted local checkpoint for this Engine
      */
     public abstract long getPersistedLocalCheckpoint();
-
-    /**
-     * @return the latest checkpoint that has been processed but not necessarily persisted.
-     * Also see {@link #getPersistedLocalCheckpoint()}
-     */
-    public abstract long getProcessedLocalCheckpoint();
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint

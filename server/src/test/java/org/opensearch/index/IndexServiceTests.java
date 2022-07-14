@@ -448,7 +448,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         final Engine readOnlyEngine = getEngine(indexService.getShard(0));
         assertBusy(
             () -> assertThat(
-                readOnlyEngine.translogManager().getTranslogStats().getTranslogSizeInBytes(),
+                readOnlyEngine.getTranslogStats().getTranslogSizeInBytes(),
                 equalTo((long) Translog.DEFAULT_HEADER_SIZE_IN_BYTES)
             )
         );

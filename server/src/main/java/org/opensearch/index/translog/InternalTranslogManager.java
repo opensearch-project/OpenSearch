@@ -41,6 +41,10 @@ public class InternalTranslogManager implements TranslogManager {
     private final TranslogEventListener translogEventListener;
     private static final Logger logger = LogManager.getLogger(InternalTranslogManager.class);
 
+    public AtomicBoolean getPendingTranslogRecovery() {
+        return pendingTranslogRecovery;
+    }
+
     public InternalTranslogManager(
         TranslogConfig translogConfig,
         LongSupplier primaryTermSupplier,

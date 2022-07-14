@@ -2186,7 +2186,7 @@ public class IndexShardTests extends IndexShardTestCase {
         long primaryTerm = shard.getOperationPrimaryTerm();
         shard.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
         shard.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
-        shard.getEngine().translogManager().rollTranslogGeneration(); // isolate the delete in it's own generation
+        shard.getEngine().rollTranslogGeneration(); // isolate the delete in it's own generation
         shard.applyIndexOperationOnReplica(
             0,
             primaryTerm,
@@ -2234,7 +2234,7 @@ public class IndexShardTests extends IndexShardTestCase {
             replayedOps = 3;
         } else {
             if (randomBoolean()) {
-                shard.getEngine().translogManager().rollTranslogGeneration();
+                shard.getEngine().rollTranslogGeneration();
             }
             translogOps = 5;
             replayedOps = 5;
@@ -2507,7 +2507,7 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
-        shard.getEngine().translogManager().rollTranslogGeneration();
+        shard.getEngine().rollTranslogGeneration();
         shard.markSeqNoAsNoop(1, primaryTerm, "test");
         shard.applyIndexOperationOnReplica(
             2,

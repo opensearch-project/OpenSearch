@@ -625,7 +625,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                              * as a starting point), but it simplifies reasoning about the relationship between primary terms and
                              * translog generations.
                              */
-                            engine.translogManager().rollTranslogGeneration();
+                            engine.rollTranslogGeneration();
                             engine.fillSeqNoGaps(newPrimaryTerm);
                             replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
                             primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
@@ -1233,7 +1233,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public TranslogStats translogStats() {
-        return getEngine().translogManager().getTranslogStats();
+        return getEngine().getTranslogStats();
     }
 
     public CompletionStats completionStats(String... fields) {
@@ -1268,7 +1268,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void trimTranslog() {
         verifyNotClosed();
         final Engine engine = getEngine();
-        engine.translogManager().trimUnreferencedTranslogFiles();
+        engine.trimUnreferencedTranslogFiles();
     }
 
     /**
@@ -1276,7 +1276,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void rollTranslogGeneration() {
         final Engine engine = getEngine();
-        engine.translogManager().rollTranslogGeneration();
+        engine.rollTranslogGeneration();
     }
 
     public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
@@ -1693,7 +1693,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
-        getEngine().translogManager().trimOperationsFromTranslog(getOperationPrimaryTerm(), aboveSeqNo);
+        getEngine().trimOperationsFromTranslog(getOperationPrimaryTerm(), aboveSeqNo);
     }
 
     /**
@@ -1857,7 +1857,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
-        getEngine().translogManager().skipTranslogRecovery();
+        getEngine().skipTranslogRecovery();
     }
 
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier) throws IOException {
@@ -1912,7 +1912,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void onNewEngine(Engine newEngine) {
         assert Thread.holdsLock(engineMutex);
-        refreshListeners.setCurrentRefreshLocationSupplier(newEngine.translogManager()::getTranslogLastWriteLocation);
+        refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
     }
 
     /**
@@ -2190,7 +2190,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
-                return engine.translogManager().shouldRollTranslogGeneration();
+                return engine.shouldRollTranslogGeneration();
             } catch (final AlreadyClosedException e) {
                 // we are already closed, no need to flush or roll
             }
@@ -3439,7 +3439,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         if (currentGlobalCheckpoint < maxSeqNo) {
                             resetEngineToGlobalCheckpoint();
                         } else {
-                            getEngine().translogManager().rollTranslogGeneration();
+                            getEngine().rollTranslogGeneration();
                         }
                     }, allowCombineOperationWithPrimaryTermUpdate ? operationListener : null);
 
@@ -3493,7 +3493,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             @Override
             protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
                 try {
-                    engineSupplier.get().translogManager().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
+                    engineSupplier.get().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
                 } catch (AlreadyClosedException ex) {
                     // that's fine since we already synced everything on engine close - this also is conform with the methods
                     // documentation
@@ -3521,14 +3521,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void sync() throws IOException {
         verifyNotClosed();
-        getEngine().translogManager().syncTranslog();
+        getEngine().syncTranslog();
     }
 
     /**
      * Checks if the underlying storage sync is required.
      */
     public boolean isSyncNeeded() {
-        return getEngine().translogManager().isTranslogSyncNeeded();
+        return getEngine().isTranslogSyncNeeded();
     }
 
     /**
@@ -3708,7 +3708,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void setRefreshPending(Engine engine) {
-        final Translog.Location lastWriteLocation = engine.translogManager().getTranslogLastWriteLocation();
+        final Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
         pendingRefreshLocation.updateAndGet(curr -> {
             if (curr == null || curr.compareTo(lastWriteLocation) <= 0) {
                 return lastWriteLocation;
@@ -3724,7 +3724,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Override
         public void beforeRefresh() {
             try {
-                lastWriteLocation = getEngine().translogManager().getTranslogLastWriteLocation();
+                lastWriteLocation = getEngine().getTranslogLastWriteLocation();
             } catch (AlreadyClosedException exc) {
                 // shard is closed - no location is fine
                 lastWriteLocation = null;

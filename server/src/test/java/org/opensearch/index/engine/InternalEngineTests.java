@@ -823,7 +823,7 @@ public class InternalEngineTests extends EngineTestCase {
         } finally {
             IOUtils.close(engine);
         }
-        try (Engine recoveringEngine = new InternalEngine(engine.config())) {
+        try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
             TranslogHandler translogHandler = createTranslogHandler(engine.config().getIndexSettings(), recoveringEngine);
             recoveringEngine.translogManager()
                 .recoverFromTranslog(translogHandler, recoveringEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
@@ -850,7 +850,7 @@ public class InternalEngineTests extends EngineTestCase {
             IOUtils.close(initialEngine);
         }
 
-        Engine recoveringEngine = null;
+        InternalEngine recoveringEngine = null;
         try {
             final AtomicBoolean committed = new AtomicBoolean();
             recoveringEngine = new InternalEngine(initialEngine.config()) {
@@ -876,7 +876,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Long> seqNos = LongStream.range(0, docs).boxed().collect(Collectors.toList());
         Randomness.shuffle(seqNos);
         Engine initialEngine = null;
-        Engine recoveringEngine = null;
+        InternalEngine recoveringEngine = null;
         Store store = createStore();
         final AtomicInteger counter = new AtomicInteger();
         try {
