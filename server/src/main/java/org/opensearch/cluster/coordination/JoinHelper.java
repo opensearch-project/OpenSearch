@@ -46,7 +46,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
@@ -106,7 +106,7 @@ public class JoinHelper {
         Setting.Property.Deprecated
     );
 
-    private final ClusterManagerService clusterManagerService;
+    private final MasterService masterService;
     private final TransportService transportService;
     private volatile JoinTaskExecutor joinTaskExecutor;
 
@@ -122,7 +122,7 @@ public class JoinHelper {
     JoinHelper(
         Settings settings,
         AllocationService allocationService,
-        ClusterManagerService clusterManagerService,
+        MasterService masterService,
         TransportService transportService,
         LongSupplier currentTermSupplier,
         Supplier<ClusterState> currentStateSupplier,
@@ -132,7 +132,7 @@ public class JoinHelper {
         RerouteService rerouteService,
         NodeHealthService nodeHealthService
     ) {
-        this.clusterManagerService = clusterManagerService;
+        this.masterService = masterService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
@@ -143,9 +143,8 @@ public class JoinHelper {
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
-                // The current state that ClusterManagerService uses might have been updated by a (different) cluster-manager in a higher
-                // term
-                // already
+                // The current state that ClusterManagerService uses might have been updated by a (different) cluster-manager
+                // in a higher term already
                 // Stop processing the current cluster state update, as there's no point in continuing to compute it as
                 // it will later be rejected by Coordinator.publish(...) anyhow
                 if (currentState.term() > term) {
@@ -455,7 +454,7 @@ public class JoinHelper {
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
             final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
             assert joinTaskExecutor != null;
-            clusterManagerService.submitStateUpdateTask(
+            masterService.submitStateUpdateTask(
                 "node-join",
                 task,
                 ClusterStateTaskConfig.build(Priority.URGENT),
@@ -540,7 +539,7 @@ public class JoinHelper {
                 pendingAsTasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source, e) -> {});
                 pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {});
                 joinTaskExecutor = joinTaskExecutorGenerator.get();
-                clusterManagerService.submitStateUpdateTasks(
+                masterService.submitStateUpdateTasks(
                     stateUpdateSource,
                     pendingAsTasks,
                     ClusterStateTaskConfig.build(Priority.URGENT),

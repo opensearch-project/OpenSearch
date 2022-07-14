@@ -31,33 +31,27 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.common.io.stream.StreamInput;
 
-import java.util.List;
+import java.io.IOException;
 
 /**
- * Interface to implement a cluster state change listener
+ * Thrown when a node join request or a cluster-manager ping reaches a node which is not
+ * currently acting as a cluster-manager or when a cluster state update task is to be executed
+ * on a node that is no longer cluster-manager.
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link NotClusterManagerException}
  */
-public interface ClusterStateTaskListener {
+@Deprecated
+public class NotMasterException extends NotClusterManagerException {
 
-    /**
-     * A callback called when execute fails.
-     */
-    void onFailure(String source, Exception e);
-
-    /**
-     * called when the task was rejected because the local node is no longer cluster-manager.
-     * Used only for tasks submitted to {@link MasterService}.
-     */
-    default void onNoLongerMaster(String source) {
-        onFailure(source, new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
+    public NotMasterException(String msg) {
+        super(msg);
     }
 
-    /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
-     * properly by all listeners.
-     */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
+    public NotMasterException(StreamInput in) throws IOException {
+        super(in);
+    }
+
 }

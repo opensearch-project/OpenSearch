@@ -31,33 +31,14 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.cluster.service.MasterService;
-
-import java.util.List;
-
 /**
- * Interface to implement a cluster state change listener
+ * Enables listening to cluster-manager changes events of the local node (when the local node becomes the cluster-manager, and when the local
+ * node cease being a cluster-manager).
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link LocalNodeClusterManagerListener}
  */
-public interface ClusterStateTaskListener {
+@Deprecated
+public interface LocalNodeMasterListener extends LocalNodeClusterManagerListener {
 
-    /**
-     * A callback called when execute fails.
-     */
-    void onFailure(String source, Exception e);
-
-    /**
-     * called when the task was rejected because the local node is no longer cluster-manager.
-     * Used only for tasks submitted to {@link MasterService}.
-     */
-    default void onNoLongerMaster(String source) {
-        onFailure(source, new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
-    }
-
-    /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
-     * properly by all listeners.
-     */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 }

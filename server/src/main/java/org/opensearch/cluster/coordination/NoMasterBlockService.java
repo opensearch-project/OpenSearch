@@ -29,35 +29,22 @@
  * GitHub history for details.
  */
 
-package org.opensearch.cluster;
+package org.opensearch.cluster.coordination;
 
-import org.opensearch.cluster.service.MasterService;
-
-import java.util.List;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 
 /**
- * Interface to implement a cluster state change listener
+ * Service to block the master node
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link NoClusterManagerBlockService}
  */
-public interface ClusterStateTaskListener {
+@Deprecated
+public class NoMasterBlockService extends NoClusterManagerBlockService {
 
-    /**
-     * A callback called when execute fails.
-     */
-    void onFailure(String source, Exception e);
-
-    /**
-     * called when the task was rejected because the local node is no longer cluster-manager.
-     * Used only for tasks submitted to {@link MasterService}.
-     */
-    default void onNoLongerMaster(String source) {
-        onFailure(source, new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
+    public NoMasterBlockService(Settings settings, ClusterSettings clusterSettings) {
+        super(settings, clusterSettings);
     }
 
-    /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
-     * properly by all listeners.
-     */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 }

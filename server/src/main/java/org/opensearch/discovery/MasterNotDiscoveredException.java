@@ -24,40 +24,40 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.cluster;
+package org.opensearch.discovery;
 
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.common.io.stream.StreamInput;
 
-import java.util.List;
+import java.io.IOException;
 
 /**
- * Interface to implement a cluster state change listener
+ * Exception when the cluster-manager is not discovered
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link ClusterManagerNotDiscoveredException}
  */
-public interface ClusterStateTaskListener {
+@Deprecated
+public class MasterNotDiscoveredException extends ClusterManagerNotDiscoveredException {
 
-    /**
-     * A callback called when execute fails.
-     */
-    void onFailure(String source, Exception e);
-
-    /**
-     * called when the task was rejected because the local node is no longer cluster-manager.
-     * Used only for tasks submitted to {@link MasterService}.
-     */
-    default void onNoLongerMaster(String source) {
-        onFailure(source, new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
+    public MasterNotDiscoveredException() {
+        super();
     }
 
-    /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
-     * properly by all listeners.
-     */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
+    public MasterNotDiscoveredException(Throwable cause) {
+        super(cause);
+    }
+
+    public MasterNotDiscoveredException(String message) {
+        super(message);
+    }
+
+    public MasterNotDiscoveredException(StreamInput in) throws IOException {
+        super(in);
+    }
 }

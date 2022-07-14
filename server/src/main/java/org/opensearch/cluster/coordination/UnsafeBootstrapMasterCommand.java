@@ -29,35 +29,19 @@
  * GitHub history for details.
  */
 
-package org.opensearch.cluster;
-
-import org.opensearch.cluster.service.MasterService;
-
-import java.util.List;
+package org.opensearch.cluster.coordination;
 
 /**
- * Interface to implement a cluster state change listener
+ * Tool to run an unsafe bootstrap
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link UnsafeBootstrapClusterManagerCommand}
  */
-public interface ClusterStateTaskListener {
+@Deprecated
+public class UnsafeBootstrapMasterCommand extends UnsafeBootstrapClusterManagerCommand {
 
-    /**
-     * A callback called when execute fails.
-     */
-    void onFailure(String source, Exception e);
-
-    /**
-     * called when the task was rejected because the local node is no longer cluster-manager.
-     * Used only for tasks submitted to {@link MasterService}.
-     */
-    default void onNoLongerMaster(String source) {
-        onFailure(source, new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
+    UnsafeBootstrapMasterCommand() {
+        super();
     }
 
-    /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
-     * properly by all listeners.
-     */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 }
