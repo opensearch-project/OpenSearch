@@ -31,16 +31,87 @@
 
 package org.opensearch.test.disruption;
 
-import java.util.Random;
+import org.apache.logging.log4j.core.util.Throwables;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.InternalTestCluster;
 
-/**
- * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link BlockClusterManagerServiceOnClusterManager}
- */
-@Deprecated
-public class BlockMasterServiceOnMaster extends BlockClusterManagerServiceOnClusterManager {
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+
+public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
+
+    AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
 
     public BlockMasterServiceOnMaster(Random random) {
         super(random);
     }
 
+    @Override
+    public void startDisrupting() {
+        disruptedNode = cluster.getMasterName();
+        final String disruptionNodeCopy = disruptedNode;
+        if (disruptionNodeCopy == null) {
+            return;
+        }
+        ClusterService clusterService = cluster.getInstance(ClusterService.class, disruptionNodeCopy);
+        if (clusterService == null) {
+            return;
+        }
+        logger.info("blocking cluster-manager service on node [{}]", disruptionNodeCopy);
+        boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
+        assert success : "startDisrupting called without waiting on stopDisrupting to complete";
+        final CountDownLatch started = new CountDownLatch(1);
+        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask() {
+            @Override
+            public Priority priority() {
+                return Priority.IMMEDIATE;
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                started.countDown();
+                CountDownLatch latch = disruptionLatch.get();
+                if (latch != null) {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        Throwables.rethrow(e);
+                    }
+                }
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected error during disruption", e);
+            }
+        });
+        try {
+            started.await();
+        } catch (InterruptedException e) {}
+    }
+
+    @Override
+    public void stopDisrupting() {
+        CountDownLatch latch = disruptionLatch.get();
+        if (latch != null) {
+            latch.countDown();
+        }
+
+    }
+
+    @Override
+    public void removeAndEnsureHealthy(InternalTestCluster cluster) {
+        removeFromCluster(cluster);
+    }
+
+    @Override
+    public TimeValue expectedTimeToHeal() {
+        return TimeValue.timeValueMinutes(0);
+    }
 }

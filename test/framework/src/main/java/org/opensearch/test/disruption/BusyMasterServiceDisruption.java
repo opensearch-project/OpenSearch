@@ -31,18 +31,70 @@
 
 package org.opensearch.test.disruption;
 
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.InternalTestCluster;
 
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link BusyClusterManagerServiceDisruption}
- */
-@Deprecated
-public class BusyMasterServiceDisruption extends BusyClusterManagerServiceDisruption {
+public class BusyMasterServiceDisruption extends SingleNodeDisruption {
+    private final AtomicBoolean active = new AtomicBoolean();
+    private final Priority priority;
 
     public BusyMasterServiceDisruption(Random random, Priority priority) {
-        super(random, priority);
+        super(random);
+        this.priority = priority;
     }
 
+    @Override
+    public void startDisrupting() {
+        disruptedNode = cluster.getMasterName();
+        final String disruptionNodeCopy = disruptedNode;
+        if (disruptionNodeCopy == null) {
+            return;
+        }
+        ClusterService clusterService = cluster.getInstance(ClusterService.class, disruptionNodeCopy);
+        if (clusterService == null) {
+            return;
+        }
+        logger.info("making cluster-manager service busy on node [{}] at priority [{}]", disruptionNodeCopy, priority);
+        active.set(true);
+        submitTask(clusterService);
+    }
+
+    private void submitTask(ClusterService clusterService) {
+        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(priority) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                if (active.get()) {
+                    submitTask(clusterService);
+                }
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected error during disruption", e);
+            }
+        });
+    }
+
+    @Override
+    public void stopDisrupting() {
+        active.set(false);
+    }
+
+    @Override
+    public void removeAndEnsureHealthy(InternalTestCluster cluster) {
+        removeFromCluster(cluster);
+    }
+
+    @Override
+    public TimeValue expectedTimeToHeal() {
+        return TimeValue.timeValueMinutes(0);
+    }
 }
