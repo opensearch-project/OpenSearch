@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster;
 
+import java.util.function.Predicate;
+
 /**
  * Utility class to build a predicate that accepts cluster state changes
  *
@@ -39,10 +41,13 @@ package org.opensearch.cluster;
  * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link ClusterManagerNodeChangePredicate}
  */
 @Deprecated
-public final class MasterNodeChangePredicate extends ClusterManagerNodeChangePredicate {
+public final class MasterNodeChangePredicate {
 
     private MasterNodeChangePredicate() {
 
     }
 
+    public static Predicate<ClusterState> build(ClusterState currentState) {
+        return ClusterManagerNodeChangePredicate.build(currentState);
+    }
 }
