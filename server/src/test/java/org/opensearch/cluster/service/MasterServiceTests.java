@@ -194,7 +194,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     public void testThreadContext() throws InterruptedException {
-        final MasterService clusterManager = createClusterManagerService(true);
+        final MasterService masterService = createClusterManagerService(true);
         final CountDownLatch latch = new CountDownLatch(1);
 
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
@@ -208,7 +208,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
             final TimeValue clusterManagerTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
 
-            clusterManager.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            masterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assertTrue(threadPool.getThreadContext().isSystemContext());
@@ -280,7 +280,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
         latch.await();
 
-        clusterManager.close();
+        masterService.close();
     }
 
     /*
