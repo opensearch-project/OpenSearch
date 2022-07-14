@@ -58,7 +58,7 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
-import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -141,7 +141,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final boolean singleNodeDiscovery;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
-    private final ClusterManagerService clusterManagerService;
+    private final MasterService clusterManagerService;
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
@@ -191,7 +191,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
         AllocationService allocationService,
-        ClusterManagerService clusterManagerService,
+        MasterService clusterManagerService,
         Supplier<CoordinationState.PersistedState> persistedStateSupplier,
         SeedHostsProvider seedHostsProvider,
         ClusterApplier clusterApplier,

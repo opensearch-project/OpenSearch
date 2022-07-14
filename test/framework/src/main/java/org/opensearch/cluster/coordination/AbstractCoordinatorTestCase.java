@@ -54,7 +54,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
+import org.opensearch.cluster.service.FakeThreadPoolMasterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
@@ -1025,7 +1025,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private final DiscoveryNode localNode;
             final MockPersistedState persistedState;
             final Settings nodeSettings;
-            private AckedFakeThreadPoolClusterManagerService clusterManagerService;
+            private AckedFakeThreadPoolMasterService clusterManagerService;
             private DisruptableClusterApplierService clusterApplierService;
             private ClusterService clusterService;
             TransportService transportService;
@@ -1105,7 +1105,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     null,
                     emptySet()
                 );
-                clusterManagerService = new AckedFakeThreadPoolClusterManagerService(
+                clusterManagerService = new AckedFakeThreadPoolMasterService(
                     localNode.getId(),
                     "test",
                     threadPool,
@@ -1510,11 +1510,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         }
     }
 
-    static class AckedFakeThreadPoolClusterManagerService extends FakeThreadPoolClusterManagerService {
+    static class AckedFakeThreadPoolMasterService extends FakeThreadPoolMasterService {
 
         AckCollector nextAckCollector = new AckCollector();
 
-        AckedFakeThreadPoolClusterManagerService(
+        AckedFakeThreadPoolMasterService(
             String nodeName,
             String serviceName,
             ThreadPool threadPool,

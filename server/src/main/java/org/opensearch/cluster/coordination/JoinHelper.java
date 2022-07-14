@@ -46,7 +46,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
@@ -106,7 +106,7 @@ public class JoinHelper {
         Setting.Property.Deprecated
     );
 
-    private final ClusterManagerService clusterManagerService;
+    private final MasterService clusterManagerService;
     private final TransportService transportService;
     private volatile JoinTaskExecutor joinTaskExecutor;
 
@@ -122,7 +122,7 @@ public class JoinHelper {
     JoinHelper(
         Settings settings,
         AllocationService allocationService,
-        ClusterManagerService clusterManagerService,
+        MasterService clusterManagerService,
         TransportService transportService,
         LongSupplier currentTermSupplier,
         Supplier<ClusterState> currentStateSupplier,
