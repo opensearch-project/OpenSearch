@@ -62,7 +62,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class ClusterService extends AbstractLifecycleComponent {
-    private final MasterService clusterManagerService;
+    private final MasterService masterService;
 
     private final ClusterApplierService clusterApplierService;
 
@@ -100,12 +100,12 @@ public class ClusterService extends AbstractLifecycleComponent {
     public ClusterService(
         Settings settings,
         ClusterSettings clusterSettings,
-        MasterService clusterManagerService,
+        MasterService masterService,
         ClusterApplierService clusterApplierService
     ) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.clusterManagerService = clusterManagerService;
+        this.masterService = masterService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -131,18 +131,18 @@ public class ClusterService extends AbstractLifecycleComponent {
     @Override
     protected synchronized void doStart() {
         clusterApplierService.start();
-        clusterManagerService.start();
+        masterService.start();
     }
 
     @Override
     protected synchronized void doStop() {
-        clusterManagerService.stop();
+        masterService.stop();
         clusterApplierService.stop();
     }
 
     @Override
     protected synchronized void doClose() {
-        clusterManagerService.close();
+        masterService.close();
         clusterApplierService.close();
     }
 
@@ -219,7 +219,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     public MasterService getMasterService() {
-        return clusterManagerService;
+        return masterService;
     }
 
     /**
@@ -333,6 +333,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskConfig config,
         final ClusterStateTaskExecutor<T> executor
     ) {
-        clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
+        masterService.submitStateUpdateTasks(source, tasks, config, executor);
     }
 }

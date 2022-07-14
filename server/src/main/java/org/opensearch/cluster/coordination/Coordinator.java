@@ -141,7 +141,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final boolean singleNodeDiscovery;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
-    private final MasterService clusterManagerService;
+    private final MasterService masterService;
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
@@ -191,7 +191,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
         AllocationService allocationService,
-        MasterService clusterManagerService,
+        MasterService masterService,
         Supplier<CoordinationState.PersistedState> persistedStateSupplier,
         SeedHostsProvider seedHostsProvider,
         ClusterApplier clusterApplier,
@@ -203,7 +203,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     ) {
         this.settings = settings;
         this.transportService = transportService;
-        this.clusterManagerService = clusterManagerService;
+        this.masterService = masterService;
         this.allocationService = allocationService;
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
@@ -211,7 +211,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.joinHelper = new JoinHelper(
             settings,
             allocationService,
-            clusterManagerService,
+            masterService,
             transportService,
             this::getCurrentTerm,
             this::getStateForClusterManagerService,
@@ -260,7 +260,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         );
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
-        clusterManagerService.setClusterStateSupplier(this::getStateForClusterManagerService);
+        masterService.setClusterStateSupplier(this::getStateForClusterManagerService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(
             settings,
@@ -310,7 +310,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private void removeNode(DiscoveryNode discoveryNode, String reason) {
         synchronized (mutex) {
             if (mode == Mode.LEADER) {
-                clusterManagerService.submitStateUpdateTask(
+                masterService.submitStateUpdateTask(
                     "node-left",
                     new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason),
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
@@ -756,7 +756,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void cleanClusterManagerService() {
-        clusterManagerService.submitStateUpdateTask("clean-up after stepping down as cluster-manager", new LocalClusterUpdateTask() {
+        masterService.submitStateUpdateTask("clean-up after stepping down as cluster-manager", new LocalClusterUpdateTask() {
             @Override
             public void onFailure(String source, Exception e) {
                 // ignore
@@ -1126,7 +1126,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         final ClusterState state = getLastAcceptedState();
         if (improveConfiguration(state) != state && reconfigurationTaskScheduled.compareAndSet(false, true)) {
             logger.trace("scheduling reconfiguration");
-            clusterManagerService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
+            masterService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     reconfigurationTaskScheduled.set(false);

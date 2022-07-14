@@ -106,7 +106,7 @@ public class JoinHelper {
         Setting.Property.Deprecated
     );
 
-    private final MasterService clusterManagerService;
+    private final MasterService masterService;
     private final TransportService transportService;
     private volatile JoinTaskExecutor joinTaskExecutor;
 
@@ -122,7 +122,7 @@ public class JoinHelper {
     JoinHelper(
         Settings settings,
         AllocationService allocationService,
-        MasterService clusterManagerService,
+        MasterService masterService,
         TransportService transportService,
         LongSupplier currentTermSupplier,
         Supplier<ClusterState> currentStateSupplier,
@@ -132,7 +132,7 @@ public class JoinHelper {
         RerouteService rerouteService,
         NodeHealthService nodeHealthService
     ) {
-        this.clusterManagerService = clusterManagerService;
+        this.masterService = masterService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
@@ -454,7 +454,7 @@ public class JoinHelper {
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
             final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
             assert joinTaskExecutor != null;
-            clusterManagerService.submitStateUpdateTask(
+            masterService.submitStateUpdateTask(
                 "node-join",
                 task,
                 ClusterStateTaskConfig.build(Priority.URGENT),
@@ -539,7 +539,7 @@ public class JoinHelper {
                 pendingAsTasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source, e) -> {});
                 pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {});
                 joinTaskExecutor = joinTaskExecutorGenerator.get();
-                clusterManagerService.submitStateUpdateTasks(
+                masterService.submitStateUpdateTasks(
                     stateUpdateSource,
                     pendingAsTasks,
                     ClusterStateTaskConfig.build(Priority.URGENT),
