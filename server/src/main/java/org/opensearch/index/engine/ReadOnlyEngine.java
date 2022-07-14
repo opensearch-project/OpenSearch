@@ -394,7 +394,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public TranslogStats getTranslogStats() {
-        return translogManager.getTranslogStats();
+        return translogStats;
     }
 
     @Override
