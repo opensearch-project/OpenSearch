@@ -64,15 +64,15 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "New York")
@@ -85,7 +85,8 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
             .get();
 
         // to NY: 5.286 km
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Times Square")
@@ -98,7 +99,8 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
             .get();
 
         // to NY: 0.4621 km
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Tribeca")
@@ -111,7 +113,8 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
             .get();
 
         // to NY: 1.055 km
-        client().prepareIndex("test", "type1", "4")
+        client().prepareIndex("test")
+            .setId("4")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Wall Street")
@@ -124,7 +127,8 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
             .get();
 
         // to NY: 1.258 km
-        client().prepareIndex("test", "type1", "5")
+        client().prepareIndex("test")
+            .setId("5")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Soho")
@@ -137,7 +141,8 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
             .get();
 
         // to NY: 2.029 km
-        client().prepareIndex("test", "type1", "6")
+        client().prepareIndex("test")
+            .setId("6")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Greenwich Village")
@@ -150,7 +155,8 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
             .get();
 
         // to NY: 8.572 km
-        client().prepareIndex("test", "type1", "7")
+        client().prepareIndex("test")
+            .setId("7")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Brooklyn")
@@ -188,15 +194,15 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("userid", 880)
@@ -210,7 +216,8 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("userid", 534)
@@ -266,15 +273,15 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("userid", 880)
@@ -288,7 +295,8 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("userid", 534)

@@ -361,7 +361,16 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
                 return Collections.singleton(nodes.getMasterNodeId());
             }
         },
+        // TODO: Remove this element after removing DiscoveryNodeRole.MASTER_ROLE
         MASTER_ELIGIBLE(DiscoveryNodeRole.MASTER_ROLE.roleName() + ":true") {
+            @Override
+            Set<String> matchingNodeIds(DiscoveryNodes nodes) {
+                Set<String> ids = new HashSet<>();
+                nodes.getMasterNodes().keysIt().forEachRemaining(ids::add);
+                return ids;
+            }
+        },
+        CLUSTER_MANAGER_ELIGIBLE(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();

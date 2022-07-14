@@ -132,7 +132,7 @@ public class NaNSortingIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "string_value", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("string_value", "type=keyword").get());
         final int numDocs = randomIntBetween(2, 10);
         for (int i = 0; i < numDocs; ++i) {
             final long value = randomInt(5);
@@ -143,7 +143,7 @@ public class NaNSortingIT extends OpenSearchIntegTestCase {
             if (randomBoolean()) {
                 source.field("numeric_value", randomDouble());
             }
-            client().prepareIndex("idx", "type").setSource(source.endObject()).get();
+            client().prepareIndex("idx").setSource(source.endObject()).get();
         }
         refresh();
         ensureSearchable();

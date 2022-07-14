@@ -195,9 +195,9 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
     }
 
     public void testIsAlpha() {
-        assertTrue(new LegacyESVersion(5000001, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
-        assertFalse(new LegacyESVersion(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
-        assertTrue(new LegacyESVersion(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isBeta());
+        assertTrue(new LegacyESVersion(5000001, org.apache.lucene.util.Version.LUCENE_8_0_0).isAlpha());
+        assertFalse(new LegacyESVersion(4000002, org.apache.lucene.util.Version.LUCENE_8_0_0).isAlpha());
+        assertTrue(new LegacyESVersion(4000002, org.apache.lucene.util.Version.LUCENE_8_0_0).isBeta());
         assertTrue(LegacyESVersion.fromString("5.0.0-alpha14").isAlpha());
         assertEquals(5000014, LegacyESVersion.fromString("5.0.0-alpha14").id);
         assertTrue(LegacyESVersion.fromId(5000015).isAlpha());

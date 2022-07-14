@@ -33,7 +33,7 @@
 package org.opensearch.gateway;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
@@ -97,7 +97,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             "node1",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE),
+            Sets.newHashSet(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         clusterName = new ClusterName(randomAlphaOfLength(10));

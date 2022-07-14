@@ -125,7 +125,7 @@ public class RestClient implements Closeable {
     final List<Header> defaultHeaders;
     private final String pathPrefix;
     private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
-    private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
+    private final ConcurrentMap<HttpHost, DeadHostState> denylist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
@@ -246,7 +246,7 @@ public class RestClient implements Closeable {
             authCache.put(node.getHost(), new BasicScheme());
         }
         this.nodeTuple = new NodeTuple<>(Collections.unmodifiableList(new ArrayList<>(nodesByHost.values())), authCache);
-        this.blacklist.clear();
+        this.denylist.clear();
     }
 
     /**
@@ -448,7 +448,7 @@ public class RestClient implements Closeable {
      */
     private NodeTuple<Iterator<Node>> nextNodes() throws IOException {
         NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
-        Iterable<Node> hosts = selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
+        Iterable<Node> hosts = selectNodes(nodeTuple, denylist, lastNodeIndex, nodeSelector);
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
@@ -458,17 +458,17 @@ public class RestClient implements Closeable {
      */
     static Iterable<Node> selectNodes(
         NodeTuple<List<Node>> nodeTuple,
-        Map<HttpHost, DeadHostState> blacklist,
+        Map<HttpHost, DeadHostState> denylist,
         AtomicInteger lastNodeIndex,
         NodeSelector nodeSelector
     ) throws IOException {
         /*
          * Sort the nodes into living and dead lists.
          */
-        List<Node> livingNodes = new ArrayList<>(Math.max(0, nodeTuple.nodes.size() - blacklist.size()));
-        List<DeadNode> deadNodes = new ArrayList<>(blacklist.size());
+        List<Node> livingNodes = new ArrayList<>(Math.max(0, nodeTuple.nodes.size() - denylist.size()));
+        List<DeadNode> deadNodes = new ArrayList<>(denylist.size());
         for (Node node : nodeTuple.nodes) {
-            DeadHostState deadness = blacklist.get(node.getHost());
+            DeadHostState deadness = denylist.get(node.getHost());
             if (deadness == null || deadness.shallBeRetried()) {
                 livingNodes.add(node);
             } else {
@@ -526,9 +526,9 @@ public class RestClient implements Closeable {
      * Receives as an argument the host that was used for the successful request.
      */
     private void onResponse(Node node) {
-        DeadHostState removedHost = this.blacklist.remove(node.getHost());
+        DeadHostState removedHost = this.denylist.remove(node.getHost());
         if (logger.isDebugEnabled() && removedHost != null) {
-            logger.debug("removed [" + node + "] from blacklist");
+            logger.debug("removed [" + node + "] from denylist");
         }
     }
 
@@ -538,19 +538,19 @@ public class RestClient implements Closeable {
      */
     private void onFailure(Node node) {
         while (true) {
-            DeadHostState previousDeadHostState = blacklist.putIfAbsent(
+            DeadHostState previousDeadHostState = denylist.putIfAbsent(
                 node.getHost(),
                 new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER)
             );
             if (previousDeadHostState == null) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("added [" + node + "] to blacklist");
+                    logger.debug("added [" + node + "] to denylist");
                 }
                 break;
             }
-            if (blacklist.replace(node.getHost(), previousDeadHostState, new DeadHostState(previousDeadHostState))) {
+            if (denylist.replace(node.getHost(), previousDeadHostState, new DeadHostState(previousDeadHostState))) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("updated [" + node + "] already in blacklist");
+                    logger.debug("updated [" + node + "] already in denylist");
                 }
                 break;
             }
@@ -718,8 +718,8 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Contains a reference to a blacklisted node and the time until it is
-     * revived. We use this so we can do a single pass over the blacklist.
+     * Contains a reference to a denylisted node and the time until it is
+     * revived. We use this so we can do a single pass over the denylist.
      */
     private static class DeadNode implements Comparable<DeadNode> {
         final Node node;

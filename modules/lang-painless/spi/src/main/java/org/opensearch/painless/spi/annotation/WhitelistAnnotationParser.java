@@ -39,8 +39,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * WhitelistAnnotationParser is an interface used to define how to
- * parse an annotation against any whitelist object while loading.
+ * AllowlistAnnotationParser is an interface used to define how to
+ * parse an annotation against any allowlist object while loading.
  */
 public interface WhitelistAnnotationParser {
 

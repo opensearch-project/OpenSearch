@@ -101,16 +101,19 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("id", "1").field("query", matchAllQuery()).endObject())
             .get();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("id", "2").field("query", matchQuery("field1", "value")).endObject())
             .get();
-        client().prepareIndex("test", "type", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("id", "3")
@@ -180,8 +183,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping(
-                    "type",
+                .setMapping(
                     "field1",
                     "type=long",
                     "field2",
@@ -195,13 +197,16 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                 )
         );
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(10).to(12)).endObject())
             .get();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(20).to(22)).endObject())
             .get();
-        client().prepareIndex("test", "type", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", boolQuery().must(rangeQuery("field1").from(10).to(12)).must(rangeQuery("field1").from(12).to(14)))
@@ -209,13 +214,16 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             )
             .get();
         client().admin().indices().prepareRefresh().get();
-        client().prepareIndex("test", "type", "4")
+        client().prepareIndex("test")
+            .setId("4")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from(10).to(12)).endObject())
             .get();
-        client().prepareIndex("test", "type", "5")
+        client().prepareIndex("test")
+            .setId("5")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from(20).to(22)).endObject())
             .get();
-        client().prepareIndex("test", "type", "6")
+        client().prepareIndex("test")
+            .setId("6")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", boolQuery().must(rangeQuery("field2").from(10).to(12)).must(rangeQuery("field2").from(12).to(14)))
@@ -223,13 +231,16 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             )
             .get();
         client().admin().indices().prepareRefresh().get();
-        client().prepareIndex("test", "type", "7")
+        client().prepareIndex("test")
+            .setId("7")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field3").from("192.168.1.0").to("192.168.1.5")).endObject())
             .get();
-        client().prepareIndex("test", "type", "8")
+        client().prepareIndex("test")
+            .setId("8")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field3").from("192.168.1.20").to("192.168.1.30")).endObject())
             .get();
-        client().prepareIndex("test", "type", "9")
+        client().prepareIndex("test")
+            .setId("9")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -240,7 +251,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("test", "type", "10")
+        client().prepareIndex("test")
+            .setId("10")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -302,20 +314,11 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping(
-                    "type",
-                    "id",
-                    "type=keyword",
-                    "field1",
-                    "type=geo_point",
-                    "field2",
-                    "type=geo_shape",
-                    "query",
-                    "type=percolator"
-                )
+                .setMapping("id", "type=keyword", "field1", "type=geo_point", "field2", "type=geo_shape", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", geoDistanceQuery("field1").point(52.18, 4.38).distance(50, DistanceUnit.KILOMETERS))
@@ -324,7 +327,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", geoBoundingBoxQuery("field1").setCorners(52.3, 4.4, 52.1, 4.6))
@@ -333,7 +337,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -364,16 +369,19 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("id", "1").field("query", matchAllQuery()).endObject())
             .get();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("id", "2").field("query", matchQuery("field1", "value")).endObject())
             .get();
-        client().prepareIndex("test", "type", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("id", "3")
@@ -382,21 +390,21 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type", "4").setSource("{\"id\": \"4\"}", XContentType.JSON).get();
-        client().prepareIndex("test", "type", "5").setSource(XContentType.JSON, "id", "5", "field1", "value").get();
-        client().prepareIndex("test", "type", "6").setSource(XContentType.JSON, "id", "6", "field1", "value", "field2", "value").get();
+        client().prepareIndex("test").setId("4").setSource("{\"id\": \"4\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("5").setSource(XContentType.JSON, "id", "5", "field1", "value").get();
+        client().prepareIndex("test").setId("6").setSource(XContentType.JSON, "id", "6", "field1", "value", "field2", "value").get();
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc");
         SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", "test", "type", "1", null, null, null))
+            .setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null))
             .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
 
         logger.info("percolating doc with 1 field");
         response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", "test", "type", "5", null, null, null))
+            .setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null))
             .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(response, 2);
@@ -405,7 +413,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
 
         logger.info("percolating doc with 2 fields");
         response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", "test", "type", "6", null, null, null))
+            .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
             .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(response, 3);
@@ -419,18 +427,18 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "_source", "enabled=false", "field1", "type=keyword", "query", "type=percolator")
+                .setMapping("_source", "enabled=false", "field1", "type=keyword", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject()).get();
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject()).get();
 
-        client().prepareIndex("test", "type", "2").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("2").setSource("{}", XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc with source disabled");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> { client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "type", "1", null, null, null)).get(); }
+            () -> { client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get(); }
         );
         assertThat(e.getMessage(), containsString("source disabled"));
     }
@@ -440,13 +448,15 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", "type=text", "field2", "type=text", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("id", 1).field("query", commonTermsQuery("field1", "quick brown fox")).endObject())
             .get();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("id", 2)
@@ -454,7 +464,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("test", "type", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("id", 3)
@@ -469,7 +480,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .get();
         client().admin().indices().prepareRefresh().get();
 
-        client().prepareIndex("test", "type", "4")
+        client().prepareIndex("test")
+            .setId("4")
             .setSource(
                 jsonBuilder().startObject()
                     .field("id", 4)
@@ -489,7 +501,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .get();
 
         // doesn't match
-        client().prepareIndex("test", "type", "5")
+        client().prepareIndex("test")
+            .setId("5")
             .setSource(
                 jsonBuilder().startObject()
                     .field("id", 5)
@@ -541,25 +554,30 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", fieldMapping, "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", fieldMapping.toString(), "query", "type=percolator")
         );
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("id", "1").field("query", matchQuery("field1", "brown fox")).endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("id", "2").field("query", matchQuery("field1", "lazy dog")).endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(jsonBuilder().startObject().field("id", "3").field("query", termQuery("field1", "jumps")).endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type", "4")
+        client().prepareIndex("test")
+            .setId("4")
             .setSource(jsonBuilder().startObject().field("id", "4").field("query", termQuery("field1", "dog")).endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type", "5")
+        client().prepareIndex("test")
+            .setId("5")
             .setSource(jsonBuilder().startObject().field("id", "5").field("query", termQuery("field1", "fox")).endObject())
             .execute()
             .actionGet();
@@ -781,12 +799,14 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "field", "type=text,position_increment_gap=5", "query", "type=percolator")
+                .setMapping("field", "type=text,position_increment_gap=5", "query", "type=percolator")
         );
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("query", new MatchPhraseQueryBuilder("field", "brown fox").slop(4)).endObject())
             .get();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("query", new MatchPhraseQueryBuilder("field", "brown fox").slop(5)).endObject())
             .get();
         client().admin().indices().prepareRefresh().get();
@@ -801,22 +821,20 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
     public void testManyPercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         assertAcked(
-            client().admin().indices().prepareCreate("test1").addMapping("type", queryFieldName, "type=percolator", "field", "type=keyword")
+            client().admin().indices().prepareCreate("test1").setMapping(queryFieldName, "type=percolator", "field", "type=keyword")
         );
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("test2")
-                .addMapping("type", queryFieldName, "type=percolator", "second_query_field", "type=percolator", "field", "type=keyword")
+                .setMapping(queryFieldName, "type=percolator", "second_query_field", "type=percolator", "field", "type=keyword")
         );
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("test3")
-                .addMapping(
-                    "type",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("type")
                         .startObject("properties")
                         .startObject("field")
                         .field("type", "keyword")
@@ -826,7 +844,6 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                         .startObject("properties")
                         .startObject(queryFieldName)
                         .field("type", "percolator")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -839,16 +856,14 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
     public void testWithMultiplePercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         assertAcked(
-            client().admin().indices().prepareCreate("test1").addMapping("type", queryFieldName, "type=percolator", "field", "type=keyword")
+            client().admin().indices().prepareCreate("test1").setMapping(queryFieldName, "type=percolator", "field", "type=keyword")
         );
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("test2")
-                .addMapping(
-                    "type",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("type")
                         .startObject("properties")
                         .startObject("field")
                         .field("type", "keyword")
@@ -863,15 +878,16 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                         .endObject()
                         .endObject()
                         .endObject()
-                        .endObject()
                 )
         );
 
         // Acceptable:
-        client().prepareIndex("test1", "type", "1")
+        client().prepareIndex("test1")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field(queryFieldName, matchQuery("field", "value")).endObject())
             .get();
-        client().prepareIndex("test2", "type", "1")
+        client().prepareIndex("test2")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("object_field")
@@ -889,7 +905,6 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getType(), equalTo("type"));
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test1"));
 
         response = client().prepareSearch()
@@ -898,12 +913,12 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getType(), equalTo("type"));
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
 
         // Unacceptable:
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            client().prepareIndex("test2", "type", "1")
+            client().prepareIndex("test2")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startArray("object_field")
@@ -945,8 +960,9 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("employee", mapping));
-        client().prepareIndex("test", "employee", "q1")
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping));
+        client().prepareIndex("test")
+            .setId("q1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("id", "q1")
@@ -962,7 +978,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             )
             .get();
         // this query should never match as it doesn't use nested query:
-        client().prepareIndex("test", "employee", "q2")
+        client().prepareIndex("test")
+            .setId("q2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("id", "q2")
@@ -972,7 +989,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .get();
         client().admin().indices().prepareRefresh().get();
 
-        client().prepareIndex("test", "employee", "q3")
+        client().prepareIndex("test")
+            .setId("q3")
             .setSource(jsonBuilder().startObject().field("id", "q3").field("query", QueryBuilders.matchAllQuery()).endObject())
             .get();
         client().admin().indices().prepareRefresh().get();
@@ -1101,17 +1119,20 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPercolatorQueryViaMultiSearch() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", "field1", "type=text", "query", "type=percolator"));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=text", "query", "type=percolator"));
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", boolQuery().must(matchQuery("field1", "b")).must(matchQuery("field1", "c")))
@@ -1119,11 +1140,13 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             )
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type", "4")
+        client().prepareIndex("test")
+            .setId("4")
             .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type", "5")
+        client().prepareIndex("test")
+            .setId("5")
             .setSource(jsonBuilder().startObject().field("field1", "c").endObject())
             .execute()
             .actionGet();
@@ -1170,10 +1193,10 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                         )
                     )
             )
-            .add(client().prepareSearch("test").setQuery(new PercolateQueryBuilder("query", "test", "type", "5", null, null, null)))
+            .add(client().prepareSearch("test").setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null)))
             .add(
                 client().prepareSearch("test") // non existing doc, so error element
-                    .setQuery(new PercolateQueryBuilder("query", "test", "type", "6", null, null, null))
+                    .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
             )
             .get();
 
@@ -1205,7 +1228,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
         item = response.getResponses()[5];
         assertThat(item.getResponse(), nullValue());
         assertThat(item.getFailureMessage(), notNullValue());
-        assertThat(item.getFailureMessage(), containsString("[test/type/6] couldn't be found"));
+        assertThat(item.getFailureMessage(), containsString("[test/6] couldn't be found"));
     }
 
     public void testDisallowExpensiveQueries() throws IOException {
@@ -1214,10 +1237,10 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                 client().admin()
                     .indices()
                     .prepareCreate("test")
-                    .addMapping("_doc", "id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")
+                    .setMapping("id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")
             );
 
-            client().prepareIndex("test", "_doc")
+            client().prepareIndex("test")
                 .setId("1")
                 .setSource(jsonBuilder().startObject().field("id", "1").field("query", matchQuery("field1", "value")).endObject())
                 .get();
@@ -1264,15 +1287,15 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
 
     public void testWrappedWithConstantScore() throws Exception {
 
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", "d", "type=date", "q", "type=percolator"));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("d", "type=date", "q", "type=percolator"));
 
-        client().prepareIndex("test", "_doc")
+        client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("q", boolQuery().must(rangeQuery("d").gt("now"))).endObject())
             .execute()
             .actionGet();
 
-        client().prepareIndex("test", "_doc")
+        client().prepareIndex("test")
             .setId("2")
             .setSource(jsonBuilder().startObject().field("q", boolQuery().must(rangeQuery("d").lt("now"))).endObject())
             .execute()

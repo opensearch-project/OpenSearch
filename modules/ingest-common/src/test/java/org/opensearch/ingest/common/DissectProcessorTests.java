@@ -55,7 +55,6 @@ public class DissectProcessorTests extends OpenSearchTestCase {
     public void testMatch() {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
-            "_type",
             "_id",
             null,
             null,
@@ -72,7 +71,6 @@ public class DissectProcessorTests extends OpenSearchTestCase {
     public void testMatchOverwrite() {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
-            "_type",
             "_id",
             null,
             null,
@@ -90,7 +88,6 @@ public class DissectProcessorTests extends OpenSearchTestCase {
     public void testAdvancedMatch() {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
-            "_type",
             "_id",
             null,
             null,
@@ -116,7 +113,6 @@ public class DissectProcessorTests extends OpenSearchTestCase {
     public void testMiss() {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
-            "_type",
             "_id",
             null,
             null,

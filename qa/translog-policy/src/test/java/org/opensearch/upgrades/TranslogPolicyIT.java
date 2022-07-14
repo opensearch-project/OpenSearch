@@ -98,6 +98,7 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
         type = "_doc";
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/2225")
     public void testEmptyIndex() throws Exception {
         if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
             final Settings.Builder settings = Settings.builder()
@@ -113,6 +114,7 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
         assertTotalHits(0, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/2225")
     public void testRecoverReplica() throws Exception {
         int numDocs = 100;
         if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {

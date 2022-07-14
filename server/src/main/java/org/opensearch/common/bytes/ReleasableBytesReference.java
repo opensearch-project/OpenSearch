@@ -34,9 +34,9 @@ package org.opensearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -50,14 +50,14 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
 
     public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
-    private final AbstractRefCounted refCounted;
+    private final RefCountedReleasable<Releasable> refCounted;
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
         this.delegate = delegate;
-        this.refCounted = new RefCountedReleasable(releasable);
+        this.refCounted = new RefCountedReleasable<>("bytes-reference", releasable, releasable::close);
     }
 
-    private ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
+    private ReleasableBytesReference(BytesReference delegate, RefCountedReleasable<Releasable> refCounted) {
         this.delegate = delegate;
         this.refCounted = refCounted;
         refCounted.incRef();
@@ -82,7 +82,7 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
 
     @Override
     public void close() {
-        refCounted.decRef();
+        refCounted.close();
     }
 
     @Override
@@ -163,20 +163,5 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
     @Override
     public int hashCode() {
         return delegate.hashCode();
-    }
-
-    private static final class RefCountedReleasable extends AbstractRefCounted {
-
-        private final Releasable releasable;
-
-        RefCountedReleasable(Releasable releasable) {
-            super("bytes-reference");
-            this.releasable = releasable;
-        }
-
-        @Override
-        protected void closeInternal() {
-            releasable.close();
-        }
     }
 }

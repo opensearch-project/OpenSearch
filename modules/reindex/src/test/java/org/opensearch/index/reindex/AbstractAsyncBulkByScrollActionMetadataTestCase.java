@@ -37,7 +37,7 @@ public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
     Response extends BulkByScrollResponse> extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
     protected ScrollableHitSource.BasicHit doc() {
-        return new ScrollableHitSource.BasicHit("index", "type", "id", 0);
+        return new ScrollableHitSource.BasicHit("index", "id", 0);
     }
 
     protected abstract AbstractAsyncBulkByScrollAction<Request, ?> action();

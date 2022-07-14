@@ -39,6 +39,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.xcontent.ObjectParser;
@@ -78,6 +79,12 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         this.settingsFilter = settingsFilter;
     }
 
+    // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
+    // It's used to log deprecation when request parameter 'metric' contains 'master_node'.
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterRerouteAction.class);
+    private static final String DEPRECATED_MESSAGE_MASTER_NODE =
+        "Deprecated value [master_node] used for parameter [metric]. To promote inclusive language, please use [cluster_manager_node] instead. It will be unsupported in a future major version.";
+
     @Override
     public List<Route> routes() {
         return singletonList(new Route(POST, "/_cluster/reroute"));
@@ -104,6 +111,14 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         final String metric = request.param("metric");
         if (metric == null) {
             request.params().put("metric", DEFAULT_METRICS);
+        } else {
+            // TODO: Remove the statements in 'else' after removing MASTER_ROLE.
+            EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
+            // Because "_all" value will add all Metric into metrics set, for prevent deprecation message shown in that case,
+            // add the check of validating metrics set doesn't contain all enum elements.
+            if (!metrics.equals(EnumSet.allOf(ClusterState.Metric.class)) && metrics.contains(ClusterState.Metric.MASTER_NODE)) {
+                deprecationLogger.deprecate("cluster_reroute_metric_parameter_master_node_value", DEPRECATED_MESSAGE_MASTER_NODE);
+            }
         }
         return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestToXContentListener<>(channel));
     }

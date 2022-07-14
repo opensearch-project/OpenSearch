@@ -194,13 +194,6 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             Map<String, Object> dataMap = (Map<String, Object>) object;
             Map<String, Object> document = ConfigurationUtils.readMap(null, null, dataMap, Fields.SOURCE);
             String index = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.INDEX.getFieldName(), "_index");
-            if (dataMap.containsKey(Metadata.TYPE.getFieldName())) {
-                deprecationLogger.deprecate(
-                    "simulate_pipeline_with_types",
-                    "[types removal] specifying _type in pipeline simulation requests is deprecated"
-                );
-            }
-            String type = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.TYPE.getFieldName(), "_doc");
             String id = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.ID.getFieldName(), "_id");
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null, dataMap, Metadata.ROUTING.getFieldName());
             Long version = null;
@@ -213,7 +206,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                     ConfigurationUtils.readStringProperty(null, null, dataMap, Metadata.VERSION_TYPE.getFieldName())
                 );
             }
-            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, document);
+            IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
                 Long ifSeqNo = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
                 ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);

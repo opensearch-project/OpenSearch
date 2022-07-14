@@ -85,7 +85,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "tag", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -102,7 +102,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
             builders.add(
-                client().prepareIndex("idx", "type")
+                client().prepareIndex("idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(SINGLE_VALUED_FIELD_NAME, fieldValue)
@@ -114,10 +114,11 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
             valueCounts[bucket]++;
         }
 
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
             );
         }
@@ -555,7 +556,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(client().admin().indices().prepareCreate("foo_2").addMapping("doc", builder).get());
+        assertAcked(client().admin().indices().prepareCreate("foo_2").setMapping(builder).get());
 
         XContentBuilder docBuilder = jsonBuilder().startObject()
             .startObject("license")
@@ -565,7 +566,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
             .endObject();
 
-        client().prepareIndex("foo_2", "doc").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         client().admin().indices().prepareRefresh();
 

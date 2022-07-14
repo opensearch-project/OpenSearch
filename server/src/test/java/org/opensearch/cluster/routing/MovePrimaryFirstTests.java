@@ -12,15 +12,11 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -53,14 +49,17 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Creates two nodes each in two zones and shuts down nodes in one zone
-     * after relocating half the number of shards. Since, primaries are relocated
-     * first, cluster should stay green as primary should have relocated
+     * Creates two nodes each in two zones and shuts down nodes in zone1 after
+     * relocating half the number of shards. Shards per node constraint ensures
+     * that exactly 50% of shards relocate to nodes in zone2 giving time to shut down
+     * nodes in zone1. Since primaries are relocated first as movePrimaryFirst is
+     * enabled, cluster should not become red and zone2 nodes have all the primaries
      */
     public void testClusterGreenAfterPartialRelocation() throws InterruptedException {
         internalCluster().startMasterOnlyNodes(1);
         final String z1 = "zone-1", z2 = "zone-2";
-        final int primaryShardCount = 100;
+        final int primaryShardCount = 6;
+        assertTrue("Primary shard count must be even for equal distribution across two nodes", primaryShardCount % 2 == 0);
         final String z1n1 = startDataOnlyNode(z1);
         ensureGreen();
         createAndIndex("foo", 1, primaryShardCount);
@@ -88,24 +87,17 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
             if (event.routingTableChanged()) {
                 final RoutingNodes routingNodes = event.state().getRoutingNodes();
                 int startedCount = 0;
-                List<ShardRouting> initz2n1 = new ArrayList<>(), initz2n2 = new ArrayList<>();
                 for (Iterator<RoutingNode> it = routingNodes.iterator(); it.hasNext();) {
                     RoutingNode routingNode = it.next();
                     final String nodeName = routingNode.node().getName();
-                    if (nodeName.equals(z2n1)) {
+                    if (nodeName.equals(z2n1) || nodeName.equals(z2n2)) {
                         startedCount += routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
-                        initz2n1 = routingNode.shardsWithState(ShardRoutingState.INITIALIZING);
-                    } else if (nodeName.equals(z2n2)) {
-                        startedCount += routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
-                        initz2n2 = routingNode.shardsWithState(ShardRoutingState.INITIALIZING);
                     }
                 }
-                if (!Stream.concat(initz2n1.stream(), initz2n2.stream()).anyMatch(s -> s.primary())) {
-                    // All primaries are relocated before 60% of total shards are started on new nodes
-                    final int totalShardCount = primaryShardCount * 2;
-                    if (primaryShardCount <= startedCount && startedCount <= 3 * totalShardCount / 5) {
-                        primaryMoveLatch.countDown();
-                    }
+
+                // Count down the latch once all the primary shards have initialized on nodes in zone-2
+                if (startedCount == primaryShardCount) {
+                    primaryMoveLatch.countDown();
                 }
             }
         };
@@ -113,15 +105,23 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
 
         // Exclude zone1 nodes for allocation and await latch count down
         settingsRequest = new ClusterUpdateSettingsRequest();
-        settingsRequest.persistentSettings(Settings.builder().put("cluster.routing.allocation.exclude.zone", z1));
+        settingsRequest.persistentSettings(
+            Settings.builder()
+                .put("cluster.routing.allocation.exclude.zone", z1)
+                // Total shards per node constraint is added to pause the relocation after primary shards
+                // have relocated to allow time for node shutdown and validate yellow cluster
+                .put("cluster.routing.allocation.total_shards_per_node", primaryShardCount / 2)
+        );
         client().admin().cluster().updateSettings(settingsRequest);
         primaryMoveLatch.await();
 
-        // Shutdown both nodes in zone and ensure cluster stays green
+        // Shutdown both nodes in zone 1 and ensure cluster does not become red
         try {
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(z1n1));
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(z1n2));
         } catch (Exception e) {}
-        ensureGreen(TimeValue.timeValueSeconds(60));
+        // Due to shards per node constraint cluster cannot be green
+        // Since yellow suffices for this test, not removing shards constraint
+        ensureYellow();
     }
 }

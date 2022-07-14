@@ -35,7 +35,7 @@ package org.opensearch.plugins;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
@@ -825,6 +825,31 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 assertThat(line, not(endsWith("qa")));
                 assertThat(line, not(endsWith("example")));
             }
+        }
+    }
+
+    public void testPluginsHelpNonOptionArgumentsOutput() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new InstallPluginCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "--help" }, terminal);
+        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
+
+            // grab first line of --help output
+            String line = reader.readLine();
+
+            // find the beginning of Non-option arguments list
+            while (line.contains("Non-option arguments:") == false) {
+                line = reader.readLine();
+            }
+
+            // check that non option agrument list contains correct string
+            line = reader.readLine();
+            assertThat(line, containsString("<name|Zip File|URL>"));
+
         }
     }
 

@@ -37,9 +37,9 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -243,7 +243,7 @@ public class MetadataStateFormatTests extends OpenSearchTestCase {
                 assertThat(input.getFilePointer(), is(0L));
                 input.seek(input.length() - 8); // one long is the checksum... 8 bytes
                 checksumAfterCorruption = input.getChecksum();
-                actualChecksumAfterCorruption = input.readLong();
+                actualChecksumAfterCorruption = CodecUtil.readBELong(input);
             }
             StringBuilder msg = new StringBuilder();
             msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");

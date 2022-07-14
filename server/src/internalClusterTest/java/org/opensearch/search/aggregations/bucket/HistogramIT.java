@@ -163,7 +163,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             builders.add(
-                client().prepareIndex("idx", "type")
+                client().prepareIndex("idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(SINGLE_VALUED_FIELD_NAME, i + 1)
@@ -180,10 +180,11 @@ public class HistogramIT extends OpenSearchIntegTestCase {
 
         getMultiSortDocs(builders);
 
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
             );
         }
@@ -210,47 +211,47 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         addExpectedBucket(6, 1, 5, 1);
         addExpectedBucket(7, 1, 5, 1);
 
-        assertAcked(client().admin().indices().prepareCreate("sort_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=double").get());
+        assertAcked(client().admin().indices().prepareCreate("sort_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=double").get());
         for (int i = 1; i <= 3; i++) {
             builders.add(
-                client().prepareIndex("sort_idx", "type")
+                client().prepareIndex("sort_idx")
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 1).field("l", 1).field("d", i).endObject())
             );
             builders.add(
-                client().prepareIndex("sort_idx", "type")
+                client().prepareIndex("sort_idx")
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 2).field("l", 2).field("d", i).endObject())
             );
         }
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3).field("l", 3).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3.8).field("l", 3).field("d", 2).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4).field("l", 3).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4.4).field("l", 3).field("d", 3).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5).field("l", 5).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5.1).field("l", 5).field("d", 2).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 6).field("l", 5).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 7).field("l", 5).field("d", 1).endObject())
         );
     }
@@ -1123,11 +1124,11 @@ public class HistogramIT extends OpenSearchIntegTestCase {
     }
 
     public void testDecimalIntervalAndOffset() throws Exception {
-        assertAcked(prepareCreate("decimal_values").addMapping("type", "d", "type=float").get());
+        assertAcked(prepareCreate("decimal_values").setMapping("d", "type=float").get());
         indexRandom(
             true,
-            client().prepareIndex("decimal_values", "type", "1").setSource("d", -0.6),
-            client().prepareIndex("decimal_values", "type", "2").setSource("d", 0.1)
+            client().prepareIndex("decimal_values").setId("1").setSource("d", -0.6),
+            client().prepareIndex("decimal_values").setId("2").setSource("d", 0.1)
         );
 
         SearchResponse r = client().prepareSearch("decimal_values")
@@ -1150,14 +1151,14 @@ public class HistogramIT extends OpenSearchIntegTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "d", "type=float")
+            prepareCreate("cache_test_idx").setMapping("d", "type=float")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("d", -0.6),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("d", 0.1)
+            client().prepareIndex("cache_test_idx").setId("1").setSource("d", -0.6),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("d", 0.1)
         );
 
         // Make sure we are starting with a clear cache
@@ -1348,12 +1349,12 @@ public class HistogramIT extends OpenSearchIntegTestCase {
     }
 
     public void testHardBounds() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "d", "type=double").get());
+        assertAcked(prepareCreate("test").setMapping("d", "type=double").get());
         indexRandom(
             true,
-            client().prepareIndex("test", "type", "1").setSource("d", -0.6),
-            client().prepareIndex("test", "type", "2").setSource("d", 0.5),
-            client().prepareIndex("test", "type", "3").setSource("d", 0.1)
+            client().prepareIndex("test").setId("1").setSource("d", -0.6),
+            client().prepareIndex("test").setId("2").setSource("d", 0.5),
+            client().prepareIndex("test").setId("3").setSource("d", 0.1)
         );
 
         SearchResponse r = client().prepareSearch("test")
@@ -1391,7 +1392,6 @@ public class HistogramIT extends OpenSearchIntegTestCase {
 
     private void assertMultiSortResponse(long[] expectedKeys, BucketOrder... order) {
         SearchResponse response = client().prepareSearch("sort_idx")
-            .setTypes("type")
             .addAggregation(
                 histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
                     .interval(1)

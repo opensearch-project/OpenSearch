@@ -260,8 +260,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             if (removed != null) {
                 shard.recoveryStats().decCurrentAsSource();
                 removed.cancel();
-                assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet())
-                    .contains(removed) : "Remote recovery was not properly tracked [" + removed + "]";
+                assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet()).contains(removed)
+                    : "Remote recovery was not properly tracked [" + removed + "]";
                 nodeToHandlers.computeIfPresent(removed.targetNode(), (k, handlersForNode) -> {
                     handlersForNode.remove(removed);
                     if (handlersForNode.isEmpty()) {

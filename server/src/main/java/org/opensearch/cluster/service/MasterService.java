@@ -90,6 +90,15 @@ public class MasterService extends AbstractLifecycleComponent {
         "cluster.service.slow_master_task_logging_threshold",
         TimeValue.timeValueSeconds(10),
         Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+    // The setting below is going to replace the above.
+    // To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+    public static final Setting<TimeValue> CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+        "cluster.service.slow_cluster_manager_task_logging_threshold",
+        MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -111,8 +120,11 @@ public class MasterService extends AbstractLifecycleComponent {
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
-        this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
+        this.slowTaskLoggingThreshold = CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+            this::setSlowTaskLoggingThreshold
+        );
 
         this.threadPool = threadPool;
     }
@@ -539,8 +551,9 @@ public class MasterService extends AbstractLifecycleComponent {
      */
     public List<PendingClusterTask> pendingTasks() {
         return Arrays.stream(threadPoolExecutor.getPending()).map(pending -> {
-            assert pending.task instanceof SourcePrioritizedRunnable : "thread pool executor should only use SourcePrioritizedRunnable instances but found: "
-                + pending.task.getClass().getName();
+            assert pending.task instanceof SourcePrioritizedRunnable
+                : "thread pool executor should only use SourcePrioritizedRunnable instances but found: "
+                    + pending.task.getClass().getName();
             SourcePrioritizedRunnable task = (SourcePrioritizedRunnable) pending.task;
             return new PendingClusterTask(
                 pending.insertionOrder,

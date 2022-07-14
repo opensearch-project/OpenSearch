@@ -74,9 +74,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     public void putMappings() {
         assertAcked(client().admin().indices().prepareCreate("index1"));
         assertAcked(client().admin().indices().prepareCreate("filtered"));
-        assertAcked(
-            client().admin().indices().preparePutMapping("index1", "filtered").setType("_doc").setSource(TEST_ITEM, XContentType.JSON)
-        );
+        assertAcked(client().admin().indices().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, XContentType.JSON));
     }
 
     public void testGetMappings() {
@@ -95,18 +93,26 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
 
     public void testGetFieldMappings() {
         GetFieldMappingsResponse getFieldMappingsResponse = client().admin().indices().prepareGetFieldMappings().setFields("*").get();
-        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>>> mappings = getFieldMappingsResponse.mappings();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = getFieldMappingsResponse.mappings();
         assertEquals(2, mappings.size());
         assertFieldMappings(mappings.get("index1"), ALL_FLAT_FIELDS);
         assertFieldMappings(mappings.get("filtered"), FILTERED_FLAT_FIELDS);
         // double check that submitting the filtered mappings to an unfiltered index leads to the same get field mappings output
         // as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
-        ImmutableOpenMap<String, MappingMetadata> filtered = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filtered.get("_doc").getSourceAsMap()));
+        MappingMetadata filtered = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(filtered.getSourceAsMap()));
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setFields("*").get();
         assertEquals(1, response.mappings().size());
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
+    }
+
+    public void testGetNonExistentFieldMapping() {
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index1").setFields("non-existent").get();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = response.mappings();
+        assertEquals(1, mappings.size());
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldmapping = mappings.get("index1");
+        assertEquals(0, fieldmapping.size());
     }
 
     public void testFieldCapabilities() {
@@ -121,8 +127,8 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         // double check that submitting the filtered mappings to an unfiltered index leads to the same field_caps output
         // as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
-        ImmutableOpenMap<String, MappingMetadata> filteredMapping = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filteredMapping.get("_doc").getSourceAsMap()));
+        MappingMetadata filteredMapping = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(filteredMapping.getSourceAsMap()));
         FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
         // properties.value is an object field in the new mapping
         filteredFields.add("properties.value");
@@ -144,11 +150,10 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     }
 
     private static void assertFieldMappings(
-        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings,
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> actual,
         Collection<String> expectedFields
     ) {
-        assertEquals(1, mappings.size());
-        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(mappings.get("_doc"));
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(actual);
         Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
         for (String field : builtInMetadataFields) {
             GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);
@@ -161,17 +166,17 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
     }
 
-    private void assertExpectedMappings(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings) {
+    private void assertExpectedMappings(ImmutableOpenMap<String, MappingMetadata> mappings) {
         assertEquals(2, mappings.size());
         assertNotFiltered(mappings.get("index1"));
-        ImmutableOpenMap<String, MappingMetadata> filtered = mappings.get("filtered");
+        MappingMetadata filtered = mappings.get("filtered");
         assertFiltered(filtered);
-        assertMappingsAreValid(filtered.get("_doc").getSourceAsMap());
+        assertMappingsAreValid(filtered.getSourceAsMap());
     }
 
     private void assertMappingsAreValid(Map<String, Object> sourceAsMap) {
         // check that the returned filtered mappings are still valid mappings by submitting them and retrieving them back
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", sourceAsMap));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(sourceAsMap));
         GetMappingsResponse testMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertEquals(1, testMappingsResponse.getMappings().size());
         // the mappings are returned unfiltered for this index, yet they are the same as the previous ones that were returned filtered
@@ -179,9 +184,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertFiltered(ImmutableOpenMap<String, MappingMetadata> mappings) {
-        assertEquals(1, mappings.size());
-        MappingMetadata mappingMetadata = mappings.get("_doc");
+    private static void assertFiltered(MappingMetadata mappingMetadata) {
         assertNotNull(mappingMetadata);
         Map<String, Object> sourceAsMap = mappingMetadata.getSourceAsMap();
         assertEquals(4, sourceAsMap.size());
@@ -226,9 +229,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertNotFiltered(ImmutableOpenMap<String, MappingMetadata> mappings) {
-        assertEquals(1, mappings.size());
-        MappingMetadata mappingMetadata = mappings.get("_doc");
+    private static void assertNotFiltered(MappingMetadata mappingMetadata) {
         assertNotNull(mappingMetadata);
         Map<String, Object> sourceAsMap = mappingMetadata.getSourceAsMap();
         assertEquals(4, sourceAsMap.size());

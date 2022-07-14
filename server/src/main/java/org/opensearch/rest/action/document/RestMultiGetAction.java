@@ -35,7 +35,6 @@ package org.opensearch.rest.action.document;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
@@ -52,9 +51,6 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestMultiGetAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiGetAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in multi get requests is deprecated.";
-
     private final boolean allowExplicitIndex;
 
     public RestMultiGetAction(Settings settings) {
@@ -64,15 +60,7 @@ public class RestMultiGetAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return unmodifiableList(
-            asList(
-                new Route(GET, "/_mget"),
-                new Route(POST, "/_mget"),
-                new Route(GET, "/{index}/_mget"),
-                new Route(POST, "/{index}/_mget"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_mget"),
-                new Route(POST, "/{index}/{type}/_mget")
-            )
+            asList(new Route(GET, "/_mget"), new Route(POST, "/_mget"), new Route(GET, "/{index}/_mget"), new Route(POST, "/{index}/_mget"))
         );
     }
 
@@ -83,10 +71,6 @@ public class RestMultiGetAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.param("type") != null) {
-            deprecationLogger.deprecate("mget_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
@@ -105,22 +89,7 @@ public class RestMultiGetAction extends BaseRestHandler {
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            multiGetRequest.add(
-                request.param("index"),
-                request.param("type"),
-                sFields,
-                defaultFetchSource,
-                request.param("routing"),
-                parser,
-                allowExplicitIndex
-            );
-        }
-
-        for (MultiGetRequest.Item item : multiGetRequest.getItems()) {
-            if (item.type() != null) {
-                deprecationLogger.deprecate("mget_with_types", TYPES_DEPRECATION_MESSAGE);
-                break;
-            }
+            multiGetRequest.add(request.param("index"), sFields, defaultFetchSource, request.param("routing"), parser, allowExplicitIndex);
         }
 
         return channel -> client.multiGet(multiGetRequest, new RestToXContentListener<>(channel));

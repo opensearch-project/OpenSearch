@@ -34,6 +34,7 @@ package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -111,7 +112,17 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param filterFunctionBuilders the filters and functions
      */
     public FunctionScoreQueryBuilder(FilterFunctionBuilder[] filterFunctionBuilders) {
-        this(new MatchAllQueryBuilder(), filterFunctionBuilders);
+        this(filterFunctionBuilders, null);
+    }
+
+    /**
+     * Creates a function_score query that executes the provided filters and functions on all documents
+     *
+     * @param filterFunctionBuilders the filters and functions
+     * @param queryName the query name
+     */
+    public FunctionScoreQueryBuilder(FilterFunctionBuilder[] filterFunctionBuilders, @Nullable String queryName) {
+        this(new MatchAllQueryBuilder().queryName(queryName), filterFunctionBuilders);
     }
 
     /**
@@ -120,7 +131,20 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param scoreFunctionBuilder score function that is executed
      */
     public FunctionScoreQueryBuilder(ScoreFunctionBuilder<?> scoreFunctionBuilder) {
-        this(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] { new FilterFunctionBuilder(scoreFunctionBuilder) });
+        this(scoreFunctionBuilder, null);
+    }
+
+    /**
+     * Creates a function_score query that will execute the function provided on all documents
+     *
+     * @param scoreFunctionBuilder score function that is executed
+     * @param queryName the query name
+     */
+    public FunctionScoreQueryBuilder(ScoreFunctionBuilder<?> scoreFunctionBuilder, @Nullable String queryName) {
+        this(
+            new MatchAllQueryBuilder().queryName(queryName),
+            new FilterFunctionBuilder[] { new FilterFunctionBuilder(scoreFunctionBuilder) }
+        );
     }
 
     /**
@@ -316,15 +340,17 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         int i = 0;
         for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
             ScoreFunction scoreFunction = filterFunctionBuilder.getScoreFunction().toFunction(context);
-            if (filterFunctionBuilder.getFilter().getName().equals(MatchAllQueryBuilder.NAME)) {
+            final QueryBuilder builder = filterFunctionBuilder.getFilter();
+            if (builder.getName().equals(MatchAllQueryBuilder.NAME)) {
                 filterFunctions[i++] = scoreFunction;
             } else {
-                Query filter = filterFunctionBuilder.getFilter().toQuery(context);
-                filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, scoreFunction);
+                Query filter = builder.toQuery(context);
+                filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, scoreFunction, builder.queryName());
             }
         }
 
-        Query query = this.query.toQuery(context);
+        final QueryBuilder builder = this.query;
+        Query query = builder.toQuery(context);
         if (query == null) {
             query = new MatchAllDocsQuery();
         }
@@ -332,12 +358,12 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         CombineFunction boostMode = this.boostMode == null ? DEFAULT_BOOST_MODE : this.boostMode;
         // handle cases where only one score function and no filter was provided. In this case we create a FunctionScoreQuery.
         if (filterFunctions.length == 0) {
-            return new FunctionScoreQuery(query, minScore, maxBoost);
+            return new FunctionScoreQuery(query, builder.queryName(), minScore, maxBoost);
         } else if (filterFunctions.length == 1 && filterFunctions[0] instanceof FunctionScoreQuery.FilterScoreFunction == false) {
-            return new FunctionScoreQuery(query, filterFunctions[0], boostMode, minScore, maxBoost);
+            return new FunctionScoreQuery(query, builder.queryName(), filterFunctions[0], boostMode, minScore, maxBoost);
         }
         // in all other cases we create a FunctionScoreQuery with filters
-        return new FunctionScoreQuery(query, scoreMode, filterFunctions, boostMode, minScore, maxBoost);
+        return new FunctionScoreQuery(query, builder.queryName(), scoreMode, filterFunctions, boostMode, minScore, maxBoost);
     }
 
     /**
@@ -606,6 +632,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             QueryBuilder filter = null;
             ScoreFunctionBuilder<?> scoreFunction = null;
             Float functionWeight = null;
+            String functionName = null;
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(
                     parser.getTokenLocation(),
@@ -635,6 +662,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     } else if (token.isValue()) {
                         if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             functionWeight = parser.floatValue();
+                        } else if (NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            functionName = parser.text();
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
@@ -651,6 +680,10 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     } else {
                         scoreFunction.setWeight(functionWeight);
                     }
+                }
+
+                if (functionName != null && scoreFunction != null) {
+                    scoreFunction.setFunctionName(functionName);
                 }
             }
             if (filter == null) {

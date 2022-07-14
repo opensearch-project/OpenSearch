@@ -45,7 +45,6 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -174,7 +173,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
             Map<String, DocumentField> searchHitFields = new HashMap<>();
             scoreDocs[i] = docBuilder.apply(docId, score);
-            hits[i] = new SearchHit(docId, Integer.toString(i), new Text("_docs"), searchHitFields, Collections.emptyMap());
+            hits[i] = new SearchHit(docId, Integer.toString(i), searchHitFields, Collections.emptyMap());
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
@@ -224,7 +223,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             SearchHit actual = actualHits.get(i);
 
             assertEquals(expected.getIndex(), actual.getIndex());
-            assertEquals(expected.getType(), actual.getType());
             assertEquals(expected.getId(), actual.getId());
             assertEquals(expected.getVersion(), actual.getVersion());
             assertEquals(expected.getScore(), actual.getScore(), 0.0f);
@@ -358,7 +356,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         FieldComparator[] comparators = new FieldComparator[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             // Values passed to getComparator shouldn't matter
-            comparators[i] = sortFields[i].getComparator(0, 0);
+            comparators[i] = sortFields[i].getComparator(0, false);
         }
         return (lhs, rhs) -> {
             FieldDoc l = (FieldDoc) lhs;

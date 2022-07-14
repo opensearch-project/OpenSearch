@@ -506,16 +506,16 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
 
     public void testEngineGCDeletesSetting() throws Exception {
         createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource("f", 1).setVersionType(VersionType.EXTERNAL).setVersion(1).get();
-        client().prepareDelete("test", "type", "1").setVersionType(VersionType.EXTERNAL).setVersion(2).get();
+        client().prepareIndex("test").setId("1").setSource("f", 1).setVersionType(VersionType.EXTERNAL).setVersion(1).get();
+        client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(2).get();
         // delete is still in cache this should fail
         assertRequestBuilderThrows(
-            client().prepareIndex("test", "type", "1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1),
+            client().prepareIndex("test").setId("1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1),
             VersionConflictEngineException.class
         );
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)));
 
-        client().prepareDelete("test", "type", "1").setVersionType(VersionType.EXTERNAL).setVersion(4).get();
+        client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(4).get();
 
         // Make sure the time has advanced for InternalEngine#resolveDocVersion()
         for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
@@ -524,7 +524,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         }
 
         // delete should not be in cache
-        client().prepareIndex("test", "type", "1").setSource("f", 2).setVersionType(VersionType.EXTERNAL).setVersion(1);
+        client().prepareIndex("test").setId("1").setSource("f", 2).setVersionType(VersionType.EXTERNAL).setVersion(1);
     }
 
     public void testUpdateSettingsWithBlocks() {

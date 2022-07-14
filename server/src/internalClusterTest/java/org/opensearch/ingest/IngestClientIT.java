@@ -138,7 +138,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         source.put("foo", "bar");
         source.put("fail", false);
         source.put("processed", true);
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, source);
+        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, source);
         assertThat(simulateDocumentBaseResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
 
@@ -167,7 +167,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i)).setPipeline("_id");
+            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", i % 2 == 0);
             bulkRequest.add(indexRequest);
         }
@@ -216,10 +216,10 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest = new IndexRequest("index", "type", "1").setPipeline("_id");
+        IndexRequest indexRequest = new IndexRequest("index").id("1").setPipeline("_id");
         indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "val1");
         bulkRequest.add(indexRequest);
-        UpdateRequest updateRequest = new UpdateRequest("index", "type", "2");
+        UpdateRequest updateRequest = new UpdateRequest("index", "2");
         updateRequest.doc("{}", Requests.INDEX_CONTENT_TYPE);
         updateRequest.upsert("{\"field1\":\"upserted_val\"}", XContentType.JSON).upsertRequest().setPipeline("_id");
         bulkRequest.add(updateRequest);
@@ -227,10 +227,10 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         BulkResponse response = client().bulk(bulkRequest).actionGet();
 
         assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
-        Map<String, Object> inserted = client().prepareGet("index", "type", "1").get().getSourceAsMap();
+        Map<String, Object> inserted = client().prepareGet("index", "1").get().getSourceAsMap();
         assertThat(inserted.get("field1"), equalTo("val1"));
         assertThat(inserted.get("processed"), equalTo(true));
-        Map<String, Object> upserted = client().prepareGet("index", "type", "2").get().getSourceAsMap();
+        Map<String, Object> upserted = client().prepareGet("index", "2").get().getSourceAsMap();
         assertThat(upserted.get("field1"), equalTo("upserted_val"));
         assertThat(upserted.get("processed"), equalTo(true));
     }
@@ -256,16 +256,16 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
-        client().prepareIndex("test", "type", "1").setPipeline("_id").setSource("field", "value", "fail", false).get();
+        client().prepareIndex("test").setId("1").setPipeline("_id").setSource("field", "value", "fail", false).get();
 
-        Map<String, Object> doc = client().prepareGet("test", "type", "1").get().getSourceAsMap();
+        Map<String, Object> doc = client().prepareGet("test", "1").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value"));
         assertThat(doc.get("processed"), equalTo(true));
 
         client().prepareBulk()
-            .add(client().prepareIndex("test", "type", "2").setSource("field", "value2", "fail", false).setPipeline("_id"))
+            .add(client().prepareIndex("test").setId("2").setSource("field", "value2", "fail", false).setPipeline("_id"))
             .get();
-        doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
+        doc = client().prepareGet("test", "2").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value2"));
         assertThat(doc.get("processed"), equalTo(true));
 
@@ -319,7 +319,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         BulkItemResponse item = client(masterOnlyNode).prepareBulk()
-            .add(client().prepareIndex("test", "type").setSource("field", "value2", "drop", true).setPipeline("_id"))
+            .add(client().prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id"))
             .get()
             .getItems()[0];
         assertFalse(item.isFailed());
@@ -451,8 +451,8 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
 
-        client().prepareIndex("test", "_doc").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
-        Map<String, Object> inserted = client().prepareGet("test", "_doc", "1").get().getSourceAsMap();
+        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
+        Map<String, Object> inserted = client().prepareGet("test", "1").get().getSourceAsMap();
         assertThat(inserted.get("readme"), equalTo("pipeline with id [3] is a bad pipeline"));
     }
 

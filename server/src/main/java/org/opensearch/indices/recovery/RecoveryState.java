@@ -138,11 +138,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
         RecoverySource recoverySource = shardRouting.recoverySource();
-        assert (recoverySource
-            .getType() == RecoverySource.Type.PEER) == (sourceNode != null) : "peer recovery requires source node, recovery type: "
-                + recoverySource.getType()
-                + " source node: "
-                + sourceNode;
+        assert (recoverySource.getType() == RecoverySource.Type.PEER) == (sourceNode != null)
+            : "peer recovery requires source node, recovery type: " + recoverySource.getType() + " source node: " + sourceNode;
         this.shardId = shardRouting.shardId();
         this.primary = shardRouting.primary();
         this.recoverySource = recoverySource;

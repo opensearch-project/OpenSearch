@@ -72,7 +72,6 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
             docMapper.parse(
                 new SourceToParse(
                     "test",
-                    "type",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_id", "1").endObject()),
                     XContentType.JSON
@@ -91,7 +90,7 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
         Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
         IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());

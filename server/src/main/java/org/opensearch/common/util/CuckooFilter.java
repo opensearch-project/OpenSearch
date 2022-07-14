@@ -34,6 +34,7 @@ package org.opensearch.common.util;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.XPackedInts;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -80,7 +81,7 @@ public class CuckooFilter implements Writeable {
     private static final int MAX_EVICTIONS = 500;
     static final int EMPTY = 0;
 
-    private final PackedInts.Mutable data;
+    private final XPackedInts.Mutable data;
     private final int numBuckets;
     private final int bitsPerEntry;
     private final int fingerprintMask;
@@ -107,7 +108,7 @@ public class CuckooFilter implements Writeable {
                 "Attempted to create [" + numBuckets * entriesPerBucket + "] entries which is > Integer.MAX_VALUE"
             );
         }
-        this.data = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+        this.data = XPackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
 
         // puts the bits at the right side of the mask, e.g. `0000000000001111` for bitsPerEntry = 4
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
@@ -132,7 +133,7 @@ public class CuckooFilter implements Writeable {
             );
         }
         // TODO this is probably super slow, but just used for testing atm
-        this.data = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+        this.data = XPackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
         for (int i = 0; i < other.data.size(); i++) {
             data.set(i, other.data.get(i));
         }
@@ -148,7 +149,7 @@ public class CuckooFilter implements Writeable {
 
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
 
-        data = (PackedInts.Mutable) PackedInts.getReader(new DataInput() {
+        data = (XPackedInts.Mutable) XPackedInts.getReader(new DataInput() {
             @Override
             public byte readByte() throws IOException {
                 return in.readByte();
@@ -157,6 +158,11 @@ public class CuckooFilter implements Writeable {
             @Override
             public void readBytes(byte[] b, int offset, int len) throws IOException {
                 in.readBytes(b, offset, len);
+            }
+
+            @Override
+            public void skipBytes(long numBytes) throws IOException {
+                in.skip(numBytes);
             }
         });
     }

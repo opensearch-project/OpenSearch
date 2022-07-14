@@ -33,7 +33,7 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.standard.ClassicTokenizer;
+import org.apache.lucene.analysis.classic.ClassicTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;

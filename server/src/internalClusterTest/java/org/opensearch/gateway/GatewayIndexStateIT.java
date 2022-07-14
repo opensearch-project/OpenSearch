@@ -57,7 +57,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.IndexClosedException;
@@ -106,17 +105,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping(
-                "type1",
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("type1")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject())
             .execute()
             .actionGet();
 
@@ -129,9 +118,8 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
             .getState()
             .metadata()
             .index("test")
-            .getMappings()
-            .get("type1");
-        assertThat(mappingMd.routing().required(), equalTo(true));
+            .mapping();
+        assertThat(mappingMd.routingRequired(), equalTo(true));
 
         logger.info("--> restarting nodes...");
         internalCluster().fullRestart();
@@ -140,17 +128,8 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = client().admin()
-            .cluster()
-            .prepareState()
-            .execute()
-            .actionGet()
-            .getState()
-            .metadata()
-            .index("test")
-            .getMappings()
-            .get("type1");
-        assertThat(mappingMd.routing().required(), equalTo(true));
+        mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test").mapping();
+        assertThat(mappingMd.routingRequired(), equalTo(true));
     }
 
     public void testSimpleOpenClose() throws Exception {
@@ -174,7 +153,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
         assertAcked(client().admin().indices().prepareClose("test"));
@@ -188,14 +167,14 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+            client().prepareIndex("test").setId("1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
         }
 
         logger.info("--> creating another index (test2) by indexing into it");
-        client().prepareIndex("test2", "type1", "1").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test2").setId("1").setSource("field1", "value1").execute().actionGet();
         logger.info("--> verifying that the state is green");
         ensureGreen();
 
@@ -214,7 +193,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> trying to get the indexed document on the first index");
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> closing test index...");
@@ -234,7 +213,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+            client().prepareIndex("test").setId("1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -255,11 +234,11 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> trying to get the indexed document on the first round (before close and shutdown)");
-        getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+        getResponse = client().prepareGet("test", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test").setId("2").setSource("field1", "value1").execute().actionGet();
     }
 
     public void testJustMasterNode() throws Exception {
@@ -304,7 +283,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test").setSource("field1", "value1").execute().actionGet();
     }
 
     public void testTwoNodesSingleDoc() throws Exception {
@@ -314,7 +293,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(2);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
         logger.info("--> waiting for green status");
         ClusterHealthResponse health = client().admin()
@@ -429,7 +408,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         logger.info("--> starting one node");
         internalCluster().startNode();
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -500,23 +479,19 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         prepareCreate("test").setSettings(
             Settings.builder().put("index.analysis.analyzer.test.tokenizer", "standard").put("index.number_of_shards", "1")
         )
-            .addMapping(
-                "type1",
+            .setMapping(
                 "{\n"
-                    + "    \"type1\": {\n"
-                    + "      \"properties\": {\n"
-                    + "        \"field1\": {\n"
-                    + "          \"type\": \"text\",\n"
-                    + "          \"analyzer\": \"test\"\n"
-                    + "        }\n"
+                    + "    \"properties\": {\n"
+                    + "      \"field1\": {\n"
+                    + "        \"type\": \"text\",\n"
+                    + "        \"analyzer\": \"test\"\n"
                     + "      }\n"
                     + "    }\n"
-                    + "  }}",
-                XContentType.JSON
+                    + "  }"
             )
             .get();
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value one").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value one").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -567,7 +542,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
     public void testArchiveBrokenClusterSettings() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();

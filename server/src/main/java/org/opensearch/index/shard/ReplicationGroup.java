@@ -85,9 +85,8 @@ public class ReplicationGroup {
                         replicationTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
-                        assert inSyncAllocationIds.contains(
-                            relocationTarget.allocationId().getId()
-                        ) == false : "in-sync shard copy but not tracked: " + shard;
+                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false
+                            : "in-sync shard copy but not tracked: " + shard;
                     }
                 }
             }

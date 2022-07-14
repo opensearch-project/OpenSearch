@@ -332,10 +332,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Set<String> indexNamesInShards = new HashSet<>();
             shards.iterator().forEachRemaining(s -> {
                 indexNamesInShards.add(s.key.getIndexName());
-                assert source == null
-                    || s.value.nodeId == null : "Shard snapshot must not be assigned to data node when copying from snapshot ["
-                        + source
-                        + "]";
+                assert source == null || s.value.nodeId == null
+                    : "Shard snapshot must not be assigned to data node when copying from snapshot [" + source + "]";
             });
             assert source == null || indexNames.isEmpty() == false : "No empty snapshot clones allowed";
             assert source != null || indexNames.equals(indexNamesInShards) : "Indices in shards "
@@ -348,12 +346,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final boolean shardsCompleted = completed(shards.values()) && completed(clones.values());
             // Check state consistency for normal snapshots and started clone operations
             if (source == null || clones.isEmpty() == false) {
-                assert (state.completed() && shardsCompleted)
-                    || (state.completed() == false
-                        && shardsCompleted == false) : "Completed state must imply all shards completed but saw state ["
-                            + state
-                            + "] and shards "
-                            + shards;
+                assert (state.completed() && shardsCompleted) || (state.completed() == false && shardsCompleted == false)
+                    : "Completed state must imply all shards completed but saw state [" + state + "] and shards " + shards;
             }
             if (source != null && state.completed()) {
                 assert hasFailures(clones) == false || state == State.FAILED : "Failed shard clones in ["
@@ -567,8 +561,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata,
                 version
             );
-            assert updated.state().completed() == false
-                && completed(updated.shards().values()) == false : "Only running snapshots allowed but saw [" + updated + "]";
+            assert updated.state().completed() == false && completed(updated.shards().values()) == false
+                : "Only running snapshots allowed but saw [" + updated + "]";
             return updated;
         }
 
@@ -966,8 +960,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         for (Entry entry : entries) {
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
                 if (shard.value.isActive()) {
-                    assert assignedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>())
-                        .add(shard.key) : "Found duplicate shard assignments in " + entries;
+                    assert assignedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>()).add(shard.key)
+                        : "Found duplicate shard assignments in " + entries;
                 }
             }
         }

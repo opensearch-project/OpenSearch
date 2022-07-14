@@ -100,59 +100,56 @@ public final class TrackingResultProcessor implements Processor {
                         + ']'
                 );
             }
-            ingestDocumentCopy.executePipeline(
-                pipelineToCall,
-                (result, e) -> {
-                    // special handling for pipeline cycle errors
-                    if (e instanceof OpenSearchException
-                        && e.getCause() instanceof IllegalStateException
-                        && e.getCause().getMessage().startsWith(PIPELINE_CYCLE_ERROR_MESSAGE)) {
-                        if (ignoreFailure) {
-                            processorResultList.add(
-                                new SimulateProcessorResult(
-                                    pipelineProcessor.getType(),
-                                    pipelineProcessor.getTag(),
-                                    pipelineProcessor.getDescription(),
-                                    new IngestDocument(ingestDocument),
-                                    e,
-                                    conditionalWithResult
-                                )
-                            );
-                        } else {
-                            processorResultList.add(
-                                new SimulateProcessorResult(
-                                    pipelineProcessor.getType(),
-                                    pipelineProcessor.getTag(),
-                                    pipelineProcessor.getDescription(),
-                                    e,
-                                    conditionalWithResult
-                                )
-                            );
-                        }
-                        handler.accept(null, e);
-                    } else {
-                        // now that we know that there are no cycles between pipelines, decorate the processors for this pipeline and
-                        // execute it
-                        CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
-                        // add the pipeline process to the results
+            ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
+                // special handling for pipeline cycle errors
+                if (e instanceof OpenSearchException
+                    && e.getCause() instanceof IllegalStateException
+                    && e.getCause().getMessage().startsWith(PIPELINE_CYCLE_ERROR_MESSAGE)) {
+                    if (ignoreFailure) {
                         processorResultList.add(
                             new SimulateProcessorResult(
-                                actualProcessor.getType(),
-                                actualProcessor.getTag(),
-                                actualProcessor.getDescription(),
+                                pipelineProcessor.getType(),
+                                pipelineProcessor.getTag(),
+                                pipelineProcessor.getDescription(),
+                                new IngestDocument(ingestDocument),
+                                e,
                                 conditionalWithResult
                             )
                         );
-                        Pipeline verbosePipeline = new Pipeline(
-                            pipeline.getId(),
-                            pipeline.getDescription(),
-                            pipeline.getVersion(),
-                            verbosePipelineProcessor
+                    } else {
+                        processorResultList.add(
+                            new SimulateProcessorResult(
+                                pipelineProcessor.getType(),
+                                pipelineProcessor.getTag(),
+                                pipelineProcessor.getDescription(),
+                                e,
+                                conditionalWithResult
+                            )
                         );
-                        ingestDocument.executePipeline(verbosePipeline, handler);
                     }
+                    handler.accept(null, e);
+                } else {
+                    // now that we know that there are no cycles between pipelines, decorate the processors for this pipeline and
+                    // execute it
+                    CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
+                    // add the pipeline process to the results
+                    processorResultList.add(
+                        new SimulateProcessorResult(
+                            actualProcessor.getType(),
+                            actualProcessor.getTag(),
+                            actualProcessor.getDescription(),
+                            conditionalWithResult
+                        )
+                    );
+                    Pipeline verbosePipeline = new Pipeline(
+                        pipeline.getId(),
+                        pipeline.getDescription(),
+                        pipeline.getVersion(),
+                        verbosePipelineProcessor
+                    );
+                    ingestDocument.executePipeline(verbosePipeline, handler);
                 }
-            );
+            });
             return;
         }
 

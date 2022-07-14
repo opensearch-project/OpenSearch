@@ -86,17 +86,16 @@ public class BulkResponseTests extends OpenSearchTestCase {
                 expectedBulkItems[i] = new BulkItemResponse(i, opType, randomDocWriteResponses.v2());
             } else {
                 String index = randomAlphaOfLength(5);
-                String type = randomAlphaOfLength(5);
                 String id = randomAlphaOfLength(5);
 
                 Tuple<Throwable, OpenSearchException> failures = randomExceptions();
 
                 Exception bulkItemCause = (Exception) failures.v1();
-                bulkItems[i] = new BulkItemResponse(i, opType, new BulkItemResponse.Failure(index, type, id, bulkItemCause));
+                bulkItems[i] = new BulkItemResponse(i, opType, new BulkItemResponse.Failure(index, id, bulkItemCause));
                 expectedBulkItems[i] = new BulkItemResponse(
                     i,
                     opType,
-                    new BulkItemResponse.Failure(index, type, id, failures.v2(), ExceptionsHelper.status(bulkItemCause))
+                    new BulkItemResponse.Failure(index, id, failures.v2(), ExceptionsHelper.status(bulkItemCause))
                 );
             }
         }

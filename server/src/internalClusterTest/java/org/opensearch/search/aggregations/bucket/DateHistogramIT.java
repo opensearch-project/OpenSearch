@@ -41,7 +41,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -113,7 +112,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     }
 
     private IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
-        return client().prepareIndex(idx, "type")
+        return client().prepareIndex(idx)
             .setSource(
                 jsonBuilder().startObject()
                     .timeField("date", date)
@@ -127,7 +126,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
-        return client().prepareIndex("idx", "type")
+        return client().prepareIndex("idx")
             .setSource(
                 jsonBuilder().startObject()
                     .field("value", value)
@@ -145,11 +144,12 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx", "idx_unmapped");
         // TODO: would be nice to have more random data here
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping("value", "type=integer"));
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
             );
         }
@@ -188,47 +188,47 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         addExpectedBucket(date(1, 6), 1, 5, 1);
         addExpectedBucket(date(1, 7), 1, 5, 1);
 
-        assertAcked(client().admin().indices().prepareCreate("sort_idx").addMapping("type", "date", "type=date").get());
+        assertAcked(client().admin().indices().prepareCreate("sort_idx").setMapping("date", "type=date").get());
         for (int i = 1; i <= 3; i++) {
             builders.add(
-                client().prepareIndex("sort_idx", "type")
+                client().prepareIndex("sort_idx")
                     .setSource(jsonBuilder().startObject().timeField("date", date(1, 1)).field("l", 1).field("d", i).endObject())
             );
             builders.add(
-                client().prepareIndex("sort_idx", "type")
+                client().prepareIndex("sort_idx")
                     .setSource(jsonBuilder().startObject().timeField("date", date(1, 2)).field("l", 2).field("d", i).endObject())
             );
         }
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().timeField("date", date(1, 3)).field("l", 3).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().timeField("date", date(1, 3).plusHours(1)).field("l", 3).field("d", 2).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().timeField("date", date(1, 4)).field("l", 3).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().timeField("date", date(1, 4).plusHours(2)).field("l", 3).field("d", 3).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().timeField("date", date(1, 5)).field("l", 5).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().timeField("date", date(1, 5).plusHours(12)).field("l", 5).field("d", 2).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().timeField("date", date(1, 6)).field("l", 5).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().timeField("date", date(1, 7)).field("l", 5).field("d", 1).endObject())
         );
     }
@@ -1038,11 +1038,12 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     }
 
     public void testSingleValueWithTimeZone() throws Exception {
-        prepareCreate("idx2").addMapping("type", "date", "type=date").get();
+        prepareCreate("idx2").setMapping("date", "type=date").get();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         ZonedDateTime date = date("2014-03-11T00:00:00+00:00");
         for (int i = 0; i < reqs.length; i++) {
-            reqs[i] = client().prepareIndex("idx2", "type", "" + i)
+            reqs[i] = client().prepareIndex("idx2")
+                .setId("" + i)
                 .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(1);
         }
@@ -1314,7 +1315,6 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     public void testSingleValueWithMultipleDateFormatsFromMapping() throws Exception {
         String mappingJson = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("date")
                 .field("type", "date")
@@ -1322,12 +1322,12 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
-        prepareCreate("idx2").addMapping("type", mappingJson, XContentType.JSON).get();
+        prepareCreate("idx2").setMapping(mappingJson).get();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         for (int i = 0; i < reqs.length; i++) {
-            reqs[i] = client().prepareIndex("idx2", "type", "" + i)
+            reqs[i] = client().prepareIndex("idx2")
+                .setId("" + i)
                 .setSource(jsonBuilder().startObject().field("date", "10-03-2014").endObject());
         }
         indexRandom(true, reqs);
@@ -1394,11 +1394,11 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     }
 
     public void testDSTBoundaryIssue9491() throws InterruptedException, ExecutionException {
-        assertAcked(client().admin().indices().prepareCreate("test9491").addMapping("type", "d", "type=date").get());
+        assertAcked(client().admin().indices().prepareCreate("test9491").setMapping("d", "type=date").get());
         indexRandom(
             true,
-            client().prepareIndex("test9491", "type").setSource("d", "2014-10-08T13:00:00Z"),
-            client().prepareIndex("test9491", "type").setSource("d", "2014-11-08T13:00:00Z")
+            client().prepareIndex("test9491").setSource("d", "2014-10-08T13:00:00Z"),
+            client().prepareIndex("test9491").setSource("d", "2014-11-08T13:00:00Z")
         );
         ensureSearchable("test9491");
         SearchResponse response = client().prepareSearch("test9491")
@@ -1417,12 +1417,12 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     }
 
     public void testIssue8209() throws InterruptedException, ExecutionException {
-        assertAcked(client().admin().indices().prepareCreate("test8209").addMapping("type", "d", "type=date").get());
+        assertAcked(client().admin().indices().prepareCreate("test8209").setMapping("d", "type=date").get());
         indexRandom(
             true,
-            client().prepareIndex("test8209", "type").setSource("d", "2014-01-01T00:00:00Z"),
-            client().prepareIndex("test8209", "type").setSource("d", "2014-04-01T00:00:00Z"),
-            client().prepareIndex("test8209", "type").setSource("d", "2014-04-30T00:00:00Z")
+            client().prepareIndex("test8209").setSource("d", "2014-01-01T00:00:00Z"),
+            client().prepareIndex("test8209").setSource("d", "2014-04-01T00:00:00Z"),
+            client().prepareIndex("test8209").setSource("d", "2014-04-30T00:00:00Z")
         );
         ensureSearchable("test8209");
         SearchResponse response = client().prepareSearch("test8209")
@@ -1471,7 +1471,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
      */
     public void testFormatIndexUnmapped() throws InterruptedException, ExecutionException {
         String indexDateUnmapped = "test31760";
-        indexRandom(true, client().prepareIndex(indexDateUnmapped, "_doc").setSource("foo", "bar"));
+        indexRandom(true, client().prepareIndex(indexDateUnmapped).setSource("foo", "bar"));
         ensureSearchable(indexDateUnmapped);
 
         SearchResponse response = client().prepareSearch(indexDateUnmapped)
@@ -1498,8 +1498,8 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
      */
     public void testRewriteTimeZone_EpochMillisFormat() throws InterruptedException, ExecutionException {
         String index = "test31392";
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping("type", "d", "type=date,format=epoch_millis").get());
-        indexRandom(true, client().prepareIndex(index, "type").setSource("d", "1477954800000"));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("d", "type=date,format=epoch_millis").get());
+        indexRandom(true, client().prepareIndex(index).setSource("d", "1477954800000"));
         ensureSearchable(index);
         SearchResponse response = client().prepareSearch(index)
             .addAggregation(
@@ -1608,7 +1608,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "d", "type=date")
+            prepareCreate("cache_test_idx").setMapping("d", "type=date")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );
@@ -1616,8 +1616,8 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         String date2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(2, 1));
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("d", date),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("d", date2)
+            client().prepareIndex("cache_test_idx").setId("1").setSource("d", date),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("d", date2)
         );
 
         // Make sure we are starting with a clear cache
@@ -1788,7 +1788,6 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     private void assertMultiSortResponse(int[] expectedDays, BucketOrder... order) {
         ZonedDateTime[] expectedKeys = Arrays.stream(expectedDays).mapToObj(d -> date(1, d)).toArray(ZonedDateTime[]::new);
         SearchResponse response = client().prepareSearch("sort_idx")
-            .setTypes("type")
             .addAggregation(
                 dateHistogram("histo").field("date")
                     .dateHistogramInterval(DateHistogramInterval.DAY)
@@ -1829,9 +1828,9 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
      * timeZones.
      */
     public void testDateNanosHistogram() throws Exception {
-        assertAcked(prepareCreate("nanos").addMapping("_doc", "date", "type=date_nanos").get());
-        indexRandom(true, client().prepareIndex("nanos", "_doc", "1").setSource("date", "2000-01-01"));
-        indexRandom(true, client().prepareIndex("nanos", "_doc", "2").setSource("date", "2000-01-02"));
+        assertAcked(prepareCreate("nanos").setMapping("date", "type=date_nanos").get());
+        indexRandom(true, client().prepareIndex("nanos").setId("1").setSource("date", "2000-01-01"));
+        indexRandom(true, client().prepareIndex("nanos").setId("2").setSource("date", "2000-01-02"));
 
         // Search interval 24 hours
         SearchResponse r = client().prepareSearch("nanos")

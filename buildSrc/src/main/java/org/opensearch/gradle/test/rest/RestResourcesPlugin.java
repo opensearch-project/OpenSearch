@@ -41,7 +41,7 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
-import java.util.Map;
+import java.util.HashMap;
 
 /**
  * <p>
@@ -88,8 +88,12 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
                     // core
-                    Dependency restTestdependency = project.getDependencies()
-                        .project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
+                    Dependency restTestdependency = project.getDependencies().project(new HashMap<String, String>() {
+                        {
+                            put("path", ":rest-api-spec");
+                            put("configuration", "restTests");
+                        }
+                    });
                     project.getDependencies().add(task.coreConfig.getName(), restTestdependency);
                 } else {
                     Dependency dependency = project.getDependencies()
@@ -109,8 +113,12 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.coreConfig = specConfig;
                 task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
-                    Dependency restSpecDependency = project.getDependencies()
-                        .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
+                    Dependency restSpecDependency = project.getDependencies().project(new HashMap<String, String>() {
+                        {
+                            put("path", ":rest-api-spec");
+                            put("configuration", "restSpecs");
+                        }
+                    });
                     project.getDependencies().add(task.coreConfig.getName(), restSpecDependency);
                 } else {
                     Dependency dependency = project.getDependencies()

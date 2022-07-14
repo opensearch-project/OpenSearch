@@ -79,10 +79,8 @@ public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping(
-                "type1",
+            .setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
@@ -90,13 +88,11 @@ public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
             .get();
 
-        client().index(
-            indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
-        ).actionGet();
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject()))
+            .actionGet();
 
         client().admin().indices().prepareRefresh().get();
 

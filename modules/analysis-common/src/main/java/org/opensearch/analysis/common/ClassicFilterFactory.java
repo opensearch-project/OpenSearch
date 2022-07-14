@@ -32,7 +32,7 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.standard.ClassicFilter;
+import org.apache.lucene.analysis.classic.ClassicFilter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;

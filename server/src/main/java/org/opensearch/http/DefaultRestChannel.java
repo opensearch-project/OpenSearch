@@ -128,8 +128,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                     finalContent = BytesArray.EMPTY;
                 }
             } catch (IllegalArgumentException ignored) {
-                assert restResponse
-                    .status() == RestStatus.METHOD_NOT_ALLOWED : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
+                    : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
             }
 
             final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);

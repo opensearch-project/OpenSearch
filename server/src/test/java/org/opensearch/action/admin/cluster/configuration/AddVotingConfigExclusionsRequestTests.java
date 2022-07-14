@@ -113,7 +113,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
@@ -122,7 +122,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "other1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
@@ -131,7 +131,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "other2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
@@ -238,7 +238,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node1Exclusion = new VotingConfigExclusion(node1);
@@ -248,7 +248,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
@@ -258,7 +258,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId3",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
 
@@ -298,7 +298,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node1Exclusion = new VotingConfigExclusion(node1);
@@ -308,7 +308,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
@@ -318,7 +318,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId3",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
 
@@ -348,7 +348,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
 
@@ -357,7 +357,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
@@ -367,7 +367,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId3",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
 
@@ -399,7 +399,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
@@ -408,7 +408,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "other1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
@@ -417,7 +417,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "other2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion otherNode2Exclusion = new VotingConfigExclusion(otherNode2);

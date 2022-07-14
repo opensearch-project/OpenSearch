@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -401,6 +402,7 @@ public class OsProbe {
         long numberOfPeriods = -1;
         long numberOfTimesThrottled = -1;
         long timeThrottledNanos = -1;
+
         for (final String line : lines) {
             final String[] fields = line.split("\\s+");
             switch (fields[0]) {
@@ -415,9 +417,17 @@ public class OsProbe {
                     break;
             }
         }
-        assert numberOfPeriods != -1;
-        assert numberOfTimesThrottled != -1;
-        assert timeThrottledNanos != -1;
+        if (isCpuStatWarningsLogged.getAndSet(true) == false) {
+            if (numberOfPeriods == -1) {
+                logger.warn("Expected to see nr_periods filed but found nothing");
+            }
+            if (numberOfTimesThrottled == -1) {
+                logger.warn("Expected to see nr_throttled filed but found nothing");
+            }
+            if (timeThrottledNanos == -1) {
+                logger.warn("Expected to see throttled_time filed but found nothing");
+            }
+        }
         return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
     }
 
@@ -440,7 +450,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && lines.size() == 3;
+        assert lines != null && lines.isEmpty() == false;
         return lines;
     }
 
@@ -588,11 +598,18 @@ public class OsProbe {
         return OsProbeHolder.INSTANCE;
     }
 
-    OsProbe() {
+    private final Logger logger;
 
+    private AtomicBoolean isCpuStatWarningsLogged = new AtomicBoolean(false);
+
+    OsProbe() {
+        this(LogManager.getLogger(OsProbe.class));
     }
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    /*For testing purpose*/
+    OsProbe(final Logger logger) {
+        this.logger = logger;
+    }
 
     OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
         return new OsInfo(

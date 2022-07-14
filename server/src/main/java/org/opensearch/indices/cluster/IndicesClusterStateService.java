@@ -636,13 +636,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ClusterState clusterState
     ) {
         final ShardRouting currentRoutingEntry = shard.routingEntry();
-        assert currentRoutingEntry.isSameAllocation(
-            shardRouting
-        ) : "local shard has a different allocation id but wasn't cleaned by removeShards. "
-            + "cluster state: "
-            + shardRouting
-            + " local: "
-            + currentRoutingEntry;
+        assert currentRoutingEntry.isSameAllocation(shardRouting)
+            : "local shard has a different allocation id but wasn't cleaned by removeShards. "
+                + "cluster state: "
+                + shardRouting
+                + " local: "
+                + currentRoutingEntry;
 
         final long primaryTerm;
         try {

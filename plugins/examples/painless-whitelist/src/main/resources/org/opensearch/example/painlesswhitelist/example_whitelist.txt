@@ -17,7 +17,7 @@
 # under the License.
 #
 
-# This file contains a whitelist for an example class which may be access from painless
+# This file contains an allowlist for an example class which may be access from painless
 
 class org.opensearch.example.painlesswhitelist.ExampleWhitelistedClass {
   # constructor

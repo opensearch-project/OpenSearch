@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
  */
 public class WhitelistClassBinding {
 
-    /** Information about where this constructor was whitelisted from. */
+    /** Information about where this constructor was allowlisted from. */
     public final String origin;
 
     /** The Java class name this class binding targets. */

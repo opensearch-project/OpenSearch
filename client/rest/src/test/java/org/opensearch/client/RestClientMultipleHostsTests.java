@@ -62,7 +62,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Tests for {@link RestClient} behaviour against multiple hosts: fail-over, blacklisting etc.
+ * Tests for {@link RestClient} behaviour against multiple hosts: fail-over, denylisting etc.
  * Relies on a mock http client to intercept requests and return desired responses based on request path.
  */
 public class RestClientMultipleHostsTests extends RestClientTestCase {
@@ -154,7 +154,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             fail("request should have failed");
         } catch (ResponseException e) {
             Set<HttpHost> hostsSet = hostsSet();
-            // first request causes all the hosts to be blacklisted, the returned exception holds one suppressed exception each
+            // first request causes all the hosts to be denylisted, the returned exception holds one suppressed exception each
             failureListener.assertCalled(nodes);
             do {
                 Response response = e.getResponse();
@@ -175,7 +175,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             assertEquals("every host should have been used but some weren't: " + hostsSet, 0, hostsSet.size());
         } catch (IOException e) {
             Set<HttpHost> hostsSet = hostsSet();
-            // first request causes all the hosts to be blacklisted, the returned exception holds one suppressed exception each
+            // first request causes all the hosts to be denylisted, the returned exception holds one suppressed exception each
             failureListener.assertCalled(nodes);
             do {
                 HttpHost httpHost = HttpHost.create(e.getMessage());
@@ -211,13 +211,13 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                         "host [" + response.getHost() + "] not found, most likely used multiple times",
                         hostsSet.remove(response.getHost())
                     );
-                    // after the first request, all hosts are blacklisted, a single one gets resurrected each time
+                    // after the first request, all hosts are denylisted, a single one gets resurrected each time
                     failureListener.assertCalled(response.getHost());
                     assertEquals(0, e.getSuppressed().length);
                 } catch (IOException e) {
                     HttpHost httpHost = HttpHost.create(e.getMessage());
                     assertTrue("host [" + httpHost + "] not found, most likely used multiple times", hostsSet.remove(httpHost));
-                    // after the first request, all hosts are blacklisted, a single one gets resurrected each time
+                    // after the first request, all hosts are denylisted, a single one gets resurrected each time
                     failureListener.assertCalled(httpHost);
                     assertEquals(0, e.getSuppressed().length);
                 }

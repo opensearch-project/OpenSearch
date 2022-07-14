@@ -40,13 +40,13 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Field represents the equivalent of a Java field available as a whitelisted class field
+ * Field represents the equivalent of a Java field available as an allowlisted class field
  * within Painless. Fields for Painless classes may be accessed exactly as fields for Java classes
  * are using the '.' operator on an existing class variable/field.
  */
 public class WhitelistField {
 
-    /** Information about where this method was whitelisted from. */
+    /** Information about where this method was allowlisted from. */
     public final String origin;
 
     /** The field name used to look up the field reflection object. */

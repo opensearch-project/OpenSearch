@@ -402,7 +402,13 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public enum Metric {
         VERSION("version"),
+
+        /**
+         * @deprecated As of 2.0, because promoting inclusive language, replaced by {@link #CLUSTER_MANAGER_NODE}
+         */
+        @Deprecated
         MASTER_NODE("master_node"),
+        CLUSTER_MANAGER_NODE("cluster_manager_node"),
         BLOCKS("blocks"),
         NODES("nodes"),
         METADATA("metadata"),
@@ -465,6 +471,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         if (metrics.contains(Metric.MASTER_NODE)) {
             builder.field("master_node", nodes().getMasterNodeId());
+        }
+
+        // Value of the field is identical with the above, and aims to replace the above field.
+        if (metrics.contains(Metric.CLUSTER_MANAGER_NODE)) {
+            builder.field("cluster_manager_node", nodes().getMasterNodeId());
         }
 
         if (metrics.contains(Metric.BLOCKS)) {

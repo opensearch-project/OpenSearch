@@ -1,8 +1,9 @@
 ---
-"Return empty object if field doesn't exist, but type and index do":
+"Return empty object if field doesn't exist, but index does":
   - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
+      version: "all"
+      reason: "AwaitsFix https://github.com/opensearch-project/OpenSearch/issues/2440"
+
   - do:
         indices.create:
           index: test_index
@@ -17,5 +18,7 @@
       indices.get_field_mapping:
         index: test_index
         fields: not_existent
+        ignore: 404    # ignore 404 failures for now
+                       # see: https://github.com/opensearch-project/OpenSearch/issues/2440
 
   - match: { 'test_index.mappings': {}}

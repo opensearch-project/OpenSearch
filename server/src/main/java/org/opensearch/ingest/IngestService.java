@@ -722,13 +722,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // (e.g. the pipeline may have been removed while we're ingesting a document
         totalMetrics.preIngest();
         String index = indexRequest.index();
-        String type = indexRequest.type();
         String id = indexRequest.id();
         String routing = indexRequest.routing();
         Long version = indexRequest.version();
         VersionType versionType = indexRequest.versionType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
+        IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
             totalMetrics.postIngest(ingestTimeInMillis);
@@ -743,7 +742,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 // it's fine to set all metadata fields all the time, as ingest document holds their starting values
                 // before ingestion, which might also get modified during ingestion.
                 indexRequest.index((String) metadataMap.get(IngestDocument.Metadata.INDEX));
-                indexRequest.type((String) metadataMap.get(IngestDocument.Metadata.TYPE));
                 indexRequest.id((String) metadataMap.get(IngestDocument.Metadata.ID));
                 indexRequest.routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
                 indexRequest.version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());

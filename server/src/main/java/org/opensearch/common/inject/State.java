@@ -164,7 +164,7 @@ interface State {
 
     /**
      * Forbids the corresponding injector from creating a binding to {@code key}. Child injectors
-     * blacklist their bound keys on their parent injectors to prevent just-in-time bindings on the
+     * denylist their bound keys on their parent injectors to prevent just-in-time bindings on the
      * parent injector that would conflict.
      */
     void blacklist(Key<?> key);
@@ -177,11 +177,11 @@ interface State {
 
     /**
      * Returns the shared lock for all injector data. This is a low-granularity, high-contention lock
-     * to be used when reading mutable data (ie. just-in-time bindings, and binding blacklists).
+     * to be used when reading mutable data (ie. just-in-time bindings, and binding denylists).
      */
     Object lock();
 
-    // ES_GUICE: clean blacklist keys
+    // ES_GUICE: clean denylist keys
     void clearBlacklisted();
 
     void makeAllBindingsToEagerSingletons(Injector injector);

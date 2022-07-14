@@ -60,7 +60,7 @@ public class CardinalityWithRequestBreakerIT extends OpenSearchIntegTestCase {
             true,
             IntStream.range(0, randomIntBetween(10, 1000))
                 .mapToObj(
-                    i -> client().prepareIndex("test", "_doc")
+                    i -> client().prepareIndex("test")
                         .setId("id_" + i)
                         .setSource(org.opensearch.common.collect.Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
                 )

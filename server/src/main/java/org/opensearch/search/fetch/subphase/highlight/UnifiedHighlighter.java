@@ -48,7 +48,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.text.Text;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.query.QueryShardContext;
@@ -134,14 +133,6 @@ public class UnifiedHighlighter implements Highlighter {
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
         int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
-        int keywordIgnoreAbove = Integer.MAX_VALUE;
-        if (fieldContext.fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) fieldContext.context.mapperService()
-                .documentMapper()
-                .mappers()
-                .getMapper(fieldContext.fieldName);
-            keywordIgnoreAbove = mapper.ignoreAbove();
-        }
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
@@ -178,7 +169,6 @@ public class UnifiedHighlighter implements Highlighter {
             fieldContext.field.fieldOptions().noMatchSize(),
             higlighterNumberOfFragments,
             fieldMatcher(fieldContext),
-            keywordIgnoreAbove,
             maxAnalyzedOffset
         );
     }

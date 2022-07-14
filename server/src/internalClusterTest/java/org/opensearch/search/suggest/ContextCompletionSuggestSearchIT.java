@@ -32,7 +32,7 @@
 package org.opensearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
@@ -72,7 +72,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
 
     @Override
@@ -102,7 +101,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 source.field("type", "type" + i % 3);
             }
             source.endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
@@ -138,7 +137,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 source.field("type", "type" + i % 3);
             }
             source.endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
@@ -174,7 +173,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 source.field("type", "type" + i % 3);
             }
             source.endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
@@ -193,7 +192,8 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
-        IndexResponse indexResponse = client().prepareIndex(INDEX, TYPE, "1")
+        IndexResponse indexResponse = client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(FIELD)
@@ -222,7 +222,8 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -253,7 +254,8 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -297,7 +299,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .field("cat", "cat" + i % 2)
                 .field("type", "type" + i % 4)
                 .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -339,7 +341,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .field("cat", "cat" + i % 2)
                 .field("type", "type" + i % 4)
                 .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -412,7 +414,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 source.field("type" + c, "type" + c + i % 4);
             }
             source.endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -445,7 +447,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -479,7 +481,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -512,7 +514,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
@@ -554,7 +556,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -573,7 +575,6 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testGeoField() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
-        mapping.startObject(TYPE);
         mapping.startObject("properties");
         mapping.startObject("location");
         mapping.startObject("properties");
@@ -605,9 +606,8 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         mapping.endObject();
         mapping.endObject();
         mapping.endObject();
-        mapping.endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setMapping(mapping));
 
         XContentBuilder source1 = jsonBuilder().startObject()
             .startObject("location")
@@ -617,7 +617,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             .array("input", "Hotel Amsterdam in Berlin")
             .endObject()
             .endObject();
-        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).get();
+        client().prepareIndex(INDEX).setId("1").setSource(source1).get();
 
         XContentBuilder source2 = jsonBuilder().startObject()
             .startObject("location")
@@ -627,7 +627,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             .array("input", "Hotel Berlin in Amsterdam")
             .endObject()
             .endObject();
-        client().prepareIndex(INDEX, TYPE, "2").setSource(source2).get();
+        client().prepareIndex(INDEX).setId("2").setSource(source2).get();
 
         refresh();
 
@@ -671,7 +671,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .field("cat", "cat" + id % 2)
                 .field("type", "type" + id)
                 .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(source));
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i).setSource(source));
         }
         String[] expected = new String[numUnique];
         for (int i = 0; i < numUnique; i++) {
@@ -705,7 +705,6 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject(TYPE)
             .startObject("properties")
             .startObject(FIELD)
             .field("type", "completion")
@@ -747,14 +746,14 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         for (String fieldName : categoryContextFields) {
             mapping.startObject(fieldName).field("type", randomBoolean() ? "keyword" : "text").endObject();
         }
-        mapping.endObject().endObject().endObject();
+        mapping.endObject().endObject();
 
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(INDEX)
                 .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .addMapping(TYPE, mapping)
+                .setMapping(mapping)
                 .get()
         );
     }

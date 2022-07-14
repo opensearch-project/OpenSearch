@@ -126,7 +126,7 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex(indexName, "type1", id).setSource("text", "sometext").get();
+            client().prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
         client().admin().indices().prepareFlush(indexName).get();
 

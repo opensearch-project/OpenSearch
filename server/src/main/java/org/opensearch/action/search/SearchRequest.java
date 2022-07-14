@@ -106,8 +106,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Integer preFilterShardSize;
 
-    private String[] types = Strings.EMPTY_ARRAY;
-
     private boolean ccsMinimizeRoundtrips = true;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
@@ -204,7 +202,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.scroll = searchRequest.scroll;
         this.searchType = searchRequest.searchType;
         this.source = searchRequest.source;
-        this.types = searchRequest.types;
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
@@ -225,7 +222,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            // types no longer relevant so ignore
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException(
+                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
+                );
+            }
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
@@ -262,7 +267,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
@@ -406,35 +414,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
         this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public String[] types() {
-        return types;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public SearchRequest types(String... types) {
-        Objects.requireNonNull(types, "types must not be null");
-        for (String type : types) {
-            Objects.requireNonNull(type, "type must not be null");
-        }
-        this.types = types;
-        return this;
     }
 
     /**
@@ -702,9 +681,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         sb.append("indices[");
         Strings.arrayToDelimitedString(indices, ",", sb);
         sb.append("], ");
-        sb.append("types[");
-        Strings.arrayToDelimitedString(types, ",", sb);
-        sb.append("], ");
         sb.append("search_type[").append(searchType).append("], ");
         if (scroll != null) {
             sb.append("scroll[").append(scroll.keepAlive()).append("], ");
@@ -733,7 +709,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(source, that.source)
             && Objects.equals(requestCache, that.requestCache)
             && Objects.equals(scroll, that.scroll)
-            && Arrays.equals(types, that.types)
             && Objects.equals(batchedReduceSize, that.batchedReduceSize)
             && Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests)
             && Objects.equals(preFilterShardSize, that.preFilterShardSize)
@@ -755,7 +730,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             source,
             requestCache,
             scroll,
-            Arrays.hashCode(types),
             indicesOptions,
             batchedReduceSize,
             maxConcurrentShardRequests,
@@ -777,8 +751,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + Arrays.toString(indices)
             + ", indicesOptions="
             + indicesOptions
-            + ", types="
-            + Arrays.toString(types)
             + ", routing='"
             + routing
             + '\''

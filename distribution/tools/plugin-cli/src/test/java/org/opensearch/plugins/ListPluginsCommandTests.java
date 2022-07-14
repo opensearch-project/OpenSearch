@@ -40,7 +40,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cli.ExitCodes;

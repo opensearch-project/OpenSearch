@@ -68,7 +68,7 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
- * Internal REST API for querying context information about Painless whitelists.
+ * Internal REST API for querying context information about Painless allowlists.
  * Commands include the following:
  * <ul>
  *     <li> GET /_scripts/painless/_context -- retrieves a list of contexts </li>

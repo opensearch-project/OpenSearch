@@ -73,16 +73,6 @@ public class MultiTermVectorsItemResponse implements Writeable {
     }
 
     /**
-     * The type of the document.
-     */
-    public String getType() {
-        if (failure != null) {
-            return failure.getType();
-        }
-        return response.getType();
-    }
-
-    /**
      * The id of the document.
      */
     public String getId() {

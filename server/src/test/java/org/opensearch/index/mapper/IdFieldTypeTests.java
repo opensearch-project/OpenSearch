@@ -42,9 +42,6 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
 
-import java.util.Collection;
-import java.util.Collections;
-
 public class IdFieldTypeTests extends OpenSearchTestCase {
 
     public void testRangeQuery() {
@@ -70,16 +67,12 @@ public class IdFieldTypeTests extends OpenSearchTestCase {
         Mockito.when(context.indexVersionCreated()).thenReturn(indexSettings.getAsVersion(IndexMetadata.SETTING_VERSION_CREATED, null));
 
         MapperService mapperService = Mockito.mock(MapperService.class);
-        Collection<String> types = Collections.emptySet();
-        Mockito.when(context.queryTypes()).thenReturn(types);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
         MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
 
-        types = Collections.singleton("type");
-        Mockito.when(context.queryTypes()).thenReturn(types);
         query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
     }

@@ -80,9 +80,6 @@
 
 ---
 "Create index with java style index in 6":
-  - skip:
-      version: " - 6.7.99, 7.0.0 -"
-      reason: java.time patterns are allowed since 6.8
   - do:
       indices.create:
         index: java_for_range

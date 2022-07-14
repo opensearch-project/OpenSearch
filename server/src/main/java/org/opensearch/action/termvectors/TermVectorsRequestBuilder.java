@@ -54,11 +54,10 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
 
     /**
      * Constructs a new term vector request builder for a document that will be fetch
-     * from the provided index. Use {@code index}, {@code type} and
-     * {@code id} to specify the document to load.
+     * from the provided index. Use {@code index}, and {@code id} to specify the document to load.
      */
-    public TermVectorsRequestBuilder(OpenSearchClient client, TermVectorsAction action, String index, String type, String id) {
-        super(client, action, new TermVectorsRequest(index, type, id));
+    public TermVectorsRequestBuilder(OpenSearchClient client, TermVectorsAction action, String index, String id) {
+        super(client, action, new TermVectorsRequest(index, id));
     }
 
     /**
@@ -66,14 +65,6 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
      */
     public TermVectorsRequestBuilder setIndex(String index) {
         request.index(index);
-        return this;
-    }
-
-    /**
-     * Sets the type of the document.
-     */
-    public TermVectorsRequestBuilder setType(String type) {
-        request.type(type);
         return this;
     }
 

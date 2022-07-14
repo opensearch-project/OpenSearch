@@ -32,9 +32,8 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -44,14 +43,12 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
@@ -72,8 +69,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     private final Set<String> ids = new HashSet<>();
 
-    private String[] types = Strings.EMPTY_ARRAY;
-
     /**
      * Creates a new IdsQueryBuilder with no types specified upfront
      */
@@ -86,38 +81,23 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
      */
     public IdsQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            // types no longer relevant so ignore
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException("types are no longer supported in ids query but found [" + Arrays.toString(types) + "]");
+            }
+        }
         Collections.addAll(ids, in.readStringArray());
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeStringArray(types);
-        out.writeStringArray(ids.toArray(new String[ids.size()]));
-    }
-
-    /**
-     * Add types to query
-     *
-     * @deprecated Types are in the process of being removed, prefer to filter on a field instead.
-     */
-    @Deprecated
-    public IdsQueryBuilder types(String... types) {
-        if (types == null) {
-            throw new IllegalArgumentException("[" + NAME + "] types cannot be null");
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeStringArray(Strings.EMPTY_ARRAY);
         }
-        this.types = types;
-        return this;
-    }
-
-    /**
-     * Returns the types used in this query
-     *
-     * @deprecated Types are in the process of being removed, prefer to filter on a field instead.
-     */
-    @Deprecated
-    public String[] types() {
-        return this.types;
+        out.writeStringArray(ids.toArray(new String[ids.size()]));
     }
 
     /**
@@ -141,9 +121,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (types.length > 0) {
-            builder.array(TYPE_FIELD.getPreferredName(), types);
-        }
         builder.startArray(VALUES_FIELD.getPreferredName());
         for (String value : ids) {
             builder.value(value);
@@ -156,18 +133,13 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     private static final ObjectParser<IdsQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, IdsQueryBuilder::new);
 
     static {
-        PARSER.declareStringArray(fromList(String.class, IdsQueryBuilder::types), IdsQueryBuilder.TYPE_FIELD);
         PARSER.declareStringArray(fromList(String.class, IdsQueryBuilder::addIds), IdsQueryBuilder.VALUES_FIELD);
         declareStandardFields(PARSER);
     }
 
     public static IdsQueryBuilder fromXContent(XContentParser parser) {
         try {
-            IdsQueryBuilder builder = PARSER.apply(parser, null);
-            if (builder.types().length > 0) {
-                deprecationLogger.deprecate("ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
-            }
-            return builder;
+            return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
@@ -193,34 +165,20 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null || ids.isEmpty()) {
             throw new IllegalStateException("Rewrite first");
         }
-        final DocumentMapper mapper = context.getMapperService().documentMapper();
-        Collection<String> typesForQuery;
-        if (types.length == 0) {
-            typesForQuery = context.queryTypes();
-        } else if (types.length == 1 && Metadata.ALL.equals(types[0])) {
-            typesForQuery = Collections.singleton(mapper.type());
-        } else {
-            typesForQuery = new HashSet<>(Arrays.asList(types));
-        }
-
-        if (typesForQuery.contains(mapper.type())) {
-            return idField.termsQuery(new ArrayList<>(ids), context);
-        } else {
-            return new MatchNoDocsQuery("Type mismatch");
-        }
+        return idField.termsQuery(new ArrayList<>(ids), context);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(ids, Arrays.hashCode(types));
+        return Objects.hash(ids);
     }
 
     @Override
     protected boolean doEquals(IdsQueryBuilder other) {
-        return Objects.equals(ids, other.ids) && Arrays.equals(types, other.types);
+        return Objects.equals(ids, other.ids);
     }
 }

@@ -80,10 +80,8 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
     ) {
         @Override
         public Long getShardSize(ShardRouting shardRouting) {
-            assert shardRouting.recoverySource()
-                .getType() == RecoverySource.Type.SNAPSHOT : "Expecting a recovery source of type [SNAPSHOT] but got ["
-                    + shardRouting.recoverySource().getType()
-                    + ']';
+            assert shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                : "Expecting a recovery source of type [SNAPSHOT] but got [" + shardRouting.recoverySource().getType() + ']';
             throw new UnsupportedOperationException();
         }
     };
@@ -151,7 +149,7 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
     }
 
     protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
     );
 
     protected static DiscoveryNode newNode(String nodeId) {

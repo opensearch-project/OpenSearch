@@ -254,11 +254,6 @@ public abstract class ScrollableHitSource {
         String getIndex();
 
         /**
-         * The type that the hit has.
-         */
-        String getType();
-
-        /**
          * The document id of the hit.
          */
         String getId();
@@ -304,7 +299,6 @@ public abstract class ScrollableHitSource {
      */
     public static class BasicHit implements Hit {
         private final String index;
-        private final String type;
         private final String id;
         private final long version;
 
@@ -314,9 +308,8 @@ public abstract class ScrollableHitSource {
         private long seqNo;
         private long primaryTerm;
 
-        public BasicHit(String index, String type, String id, long version) {
+        public BasicHit(String index, String id, long version) {
             this.index = index;
-            this.type = type;
             this.id = id;
             this.version = version;
         }
@@ -324,11 +317,6 @@ public abstract class ScrollableHitSource {
         @Override
         public String getIndex() {
             return index;
-        }
-
-        @Override
-        public String getType() {
-            return type;
         }
 
         @Override

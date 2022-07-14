@@ -240,7 +240,6 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
         Token token;
         String index = null;
-        String type = null;
         String id = null;
         Integer status = null;
         Integer shardId = null;
@@ -270,9 +269,6 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
                     case Failure.INDEX_FIELD:
                         index = parser.text();
                         break;
-                    case Failure.TYPE_FIELD:
-                        type = parser.text();
-                        break;
                     case Failure.ID_FIELD:
                         id = parser.text();
                         break;
@@ -298,7 +294,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
             }
         }
         if (bulkExc != null) {
-            return new Failure(index, type, id, bulkExc, RestStatus.fromCode(status));
+            return new Failure(index, id, bulkExc, RestStatus.fromCode(status));
         } else if (searchExc != null) {
             if (status == null) {
                 return new SearchFailure(searchExc, index, shardId, nodeId);

@@ -85,16 +85,16 @@ public class BulkPrimaryExecutionContextTests extends OpenSearchTestCase {
             final DocWriteRequest request;
             switch (randomFrom(DocWriteRequest.OpType.values())) {
                 case INDEX:
-                    request = new IndexRequest("index", "_doc", "id_" + i);
+                    request = new IndexRequest("index").id("id_" + i);
                     break;
                 case CREATE:
-                    request = new IndexRequest("index", "_doc", "id_" + i).create(true);
+                    request = new IndexRequest("index").id("id_" + i).create(true);
                     break;
                 case UPDATE:
-                    request = new UpdateRequest("index", "_doc", "id_" + i);
+                    request = new UpdateRequest("index", "id_" + i);
                     break;
                 case DELETE:
-                    request = new DeleteRequest("index", "_doc", "id_" + i);
+                    request = new DeleteRequest("index", "id_" + i);
                     break;
                 default:
                     throw new AssertionError("unknown type");
@@ -139,7 +139,7 @@ public class BulkPrimaryExecutionContextTests extends OpenSearchTestCase {
                     }
                     break;
                 case UPDATE:
-                    context.setRequestToExecute(new IndexRequest(current.index(), current.type(), current.id()));
+                    context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
                     if (failure) {
                         result = new Engine.IndexResult(new OpenSearchException("bla"), 1, 1, 1);
                     } else {

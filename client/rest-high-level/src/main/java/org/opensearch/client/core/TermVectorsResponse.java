@@ -46,24 +46,14 @@ import java.util.Objects;
 
 public class TermVectorsResponse {
     private final String index;
-    private final String type;
     private final String id;
     private final long docVersion;
     private final boolean found;
     private final long tookInMillis;
     private final List<TermVector> termVectorList;
 
-    public TermVectorsResponse(
-        String index,
-        String type,
-        String id,
-        long version,
-        boolean found,
-        long tookInMillis,
-        List<TermVector> termVectorList
-    ) {
+    public TermVectorsResponse(String index, String id, long version, boolean found, long tookInMillis, List<TermVector> termVectorList) {
         this.index = index;
-        this.type = type;
         this.id = id;
         this.docVersion = version;
         this.found = found;
@@ -75,19 +65,18 @@ public class TermVectorsResponse {
         "term_vectors",
         true,
         args -> {
-            // as the response comes from server, we are sure that args[6] will be a list of TermVector
+            // as the response comes from server, we are sure that args[5] will be a list of TermVector
             @SuppressWarnings("unchecked")
-            List<TermVector> termVectorList = (List<TermVector>) args[6];
+            List<TermVector> termVectorList = (List<TermVector>) args[5];
             if (termVectorList != null) {
                 Collections.sort(termVectorList, Comparator.comparing(TermVector::getFieldName));
             }
             return new TermVectorsResponse(
                 (String) args[0],
                 (String) args[1],
-                (String) args[2],
-                (long) args[3],
-                (boolean) args[4],
-                (long) args[5],
+                (long) args[2],
+                (boolean) args[3],
+                (long) args[4],
                 termVectorList
             );
         }
@@ -95,7 +84,6 @@ public class TermVectorsResponse {
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("_index"));
-        PARSER.declareString(constructorArg(), new ParseField("_type"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("_id"));
         PARSER.declareLong(constructorArg(), new ParseField("_version"));
         PARSER.declareBoolean(constructorArg(), new ParseField("found"));
@@ -116,16 +104,6 @@ public class TermVectorsResponse {
      */
     public String getIndex() {
         return index;
-    }
-
-    /**
-     * Returns the type for the response
-     *
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String getType() {
-        return type;
     }
 
     /**
@@ -171,7 +149,6 @@ public class TermVectorsResponse {
         if (!(obj instanceof TermVectorsResponse)) return false;
         TermVectorsResponse other = (TermVectorsResponse) obj;
         return index.equals(other.index)
-            && type.equals(other.type)
             && Objects.equals(id, other.id)
             && docVersion == other.docVersion
             && found == other.found
@@ -181,7 +158,7 @@ public class TermVectorsResponse {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, id, docVersion, found, tookInMillis, termVectorList);
+        return Objects.hash(index, id, docVersion, found, tookInMillis, termVectorList);
     }
 
     public static final class TermVector {

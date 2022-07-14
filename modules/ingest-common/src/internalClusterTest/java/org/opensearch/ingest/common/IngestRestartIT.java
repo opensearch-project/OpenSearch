@@ -114,7 +114,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
 
         Exception e = expectThrows(
             Exception.class,
-            () -> client().prepareIndex("index", "doc")
+            () -> client().prepareIndex("index")
                 .setId("1")
                 .setSource("x", 0)
                 .setPipeline(pipelineId)
@@ -178,7 +178,8 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         checkPipelineExists.accept(pipelineIdWithoutScript);
         checkPipelineExists.accept(pipelineIdWithScript);
 
-        client().prepareIndex("index", "doc", "1")
+        client().prepareIndex("index")
+            .setId("1")
             .setSource("x", 0)
             .setPipeline(pipelineIdWithoutScript)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -186,7 +187,8 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> client().prepareIndex("index", "doc", "2")
+            () -> client().prepareIndex("index")
+                .setId("2")
                 .setSource("x", 0)
                 .setPipeline(pipelineIdWithScript)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -209,7 +211,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
             )
         );
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
     }
@@ -236,13 +238,14 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         );
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index", "doc", "1")
+        client().prepareIndex("index")
+            .setId("1")
             .setSource("x", 0)
             .setPipeline("_id")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
         assertThat(source.get("z"), equalTo(0));
@@ -254,13 +257,14 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         internalCluster().fullRestart();
         ensureYellow("index");
 
-        client().prepareIndex("index", "doc", "2")
+        client().prepareIndex("index")
+            .setId("2")
             .setSource("x", 0)
             .setPipeline("_id")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        source = client().prepareGet("index", "doc", "2").get().getSource();
+        source = client().prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
         assertThat(source.get("z"), equalTo(0));
@@ -275,26 +279,28 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         );
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index", "doc", "1")
+        client().prepareIndex("index")
+            .setId("1")
             .setSource("x", 0)
             .setPipeline("_id")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
 
         logger.info("Stopping");
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback());
 
-        client(ingestNode).prepareIndex("index", "doc", "2")
+        client(ingestNode).prepareIndex("index")
+            .setId("2")
             .setSource("x", 0)
             .setPipeline("_id")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        source = client(ingestNode).prepareGet("index", "doc", "2").get().getSource();
+        source = client(ingestNode).prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
     }

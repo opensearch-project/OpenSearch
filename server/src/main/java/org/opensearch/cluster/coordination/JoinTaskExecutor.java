@@ -193,20 +193,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             if (joiniedNodeNameIds.isEmpty() == false) {
                 Set<CoordinationMetadata.VotingConfigExclusion> currentVotingConfigExclusions = currentState.getVotingConfigExclusions();
                 Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusions = currentVotingConfigExclusions.stream()
-                    .map(
-                        e -> {
-                            // Update nodeId in VotingConfigExclusion when a new node with excluded node name joins
-                            if (CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER.equals(e.getNodeId())
-                                && joiniedNodeNameIds.containsKey(e.getNodeName())) {
-                                return new CoordinationMetadata.VotingConfigExclusion(
-                                    joiniedNodeNameIds.get(e.getNodeName()),
-                                    e.getNodeName()
-                                );
-                            } else {
-                                return e;
-                            }
+                    .map(e -> {
+                        // Update nodeId in VotingConfigExclusion when a new node with excluded node name joins
+                        if (CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER.equals(e.getNodeId())
+                            && joiniedNodeNameIds.containsKey(e.getNodeName())) {
+                            return new CoordinationMetadata.VotingConfigExclusion(joiniedNodeNameIds.get(e.getNodeName()), e.getNodeName());
+                        } else {
+                            return e;
                         }
-                    )
+                    })
                     .collect(Collectors.toSet());
 
                 // if VotingConfigExclusions did get updated

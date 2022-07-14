@@ -33,6 +33,7 @@
 package org.opensearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -42,6 +43,7 @@ import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -57,7 +59,6 @@ import static org.opensearch.common.lucene.Lucene.writeExplanation;
 public class ExplainResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField _INDEX = new ParseField("_index");
-    private static final ParseField _TYPE = new ParseField("_type");
     private static final ParseField _ID = new ParseField("_id");
     private static final ParseField MATCHED = new ParseField("matched");
     private static final ParseField EXPLANATION = new ParseField("explanation");
@@ -67,36 +68,33 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     private static final ParseField GET = new ParseField("get");
 
     private String index;
-    private String type;
     private String id;
     private boolean exists;
     private Explanation explanation;
     private GetResult getResult;
 
-    // TODO(talevy): remove dependency on empty constructor from ExplainResponseTests
-    ExplainResponse() {}
-
-    public ExplainResponse(String index, String type, String id, boolean exists) {
+    public ExplainResponse(String index, String id, boolean exists) {
         this.index = index;
-        this.type = type;
         this.id = id;
         this.exists = exists;
     }
 
-    public ExplainResponse(String index, String type, String id, boolean exists, Explanation explanation) {
-        this(index, type, id, exists);
+    public ExplainResponse(String index, String id, boolean exists, Explanation explanation) {
+        this(index, id, exists);
         this.explanation = explanation;
     }
 
-    public ExplainResponse(String index, String type, String id, boolean exists, Explanation explanation, GetResult getResult) {
-        this(index, type, id, exists, explanation);
+    public ExplainResponse(String index, String id, boolean exists, Explanation explanation, GetResult getResult) {
+        this(index, id, exists, explanation);
         this.getResult = getResult;
     }
 
     public ExplainResponse(StreamInput in) throws IOException {
         super(in);
         index = in.readString();
-        type = in.readString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            in.readString();
+        }
         id = in.readString();
         exists = in.readBoolean();
         if (in.readBoolean()) {
@@ -109,14 +107,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
 
     public String getIndex() {
         return index;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String getType() {
-        return type;
     }
 
     public String getId() {
@@ -151,7 +141,9 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeBoolean(exists);
         if (explanation == null) {
@@ -171,19 +163,11 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     private static final ConstructingObjectParser<ExplainResponse, Boolean> PARSER = new ConstructingObjectParser<>(
         "explain",
         true,
-        (arg, exists) -> new ExplainResponse(
-            (String) arg[0],
-            (String) arg[1],
-            (String) arg[2],
-            exists,
-            (Explanation) arg[3],
-            (GetResult) arg[4]
-        )
+        (arg, exists) -> new ExplainResponse((String) arg[0], (String) arg[1], exists, (Explanation) arg[2], (GetResult) arg[3])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _INDEX);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), _TYPE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _ID);
         final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>(
             "explanation",
@@ -211,7 +195,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX.getPreferredName(), index);
-        builder.field(_TYPE.getPreferredName(), type);
         builder.field(_ID.getPreferredName(), id);
         builder.field(MATCHED.getPreferredName(), isMatch());
         if (hasExplanation()) {
@@ -253,7 +236,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         }
         ExplainResponse other = (ExplainResponse) obj;
         return index.equals(other.index)
-            && type.equals(other.type)
             && id.equals(other.id)
             && Objects.equals(explanation, other.explanation)
             && getResult.isExists() == other.getResult.isExists()
@@ -263,6 +245,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, id, explanation, getResult.isExists(), getResult.sourceAsMap(), getResult.getFields());
+        return Objects.hash(index, id, explanation, getResult.isExists(), getResult.sourceAsMap(), getResult.getFields());
     }
 }

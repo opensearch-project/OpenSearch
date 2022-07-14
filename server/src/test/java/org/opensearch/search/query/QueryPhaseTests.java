@@ -48,9 +48,11 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.MinDocQuery;
+import org.opensearch.lucene.queries.MinDocQuery;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -77,8 +79,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -609,7 +609,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             FieldDoc firstDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[0];
             for (int i = 0; i < searchSortAndFormat.sort.getSort().length; i++) {
                 @SuppressWarnings("unchecked")
-                FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(1, i);
+                FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(
+                    1,
+                    false
+                );
                 int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
                 if (cmp == 0) {
                     continue;
@@ -722,7 +725,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setTask(task);
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getCanUsePoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
         }
 
@@ -735,7 +737,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setTask(task);
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getCanUsePoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
         }
 
@@ -748,7 +749,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setTask(task);
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getCanUsePoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
         }
 
@@ -761,7 +761,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setTask(task);
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getCanUsePoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
         }
 
@@ -775,7 +774,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.from(5);
             searchContext.setSize(0);
             QueryPhase.executeInternal(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getCanUsePoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
         }
 
@@ -803,7 +801,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setTask(task);
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getCanUsePoints());
             final TopDocs topDocs = searchContext.queryResult().topDocs().topDocs;
             long topValue = (long) ((FieldDoc) topDocs.scoreDocs[0]).fields[0];
             assertThat(topValue, greaterThan(afterValue));

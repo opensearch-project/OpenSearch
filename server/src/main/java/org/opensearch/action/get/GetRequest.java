@@ -33,11 +33,11 @@
 package org.opensearch.action.get;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -54,7 +54,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * A request to get a document (its source) from an index based on its id. Best created using
  * {@link org.opensearch.client.Requests#getRequest(String)}.
  * <p>
- * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
+ * The operation requires the {@link #index()}} and {@link #id(String)}
  * to be set.
  *
  * @see GetResponse
@@ -63,7 +63,6 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
 
-    private String type;
     private String id;
     private String routing;
     private String preference;
@@ -79,13 +78,13 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
 
-    public GetRequest() {
-        type = MapperService.SINGLE_MAPPING_NAME;
-    }
+    public GetRequest() {}
 
     GetRequest(StreamInput in) throws IOException {
         super(in);
-        type = in.readString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            in.readString();
+        }
         id = in.readString();
         routing = in.readOptionalString();
         if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
@@ -106,22 +105,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      */
     public GetRequest(String index) {
         super(index);
-        this.type = MapperService.SINGLE_MAPPING_NAME;
-    }
-
-    /**
-     * Constructs a new get request against the specified index with the type and id.
-     *
-     * @param index The index to get the document from
-     * @param type  The type of the document
-     * @param id    The id of the document
-     * @deprecated Types are in the process of being removed, use {@link GetRequest(String, String)} instead.
-     */
-    @Deprecated
-    public GetRequest(String index, String type, String id) {
-        super(index);
-        this.type = type;
-        this.id = id;
     }
 
     /**
@@ -133,15 +116,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     public GetRequest(String index, String id) {
         super(index);
         this.id = id;
-        this.type = MapperService.SINGLE_MAPPING_NAME;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (Strings.isEmpty(type)) {
-            validationException = addValidationError("type is missing", validationException);
-        }
         if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
@@ -152,19 +131,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
             );
         }
         return validationException;
-    }
-
-    /**
-     * Sets the type of the document to fetch.
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public GetRequest type(@Nullable String type) {
-        if (type == null) {
-            type = MapperService.SINGLE_MAPPING_NAME;
-        }
-        this.type = type;
-        return this;
     }
 
     /**
@@ -192,14 +158,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     public GetRequest preference(String preference) {
         this.preference = preference;
         return this;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String type() {
-        return type;
     }
 
     public String id() {
@@ -295,7 +253,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeOptionalString(routing);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
@@ -313,7 +273,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     @Override
     public String toString() {
-        return "get [" + index + "][" + type + "][" + id + "]: routing [" + routing + "]";
+        return "get [" + index + "][" + id + "]: routing [" + routing + "]";
     }
 
 }

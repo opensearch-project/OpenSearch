@@ -219,16 +219,16 @@ public abstract class AbstractTermVectorsTestCase extends OpenSearchIntegTestCas
 
     protected void createIndexBasedOnFieldSettings(String index, String alias, TestFieldSetting[] fieldSettings) throws IOException {
         XContentBuilder mappingBuilder = jsonBuilder();
-        mappingBuilder.startObject().startObject("type1").startObject("properties");
+        mappingBuilder.startObject().startObject("properties");
         for (TestFieldSetting field : fieldSettings) {
             field.addToMappings(mappingBuilder);
         }
-        mappingBuilder.endObject().endObject().endObject();
+        mappingBuilder.endObject().endObject();
         Settings.Builder settings = Settings.builder()
             .put(indexSettings())
             .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
             .putList("index.analysis.analyzer.tv_test.filter", "lowercase");
-        assertAcked(prepareCreate(index).addMapping("type1", mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
+        assertAcked(prepareCreate(index).setMapping(mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
     }
 
     /**
@@ -431,7 +431,7 @@ public abstract class AbstractTermVectorsTestCase extends OpenSearchIntegTestCas
     }
 
     protected TermVectorsRequestBuilder getRequestForConfig(TestConfig config) {
-        return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.type, config.doc.id)
+        return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.id)
             .setPayloads(config.requestPayloads)
             .setOffsets(config.requestOffsets)
             .setPositions(config.requestPositions)

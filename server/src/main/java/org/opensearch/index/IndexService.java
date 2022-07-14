@@ -624,13 +624,28 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     /**
-     * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
-     * {@link QueryShardContext#setTypes(String...)}.
+     * Creates a new QueryShardContext.
      *
      * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
     public QueryShardContext newQueryShardContext(int shardId, IndexSearcher searcher, LongSupplier nowInMillis, String clusterAlias) {
+        return newQueryShardContext(shardId, searcher, nowInMillis, clusterAlias, false);
+    }
+
+    /**
+     * Creates a new QueryShardContext.
+     *
+     * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
+     * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
+     */
+    public QueryShardContext newQueryShardContext(
+        int shardId,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        boolean validate
+    ) {
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
             clusterAlias,
@@ -654,7 +669,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             clusterAlias,
             indexNameMatcher,
             allowExpensiveQueries,
-            valuesSourceRegistry
+            valuesSourceRegistry,
+            validate
         );
     }
 

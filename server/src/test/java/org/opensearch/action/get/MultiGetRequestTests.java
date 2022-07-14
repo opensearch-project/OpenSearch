@@ -71,9 +71,8 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
             final MultiGetRequest mgr = new MultiGetRequest();
             final ParsingException e = expectThrows(ParsingException.class, () -> {
                 final String defaultIndex = randomAlphaOfLength(5);
-                final String defaultType = randomAlphaOfLength(3);
                 final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
-                mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
+                mgr.add(defaultIndex, null, fetchSource, null, parser, true);
             });
             assertThat(e.toString(), containsString("unknown key [doc] for a START_ARRAY, expected [docs] or [ids]"));
         }
@@ -95,9 +94,8 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
         final MultiGetRequest mgr = new MultiGetRequest();
         final ParsingException e = expectThrows(ParsingException.class, () -> {
             final String defaultIndex = randomAlphaOfLength(5);
-            final String defaultType = randomAlphaOfLength(3);
             final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
-            mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
+            mgr.add(defaultIndex, null, fetchSource, null, parser, true);
         });
         assertThat(e.toString(), containsString("unexpected token [START_OBJECT], expected [FIELD_NAME] or [START_ARRAY]"));
     }
@@ -118,7 +116,7 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
         );
 
         MultiGetRequest multiGetRequest = new MultiGetRequest();
-        multiGetRequest.add(randomAlphaOfLength(5), randomAlphaOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
+        multiGetRequest.add(randomAlphaOfLength(5), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
 
         assertEquals(2, multiGetRequest.getItems().size());
     }
@@ -130,7 +128,7 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
             BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
             try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
                 MultiGetRequest actual = new MultiGetRequest();
-                actual.add(null, null, null, null, null, parser, true);
+                actual.add(null, null, null, null, parser, true);
                 assertThat(parser.nextToken(), nullValue());
 
                 assertThat(actual.items.size(), equalTo(expected.items.size()));
@@ -147,7 +145,7 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
         int numItems = randomIntBetween(0, 128);
         MultiGetRequest request = new MultiGetRequest();
         for (int i = 0; i < numItems; i++) {
-            MultiGetRequest.Item item = new MultiGetRequest.Item(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4));
+            MultiGetRequest.Item item = new MultiGetRequest.Item(randomAlphaOfLength(4), randomAlphaOfLength(4));
             if (randomBoolean()) {
                 item.version(randomNonNegativeLong());
             }

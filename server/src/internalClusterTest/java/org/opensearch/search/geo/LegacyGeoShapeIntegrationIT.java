@@ -68,7 +68,6 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("shape")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "geo_shape")
@@ -77,16 +76,14 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
         // create index
-        assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName).setMapping(mapping));
 
         mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("shape")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "geo_shape")
@@ -95,10 +92,9 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        assertAcked(prepareCreate(idxName + "2").addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName + "2").setMapping(mapping));
         ensureGreen(idxName, idxName + "2");
 
         internalCluster().fullRestart();
@@ -135,11 +131,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping("geometry", "shape", "type=geo_shape,tree=quadtree,ignore_malformed=true")
-                .get()
+            client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get()
         );
         ensureGreen();
 
@@ -183,7 +175,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
 
-        indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape", polygonGeoJson));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -205,7 +197,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "  }";
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n"
@@ -215,10 +207,10 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "    }\n"
             + "}";
 
-        indexRandom(true, client().prepareIndex("test", "doc", "0").setSource(source, XContentType.JSON).setRouting("ABC"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(geoShapeQuery("shape", "0", "doc").indexedShapeIndex("test").indexedShapeRouting("ABC"))
+            .setQuery(geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))
             .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -230,15 +222,11 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
     public void testLegacyCircle() throws Exception {
         // create index
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping("geometry", "shape", "type=geo_shape,strategy=recursive,tree=geohash")
-                .get()
+            client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get()
         );
         ensureGreen();
 
-        indexRandom(true, client().prepareIndex("test", "_doc", "0").setSource("shape", (ToXContent) (builder, params) -> {
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
             builder.startObject()
                 .field("type", "circle")
                 .startArray("coordinates")
@@ -259,15 +247,11 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
         try {
             // create index
             assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareCreate("test")
-                    .addMapping("_doc", "shape", "type=geo_shape,strategy=recursive,tree=geohash")
-                    .get()
+                client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get()
             );
             ensureGreen();
 
-            indexRandom(true, client().prepareIndex("test", "_doc").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
+            indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
                 builder.startObject()
                     .field("type", "circle")
                     .startArray("coordinates")

@@ -33,7 +33,7 @@ package org.opensearch.index.shard;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cli.MockTerminal;
@@ -142,7 +142,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final IndexMetadata.Builder metadata = IndexMetadata.builder(routing.getIndexName())
             .settings(settings)
             .primaryTerm(0, randomIntBetween(1, 100))
-            .putMapping("_doc", "{ \"properties\": {} }");
+            .putMapping("{ \"properties\": {} }");
         indexMetadata = metadata.build();
 
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, false).build()).build();

@@ -50,18 +50,19 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestMasterAction extends AbstractCatAction {
 
     @Override
-    public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat/master"));
+    public List<ReplacedRoute> replacedRoutes() {
+        // The deprecated path will be removed in a future major version.
+        return singletonList(new ReplacedRoute(GET, "/_cat/cluster_manager", "/_cat/master"));
     }
 
     @Override
     public String getName() {
-        return "cat_master_action";
+        return "cat_cluster_manager_action";
     }
 
     @Override
     protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/master\n");
+        sb.append("/_cat/cluster_manager\n");
     }
 
     @Override

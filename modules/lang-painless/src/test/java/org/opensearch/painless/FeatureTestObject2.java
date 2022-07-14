@@ -32,7 +32,7 @@
 
 package org.opensearch.painless;
 
-/** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
+/** Currently just a dummy class for testing a few features not yet exposed by allowlist! */
 public class FeatureTestObject2 {
     public FeatureTestObject2() {
         super();

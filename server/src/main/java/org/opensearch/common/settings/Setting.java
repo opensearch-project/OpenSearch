@@ -173,9 +173,8 @@ public class Setting<T> implements ToXContentObject {
         Validator<T> validator,
         Property... properties
     ) {
-        assert this instanceof SecureSetting
-            || this.isGroupSetting()
-            || parser.apply(defaultValue.apply(Settings.EMPTY)) != null : "parser returned null";
+        assert this instanceof SecureSetting || this.isGroupSetting() || parser.apply(defaultValue.apply(Settings.EMPTY)) != null
+            : "parser returned null";
         this.key = key;
         this.fallbackSetting = fallbackSetting;
         this.defaultValue = defaultValue;

@@ -36,7 +36,6 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -183,7 +182,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
     }
 
     public void testSearchResponseToXContent() throws IOException {
-        SearchHit hit = new SearchHit(1, "id", new Text("type"), Collections.emptyMap(), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id", Collections.emptyMap(), Collections.emptyMap());
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
 
@@ -229,7 +228,6 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             .field("max_score", 1.5F)
             .startArray("hits")
             .startObject()
-            .field("_type", "type")
             .field("_id", "id")
             .field("_score", 2.0F)
             .endObject()

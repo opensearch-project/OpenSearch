@@ -38,7 +38,6 @@ import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.script.TemplateScript;
 
@@ -76,19 +75,10 @@ public final class IngestDocument {
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
-    public IngestDocument(
-        String index,
-        String type,
-        String id,
-        String routing,
-        Long version,
-        VersionType versionType,
-        Map<String, Object> source
-    ) {
+    public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
-        this.sourceAndMetadata.put(Metadata.TYPE.getFieldName(), type);
         this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
         if (routing != null) {
             this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
@@ -855,7 +845,6 @@ public final class IngestDocument {
 
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
-        TYPE(TypeFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),

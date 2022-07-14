@@ -172,7 +172,9 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
     private enum NodeSelector {
         LOCAL("_local"),
         ELECTED_MASTER("_master"),
+        // TODO: Remove this element after removing DiscoveryNodeRole.MASTER_ROLE
         MASTER_ELIGIBLE("master:true"),
+        CLUSTER_MANAGER_ELIGIBLE("cluster_manager:true"),
         DATA("data:true"),
         CUSTOM_ATTRIBUTE("attr:value");
 

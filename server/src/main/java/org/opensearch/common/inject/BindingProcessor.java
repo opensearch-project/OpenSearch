@@ -293,7 +293,7 @@ class BindingProcessor extends AbstractProcessor {
         return false;
     }
 
-    // It's unfortunate that we have to maintain a blacklist of specific
+    // It's unfortunate that we have to maintain a denylist of specific
     // classes, but we can't easily block the whole package because of
     // all our unit tests.
     private static final Set<Class<?>> FORBIDDEN_TYPES = unmodifiableSet(

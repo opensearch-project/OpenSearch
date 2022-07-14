@@ -95,7 +95,7 @@ public class NodeEnvironmentIT extends OpenSearchIntegTestCase {
             })
         );
         if (writeDanglingIndices) {
-            assertThat(ex.getMessage(), startsWith("node does not have the data and master roles but has index metadata"));
+            assertThat(ex.getMessage(), startsWith("node does not have the data and cluster_manager roles but has index metadata"));
         } else {
             assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
         }
@@ -104,7 +104,7 @@ public class NodeEnvironmentIT extends OpenSearchIntegTestCase {
         internalCluster().startNode(dataPathSettings);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         logger.info("--> restarting the node without the data role");
         ex = expectThrows(

@@ -67,12 +67,12 @@ public class SimpleRecoveryIT extends OpenSearchIntegTestCase {
 
         NumShards numShards = getNumShards("test");
 
-        client().index(indexRequest("test").type("type1").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
+        client().index(indexRequest("test").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
         FlushResponse flushResponse = client().admin().indices().flush(flushRequest("test")).actionGet();
         assertThat(flushResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
         assertThat(flushResponse.getFailedShards(), equalTo(0));
-        client().index(indexRequest("test").type("type1").id("2").source(source("2", "test"), XContentType.JSON)).actionGet();
+        client().index(indexRequest("test").id("2").source(source("2", "test"), XContentType.JSON)).actionGet();
         RefreshResponse refreshResponse = client().admin().indices().refresh(refreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
@@ -86,13 +86,13 @@ public class SimpleRecoveryIT extends OpenSearchIntegTestCase {
         GetResponse getResult;
 
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client().get(getRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client().get(getRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
 
@@ -103,17 +103,17 @@ public class SimpleRecoveryIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client().get(getRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client().get(getRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client().get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client().get(getRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
     }

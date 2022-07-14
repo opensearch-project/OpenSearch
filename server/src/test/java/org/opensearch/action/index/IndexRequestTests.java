@@ -137,11 +137,10 @@ public class IndexRequestTests extends OpenSearchTestCase {
 
     public void testIndexResponse() {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomIntBetween(0, 1000));
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomLong();
         boolean created = randomBoolean();
-        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
+        IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
@@ -151,7 +150,6 @@ public class IndexRequestTests extends OpenSearchTestCase {
             forcedRefresh = randomBoolean();
             indexResponse.setForcedRefresh(forcedRefresh);
         }
-        assertEquals(type, indexResponse.getType());
         assertEquals(id, indexResponse.getId());
         assertEquals(version, indexResponse.getVersion());
         assertEquals(shardId, indexResponse.getShardId());
@@ -162,8 +160,6 @@ public class IndexRequestTests extends OpenSearchTestCase {
         assertEquals(
             "IndexResponse[index="
                 + shardId.getIndexName()
-                + ",type="
-                + type
                 + ",id="
                 + id
                 + ",version="
@@ -220,13 +216,13 @@ public class IndexRequestTests extends OpenSearchTestCase {
 
         String source = "{\"name\":\"value\"}";
         request.source(source, XContentType.JSON);
-        assertEquals("index {[index][_doc][null], source[" + source + "]}", request.toString());
+        assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
         source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
         request.source(source, XContentType.JSON);
         int actualBytes = source.getBytes("UTF-8").length;
         assertEquals(
-            "index {[index][_doc][null], source[n/a, actual length: ["
+            "index {[index][null], source[n/a, actual length: ["
                 + new ByteSizeValue(actualBytes).toString()
                 + "], max length: "
                 + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()

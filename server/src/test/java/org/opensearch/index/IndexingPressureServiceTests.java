@@ -51,11 +51,7 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
         Index index = new Index("IndexName", "UUID");
         ShardId shardId = new ShardId(index, 0);
         BulkItemRequest[] items = new BulkItemRequest[1];
-        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id").source(
-            Requests.INDEX_CONTENT_TYPE,
-            "foo",
-            "bar"
-        );
+        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
         items[0] = new BulkItemRequest(0, writeRequest);
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.NONE, items);
         Releasable releasable = service.markCoordinatingOperationStarted(shardId, bulkShardRequest::ramBytesUsed, false);

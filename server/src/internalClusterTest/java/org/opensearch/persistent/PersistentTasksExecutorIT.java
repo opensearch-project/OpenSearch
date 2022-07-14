@@ -95,21 +95,13 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         persistentTasksService.sendStartRequest(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         long allocationId = future.get().getAllocationId();
-        assertBusy(
-            () -> {
-                // Wait for the task to start
-                assertThat(
-                    client().admin()
-                        .cluster()
-                        .prepareListTasks()
-                        .setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                        .get()
-                        .getTasks()
-                        .size(),
-                    equalTo(1)
-                );
-            }
-        );
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                equalTo(1)
+            );
+        });
         TaskInfo firstRunningTask = client().admin()
             .cluster()
             .prepareListTasks()
@@ -130,15 +122,13 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("Waiting for persistent task with id {} to disappear", firstRunningTask.getId());
-        assertBusy(
-            () -> {
-                // Wait for the task to disappear completely
-                assertThat(
-                    client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks(),
-                    empty()
-                );
-            }
-        );
+        assertBusy(() -> {
+            // Wait for the task to disappear completely
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks(),
+                empty()
+            );
+        });
     }
 
     public void testPersistentActionCompletion() throws Exception {
@@ -147,21 +137,13 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
         String taskId = UUIDs.base64UUID();
         persistentTasksService.sendStartRequest(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         long allocationId = future.get().getAllocationId();
-        assertBusy(
-            () -> {
-                // Wait for the task to start
-                assertThat(
-                    client().admin()
-                        .cluster()
-                        .prepareListTasks()
-                        .setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                        .get()
-                        .getTasks()
-                        .size(),
-                    equalTo(1)
-                );
-            }
-        );
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                equalTo(1)
+            );
+        });
         TaskInfo firstRunningTask = client().admin()
             .cluster()
             .prepareListTasks()
@@ -225,15 +207,13 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
 
         internalCluster().stopRandomNode(settings -> "test".equals(settings.get("node.attr.test_attr")));
 
-        assertBusy(
-            () -> {
-                // Wait for the task to disappear completely
-                assertThat(
-                    client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks(),
-                    empty()
-                );
-            }
-        );
+        assertBusy(() -> {
+            // Wait for the task to disappear completely
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks(),
+                empty()
+            );
+        });
 
         // Remove the persistent task
         PlainActionFuture<PersistentTask<?>> removeFuture = new PlainActionFuture<>();
@@ -368,21 +348,13 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
         persistentTasksService.sendStartRequest(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future2);
         assertFutureThrows(future2, ResourceAlreadyExistsException.class);
 
-        assertBusy(
-            () -> {
-                // Wait for the task to start
-                assertThat(
-                    client().admin()
-                        .cluster()
-                        .prepareListTasks()
-                        .setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                        .get()
-                        .getTasks()
-                        .size(),
-                    equalTo(1)
-                );
-            }
-        );
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                equalTo(1)
+            );
+        });
 
         TaskInfo firstRunningTask = client().admin()
             .cluster()
@@ -400,15 +372,13 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("Waiting for persistent task with id {} to disappear", firstRunningTask.getId());
-        assertBusy(
-            () -> {
-                // Wait for the task to disappear completely
-                assertThat(
-                    client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks(),
-                    empty()
-                );
-            }
-        );
+        assertBusy(() -> {
+            // Wait for the task to disappear completely
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks(),
+                empty()
+            );
+        });
     }
 
     public void testUnassignRunningPersistentTask() throws Exception {
@@ -489,21 +459,13 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
     }
 
     private static void waitForTaskToStart() throws Exception {
-        assertBusy(
-            () -> {
-                // Wait for the task to start
-                assertThat(
-                    client().admin()
-                        .cluster()
-                        .prepareListTasks()
-                        .setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                        .get()
-                        .getTasks()
-                        .size(),
-                    equalTo(1)
-                );
-            }
-        );
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                equalTo(1)
+            );
+        });
     }
 
     private static void assertClusterStateHasTask(String taskId) {

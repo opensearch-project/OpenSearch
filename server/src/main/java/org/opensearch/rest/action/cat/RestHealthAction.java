@@ -88,7 +88,12 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell("status", "alias:st;desc:health status");
         t.addCell("node.total", "alias:nt,nodeTotal;text-align:right;desc:total number of nodes");
         t.addCell("node.data", "alias:nd,nodeData;text-align:right;desc:number of nodes that can store data");
-        t.addCell("discovered_master", "alias:dm;text-align:right;desc:discovered master");
+        // TODO: Remove the header alias 'discovered_master', after removing MASTER_ROLE.
+        // The alias 'discovered_master' is added for compatibility when using request parameter 'h=discovered_master'.
+        t.addCell(
+            "discovered_cluster_manager",
+            "alias:dcm,dm,discovered_master;text-align:right;desc:cluster manager is discovered or not"
+        );
         t.addCell("shards", "alias:t,sh,shards.total,shardsTotal;text-align:right;desc:total number of shards");
         t.addCell("pri", "alias:p,shards.primary,shardsPrimary;text-align:right;desc:number of primary shards");
         t.addCell("relo", "alias:r,shards.relocating,shardsRelocating;text-align:right;desc:number of relocating nodes");

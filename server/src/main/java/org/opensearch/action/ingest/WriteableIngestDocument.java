@@ -66,24 +66,22 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         a -> {
             HashMap<String, Object> sourceAndMetadata = new HashMap<>();
             sourceAndMetadata.put(Metadata.INDEX.getFieldName(), a[0]);
-            sourceAndMetadata.put(Metadata.TYPE.getFieldName(), a[1]);
-            sourceAndMetadata.put(Metadata.ID.getFieldName(), a[2]);
+            sourceAndMetadata.put(Metadata.ID.getFieldName(), a[1]);
+            if (a[2] != null) {
+                sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), a[2]);
+            }
             if (a[3] != null) {
-                sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), a[3]);
+                sourceAndMetadata.put(Metadata.VERSION.getFieldName(), a[3]);
             }
             if (a[4] != null) {
-                sourceAndMetadata.put(Metadata.VERSION.getFieldName(), a[4]);
+                sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
             }
-            if (a[5] != null) {
-                sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[5]);
-            }
-            sourceAndMetadata.putAll((Map<String, Object>) a[6]);
-            return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>) a[7]));
+            sourceAndMetadata.putAll((Map<String, Object>) a[5]);
+            return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>) a[6]));
         }
     );
     static {
         INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(Metadata.INDEX.getFieldName()));
-        INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(Metadata.TYPE.getFieldName()));
         INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(Metadata.ID.getFieldName()));
         INGEST_DOC_PARSER.declareString(optionalConstructorArg(), new ParseField(Metadata.ROUTING.getFieldName()));
         INGEST_DOC_PARSER.declareLong(optionalConstructorArg(), new ParseField(Metadata.VERSION.getFieldName()));

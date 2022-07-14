@@ -31,6 +31,7 @@
 
 package org.opensearch.action;
 
+import org.opensearch.Version;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.support.WriteResponse;
@@ -45,6 +46,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
@@ -66,7 +68,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     private static final String _SHARDS = "_shards";
     private static final String _INDEX = "_index";
-    private static final String _TYPE = "_type";
     private static final String _ID = "_id";
     private static final String _VERSION = "_version";
     private static final String _SEQ_NO = "_seq_no";
@@ -127,16 +128,14 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     private final ShardId shardId;
     private final String id;
-    private final String type;
     private final long version;
     private final long seqNo;
     private final long primaryTerm;
     private boolean forcedRefresh;
     protected final Result result;
 
-    public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
+    public DocWriteResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
         this.shardId = Objects.requireNonNull(shardId);
-        this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
@@ -148,7 +147,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
         super(in);
         this.shardId = shardId;
-        type = in.readString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();
@@ -164,7 +166,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected DocWriteResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
-        type = in.readString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();
@@ -192,16 +197,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      */
     public ShardId getShardId() {
         return this.shardId;
-    }
-
-    /**
-     * The type of the document changed.
-     *
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String getType() {
-        return this.type;
     }
 
     /**
@@ -270,7 +265,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         try {
             // encode the path components separately otherwise the path separators will be encoded
             encodedIndex = URLEncoder.encode(getIndex(), "UTF-8");
-            encodedType = URLEncoder.encode(getType(), "UTF-8");
+            encodedType = URLEncoder.encode(MapperService.SINGLE_MAPPING_NAME, "UTF-8");
             encodedId = URLEncoder.encode(getId(), "UTF-8");
             encodedRouting = routing == null ? null : URLEncoder.encode(routing, "UTF-8");
         } catch (final UnsupportedEncodingException e) {
@@ -308,7 +303,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     private void writeWithoutShardId(StreamOutput out) throws IOException {
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeZLong(version);
         out.writeZLong(seqNo);
@@ -328,7 +325,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field(_INDEX, shardId.getIndexName());
-        builder.field(_TYPE, type);
         builder.field(_ID, id).field(_VERSION, version).field(RESULT, getResult().getLowercase());
         if (forcedRefresh) {
             builder.field(FORCED_REFRESH, true);
@@ -359,8 +355,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             if (_INDEX.equals(currentFieldName)) {
                 // index uuid and shard id are unknown and can't be parsed back for now.
                 context.setShardId(new ShardId(new Index(parser.text(), IndexMetadata.INDEX_UUID_NA_VALUE), -1));
-            } else if (_TYPE.equals(currentFieldName)) {
-                context.setType(parser.text());
             } else if (_ID.equals(currentFieldName)) {
                 context.setId(parser.text());
             } else if (_VERSION.equals(currentFieldName)) {
@@ -399,7 +393,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public abstract static class Builder {
 
         protected ShardId shardId = null;
-        protected String type = null;
         protected String id = null;
         protected Long version = null;
         protected Result result = null;
@@ -414,14 +407,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
         public void setShardId(ShardId shardId) {
             this.shardId = shardId;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public void setType(String type) {
-            this.type = type;
         }
 
         public String getId() {

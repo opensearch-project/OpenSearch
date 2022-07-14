@@ -77,7 +77,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithNoContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -90,7 +89,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
@@ -100,7 +98,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type1",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -130,7 +127,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithSimpleContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -143,7 +139,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
@@ -153,7 +148,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type1",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -178,7 +172,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithSimpleNumberContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -191,7 +184,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
@@ -201,7 +193,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type1",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -226,7 +217,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithSimpleBooleanContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -239,7 +229,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
@@ -249,7 +238,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type1",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -274,7 +262,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithSimpleNULLContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -284,7 +271,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -307,7 +293,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "type1", "1", BytesReference.bytes(builder), XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals(
             "contexts must be a string, number or boolean or a list of string, number or boolean, but was [VALUE_NULL]",
@@ -318,7 +304,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithContextList() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -331,7 +316,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
@@ -341,7 +325,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type1",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -364,7 +347,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithMixedTypeContextList() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -377,7 +359,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
@@ -387,7 +368,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type1",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -410,7 +390,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithMixedTypeContextListHavingNULL() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -420,7 +399,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -441,7 +419,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "type1", "1", BytesReference.bytes(builder), XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals("context array must have string, number or boolean values, but was [VALUE_NULL]", e.getCause().getMessage());
     }
@@ -449,7 +427,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithMultipleContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -463,7 +440,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -486,7 +462,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse(
-            new SourceToParse("test", "type1", "1", BytesReference.bytes(builder), XContentType.JSON)
+            new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON)
         );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
@@ -804,7 +780,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testUnknownQueryContextParsing() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("completion")
             .field("type", "completion")
@@ -818,7 +793,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .field("type", "category")
             .endObject()
             .endArray()
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

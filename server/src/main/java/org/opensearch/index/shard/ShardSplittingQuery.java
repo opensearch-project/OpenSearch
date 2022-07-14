@@ -45,6 +45,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -257,13 +258,10 @@ final class ShardSplittingQuery extends Query {
         }
 
         @Override
-        public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
-            spare.bytes = value;
-            spare.offset = 0;
-            spare.length = value.length;
+        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
             switch (fieldInfo.name) {
                 case RoutingFieldMapper.NAME:
-                    routing = spare.utf8ToString();
+                    routing = value;
                     break;
                 default:
                     throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
@@ -358,7 +356,7 @@ final class ShardSplittingQuery extends Query {
      */
     private static BitSetProducer newParentDocBitSetProducer(Version indexVersionCreated) {
         return context -> {
-            Query query = Queries.newNonNestedFilter(indexVersionCreated);
+            Query query = Queries.newNonNestedFilter();
             final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
             final IndexSearcher searcher = new IndexSearcher(topLevelContext);
             searcher.setQueryCache(null);
@@ -366,5 +364,10 @@ final class ShardSplittingQuery extends Query {
             Scorer s = weight.scorer(context);
             return s == null ? null : BitSet.of(s.iterator(), context.reader().maxDoc());
         };
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        visitor.visitLeaf(this);
     }
 }

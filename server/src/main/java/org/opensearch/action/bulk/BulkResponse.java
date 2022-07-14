@@ -129,8 +129,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                     .append(i)
                     .append("]: index [")
                     .append(response.getIndex())
-                    .append("], type [")
-                    .append(response.getType())
                     .append("], id [")
                     .append(response.getId())
                     .append("], message [")

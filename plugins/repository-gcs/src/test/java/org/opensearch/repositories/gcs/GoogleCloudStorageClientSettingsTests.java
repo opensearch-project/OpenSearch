@@ -38,9 +38,13 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -92,6 +96,7 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             assertEquals(expectedClientSettings.getConnectTimeout(), actualClientSettings.getConnectTimeout());
             assertEquals(expectedClientSettings.getReadTimeout(), actualClientSettings.getReadTimeout());
             assertEquals(expectedClientSettings.getApplicationName(), actualClientSettings.getApplicationName());
+            assertEquals(ProxySettings.NO_PROXY_SETTINGS, actualClientSettings.getProxySettings());
         }
 
         if (deprecationWarnings.isEmpty() == false) {
@@ -118,9 +123,129 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
-            new URI("")
+            new URI(""),
+            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null)
         );
         assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
+    }
+
+    public void testHttpProxySettings() throws Exception {
+        final int port = randomIntBetween(10, 1080);
+        final String userName = randomAlphaOfLength(10);
+        final String password = randomAlphaOfLength(10);
+        final GoogleCloudStorageClientSettings gcsWithHttpProxyWithoutUserPwd = proxyGoogleCloudStorageClientSettings(
+            new ProxySettings(Proxy.Type.HTTP, InetAddress.getByName("127.0.0.10"), port, null, null)
+        );
+
+        assertEquals(Proxy.Type.HTTP, gcsWithHttpProxyWithoutUserPwd.getProxySettings().getType());
+        assertEquals(
+            new InetSocketAddress(InetAddress.getByName("127.0.0.10"), port),
+            gcsWithHttpProxyWithoutUserPwd.getProxySettings().getAddress()
+        );
+        assertNull(gcsWithHttpProxyWithoutUserPwd.getProxySettings().getUsername());
+        assertNull(gcsWithHttpProxyWithoutUserPwd.getProxySettings().getPassword());
+        assertFalse(gcsWithHttpProxyWithoutUserPwd.getProxySettings().isAuthenticated());
+
+        final GoogleCloudStorageClientSettings gcsWithHttpProxyWithUserPwd = proxyGoogleCloudStorageClientSettings(
+            new ProxySettings(Proxy.Type.HTTP, InetAddress.getByName("127.0.0.10"), port, userName, password)
+        );
+
+        assertEquals(Proxy.Type.HTTP, gcsWithHttpProxyWithoutUserPwd.getProxySettings().getType());
+        assertEquals(
+            new InetSocketAddress(InetAddress.getByName("127.0.0.10"), port),
+            gcsWithHttpProxyWithUserPwd.getProxySettings().getAddress()
+        );
+        assertTrue(gcsWithHttpProxyWithUserPwd.getProxySettings().isAuthenticated());
+        assertEquals(userName, gcsWithHttpProxyWithUserPwd.getProxySettings().getUsername());
+        assertEquals(password, gcsWithHttpProxyWithUserPwd.getProxySettings().getPassword());
+    }
+
+    public void testSocksProxySettings() throws Exception {
+        final int port = randomIntBetween(10, 1080);
+        final String userName = randomAlphaOfLength(10);
+        final String password = randomAlphaOfLength(10);
+        final GoogleCloudStorageClientSettings gcsWithHttpProxyWithoutUserPwd = proxyGoogleCloudStorageClientSettings(
+            new ProxySettings(Proxy.Type.SOCKS, InetAddress.getByName("127.0.0.10"), port, null, null)
+        );
+
+        assertEquals(Proxy.Type.SOCKS, gcsWithHttpProxyWithoutUserPwd.getProxySettings().getType());
+        assertEquals(
+            new InetSocketAddress(InetAddress.getByName("127.0.0.10"), port),
+            gcsWithHttpProxyWithoutUserPwd.getProxySettings().getAddress()
+        );
+        assertFalse(gcsWithHttpProxyWithoutUserPwd.getProxySettings().isAuthenticated());
+        assertNull(gcsWithHttpProxyWithoutUserPwd.getProxySettings().getUsername());
+        assertNull(gcsWithHttpProxyWithoutUserPwd.getProxySettings().getPassword());
+
+        final GoogleCloudStorageClientSettings gcsWithHttpProxyWithUserPwd = proxyGoogleCloudStorageClientSettings(
+            new ProxySettings(Proxy.Type.SOCKS, InetAddress.getByName("127.0.0.10"), port, userName, password)
+        );
+
+        assertEquals(Proxy.Type.SOCKS, gcsWithHttpProxyWithoutUserPwd.getProxySettings().getType());
+        assertEquals(
+            new InetSocketAddress(InetAddress.getByName("127.0.0.10"), port),
+            gcsWithHttpProxyWithUserPwd.getProxySettings().getAddress()
+        );
+        assertTrue(gcsWithHttpProxyWithUserPwd.getProxySettings().isAuthenticated());
+        assertEquals(userName, gcsWithHttpProxyWithUserPwd.getProxySettings().getUsername());
+        assertEquals(password, gcsWithHttpProxyWithUserPwd.getProxySettings().getPassword());
+    }
+
+    public void testProxyWrongHost() {
+        final Settings settings = Settings.builder()
+            .put("gcs.client.default.proxy.type", randomFrom("socks", "http"))
+            .put("gcs.client.default.proxy.host", "thisisnotavalidhostorwehavebeensuperunlucky")
+            .put("gcs.client.default.proxy.port", 8080)
+            .build();
+        final SettingsException e = expectThrows(SettingsException.class, () -> GoogleCloudStorageClientSettings.load(settings));
+        assertEquals("Google Cloud Storage proxy host is unknown.", e.getMessage());
+    }
+
+    public void testProxyTypeNotSet() {
+        final Settings hostPortSettings = Settings.builder()
+            .put("gcs.client.default.proxy.host", "127.0.0.1")
+            .put("gcs.client.default.proxy.port", 8080)
+            .build();
+
+        SettingsException e = expectThrows(SettingsException.class, () -> GoogleCloudStorageClientSettings.load(hostPortSettings));
+        assertEquals(
+            "Google Cloud Storage proxy port or host or username or password have been set but proxy type is not defined.",
+            e.getMessage()
+        );
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("gcs.client.default.proxy.username", "aaaa");
+        secureSettings.setString("gcs.client.default.proxy.password", "bbbb");
+        final Settings usernamePasswordSettings = Settings.builder().setSecureSettings(secureSettings).build();
+
+        e = expectThrows(SettingsException.class, () -> GoogleCloudStorageClientSettings.load(usernamePasswordSettings));
+        assertEquals(
+            "Google Cloud Storage proxy port or host or username or password have been set but proxy type is not defined.",
+            e.getMessage()
+        );
+    }
+
+    public void testProxyHostNotSet() {
+        final Settings settings = Settings.builder()
+            .put("gcs.client.default.proxy.port", 8080)
+            .put("gcs.client.default.proxy.type", randomFrom("socks", "http"))
+            .build();
+        final SettingsException e = expectThrows(SettingsException.class, () -> GoogleCloudStorageClientSettings.load(settings));
+        assertEquals("Google Cloud Storage proxy type has been set but proxy host or port is not defined.", e.getMessage());
+    }
+
+    private GoogleCloudStorageClientSettings proxyGoogleCloudStorageClientSettings(final ProxySettings proxySettings) throws Exception {
+        final String clientName = randomAlphaOfLength(5);
+        return new GoogleCloudStorageClientSettings(
+            randomCredential(clientName).v1(),
+            ENDPOINT_SETTING.getDefault(Settings.EMPTY),
+            PROJECT_ID_SETTING.getDefault(Settings.EMPTY),
+            CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
+            READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
+            APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
+            new URI(""),
+            proxySettings
+        );
     }
 
     /** Generates a given number of GoogleCloudStorageClientSettings along with the Settings to build them from **/
@@ -216,7 +341,8 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             connectTimeout,
             readTimeout,
             applicationName,
-            new URI("")
+            new URI(""),
+            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null)
         );
     }
 

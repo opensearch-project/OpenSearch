@@ -68,7 +68,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiSearchAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in multi search requests is deprecated.";
 
     private static final Set<String> RESPONSE_PARAMS;
 
@@ -92,10 +91,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 new Route(GET, "/_msearch"),
                 new Route(POST, "/_msearch"),
                 new Route(GET, "/{index}/_msearch"),
-                new Route(POST, "/{index}/_msearch"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_msearch"),
-                new Route(POST, "/{index}/{type}/_msearch")
+                new Route(POST, "/{index}/_msearch")
             )
         );
     }
@@ -108,13 +104,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final MultiSearchRequest multiSearchRequest = parseRequest(request, client.getNamedWriteableRegistry(), allowExplicitIndex);
-        // Emit a single deprecation message if any search request contains types.
-        for (SearchRequest searchRequest : multiSearchRequest.requests()) {
-            if (searchRequest.types().length > 0) {
-                deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
-                break;
-            }
-        }
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestToXContentListener<>(channel));
@@ -192,7 +181,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
     ) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         String searchType = request.param("search_type");
         boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", true);
         String routing = request.param("routing");
@@ -206,7 +194,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
             consumer,
             indices,
             indicesOptions,
-            types,
             routing,
             searchType,
             ccsMinimizeRoundtrips,

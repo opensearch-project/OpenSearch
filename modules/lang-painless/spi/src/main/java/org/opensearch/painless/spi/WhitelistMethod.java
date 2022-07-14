@@ -40,7 +40,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Method represents the equivalent of a Java method available as a whitelisted class method
+ * Method represents the equivalent of a Java method available as an allowlisted class method
  * within Painless. Methods for Painless classes may be accessed exactly as methods for Java classes
  * are using the '.' operator on an existing class variable/field. Painless classes may have multiple
  * methods with the same name as long as they comply with arity overloading described in
@@ -50,11 +50,11 @@ import java.util.stream.Collectors;
  * these are known as augmented methods. An augmented method can be added to a class as a part of any
  * Java class as long as the method is static and the first parameter of the method is the Java class
  * represented by the class. Note that the augmented method's parent Java class does not need to be
- * whitelisted.
+ * allowlisted.
  */
 public class WhitelistMethod {
 
-    /** Information about where this method was whitelisted from. */
+    /** Information about where this method was allowlisted from. */
     public final String origin;
 
     /**

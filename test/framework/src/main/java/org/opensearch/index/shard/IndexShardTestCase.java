@@ -32,6 +32,7 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -52,6 +53,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -113,10 +115,10 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -277,7 +279,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata.Builder metadata = IndexMetadata.builder(shardRouting.getIndexName())
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("_doc", "{ \"properties\": {} }");
+            .putMapping("{ \"properties\": {} }");
         return newShard(shardRouting, metadata.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
@@ -866,7 +868,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
         final Engine engine = shard.getEngineOrNull();
         if (engine != null) {
-            EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, shard.mapperService());
+            EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
         }
     }
 
@@ -875,25 +877,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
-        return indexDoc(shard, type, id, source, XContentType.JSON, null);
+        return indexDoc(shard, id, source, XContentType.JSON, null);
     }
 
-    protected Engine.IndexResult indexDoc(
-        IndexShard shard,
-        String type,
-        String id,
-        String source,
-        XContentType xContentType,
-        String routing
-    ) throws IOException {
-        SourceToParse sourceToParse = new SourceToParse(
-            shard.shardId().getIndexName(),
-            type,
-            id,
-            new BytesArray(source),
-            xContentType,
-            routing
-        );
+    protected Engine.IndexResult indexDoc(IndexShard shard, String id, String source, XContentType xContentType, String routing)
+        throws IOException {
+        SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing);
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(
@@ -909,7 +898,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 updateMappings(
                     shard,
                     IndexMetadata.builder(shard.indexSettings().getIndexMetadata())
-                        .putMapping(type, result.getRequiredMappingUpdate().toString())
+                        .putMapping(result.getRequiredMappingUpdate().toString())
                         .build()
                 );
                 result = shard.applyIndexOperationOnPrimary(
@@ -954,12 +943,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             );
     }
 
-    protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {
+    protected Engine.DeleteResult deleteDoc(IndexShard shard, String id) throws IOException {
         final Engine.DeleteResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyDeleteOperationOnPrimary(
                 Versions.MATCH_ANY,
-                type,
                 id,
                 VersionType.INTERNAL,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -970,7 +958,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
-            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, type, id);
+            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id);
             shard.sync(); // advance local checkpoint
         }
         return result;
@@ -1030,13 +1018,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         );
         final PlainActionFuture<String> future = PlainActionFuture.newFuture();
         final String shardGen;
-        try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
+        try (GatedCloseable<IndexCommit> wrappedIndexCommit = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(
                 shard.store(),
                 shard.mapperService(),
                 snapshot.getSnapshotId(),
                 indexId,
-                indexCommitRef.getIndexCommit(),
+                wrappedIndexCommit.get(),
                 null,
                 snapshotStatus,
                 Version.CURRENT,

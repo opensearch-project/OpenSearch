@@ -35,7 +35,6 @@ package org.opensearch.action.bulk;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -50,7 +49,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
         BytesArray request = new BytesArray("{ \"index\":{ \"_id\": \"bar\" } }\n{}\n");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
         final AtomicBoolean parsed = new AtomicBoolean();
-        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, indexRequest -> {
+        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, (indexRequest, type) -> {
             assertFalse(parsed.get());
             assertEquals("foo", indexRequest.index());
             assertEquals("bar", indexRequest.id());
@@ -68,7 +67,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
             true,
             false,
             XContentType.JSON,
-            indexRequest -> { assertTrue(indexRequest.isRequireAlias()); },
+            (indexRequest, type) -> { assertTrue(indexRequest.isRequireAlias()); },
             req -> fail(),
             req -> fail()
         );
@@ -83,7 +82,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
             null,
             false,
             XContentType.JSON,
-            indexRequest -> { assertTrue(indexRequest.isRequireAlias()); },
+            (indexRequest, type) -> { assertTrue(indexRequest.isRequireAlias()); },
             req -> fail(),
             req -> fail()
         );
@@ -98,7 +97,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
             true,
             false,
             XContentType.JSON,
-            indexRequest -> { assertFalse(indexRequest.isRequireAlias()); },
+            (indexRequest, type) -> { assertFalse(indexRequest.isRequireAlias()); },
             req -> fail(),
             req -> fail()
         );
@@ -108,12 +107,24 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
         BytesArray request = new BytesArray("{ \"delete\":{ \"_id\": \"bar\" } }\n");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
         final AtomicBoolean parsed = new AtomicBoolean();
-        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, req -> fail(), req -> fail(), deleteRequest -> {
-            assertFalse(parsed.get());
-            assertEquals("foo", deleteRequest.index());
-            assertEquals("bar", deleteRequest.id());
-            parsed.set(true);
-        });
+        parser.parse(
+            request,
+            "foo",
+            null,
+            null,
+            null,
+            null,
+            false,
+            XContentType.JSON,
+            (req, type) -> fail(),
+            req -> fail(),
+            deleteRequest -> {
+                assertFalse(parsed.get());
+                assertEquals("foo", deleteRequest.index());
+                assertEquals("bar", deleteRequest.id());
+                parsed.set(true);
+            }
+        );
         assertTrue(parsed.get());
     }
 
@@ -121,7 +132,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
         BytesArray request = new BytesArray("{ \"update\":{ \"_id\": \"bar\" } }\n{}\n");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
         final AtomicBoolean parsed = new AtomicBoolean();
-        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, req -> fail(), updateRequest -> {
+        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, (req, type) -> fail(), updateRequest -> {
             assertFalse(parsed.get());
             assertEquals("foo", updateRequest.index());
             assertEquals("bar", updateRequest.id());
@@ -139,7 +150,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
             true,
             false,
             XContentType.JSON,
-            req -> fail(),
+            (req, type) -> fail(),
             updateRequest -> { assertTrue(updateRequest.isRequireAlias()); },
             req -> fail()
         );
@@ -154,7 +165,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
             null,
             false,
             XContentType.JSON,
-            req -> fail(),
+            (req, type) -> fail(),
             updateRequest -> { assertTrue(updateRequest.isRequireAlias()); },
             req -> fail()
         );
@@ -169,7 +180,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
             true,
             false,
             XContentType.JSON,
-            req -> fail(),
+            (req, type) -> fail(),
             updateRequest -> { assertFalse(updateRequest.isRequireAlias()); },
             req -> fail()
         );
@@ -189,7 +200,7 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
                 null,
                 false,
                 XContentType.JSON,
-                indexRequest -> fail(),
+                (indexRequest, type) -> fail(),
                 req -> fail(),
                 req -> fail()
             )
@@ -203,24 +214,34 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> parser.parse(request, null, null, null, null, null, false, XContentType.JSON, req -> fail(), req -> fail(), req -> fail())
+            () -> parser.parse(
+                request,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                XContentType.JSON,
+                (req, type) -> fail(),
+                req -> fail(),
+                req -> fail()
+            )
         );
         assertEquals("explicit index in bulk is not allowed", ex.getMessage());
     }
 
-    public void testTypeWarning() throws IOException {
+    public void testTypesStillParsedForBulkMonitoring() throws IOException {
         BytesArray request = new BytesArray("{ \"index\":{ \"_type\": \"quux\", \"_id\": \"bar\" } }\n{}\n");
-        BulkRequestParser parser = new BulkRequestParser(true);
+        BulkRequestParser parser = new BulkRequestParser(false);
         final AtomicBoolean parsed = new AtomicBoolean();
-        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, indexRequest -> {
+        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, (indexRequest, type) -> {
             assertFalse(parsed.get());
             assertEquals("foo", indexRequest.index());
             assertEquals("bar", indexRequest.id());
             parsed.set(true);
         }, req -> fail(), req -> fail());
         assertTrue(parsed.get());
-
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testParseDeduplicatesParameterStrings() throws IOException {
@@ -230,7 +251,19 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
         );
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
         final List<IndexRequest> indexRequests = new ArrayList<>();
-        parser.parse(request, null, null, null, null, null, true, XContentType.JSON, indexRequests::add, req -> fail(), req -> fail());
+        parser.parse(
+            request,
+            null,
+            null,
+            null,
+            null,
+            null,
+            true,
+            XContentType.JSON,
+            (indexRequest, type) -> indexRequests.add(indexRequest),
+            req -> fail(),
+            req -> fail()
+        );
         assertThat(indexRequests, Matchers.hasSize(2));
         final IndexRequest first = indexRequests.get(0);
         final IndexRequest second = indexRequests.get(1);

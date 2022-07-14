@@ -128,4 +128,14 @@ public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
             assertNotEquals(buildInRole.toString(), unknownDataRole.toString());
         }
     }
+
+    /**
+     * Validate the method can identify the role as cluster-manager.
+     * Remove along with MASTER_ROLE.
+     */
+    public void testIsClusterManager() {
+        assertTrue(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.isClusterManager());
+        assertTrue(DiscoveryNodeRole.MASTER_ROLE.isClusterManager());
+        assertFalse(randomFrom(DiscoveryNodeRole.DATA_ROLE.isClusterManager(), DiscoveryNodeRole.INGEST_ROLE.isClusterManager()));
+    }
 }

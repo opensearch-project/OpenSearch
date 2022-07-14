@@ -76,7 +76,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/dynamictemplate/simple/test-mapping.json");
-        MapperService mapperService = createMapperService("person", mapping);
+        MapperService mapperService = createMapperService("_doc", mapping);
         String docJson = copyToStringFromClasspath("/org/opensearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
 
@@ -131,7 +131,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
     public void testSimpleWithXContentTraverse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/dynamictemplate/simple/test-mapping.json");
-        MapperService mapperService = createMapperService("person", mapping);
+        MapperService mapperService = createMapperService("_doc", mapping);
         String docJson = copyToStringFromClasspath("/org/opensearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
 

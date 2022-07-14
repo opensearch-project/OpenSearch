@@ -78,27 +78,25 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         assertEquals("/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("a");
-        searchRequest.types("b");
-        assertEquals("/a/b/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        assertEquals("/a/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("a", "b");
-        searchRequest.types("c", "d");
-        assertEquals("/a,b/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        assertEquals("/a,b/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat,");
-        assertEquals("/cat%2C/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        assertEquals("/cat%2C/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat/");
-        assertEquals("/cat%2F/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        assertEquals("/cat%2F/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat/", "dog");
-        assertEquals("/cat%2F,dog/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        assertEquals("/cat%2F,dog/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         // test a specific date math + all characters that need escaping.
         searchRequest.indices("<cat{now/d}>", "<>/{}|+:,");
         assertEquals(
-            "/%3Ccat%7Bnow%2Fd%7D%3E,%3C%3E%2F%7B%7D%7C%2B%3A%2C/c,d/_search",
+            "/%3Ccat%7Bnow%2Fd%7D%3E,%3C%3E%2F%7B%7D%7C%2B%3A%2C/_search",
             initialSearch(searchRequest, query, remoteVersion).getEndpoint()
         );
 
         // pass-through if already escaped.
         searchRequest.indices("%2f", "%3a");
-        assertEquals("/%2f,%3a/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        assertEquals("/%2f,%3a/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
 
         assertWarnings(DEPRECATED_URL_ENCODED_INDEX_WARNING);
 
@@ -107,20 +105,6 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         expectBadStartRequest(searchRequest, "Index", ",", "%2fcat,");
         searchRequest.indices("%3ccat/");
         expectBadStartRequest(searchRequest, "Index", "/", "%3ccat/");
-
-        searchRequest.indices("ok");
-        searchRequest.types("cat,");
-        expectBadStartRequest(searchRequest, "Type", ",", "cat,");
-        searchRequest.types("cat,", "dog");
-        expectBadStartRequest(searchRequest, "Type", ",", "cat,");
-        searchRequest.types("dog", "cat,");
-        expectBadStartRequest(searchRequest, "Type", ",", "cat,");
-        searchRequest.types("cat/");
-        expectBadStartRequest(searchRequest, "Type", "/", "cat/");
-        searchRequest.types("cat/", "dog");
-        expectBadStartRequest(searchRequest, "Type", "/", "cat/");
-        searchRequest.types("dog", "cat/");
-        expectBadStartRequest(searchRequest, "Type", "/", "cat/");
     }
 
     private void expectBadStartRequest(SearchRequest searchRequest, String type, String bad, String failed) {

@@ -79,14 +79,6 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
     }
 
     /**
-     * Set the destination index and type.
-     */
-    public ReindexRequestBuilder destination(String index, String type) {
-        destination.setIndex(index).setType(type);
-        return this;
-    }
-
-    /**
      * Setup reindexing from a remote cluster.
      */
     public ReindexRequestBuilder setRemoteInfo(RemoteInfo remoteInfo) {

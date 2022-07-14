@@ -35,7 +35,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -209,14 +209,10 @@ public class QueryShardContextTests extends OpenSearchTestCase {
     }
 
     public void testFielddataLookupSelfReference() {
-        QueryShardContext queryShardContext = createQueryShardContext(
-            "uuid",
-            null,
-            (field, leafLookup, docId) -> {
-                // simulate a runtime field that depends on itself e.g. field: doc['field']
-                return leafLookup.doc().get(field).toString();
-            }
-        );
+        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
+            // simulate a runtime field that depends on itself e.g. field: doc['field']
+            return leafLookup.doc().get(field).toString();
+        });
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("field", queryShardContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: field -> field", iae.getMessage());
     }

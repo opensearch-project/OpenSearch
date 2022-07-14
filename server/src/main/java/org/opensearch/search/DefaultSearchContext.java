@@ -55,7 +55,6 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryBuilder;
@@ -177,7 +176,8 @@ final class DefaultSearchContext extends SearchContext {
         TimeValue timeout,
         FetchPhase fetchPhase,
         boolean lowLevelCancellation,
-        Version minNodeVersion
+        Version minNodeVersion,
+        boolean validate
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -207,9 +207,9 @@ final class DefaultSearchContext extends SearchContext {
             request.shardId().id(),
             this.searcher,
             request::nowInMillis,
-            shardTarget.getClusterAlias()
+            shardTarget.getClusterAlias(),
+            validate
         );
-        queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
     }
@@ -321,15 +321,10 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
-        Query typeFilter = createTypeFilter(queryShardContext.getTypes());
-        if (typeFilter != null) {
-            filters.add(typeFilter);
-        }
-
         if (mapperService().hasNested()
             && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
             && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
-            filters.add(Queries.newNonNestedFilter(mapperService().getIndexSettings().getIndexVersionCreated()));
+            filters.add(Queries.newNonNestedFilter());
         }
 
         if (aliasFilter != null) {
@@ -355,17 +350,6 @@ final class DefaultSearchContext extends SearchContext {
             }
             return builder.build();
         }
-    }
-
-    private Query createTypeFilter(String[] types) {
-        if (types != null && types.length >= 1) {
-            if (mapperService().documentMapper() == null) {
-                return null;
-            }
-            TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType(mapperService().documentMapper().type());
-            return ft.typeFilter(types);
-        }
-        return null;
     }
 
     @Override

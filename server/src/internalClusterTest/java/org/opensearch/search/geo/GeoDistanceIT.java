@@ -124,17 +124,17 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
     }
 
     public void testDistanceScript() throws Exception {
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")
@@ -202,7 +202,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
     }
 
     public void testGeoDistanceAggregation() throws IOException {
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")
@@ -220,7 +221,6 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         String name = "TestPosition";
 
         search.setQuery(QueryBuilders.matchAllQuery())
-            .setTypes("type1")
             .addAggregation(
                 AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
                     .field("location")

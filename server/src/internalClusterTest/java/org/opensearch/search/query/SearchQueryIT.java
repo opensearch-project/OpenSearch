@@ -32,20 +32,19 @@
 
 package org.opensearch.search.query;
 
-import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.AttributeSource;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.bootstrap.JavaVersion;
-import org.opensearch.common.Strings;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.opensearch.common.regex.Regex;
@@ -124,7 +123,6 @@ import static org.opensearch.index.query.QueryBuilders.spanTermQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.QueryBuilders.termsLookupQuery;
 import static org.opensearch.index.query.QueryBuilders.termsQuery;
-import static org.opensearch.index.query.QueryBuilders.typeQuery;
 import static org.opensearch.index.query.QueryBuilders.wildcardQuery;
 import static org.opensearch.index.query.QueryBuilders.wrapperQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -165,9 +163,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         createIndex("test");
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
-            client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
-            client().prepareIndex("test", "type1", "3").setSource("field1", "quick")
+            client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox jumps"),
+            client().prepareIndex("test").setId("2").setSource("field1", "quick brown"),
+            client().prepareIndex("test").setId("3").setSource("field1", "quick")
         );
 
         assertHitCount(client().prepareSearch().setQuery(queryStringQuery("quick")).get(), 3L);
@@ -177,9 +175,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     // see https://github.com/elastic/elasticsearch/issues/3177
     public void testIssue3177() {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value2").get();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "value3").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
+        client().prepareIndex("test").setId("3").setSource("field1", "value3").get();
         ensureGreen();
         waitForRelocation();
         forceMerge();
@@ -213,12 +211,11 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testIndexOptions() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=text,index_options=docs"));
+        assertAcked(prepareCreate("test").setMapping("field1", "type=text,index_options=docs"));
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
-            client().prepareIndex("test", "type1", "2")
-                .setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox")
+            client().prepareIndex("test").setId("1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
+            client().prepareIndex("test").setId("2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox")
         );
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchPhraseQuery("field2", "quick brown").slop(0)).get();
@@ -237,9 +234,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         createIndex("test");
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
-            client().prepareIndex("test", "type1", "2")
-                .setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox")
+            client().prepareIndex("test").setId("1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
+            client().prepareIndex("test").setId("2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox")
         );
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("field1", "quick"))).get();
@@ -281,7 +277,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         int num = scaledRandomIntBetween(100, 200);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[num];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test_1", "type", "" + i).setSource("f", English.intToEnglish(i));
+            builders[i] = client().prepareIndex("test_1").setId("" + i).setSource("f", English.intToEnglish(i));
         }
         createIndex("test_1");
         indexRandom(true, builders);
@@ -318,8 +314,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         createIndex("test");
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("foo", "bar"),
-            client().prepareIndex("test", "type1", "2").setSource("foo", "bar")
+            client().prepareIndex("test").setId("1").setSource("foo", "bar"),
+            client().prepareIndex("test").setId("2").setSource("foo", "bar")
         );
 
         int iters = scaledRandomIntBetween(100, 200);
@@ -341,15 +337,16 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping("type1", "field1", "type=text,analyzer=whitespace")
+            .setMapping("field1", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
             .get();
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "3")
+            client().prepareIndex("test")
+                .setId("3")
                 .setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
-            client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
-            client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree")
+            client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox"),
+            client().prepareIndex("test").setId("2").setSource("field1", "the quick lazy huge brown fox jumps over the tree")
         );
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -443,7 +440,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testQueryStringAnalyzedWildcard() throws Exception {
         createIndex("test");
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("value*")).get();
@@ -465,7 +462,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testLowercaseExpandedTerms() {
         createIndex("test");
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1")).get();
@@ -482,12 +479,12 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testDateRangeInQueryString() {
         // the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         // as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date", "future", "type=date"));
+        assertAcked(prepareCreate("test").setMapping("past", "type=date", "future", "type=date"));
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minusMonths(1));
         String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plusMonths(1));
-        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+        client().prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
@@ -508,12 +505,12 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testDateRangeInQueryStringWithTimeZone_7880() {
         // the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         // as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date"));
+        assertAcked(prepareCreate("test").setMapping("past", "type=date"));
 
         ZoneId timeZone = randomZone();
         String now = DateFormatter.forPattern("strict_date_optional_time").format(Instant.now().atZone(timeZone));
         logger.info(" --> Using time_zone [{}], now is [{}]", timeZone.getId(), now);
-        client().prepareIndex("test", "type", "1").setSource("past", now).get();
+        client().prepareIndex("test").setId("1").setSource("past", now).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -526,10 +523,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testDateRangeInQueryStringWithTimeZone_10477() {
         // the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         // as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date"));
+        assertAcked(prepareCreate("test").setMapping("past", "type=date"));
 
-        client().prepareIndex("test", "type", "1").setSource("past", "2015-04-05T23:00:00+0000").get();
-        client().prepareIndex("test", "type", "2").setSource("past", "2015-04-06T00:00:00+0000").get();
+        client().prepareIndex("test").setId("1").setSource("past", "2015-04-05T23:00:00+0000").get();
+        client().prepareIndex("test").setId("2").setSource("past", "2015-04-06T00:00:00+0000").get();
         refresh();
 
         // Timezone set with dates
@@ -557,56 +554,29 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
-    public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test"));
-        indexRandom(
-            true,
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
-            client().prepareIndex("test", "type1", "2").setSource("field1", "value1")
-        );
-
-        assertHitCount(client().prepareSearch().setQuery(typeQuery("type1")).get(), 2L);
-        assertHitCount(client().prepareSearch().setQuery(typeQuery("type2")).get(), 0L);
-
-        assertHitCount(client().prepareSearch().setTypes("type1").setQuery(matchAllQuery()).get(), 2L);
-        assertHitCount(client().prepareSearch().setTypes("type2").setQuery(matchAllQuery()).get(), 0L);
-
-        assertHitCount(client().prepareSearch().setTypes("type1", "type2").setQuery(matchAllQuery()).get(), 2L);
-    }
-
     public void testIdsQueryTestsIdIndexed() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test"));
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
-            client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
-            client().prepareIndex("test", "type1", "3").setSource("field1", "value3")
+            client().prepareIndex("test").setId("1").setSource("field1", "value1"),
+            client().prepareIndex("test").setId("2").setSource("field1", "value2"),
+            client().prepareIndex("test").setId("3").setSource("field1", "value3")
         );
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1").addIds("1", "3"))).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().addIds("1", "3"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
-        // no type
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().addIds("1", "3"))).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "3");
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("1", "3")).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "3");
-
-        // no type
         searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "3")).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("7", "10")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("7", "10")).get();
         assertHitCount(searchResponse, 0L);
 
         // repeat..., with terms
-        searchResponse = client().prepareSearch().setTypes("type1").setQuery(constantScoreQuery(termsQuery("_id", "1", "3"))).get();
+        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(termsQuery("_id", "1", "3"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
     }
@@ -616,7 +586,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         for (String indexName : indexNames) {
             assertAcked(client().admin().indices().prepareCreate(indexName));
 
-            indexRandom(true, client().prepareIndex(indexName, "type1", indexName + "1").setSource("field1", "value1"));
+            indexRandom(true, client().prepareIndex(indexName).setId(indexName + "1").setSource("field1", "value1"));
 
         }
 
@@ -650,7 +620,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject("obj1")
@@ -661,7 +632,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                         .field("field2", "value2_1")
                         .endObject()
                 ),
-            client().prepareIndex("test", "type1", "2")
+            client().prepareIndex("test")
+                .setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject("obj1")
@@ -671,7 +643,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                         .field("field1", "value1_2")
                         .endObject()
                 ),
-            client().prepareIndex("test", "type1", "3")
+            client().prepareIndex("test")
+                .setId("3")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject("obj2")
@@ -681,7 +654,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                         .field("field2", "value2_3")
                         .endObject()
                 ),
-            client().prepareIndex("test", "type1", "4")
+            client().prepareIndex("test")
+                .setId("4")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject("obj2")
@@ -727,7 +701,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testPassQueryOrFilterAsJSONString() throws Exception {
         createIndex("test");
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1_1", "field2", "value2_1").setRefreshPolicy(IMMEDIATE).get();
 
         WrapperQueryBuilder wrapper = new WrapperQueryBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
         assertHitCount(client().prepareSearch().setQuery(wrapper).get(), 1L);
@@ -742,7 +716,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testFiltersWithCustomCacheKey() throws Exception {
         createIndex("test");
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))).get();
         assertHitCount(searchResponse, 1L);
@@ -758,13 +732,13 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testMatchQueryNumeric() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "long", "type=long", "double", "type=double"));
+        assertAcked(prepareCreate("test").setMapping("long", "type=long", "double", "type=double"));
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("long", 1L, "double", 1.0d),
-            client().prepareIndex("test", "type1", "2").setSource("long", 2L, "double", 2.0d),
-            client().prepareIndex("test", "type1", "3").setSource("long", 3L, "double", 3.0d)
+            client().prepareIndex("test").setId("1").setSource("long", 1L, "double", 1.0d),
+            client().prepareIndex("test").setId("2").setSource("long", 2L, "double", 2.0d),
+            client().prepareIndex("test").setId("3").setSource("long", 3L, "double", 3.0d)
         );
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("long", "1")).get();
@@ -778,12 +752,12 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testMatchQueryFuzzy() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("_doc", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
 
         indexRandom(
             true,
-            client().prepareIndex("test", "_doc", "1").setSource("text", "Unit"),
-            client().prepareIndex("test", "_doc", "2").setSource("text", "Unity")
+            client().prepareIndex("test").setId("1").setSource("text", "Unit"),
+            client().prepareIndex("test").setId("2").setSource("text", "Unity")
         );
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("0")).get();
@@ -810,9 +784,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value4", "field3", "value3"),
-            client().prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value5", "field3", "value2"),
-            client().prepareIndex("test", "type1", "3").setSource("field1", "value3", "field2", "value6", "field3", "value1")
+            client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value4", "field3", "value3"),
+            client().prepareIndex("test").setId("2").setSource("field1", "value2", "field2", "value5", "field3", "value2"),
+            client().prepareIndex("test").setId("3").setSource("field1", "value3", "field2", "value6", "field3", "value1")
         );
 
         MultiMatchQueryBuilder builder = multiMatchQuery("value1 value2 value4", "field1", "field2");
@@ -854,7 +828,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assertSearchHits(searchResponse, "3", "1");
 
         // Test lenient
-        client().prepareIndex("test", "type1", "3").setSource("field1", "value7", "field2", "value8", "field4", 5).get();
+        client().prepareIndex("test").setId("3").setSource("field1", "value7", "field2", "value8", "field4", 5).get();
         refresh();
 
         builder = multiMatchQuery("value1", "field1", "field2", "field4");
@@ -872,11 +846,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testMatchQueryZeroTermsQuery() {
-        assertAcked(
-            prepareCreate("test").addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic")
-        );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value2").get();
+        assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
         refresh();
 
         BoolQueryBuilder boolQuery = boolQuery().must(matchQuery("field1", "a").zeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE))
@@ -895,11 +867,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testMultiMatchQueryZeroTermsQuery() {
-        assertAcked(
-            prepareCreate("test").addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic")
-        );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value3", "field2", "value4").get();
+        assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "value3", "field2", "value4").get();
         refresh();
 
         BoolQueryBuilder boolQuery = boolQuery().must(
@@ -922,8 +892,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testMultiMatchQueryMinShouldMatch() {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("field1", new String[] { "value1", "value2", "value3" }).get();
-        client().prepareIndex("test", "type1", "2").setSource("field2", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", new String[] { "value1", "value2", "value3" }).get();
+        client().prepareIndex("test").setId("2").setSource("field2", "value1").get();
         refresh();
 
         MultiMatchQueryBuilder multiMatchQuery = multiMatchQuery("value1 value2 foo", "field1", "field2");
@@ -968,8 +938,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testBoolQueryMinShouldMatchBiggerThanNumberOfShouldClauses() throws IOException {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("field1", new String[] { "value1", "value2", "value3" }).get();
-        client().prepareIndex("test", "type1", "2").setSource("field2", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", new String[] { "value1", "value2", "value3" }).get();
+        client().prepareIndex("test").setId("2").setSource("field2", "value1").get();
         refresh();
 
         BoolQueryBuilder boolQuery = boolQuery().must(termQuery("field1", "value1"))
@@ -1000,8 +970,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testFuzzyQueryString() {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("str", "foobar", "date", "2012-02-01", "num", 12).get();
-        client().prepareIndex("test", "type1", "2").setSource("str", "fred", "date", "2012-02-05", "num", 20).get();
+        client().prepareIndex("test").setId("1").setSource("str", "foobar", "date", "2012-02-01", "num", 12).get();
+        client().prepareIndex("test").setId("2").setSource("str", "fred", "date", "2012-02-05", "num", 20).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("str:foobaz~1")).get();
@@ -1018,8 +988,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         indexRandom(
             true,
             false,
-            client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
-            client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
+            client().prepareIndex("test").setId("1").setSource("important", "phrase match", "less_important", "nothing important"),
+            client().prepareIndex("test").setId("2").setSource("important", "nothing important", "less_important", "phrase match")
         );
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -1036,8 +1006,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testSpecialRangeSyntaxInQueryString() {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("str", "foobar", "date", "2012-02-01", "num", 12).get();
-        client().prepareIndex("test", "type1", "2").setSource("str", "fred", "date", "2012-02-05", "num", 20).get();
+        client().prepareIndex("test").setId("1").setSource("str", "foobar", "date", "2012-02-01", "num", 12).get();
+        client().prepareIndex("test").setId("2").setSource("str", "fred", "date", "2012-02-05", "num", 20).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:>19")).get();
@@ -1065,14 +1035,14 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testEmptytermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type", "1").setSource("term", "1"),
-            client().prepareIndex("test", "type", "2").setSource("term", "2"),
-            client().prepareIndex("test", "type", "3").setSource("term", "3"),
-            client().prepareIndex("test", "type", "4").setSource("term", "4")
+            client().prepareIndex("test").setId("1").setSource("term", "1"),
+            client().prepareIndex("test").setId("2").setSource("term", "2"),
+            client().prepareIndex("test").setId("3").setSource("term", "3"),
+            client().prepareIndex("test").setId("4").setSource("term", "4")
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1085,14 +1055,14 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testTermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "str", "type=text", "lng", "type=long", "dbl", "type=double"));
+        assertAcked(prepareCreate("test").setMapping("str", "type=text", "lng", "type=long", "dbl", "type=double"));
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type", "1").setSource("str", "1", "lng", 1L, "dbl", 1.0d),
-            client().prepareIndex("test", "type", "2").setSource("str", "2", "lng", 2L, "dbl", 2.0d),
-            client().prepareIndex("test", "type", "3").setSource("str", "3", "lng", 3L, "dbl", 3.0d),
-            client().prepareIndex("test", "type", "4").setSource("str", "4", "lng", 4L, "dbl", 4.0d)
+            client().prepareIndex("test").setId("1").setSource("str", "1", "lng", 1L, "dbl", 1.0d),
+            client().prepareIndex("test").setId("2").setSource("str", "2", "lng", 2L, "dbl", 2.0d),
+            client().prepareIndex("test").setId("3").setSource("str", "3", "lng", 3L, "dbl", 3.0d),
+            client().prepareIndex("test").setId("4").setSource("str", "4", "lng", 4L, "dbl", 4.0d)
         );
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsQuery("str", "1", "4"))).get();
@@ -1143,12 +1113,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testTermsLookupFilter() throws Exception {
-        assertAcked(prepareCreate("lookup").addMapping("type", "terms", "type=text", "other", "type=text"));
+        assertAcked(prepareCreate("lookup").setMapping("terms", "type=text", "other", "type=text"));
         assertAcked(
-            prepareCreate("lookup2").addMapping(
-                "type",
+            prepareCreate("lookup2").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("arr")
                     .startObject("properties")
@@ -1159,19 +1127,19 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
         );
-        assertAcked(prepareCreate("lookup3").addMapping("type", "_source", "enabled=false", "terms", "type=text"));
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
+        assertAcked(prepareCreate("lookup3").setMapping("_source", "enabled=false", "terms", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
         indexRandom(
             true,
-            client().prepareIndex("lookup", "type", "1").setSource("terms", new String[] { "1", "3" }),
-            client().prepareIndex("lookup", "type", "2").setSource("terms", new String[] { "2" }),
-            client().prepareIndex("lookup", "type", "3").setSource("terms", new String[] { "2", "4" }),
-            client().prepareIndex("lookup", "type", "4").setSource("other", "value"),
-            client().prepareIndex("lookup2", "type", "1")
+            client().prepareIndex("lookup").setId("1").setSource("terms", new String[] { "1", "3" }),
+            client().prepareIndex("lookup").setId("2").setSource("terms", new String[] { "2" }),
+            client().prepareIndex("lookup").setId("3").setSource("terms", new String[] { "2", "4" }),
+            client().prepareIndex("lookup").setId("4").setSource("other", "value"),
+            client().prepareIndex("lookup2")
+                .setId("1")
                 .setSource(
                     XContentFactory.jsonBuilder()
                         .startObject()
@@ -1185,7 +1153,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                         .endArray()
                         .endObject()
                 ),
-            client().prepareIndex("lookup2", "type", "2")
+            client().prepareIndex("lookup2")
+                .setId("2")
                 .setSource(
                     XContentFactory.jsonBuilder()
                         .startObject()
@@ -1196,7 +1165,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                         .endArray()
                         .endObject()
                 ),
-            client().prepareIndex("lookup2", "type", "3")
+            client().prepareIndex("lookup2")
+                .setId("3")
                 .setSource(
                     XContentFactory.jsonBuilder()
                         .startObject()
@@ -1210,95 +1180,83 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                         .endArray()
                         .endObject()
                 ),
-            client().prepareIndex("lookup3", "type", "1").setSource("terms", new String[] { "1", "3" }),
-            client().prepareIndex("test", "type", "1").setSource("term", "1"),
-            client().prepareIndex("test", "type", "2").setSource("term", "2"),
-            client().prepareIndex("test", "type", "3").setSource("term", "3"),
-            client().prepareIndex("test", "type", "4").setSource("term", "4")
+            client().prepareIndex("lookup3").setId("1").setSource("terms", new String[] { "1", "3" }),
+            client().prepareIndex("test").setId("1").setSource("term", "1"),
+            client().prepareIndex("test").setId("2").setSource("term", "2"),
+            client().prepareIndex("test").setId("3").setSource("term", "3"),
+            client().prepareIndex("test").setId("4").setSource("term", "4")
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "1", "terms")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // same as above, just on the _id...
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // another search with same parameters...
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "2", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "2", "terms"))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "3", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "3", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "4", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "4", "terms"))).get();
         assertHitCount(searchResponse, 0L);
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "1", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "1", "arr.term")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "2", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "2", "arr.term")))
             .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "3", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "3", "arr.term")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "type", "3", "arr.term")))
+            .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "3", "arr.term")))
             .get();
         assertHitCount(searchResponse, 0L);
 
         // index "lookup" type "type" id "missing" document does not exist: ignore the lookup terms
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "missing", "terms")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "missing", "terms")))
             .get();
         assertHitCount(searchResponse, 0L);
 
         // index "lookup3" type "type" has the source disabled: ignore the lookup terms
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "1", "terms"))).get();
         assertHitCount(searchResponse, 0L);
     }
 
     public void testBasicQueryById() throws Exception {
         assertAcked(prepareCreate("test"));
 
-        client().prepareIndex("test", "_doc", "1").setSource("field1", "value1").get();
-        client().prepareIndex("test", "_doc", "2").setSource("field1", "value2").get();
-        client().prepareIndex("test", "_doc", "3").setSource("field1", "value3").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
+        client().prepareIndex("test").setId("3").setSource("field1", "value3").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("_doc").addIds("1", "2")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2")).get();
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
 
@@ -1310,19 +1268,18 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery(Strings.EMPTY_ARRAY).addIds("1")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1")).get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "_doc").addIds("1", "2", "3", "4")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2", "3", "4")).get();
         assertHitCount(searchResponse, 3L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
     }
 
     public void testNumericTermsAndRanges() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "num_byte",
                 "type=byte",
                 "num_short",
@@ -1338,15 +1295,18 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             )
         );
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource("num_byte", 1, "num_short", 1, "num_integer", 1, "num_long", 1, "num_float", 1, "num_double", 1)
             .get();
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource("num_byte", 2, "num_short", 2, "num_integer", 2, "num_long", 2, "num_float", 2, "num_double", 2)
             .get();
 
-        client().prepareIndex("test", "type1", "17")
+        client().prepareIndex("test")
+            .setId("17")
             .setSource("num_byte", 17, "num_short", 17, "num_integer", 17, "num_long", 17, "num_float", 17, "num_double", 17)
             .get();
         refresh();
@@ -1435,8 +1395,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testNumericRangeFilter_2826() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "num_byte",
                 "type=byte",
                 "num_short",
@@ -1452,10 +1411,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             )
         );
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "test1", "num_long", 1).get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "test1", "num_long", 2).get();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "test2", "num_long", 3).get();
-        client().prepareIndex("test", "type1", "4").setSource("field1", "test2", "num_long", 4).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "test1", "num_long", 1).get();
+        client().prepareIndex("test").setId("2").setSource("field1", "test1", "num_long", 2).get();
+        client().prepareIndex("test").setId("3").setSource("field1", "test2", "num_long", 3).get();
+        client().prepareIndex("test").setId("4").setSource("field1", "test2", "num_long", 4).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1490,10 +1449,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar"),
-            client().prepareIndex("test", "test", "2").setSource("description", "foo other anything"),
-            client().prepareIndex("test", "test", "3").setSource("description", "foo other"),
-            client().prepareIndex("test", "test", "4").setSource("description", "foo")
+            client().prepareIndex("test").setId("1").setSource("description", "foo other anything bar"),
+            client().prepareIndex("test").setId("2").setSource("description", "foo other anything"),
+            client().prepareIndex("test").setId("3").setSource("description", "foo other"),
+            client().prepareIndex("test").setId("4").setSource("description", "foo")
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1514,7 +1473,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "test", "1").setSource("description", "it's cold outside, there's no kind of atmosphere")
+            client().prepareIndex("test").setId("1").setSource("description", "it's cold outside, there's no kind of atmosphere")
         );
 
         String json = "{ \"intervals\" : "
@@ -1538,10 +1497,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar"),
-            client().prepareIndex("test", "test", "2").setSource("description", "foo other anything"),
-            client().prepareIndex("test", "test", "3").setSource("description", "foo other"),
-            client().prepareIndex("test", "test", "4").setSource("description", "foo")
+            client().prepareIndex("test").setId("1").setSource("description", "foo other anything bar"),
+            client().prepareIndex("test").setId("2").setSource("description", "foo other anything"),
+            client().prepareIndex("test").setId("3").setSource("description", "foo other"),
+            client().prepareIndex("test").setId("4").setSource("description", "foo")
         );
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(spanOrQuery(spanTermQuery("description", "bar"))).get();
@@ -1556,10 +1515,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testSpanMultiTermQuery() throws IOException {
         createIndex("test");
 
-        client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar", "count", 1).get();
-        client().prepareIndex("test", "test", "2").setSource("description", "foo other anything", "count", 2).get();
-        client().prepareIndex("test", "test", "3").setSource("description", "foo other", "count", 3).get();
-        client().prepareIndex("test", "test", "4").setSource("description", "fop", "count", 4).get();
+        client().prepareIndex("test").setId("1").setSource("description", "foo other anything bar", "count", 1).get();
+        client().prepareIndex("test").setId("2").setSource("description", "foo other anything", "count", 2).get();
+        client().prepareIndex("test").setId("3").setSource("description", "foo other", "count", 3).get();
+        client().prepareIndex("test").setId("4").setSource("description", "fop", "count", 4).get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -1589,8 +1548,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testSpanNot() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
 
-        client().prepareIndex("test", "test", "1").setSource("description", "the quick brown fox jumped over the lazy dog").get();
-        client().prepareIndex("test", "test", "2").setSource("description", "the quick black fox leaped over the sleeping dog").get();
+        client().prepareIndex("test").setId("1").setSource("description", "the quick brown fox jumped over the lazy dog").get();
+        client().prepareIndex("test").setId("2").setSource("description", "the quick black fox leaped over the sleeping dog").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1632,10 +1591,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "_doc",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("_doc")
                     .startObject("_routing")
                     .field("required", true)
                     .endObject()
@@ -1653,23 +1610,26 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
         );
 
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setRouting("Y")
             .setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100, "type", "s")
             .get();
-        client().prepareIndex("test", "_doc", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setRouting("X")
             .setSource("online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000, "type", "s")
             .get();
-        client().prepareIndex("test", "_doc", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setRouting(randomAlphaOfLength(2))
             .setSource("online", false, "ts", System.currentTimeMillis() - 100, "type", "bs")
             .get();
-        client().prepareIndex("test", "_doc", "4")
+        client().prepareIndex("test")
+            .setId("4")
             .setRouting(randomAlphaOfLength(2))
             .setSource("online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs")
             .get();
@@ -1697,7 +1657,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testMultiFieldQueryString() {
-        client().prepareIndex("test", "s", "1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         logger.info("regular");
         assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("value1").field("field1").field("field2")).get(), 1);
@@ -1720,7 +1680,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testMultiMatchLenientIssue3797() {
         createIndex("test");
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", 123, "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", 123, "field2", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1740,10 +1700,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testMinScore() throws ExecutionException, InterruptedException {
         createIndex("test");
 
-        client().prepareIndex("test", "test", "1").setSource("score", 1.5).get();
-        client().prepareIndex("test", "test", "2").setSource("score", 1.0).get();
-        client().prepareIndex("test", "test", "3").setSource("score", 2.0).get();
-        client().prepareIndex("test", "test", "4").setSource("score", 0.5).get();
+        client().prepareIndex("test").setId("1").setSource("score", 1.5).get();
+        client().prepareIndex("test").setId("2").setSource("score", 1.0).get();
+        client().prepareIndex("test").setId("3").setSource("score", 2.0).get();
+        client().prepareIndex("test").setId("4").setSource("score", 0.5).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1757,8 +1717,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testQueryStringWithSlopAndFields() {
         assertAcked(prepareCreate("test"));
 
-        client().prepareIndex("test", "_doc", "1").setSource("desc", "one two three", "type", "customer").get();
-        client().prepareIndex("test", "_doc", "2").setSource("desc", "one two three", "type", "product").get();
+        client().prepareIndex("test").setId("1").setSource("desc", "one two three", "type", "customer").get();
+        client().prepareIndex("test").setId("2").setSource("desc", "one two three", "type", "product").get();
         refresh();
         {
             SearchResponse searchResponse = client().prepareSearch("test")
@@ -1798,17 +1758,15 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testDateProvidedAsNumber() throws InterruptedException {
         createIndex("test");
-        assertAcked(
-            client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date,format=epoch_millis").get()
-        );
+        assertAcked(client().admin().indices().preparePutMapping("test").setSource("field", "type=date,format=epoch_millis").get());
         indexRandom(
             true,
-            client().prepareIndex("test", "type", "1").setSource("field", 1000000000001L),
-            client().prepareIndex("test", "type", "2").setSource("field", 1000000000000L),
-            client().prepareIndex("test", "type", "3").setSource("field", 999999999999L),
-            client().prepareIndex("test", "type", "4").setSource("field", 1000000000002L),
-            client().prepareIndex("test", "type", "5").setSource("field", 1000000000003L),
-            client().prepareIndex("test", "type", "6").setSource("field", 999999999999L)
+            client().prepareIndex("test").setId("1").setSource("field", 1000000000001L),
+            client().prepareIndex("test").setId("2").setSource("field", 1000000000000L),
+            client().prepareIndex("test").setId("3").setSource("field", 999999999999L),
+            client().prepareIndex("test").setId("4").setSource("field", 1000000000002L),
+            client().prepareIndex("test").setId("5").setSource("field", 1000000000003L),
+            client().prepareIndex("test").setId("6").setSource("field", 999999999999L)
         );
 
         assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").gte(1000000000000L)).get(), 4);
@@ -1816,15 +1774,16 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testRangeQueryWithTimeZone() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "date", "type=date", "num", "type=integer"));
+        assertAcked(prepareCreate("test").setMapping("date", "type=date", "num", "type=integer"));
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("date", "2014-01-01", "num", 1),
-            client().prepareIndex("test", "type1", "2").setSource("date", "2013-12-31T23:00:00", "num", 2),
-            client().prepareIndex("test", "type1", "3").setSource("date", "2014-01-01T01:00:00", "num", 3),
+            client().prepareIndex("test").setId("1").setSource("date", "2014-01-01", "num", 1),
+            client().prepareIndex("test").setId("2").setSource("date", "2013-12-31T23:00:00", "num", 2),
+            client().prepareIndex("test").setId("3").setSource("date", "2014-01-01T01:00:00", "num", 3),
             // Now in UTC+1
-            client().prepareIndex("test", "type1", "4")
+            client().prepareIndex("test")
+                .setId("4")
                 .setSource("date", Instant.now().atZone(ZoneOffset.ofHours(1)).toInstant().toEpochMilli(), "num", 4)
         );
 
@@ -1905,8 +1864,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
                     .startObject("properties")
                     .startObject("date_field")
@@ -1921,8 +1879,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800"),
-            client().prepareIndex("test", "type1", "2").setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800")
+            client().prepareIndex("test").setId("1").setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800"),
+            client().prepareIndex("test").setId("2").setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800")
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1938,7 +1896,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testSearchEmptyDoc() {
         assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}", XContentType.JSON));
-        client().prepareIndex("test", "type1", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
         refresh();
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
@@ -1948,8 +1906,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         createIndex("test1");
         indexRandom(
             true,
-            client().prepareIndex("test1", "type1", "1").setSource("field", "Johnnie Walker Black Label"),
-            client().prepareIndex("test1", "type1", "2").setSource("field", "trying out OpenSearch")
+            client().prepareIndex("test1").setId("1").setSource("field", "Johnnie Walker Black Label"),
+            client().prepareIndex("test1").setId("2").setSource("field", "trying out OpenSearch")
         );
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -1967,7 +1925,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testQueryStringParserCache() throws Exception {
         createIndex("test");
-        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz"));
+        indexRandom(true, false, client().prepareIndex("test").setId("1").setSource("nameTokens", "xyz"));
 
         SearchResponse response = client().prepareSearch("test")
             .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
@@ -1991,9 +1949,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testRangeQueryRangeFields_24744() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "int_range", "type=integer_range"));
+        assertAcked(prepareCreate("test").setMapping("int_range", "type=integer_range"));
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().startObject("int_range").field("gte", 10).field("lte", 20).endObject().endObject())
             .get();
         refresh();
@@ -2003,45 +1962,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
-    public void testRangeQueryTypeField_31476() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("foo", "field", "type=keyword"));
-
-        client().prepareIndex("test", "foo", "1").setSource("field", "value").get();
-        refresh();
-
-        RangeQueryBuilder range = new RangeQueryBuilder("_type").from("ape").to("zebra");
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("monkey").to("zebra");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("donkey");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-    }
-
     public void testNestedQueryWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("_doc")
             .startObject("properties")
             .startObject("section")
             .field("type", "nested")
@@ -2056,9 +1979,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("index").addMapping("_doc", mapping));
+        assertAcked(prepareCreate("index").setMapping(mapping));
 
         XContentBuilder source = XContentFactory.jsonBuilder()
             .startObject()
@@ -2082,7 +2004,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testFieldAliasesForMetaFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("id-alias")
             .field("type", "alias")
@@ -2093,14 +2014,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             .field("path", "_routing")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
-        IndexRequestBuilder indexRequest = client().prepareIndex("test", "type")
-            .setId("1")
-            .setRouting("custom")
-            .setSource("field", "value");
+        IndexRequestBuilder indexRequest = client().prepareIndex("test").setId("1").setRouting("custom").setSource("field", "value");
         indexRandom(true, false, indexRequest);
         client().admin()
             .cluster()
@@ -2141,9 +2058,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .put("index.analysis.normalizer.lowercase_normalizer.type", "custom")
                     .putList("index.analysis.normalizer.lowercase_normalizer.filter", "lowercase")
                     .build()
-            ).addMapping("_doc", "field1", "type=keyword,normalizer=lowercase_normalizer")
+            ).setMapping("field1", "type=keyword,normalizer=lowercase_normalizer")
         );
-        client().prepareIndex("test", "_doc", "1").setSource("field1", "Bbb Aaa").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
         refresh();
 
         {
@@ -2168,9 +2085,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .put("index.analysis.analyzer.lowercase_analyzer.tokenizer", "standard")
                     .putList("index.analysis.analyzer.lowercase_analyzer.filter", "lowercase")
                     .build()
-            ).addMapping("_doc", "field1", "type=text,analyzer=lowercase_analyzer")
+            ).setMapping("field1", "type=text,analyzer=lowercase_analyzer")
         );
-        client().prepareIndex("test", "_doc", "1").setSource("field1", "Bbb Aaa").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
         refresh();
 
         {
@@ -2196,9 +2113,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .put("index.analysis.normalizer.no_wildcard.type", "custom")
                     .put("index.analysis.normalizer.no_wildcard.char_filter", "no_wildcard")
                     .build()
-            ).addMapping("_doc", "field", "type=keyword,normalizer=no_wildcard")
+            ).setMapping("field", "type=keyword,normalizer=no_wildcard")
         );
-        client().prepareIndex("test", "_doc", "1").setSource("field", "label-1").get();
+        client().prepareIndex("test").setId("1").setSource("field", "label-1").get();
         refresh();
 
         WildcardQueryBuilder wildCardQuery = wildcardQuery("field", "la*");
@@ -2252,7 +2169,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
      */
     public void testIssueFuzzyInsideSpanMulti() {
         createIndex("test");
-        client().prepareIndex("test", "_doc", "1").setSource("field", "foobarbaz").get();
+        client().prepareIndex("test").setId("1").setSource("field", "foobarbaz").get();
         ensureGreen();
         refresh();
 

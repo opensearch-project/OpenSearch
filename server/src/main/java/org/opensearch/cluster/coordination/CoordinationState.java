@@ -305,7 +305,7 @@ public class CoordinationState {
         boolean prevElectionWon = electionWon;
         electionWon = isElectionQuorum(joinVotes);
         assert !prevElectionWon || electionWon : // we cannot go from won to not won
-        "locaNode= " + localNode + ", join=" + join + ", joinVotes=" + joinVotes;
+            "locaNode= " + localNode + ", join=" + join + ", joinVotes=" + joinVotes;
         logger.debug(
             "handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}",
             join,
@@ -378,8 +378,8 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
 
-        assert clusterState.getLastCommittedConfiguration()
-            .equals(getLastCommittedConfiguration()) : "last committed configuration should not change";
+        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
+            : "last committed configuration should not change";
 
         lastPublishedVersion = clusterState.version();
         lastPublishedConfiguration = clusterState.getLastAcceptedConfiguration();

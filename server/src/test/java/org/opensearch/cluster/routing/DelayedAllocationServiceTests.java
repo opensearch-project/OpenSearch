@@ -262,7 +262,7 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
             .routingTable(RoutingTable.builder().addAsNew(metadata.index("short_delay")).addAsNew(metadata.index("long_delay")).build())
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node0", singleton(DiscoveryNodeRole.MASTER_ROLE)))
+                    .add(newNode("node0", singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
                     .localNodeId("node0")
                     .masterNodeId("node0")
                     .add(newNode("node1"))

@@ -34,6 +34,7 @@ package org.opensearch.cluster.node;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -41,6 +42,8 @@ import org.opensearch.transport.RemoteClusterService;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -49,6 +52,10 @@ import java.util.TreeSet;
  * Represents a node role.
  */
 public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DiscoveryNodeRole.class);
+    public static final String MASTER_ROLE_DEPRECATION_MESSAGE =
+        "Assigning [master] role in setting [node.roles] is deprecated. To promote inclusive language, please use [cluster_manager] role instead.";
 
     private final String roleName;
 
@@ -129,6 +136,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return this;
     }
 
+    /**
+     * Validate the role is compatible with the other roles in the list, when assigning the list of roles to a node.
+     * An {@link IllegalArgumentException} is expected to be thrown, if the role can't coexist with the other roles.
+     * @param roles a {@link List} of {@link DiscoveryNodeRole} that a node is going to have
+     */
+    public void validateRole(List<DiscoveryNodeRole> roles) {};
+
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
@@ -193,13 +207,58 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     /**
      * Represents the role for a master-eligible node.
+     * @deprecated As of 2.0, because promoting inclusive language, replaced by {@link #CLUSTER_MANAGER_ROLE}
      */
+    @Deprecated
     public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m") {
 
         @Override
         public Setting<Boolean> legacySetting() {
             // copy the setting here so we can mark it private in org.opensearch.node.Node
+            // As of 2.0, set the default value to 'false', so that MASTER_ROLE isn't added as a default value of NODE_ROLES_SETTING
+            return Setting.boolSetting("node.master", false, Property.Deprecated, Property.NodeScope);
+        }
+
+        @Override
+        public void validateRole(List<DiscoveryNodeRole> roles) {
+            deprecationLogger.deprecate("node_role_master", MASTER_ROLE_DEPRECATION_MESSAGE);
+        }
+
+    };
+
+    /**
+     * Represents the role for a cluster-manager-eligible node.
+     */
+    public static final DiscoveryNodeRole CLUSTER_MANAGER_ROLE = new DiscoveryNodeRole("cluster_manager", "m") {
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.opensearch.node.Node
             return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            if (nodeVersion.onOrAfter(Version.V_2_0_0)) {
+                return this;
+            } else {
+                return DiscoveryNodeRole.MASTER_ROLE;
+            }
+        }
+
+        @Override
+        public void validateRole(List<DiscoveryNodeRole> roles) {
+            if (roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "The two roles [%s, %s] can not be assigned together to a node. %s",
+                        DiscoveryNodeRole.MASTER_ROLE.roleName(),
+                        DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(),
+                        MASTER_ROLE_DEPRECATION_MESSAGE
+                    )
+                );
+            }
         }
 
     };
@@ -223,7 +282,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
      * The built-in node roles.
      */
     public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
-        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
+        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, CLUSTER_MANAGER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
     );
 
     /**
@@ -262,4 +321,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     }
 
+    /**
+     * Check if the role is {@link #CLUSTER_MANAGER_ROLE} or {@link #MASTER_ROLE}.
+     * @deprecated As of 2.0, because promoting inclusive language. MASTER_ROLE is deprecated.
+     * @return true if the node role is{@link #CLUSTER_MANAGER_ROLE} or {@link #MASTER_ROLE}
+     */
+    @Deprecated
+    public boolean isClusterManager() {
+        return this.equals(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) || this.equals(DiscoveryNodeRole.MASTER_ROLE);
+    }
 }

@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.ShapeRelation;
@@ -151,18 +152,6 @@ public final class QueryBuilders {
      */
     public static IdsQueryBuilder idsQuery() {
         return new IdsQueryBuilder();
-    }
-
-    /**
-     * Constructs a query that will match only specific ids within types.
-     *
-     * @param types The mapping/doc type
-     *
-     * @deprecated Types are in the process of being removed, use {@link #idsQuery()} instead.
-     */
-    @Deprecated
-    public static IdsQueryBuilder idsQuery(String... types) {
-        return new IdsQueryBuilder().types(types);
     }
 
     /**
@@ -464,7 +453,17 @@ public final class QueryBuilders {
      * @param function The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
-        return new FunctionScoreQueryBuilder(function);
+        return functionScoreQuery(function, null);
+    }
+
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param function The function builder used to custom score
+     * @param queryName The query name
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function, @Nullable String queryName) {
+        return new FunctionScoreQueryBuilder(function, queryName);
     }
 
     /**
@@ -623,15 +622,6 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filter based on doc/mapping type.
-     * @deprecated Types are going away, prefer filtering on a field.
-     */
-    @Deprecated
-    public static TypeQueryBuilder typeQuery(String type) {
-        return new TypeQueryBuilder(type);
-    }
-
-    /**
      * A terms query that can extract the terms from another doc in an index.
      */
     public static TermsQueryBuilder termsLookupQuery(String name, TermsLookup termsLookup) {
@@ -697,14 +687,6 @@ public final class QueryBuilders {
     }
 
     /**
-     * @deprecated Types are in the process of being removed, use {@link #geoShapeQuery(String, String)} instead.
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
-    }
-
-    /**
      * A filter to filter indexed shapes intersecting with shapes
      *
      * @param name  The shape field name
@@ -728,16 +710,6 @@ public final class QueryBuilders {
 
     public static GeoShapeQueryBuilder geoIntersectionQuery(String name, String indexedShapeId) {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId);
-        builder.relation(ShapeRelation.INTERSECTS);
-        return builder;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed, use {@link #geoIntersectionQuery(String, String)} instead.
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
         builder.relation(ShapeRelation.INTERSECTS);
         return builder;
     }
@@ -771,16 +743,6 @@ public final class QueryBuilders {
     }
 
     /**
-     * @deprecated Types are in the process of being removed, use {@link #geoWithinQuery(String, String)} instead.
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
-        builder.relation(ShapeRelation.WITHIN);
-        return builder;
-    }
-
-    /**
      * A filter to filter indexed shapes that are not intersection with the query shape
      *
      * @param name  The shape field name
@@ -804,16 +766,6 @@ public final class QueryBuilders {
 
     public static GeoShapeQueryBuilder geoDisjointQuery(String name, String indexedShapeId) {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId);
-        builder.relation(ShapeRelation.DISJOINT);
-        return builder;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed, use {@link #geoDisjointQuery(String, String)} instead.
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
         builder.relation(ShapeRelation.DISJOINT);
         return builder;
     }

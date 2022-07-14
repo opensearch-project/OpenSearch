@@ -199,7 +199,7 @@ public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocatio
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(newNode("master", Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)))
+            .add(newNode("master", Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
             .localNodeId("master")
             .masterNodeId("master")
             .build();

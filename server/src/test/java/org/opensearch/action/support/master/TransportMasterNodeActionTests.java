@@ -121,14 +121,14 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
             "local_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         remoteNode = new DiscoveryNode(
             "remote_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         allNodes = new DiscoveryNode[] { localNode, remoteNode };

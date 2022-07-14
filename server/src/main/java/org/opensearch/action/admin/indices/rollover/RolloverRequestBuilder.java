@@ -38,7 +38,6 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 
 public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
     public RolloverRequestBuilder(OpenSearchClient client, RolloverAction action) {
@@ -85,13 +84,8 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder mapping(String type, Object... source) {
-        this.request.getCreateIndexRequest().mapping(type, source);
-        return this;
-    }
-
-    public RolloverRequestBuilder mapping(String type, String source, XContentType xContentType) {
-        this.request.getCreateIndexRequest().mapping(type, source, xContentType);
+    public RolloverRequestBuilder simpleMapping(String... source) {
+        this.request.getCreateIndexRequest().simpleMapping(source);
         return this;
     }
 

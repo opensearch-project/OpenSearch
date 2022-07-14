@@ -129,6 +129,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
+        // todo: remove since deprecated
+        sortField.setOptimizeSortWithPoints(false);
         return sortField;
     }
 

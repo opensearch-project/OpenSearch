@@ -172,7 +172,7 @@ public class RegexTests extends ScriptTestCase {
         assertEquals("o", exec("Matcher m = /(?<first>f)(?<second>o)o/.matcher('foo'); m.find(); return m.namedGroup('second')"));
     }
 
-    // Make sure some methods on Pattern are whitelisted
+    // Make sure some methods on Pattern are allowlisted
     public void testSplit() {
         assertArrayEquals(new String[] { "cat", "dog" }, (String[]) exec("/,/.split('cat,dog')"));
     }

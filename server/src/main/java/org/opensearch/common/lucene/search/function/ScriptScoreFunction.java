@@ -39,6 +39,7 @@ import org.opensearch.script.ExplainableScoreScript;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.Script;
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -67,14 +68,23 @@ public class ScriptScoreFunction extends ScoreFunction {
     private final int shardId;
     private final String indexName;
     private final Version indexVersion;
+    private final String functionName;
 
-    public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script, String indexName, int shardId, Version indexVersion) {
+    public ScriptScoreFunction(
+        Script sScript,
+        ScoreScript.LeafFactory script,
+        String indexName,
+        int shardId,
+        Version indexVersion,
+        @Nullable String functionName
+    ) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
         this.script = script;
         this.indexName = indexName;
         this.shardId = shardId;
         this.indexVersion = indexVersion;
+        this.functionName = functionName;
     }
 
     @Override
@@ -105,11 +115,15 @@ public class ScriptScoreFunction extends ScoreFunction {
                     leafScript.setDocument(docId);
                     scorer.docid = docId;
                     scorer.score = subQueryScore.getValue().floatValue();
-                    exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore);
+                    exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore, functionName);
                 } else {
                     double score = score(docId, subQueryScore.getValue().floatValue());
                     // info about params already included in sScript
-                    String explanation = "script score function, computed with script:\"" + sScript + "\"";
+                    String explanation = "script score function"
+                        + Functions.nameOrEmptyFunc(functionName)
+                        + ", computed with script:\""
+                        + sScript
+                        + "\"";
                     Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
                     return Explanation.match((float) score, explanation, scoreExp);
                 }

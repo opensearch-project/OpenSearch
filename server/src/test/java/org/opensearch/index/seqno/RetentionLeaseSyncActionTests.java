@@ -126,20 +126,14 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
-        action.dispatchedShardOperationOnPrimary(
-            request,
-            indexShard,
-            ActionTestUtils.assertNoFailureListener(
-                result -> {
-                    // the retention leases on the shard should be persisted
-                    verify(indexShard).persistRetentionLeases();
-                    // we should forward the request containing the current retention leases to the replica
-                    assertThat(result.replicaRequest(), sameInstance(request));
-                    // we should start with an empty replication response
-                    assertNull(result.finalResponseIfSuccessful.getShardInfo());
-                }
-            )
-        );
+        action.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+            // the retention leases on the shard should be persisted
+            verify(indexShard).persistRetentionLeases();
+            // we should forward the request containing the current retention leases to the replica
+            assertThat(result.replicaRequest(), sameInstance(request));
+            // we should start with an empty replication response
+            assertNull(result.finalResponseIfSuccessful.getShardInfo());
+        }));
     }
 
     public void testRetentionLeaseSyncActionOnReplica() throws Exception {

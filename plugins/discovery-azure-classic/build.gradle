@@ -53,8 +53,8 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-lang:commons-lang:2.6"
-  api "commons-io:commons-io:2.7"
-  api 'javax.mail:mail:1.4.5'
+  api "commons-io:commons-io:2.11.0"
+  api 'javax.mail:mail:1.4.7'
   api 'javax.inject:javax.inject:1'
   api "com.sun.jersey:jersey-client:${versions.jersey}"
   api "com.sun.jersey:jersey-core:${versions.jersey}"
@@ -63,8 +63,8 @@ dependencies {
   api 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell
-  api 'javax.xml.bind:jaxb-api:2.2.2'
+  // and allowlist this hack in JarHell
+  api 'javax.xml.bind:jaxb-api:2.3.1'
 }
 
 restResources {

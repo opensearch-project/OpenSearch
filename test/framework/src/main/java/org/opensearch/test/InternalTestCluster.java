@@ -155,9 +155,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.rarely;
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.apache.lucene.tests.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
@@ -435,7 +435,7 @@ public final class InternalTestCluster extends TestCluster {
         );
         // TODO: currently we only randomize "cluster.no_master_block" between "write" and "metadata_write", as "all" is fragile
         // and fails shards when a master abdicates, which breaks many tests.
-        builder.put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
+        builder.put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
         defaultSettings = builder.build();
         executor = OpenSearchExecutors.newScaling(
             "internal_test_cluster_executor",
@@ -454,9 +454,8 @@ public final class InternalTestCluster extends TestCluster {
      * It's only possible to change {@link #bootstrapMasterNodeIndex} value if autoManageMasterNodes is false.
      */
     public void setBootstrapMasterNodeIndex(int bootstrapMasterNodeIndex) {
-        assert autoManageMasterNodes == false
-            || bootstrapMasterNodeIndex == -1 : "bootstrapMasterNodeIndex should be -1 if autoManageMasterNodes is true, but was "
-                + bootstrapMasterNodeIndex;
+        assert autoManageMasterNodes == false || bootstrapMasterNodeIndex == -1
+            : "bootstrapMasterNodeIndex should be -1 if autoManageMasterNodes is true, but was " + bootstrapMasterNodeIndex;
         this.bootstrapMasterNodeIndex = bootstrapMasterNodeIndex;
     }
 
@@ -617,7 +616,7 @@ public final class InternalTestCluster extends TestCluster {
         final int nodeId = nextNodeId.getAndIncrement();
         final Settings settings = getNodeSettings(nodeId, random.nextLong(), Settings.EMPTY, 1);
         final Settings nodeSettings = Settings.builder()
-            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), Node.NODE_NAME_SETTING.get(settings))
+            .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), Node.NODE_NAME_SETTING.get(settings))
             .put(settings)
             .build();
         final NodeAndClient buildNode = buildNode(nodeId, nodeSettings, false, onTransportServiceStarted);
@@ -788,13 +787,13 @@ public final class InternalTestCluster extends TestCluster {
         String suffix = "";
         // only add the suffixes if roles are explicitly defined
         if (settings.hasValue("nodes.roles")) {
-            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE)) {
-                suffix = suffix + DiscoveryNodeRole.MASTER_ROLE.roleNameAbbreviation();
+            if (DiscoveryNode.isMasterNode(settings)) {
+                suffix = suffix + DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleNameAbbreviation();
             }
             if (DiscoveryNode.isDataNode(settings)) {
                 suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
             }
-            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false && DiscoveryNode.isDataNode(settings) == false) {
+            if (!DiscoveryNode.isMasterNode(settings) && !DiscoveryNode.isDataNode(settings)) {
                 suffix = suffix + "c";
             }
         }
@@ -991,8 +990,8 @@ public final class InternalTestCluster extends TestCluster {
             Settings.Builder newSettings = Settings.builder();
             newSettings.put(callbackSettings);
             if (minMasterNodes >= 0) {
-                if (INITIAL_MASTER_NODES_SETTING.exists(callbackSettings) == false) {
-                    newSettings.putList(INITIAL_MASTER_NODES_SETTING.getKey());
+                if (INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(callbackSettings) == false) {
+                    newSettings.putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey());
                 }
             }
             // delete data folders now, before we start other nodes that may claim it
@@ -1175,7 +1174,10 @@ public final class InternalTestCluster extends TestCluster {
         for (int i = 0; i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             Settings nodeSettings = updatedSettings.get(i);
             if (i == autoBootstrapMasterNodeIndex) {
-                nodeSettings = Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), masterNodeNames).put(nodeSettings).build();
+                nodeSettings = Settings.builder()
+                    .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), masterNodeNames)
+                    .put(nodeSettings)
+                    .build();
             }
             final NodeAndClient nodeAndClient = buildNode(i, nodeSettings, true, onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
@@ -2035,7 +2037,7 @@ public final class InternalTestCluster extends TestCluster {
                     newSettings.add(
                         Settings.builder()
                             .put(settings)
-                            .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
+                            .putList(ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeNames)
                             .build()
                     );
 
@@ -2123,7 +2125,7 @@ public final class InternalTestCluster extends TestCluster {
             final Builder builder = Settings.builder();
             if (DiscoveryNode.isMasterNode(nodeSettings)) {
                 if (autoBootstrapMasterNodeIndex == 0) {
-                    builder.putList(INITIAL_MASTER_NODES_SETTING.getKey(), initialMasterNodes);
+                    builder.putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), initialMasterNodes);
                 }
                 autoBootstrapMasterNodeIndex -= 1;
             }
@@ -2148,7 +2150,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public List<String> startMasterOnlyNodes(int numNodes, Settings settings) {
-        return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.MASTER_ROLE)).build());
+        return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build());
     }
 
     public List<String> startDataOnlyNodes(int numNodes) {

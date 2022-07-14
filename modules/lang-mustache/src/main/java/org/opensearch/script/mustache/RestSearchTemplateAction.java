@@ -68,10 +68,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
                 new Route(GET, "/_search/template"),
                 new Route(POST, "/_search/template"),
                 new Route(GET, "/{index}/_search/template"),
-                new Route(POST, "/{index}/_search/template"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_search/template"),
-                new Route(POST, "/{index}/{type}/_search/template")
+                new Route(POST, "/{index}/_search/template")
             )
         );
     }

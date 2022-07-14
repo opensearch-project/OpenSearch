@@ -128,10 +128,8 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
 
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("str_value")
                 .field("type", "keyword")
@@ -153,14 +151,13 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         ).get();
 
         numDocs = randomIntBetween(2, 100);
         precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
         IndexRequestBuilder[] builders = new IndexRequestBuilder[(int) numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx", "type")
+            builders[i] = client().prepareIndex("idx")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("str_value", "s" + i)
@@ -177,7 +174,7 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] dummyDocsBuilder = new IndexRequestBuilder[10];
         for (int i = 0; i < dummyDocsBuilder.length; i++) {
-            dummyDocsBuilder[i] = client().prepareIndex("idx", "type").setSource("a_field", "1");
+            dummyDocsBuilder[i] = client().prepareIndex("idx").setSource("a_field", "1");
         }
         indexRandom(true, dummyDocsBuilder);
 
@@ -204,7 +201,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_value"))
             .get();
 
@@ -218,7 +214,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_value"))
             .get();
 
@@ -232,7 +227,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testSingleValuedString() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_value"))
             .get();
 
@@ -246,7 +240,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testSingleValuedNumeric() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField()))
             .get();
 
@@ -289,7 +282,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testSingleValuedNumericHashed() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField()))
             .get();
 
@@ -303,7 +295,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testMultiValuedString() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values"))
             .get();
 
@@ -317,7 +308,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testMultiValuedNumeric() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(multiNumericField(false)))
             .get();
 
@@ -331,7 +321,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testMultiValuedNumericHashed() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(multiNumericField(true)))
             .get();
 
@@ -345,7 +334,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testSingleValuedStringScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(
                 cardinality("cardinality").precisionThreshold(precisionThreshold)
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['str_value'].value", emptyMap()))
@@ -362,7 +350,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testMultiValuedStringScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(
                 cardinality("cardinality").precisionThreshold(precisionThreshold)
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['str_values']", emptyMap()))
@@ -380,7 +367,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
     public void testSingleValuedNumericScript() throws Exception {
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc[' + singleNumericField() + '].value", emptyMap());
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script(script))
             .get();
 
@@ -400,7 +386,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
             Collections.emptyMap()
         );
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script(script))
             .get();
 
@@ -414,7 +399,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testSingleValuedStringValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(
                 cardinality("cardinality").precisionThreshold(precisionThreshold)
                     .field("str_value")
@@ -432,7 +416,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testMultiValuedStringValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(
                 cardinality("cardinality").precisionThreshold(precisionThreshold)
                     .field("str_values")
@@ -450,7 +433,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testSingleValuedNumericValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(
                 cardinality("cardinality").precisionThreshold(precisionThreshold)
                     .field(singleNumericField())
@@ -468,7 +450,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testMultiValuedNumericValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(
                 cardinality("cardinality").precisionThreshold(precisionThreshold)
                     .field(multiNumericField(false))
@@ -486,7 +467,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
 
     public void testAsSubAgg() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(
                 terms("terms").field("str_value")
                     .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -511,14 +491,14 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+            prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2)
+            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
 
         // Make sure we are starting with a clear cache

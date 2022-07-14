@@ -32,7 +32,6 @@
 package org.opensearch.test.hamcrest;
 
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchException;
@@ -91,8 +90,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.apache.lucene.util.LuceneTestCase.expectThrows;
-import static org.apache.lucene.util.LuceneTestCase.expectThrowsAnyOf;
+import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
+import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -269,14 +268,7 @@ public class OpenSearchAssertions {
         Set<String> idsSet = new HashSet<>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(
-                "id ["
-                    + hit.getId()
-                    + "] was found in search results but wasn't expected (type ["
-                    + hit.getType()
-                    + "], index ["
-                    + hit.getIndex()
-                    + "])"
-                    + shardStatus,
+                "id [" + hit.getId() + "] was found in search results but wasn't expected (index [" + hit.getIndex() + "])" + shardStatus,
                 idsSet.remove(hit.getId()),
                 equalTo(true)
             );
@@ -318,13 +310,7 @@ public class OpenSearchAssertions {
     }
 
     public static void assertExists(GetResponse response) {
-        String message = String.format(
-            Locale.ROOT,
-            "Expected %s/%s/%s to exist, but does not",
-            response.getIndex(),
-            response.getType(),
-            response.getId()
-        );
+        String message = String.format(Locale.ROOT, "Expected %s/%s to exist, but does not", response.getIndex(), response.getId());
         assertThat(message, response.isExists(), is(true));
     }
 
@@ -553,10 +539,6 @@ public class OpenSearchAssertions {
         return new OpenSearchMatchers.SearchHitHasIdMatcher(id);
     }
 
-    public static Matcher<SearchHit> hasType(final String type) {
-        return new OpenSearchMatchers.SearchHitHasTypeMatcher(type);
-    }
-
     public static Matcher<SearchHit> hasIndex(final String index) {
         return new OpenSearchMatchers.SearchHitHasIndexMatcher(index);
     }
@@ -579,14 +561,6 @@ public class OpenSearchAssertions {
         assertThat(q.clauses().size(), greaterThan(i));
         assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
         return subqueryType.cast(q.clauses().get(i).getQuery());
-    }
-
-    public static <T extends Query> T assertDisjunctionSubQuery(Query query, Class<T> subqueryType, int i) {
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        DisjunctionMaxQuery q = (DisjunctionMaxQuery) query;
-        assertThat(q.getDisjuncts().size(), greaterThan(i));
-        assertThat(q.getDisjuncts().get(i), instanceOf(subqueryType));
-        return subqueryType.cast(q.getDisjuncts().get(i));
     }
 
     /**

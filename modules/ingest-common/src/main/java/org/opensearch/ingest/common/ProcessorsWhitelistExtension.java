@@ -44,13 +44,13 @@ import java.util.Map;
 
 public class ProcessorsWhitelistExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+    private static final Whitelist ALLOWLIST = WhitelistLoader.loadFromResourceFiles(
         ProcessorsWhitelistExtension.class,
         "processors_whitelist.txt"
     );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        return Collections.singletonMap(IngestScript.CONTEXT, Collections.singletonList(WHITELIST));
+        return Collections.singletonMap(IngestScript.CONTEXT, Collections.singletonList(ALLOWLIST));
     }
 }

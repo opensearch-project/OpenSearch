@@ -1909,13 +1909,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             meta.pendingGeneration()
                         );
                     }
-                    assert expectedGen == RepositoryData.EMPTY_REPO_GEN
-                        || uninitializedMeta
-                        || expectedGen == meta.generation() : "Expected non-empty generation ["
-                            + expectedGen
-                            + "] does not match generation tracked in ["
-                            + meta
-                            + "]";
+                    assert expectedGen == RepositoryData.EMPTY_REPO_GEN || uninitializedMeta || expectedGen == meta.generation()
+                        : "Expected non-empty generation [" + expectedGen + "] does not match generation tracked in [" + meta + "]";
                     // If we run into the empty repo generation for the expected gen, the repo is assumed to have been cleared of
                     // all contents by an external process so we reset the safe generation to the empty generation.
                     final long safeGeneration = expectedGen == RepositoryData.EMPTY_REPO_GEN

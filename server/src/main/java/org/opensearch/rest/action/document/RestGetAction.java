@@ -36,7 +36,6 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -56,9 +55,6 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
-        + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     @Override
     public String getName() {
@@ -67,27 +63,12 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(
-            asList(
-                new Route(GET, "/{index}/_doc/{id}"),
-                new Route(HEAD, "/{index}/_doc/{id}"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/{id}"),
-                new Route(HEAD, "/{index}/{type}/{id}")
-            )
-        );
+        return unmodifiableList(asList(new Route(GET, "/{index}/_doc/{id}"), new Route(HEAD, "/{index}/_doc/{id}")));
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        GetRequest getRequest;
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecate("get_with_types", TYPES_DEPRECATION_MESSAGE);
-            getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
-        } else {
-            getRequest = new GetRequest(request.param("index"), request.param("id"));
-        }
-
+        GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));
         getRequest.preference(request.param("preference"));

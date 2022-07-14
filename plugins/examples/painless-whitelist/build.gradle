@@ -32,7 +32,7 @@ apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
   name 'painless-whitelist'
-  description 'An example whitelisting additional classes and methods in painless'
+  description 'An example allowlisting additional classes and methods in painless'
   classname 'org.opensearch.example.painlesswhitelist.MyWhitelistPlugin'
   extendedPlugins = ['lang-painless']
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
