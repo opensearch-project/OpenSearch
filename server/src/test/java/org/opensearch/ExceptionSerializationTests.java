@@ -47,7 +47,7 @@ import org.opensearch.client.AbstractClientHeadersTestCase;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IllegalShardRoutingStateException;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -510,9 +510,9 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testClusterBlockException() throws IOException {
-        ClusterBlockException ex = serialize(new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)));
+        ClusterBlockException ex = serialize(new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES)));
         assertEquals("blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];", ex.getMessage());
-        assertTrue(ex.blocks().contains(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
+        assertTrue(ex.blocks().contains(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES));
         assertEquals(1, ex.blocks().size());
     }
 
@@ -694,7 +694,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(0, org.opensearch.index.snapshots.IndexShardSnapshotFailedException.class);
         ids.put(1, org.opensearch.search.dfs.DfsPhaseExecutionException.class);
         ids.put(2, org.opensearch.common.util.CancellableThreads.ExecutionCancelledException.class);
-        ids.put(3, org.opensearch.discovery.MasterNotDiscoveredException.class);
+        ids.put(3, org.opensearch.discovery.ClusterManagerNotDiscoveredException.class);
         ids.put(4, org.opensearch.OpenSearchSecurityException.class);
         ids.put(5, org.opensearch.index.snapshots.IndexShardRestoreException.class);
         ids.put(6, org.opensearch.indices.IndexClosedException.class);
@@ -832,7 +832,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(141, org.opensearch.index.query.QueryShardException.class);
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.opensearch.script.ScriptException.class);
-        ids.put(144, org.opensearch.cluster.NotMasterException.class);
+        ids.put(144, org.opensearch.cluster.NotClusterManagerException.class);
         ids.put(145, org.opensearch.OpenSearchStatusException.class);
         ids.put(146, org.opensearch.tasks.TaskCancelledException.class);
         ids.put(147, org.opensearch.env.ShardLockObtainFailedException.class);

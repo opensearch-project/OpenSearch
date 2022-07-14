@@ -37,7 +37,7 @@ package org.opensearch.cluster;
  *
  * @opensearch.internal
  */
-public interface LocalNodeMasterListener extends ClusterStateListener {
+public interface LocalNodeClusterManagerListener extends ClusterStateListener {
 
     /**
      * Called when local node is elected to be the cluster-manager

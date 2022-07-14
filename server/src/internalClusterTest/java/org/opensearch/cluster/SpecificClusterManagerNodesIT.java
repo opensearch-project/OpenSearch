@@ -36,7 +36,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.MasterNotDiscoveredException;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -73,7 +73,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 nullValue()
             );
             fail("should not be able to find cluster-manager");
-        } catch (MasterNotDiscoveredException e) {
+        } catch (ClusterManagerNotDiscoveredException e) {
             // all is well, no cluster-manager elected
         }
         logger.info("--> start cluster-manager node");
@@ -123,7 +123,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 nullValue()
             );
             fail("should not be able to find cluster-manager");
-        } catch (MasterNotDiscoveredException e) {
+        } catch (ClusterManagerNotDiscoveredException e) {
             // all is well, no cluster-manager elected
         }
 
@@ -177,7 +177,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 nullValue()
             );
             fail("should not be able to find cluster-manager");
-        } catch (MasterNotDiscoveredException e) {
+        } catch (ClusterManagerNotDiscoveredException e) {
             // all is well, no cluster-manager elected
         }
         logger.info("--> start cluster-manager node (1)");

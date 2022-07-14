@@ -825,7 +825,7 @@ public class MasterService extends AbstractLifecycleComponent {
             if (previousClusterState != clusterTasksResult.resultingState
                 && previousClusterState.nodes().isLocalNodeElectedMaster()
                 && (clusterTasksResult.resultingState.nodes().isLocalNodeElectedMaster() == false)) {
-                throw new AssertionError("update task submitted to MasterService cannot remove master");
+                throw new AssertionError("update task submitted to ClusterManagerService cannot remove cluster-manager");
             }
         } catch (Exception e) {
             logger.trace(

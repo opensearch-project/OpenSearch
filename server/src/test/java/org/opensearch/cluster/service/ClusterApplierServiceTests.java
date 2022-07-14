@@ -38,9 +38,9 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.LocalNodeMasterListener;
+import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -296,7 +296,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         TimedClusterApplierService timedClusterApplierService = createTimedClusterService(false);
 
         AtomicBoolean isClusterManager = new AtomicBoolean();
-        timedClusterApplierService.addLocalNodeMasterListener(new LocalNodeMasterListener() {
+        timedClusterApplierService.addLocalNodeMasterListener(new LocalNodeClusterManagerListener() {
             @Override
             public void onMaster() {
                 isClusterManager.set(true);
@@ -318,7 +318,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         nodes = state.nodes();
         nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
         state = ClusterState.builder(state)
-            .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES))
             .nodes(nodesBuilder)
             .build();
         setState(timedClusterApplierService, state);

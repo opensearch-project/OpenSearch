@@ -105,7 +105,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_ID;
 import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -141,12 +141,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final boolean singleNodeDiscovery;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
-    private final MasterService clusterManagerService;
+    private final MasterService masterService;
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
-    private final NoMasterBlockService noClusterManagerBlockService;
+    private final NoClusterManagerBlockService noClusterManagerBlockService;
     final Object mutex = new Object(); // package-private to allow tests to call methods that assert that the mutex is held
     private final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
     private volatile ClusterState applierState; // the state that should be exposed to the cluster state applier
@@ -191,7 +191,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
         AllocationService allocationService,
-        MasterService clusterManagerService,
+        MasterService masterService,
         Supplier<CoordinationState.PersistedState> persistedStateSupplier,
         SeedHostsProvider seedHostsProvider,
         ClusterApplier clusterApplier,
@@ -203,7 +203,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     ) {
         this.settings = settings;
         this.transportService = transportService;
-        this.clusterManagerService = clusterManagerService;
+        this.masterService = masterService;
         this.allocationService = allocationService;
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
@@ -211,7 +211,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.joinHelper = new JoinHelper(
             settings,
             allocationService,
-            clusterManagerService,
+            masterService,
             transportService,
             this::getCurrentTerm,
             this::getStateForClusterManagerService,
@@ -222,7 +222,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             nodeHealthService
         );
         this.persistedStateSupplier = persistedStateSupplier;
-        this.noClusterManagerBlockService = new NoMasterBlockService(settings, clusterSettings);
+        this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
@@ -260,7 +260,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         );
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
-        clusterManagerService.setClusterStateSupplier(this::getStateForClusterManagerService);
+        masterService.setClusterStateSupplier(this::getStateForClusterManagerService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(
             settings,
@@ -310,7 +310,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private void removeNode(DiscoveryNode discoveryNode, String reason) {
         synchronized (mutex) {
             if (mode == Mode.LEADER) {
-                clusterManagerService.submitStateUpdateTask(
+                masterService.submitStateUpdateTask(
                     "node-left",
                     new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason),
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
@@ -756,7 +756,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void cleanClusterManagerService() {
-        clusterManagerService.submitStateUpdateTask("clean-up after stepping down as cluster-manager", new LocalClusterUpdateTask() {
+        masterService.submitStateUpdateTask("clean-up after stepping down as cluster-manager", new LocalClusterUpdateTask() {
             @Override
             public void onFailure(String source, Exception e) {
                 // ignore
@@ -1126,7 +1126,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         final ClusterState state = getLastAcceptedState();
         if (improveConfiguration(state) != state && reconfigurationTaskScheduled.compareAndSet(false, true)) {
             logger.trace("scheduling reconfiguration");
-            clusterManagerService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
+            masterService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     reconfigurationTaskScheduled.set(false);
