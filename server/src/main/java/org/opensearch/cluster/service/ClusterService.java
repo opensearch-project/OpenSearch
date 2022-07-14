@@ -62,7 +62,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class ClusterService extends AbstractLifecycleComponent {
-    private final ClusterManagerService clusterManagerService;
+    private final MasterService clusterManagerService;
 
     private final ClusterApplierService clusterApplierService;
 
@@ -92,7 +92,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         this(
             settings,
             clusterSettings,
-            new ClusterManagerService(settings, clusterSettings, threadPool),
+            new MasterService(settings, clusterSettings, threadPool),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }
@@ -100,7 +100,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     public ClusterService(
         Settings settings,
         ClusterSettings clusterSettings,
-        ClusterManagerService clusterManagerService,
+        MasterService clusterManagerService,
         ClusterApplierService clusterApplierService
     ) {
         this.settings = settings;
@@ -218,7 +218,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         clusterApplierService.addLocalNodeMasterListener(listener);
     }
 
-    public ClusterManagerService getMasterService() {
+    public MasterService getMasterService() {
         return clusterManagerService;
     }
 
