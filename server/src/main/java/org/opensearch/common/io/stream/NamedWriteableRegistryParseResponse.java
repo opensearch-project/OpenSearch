@@ -19,28 +19,28 @@ import java.util.Objects;
  */
 public class NamedWriteableRegistryParseResponse extends TransportResponse {
 
-    private final String data;
+    private final boolean status;
 
-    public NamedWriteableRegistryParseResponse(String data) {
-        this.data = data;
+    public NamedWriteableRegistryParseResponse(boolean status) {
+        this.status = status;
     }
 
     public NamedWriteableRegistryParseResponse(StreamInput in) throws IOException {
-        this.data = in.readString();
+        this.status = in.readBoolean();
     }
 
-    public String getData() {
-        return this.data;
+    public boolean getStatus() {
+        return this.status;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(data);
+        out.writeBoolean(status);
     }
 
     @Override
     public String toString() {
-        return "NamedWriteableRegistryParseResponse{" + "data=" + this.data + "}";
+        return "NamedWriteableRegistryParseResponse{" + "status=" + this.status + "}";
     }
 
     @Override
@@ -48,12 +48,12 @@ public class NamedWriteableRegistryParseResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NamedWriteableRegistryParseResponse that = (NamedWriteableRegistryParseResponse) o;
-        return Objects.equals(this.data, that.data);
+        return Objects.equals(this.status, that.status);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(data);
+        return Objects.hash(status);
     }
 
 }

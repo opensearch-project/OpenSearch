@@ -23,7 +23,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.message
+import org.apache.logging.log4j.core.jackson.Log4jXmlObjectMapper;.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -452,8 +453,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 @Override
                 public void handleResponse(NamedWriteableRegistryParseResponse response) {
 
-                    logger.info("response {}", response);
-                    logger.info("checking response parsed data : {}", response.getData());
+                    // SDK will respond with the status of the parse request
+                    logger.info("response {}", response.getStatus());
 
                     inProgressLatch.countDown();
                 }
