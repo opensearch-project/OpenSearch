@@ -341,17 +341,18 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         final String indexName = "test-idx";
 
         logger.info("-->  creating repository at {}", repositoryPath.toAbsolutePath());
+        int maxShardBlobDeleteBatchSize = randomIntBetween(1, 1000);
         createRepository(
             "test-repo",
             "mock",
-            Settings.builder().put("location", repositoryPath).put(BlobStoreRepository.MAX_SHARD_BLOB_DELETE_BATCH_SIZE.getKey(), 10)
+            Settings.builder().put("location", repositoryPath).put(BlobStoreRepository.MAX_SHARD_BLOB_DELETE_BATCH_SIZE.getKey(), maxShardBlobDeleteBatchSize)
         );
 
         logger.info("--> creating index-0 and ingest data");
         createIndex(indexName);
         ensureGreen();
-        for (int j = 0; j < 10; j++) {
-            index(indexName, "_doc", Integer.toString(10 + j), "foo", "bar" + 10 + j);
+        for (int j = 0; j < randomIntBetween(1, 1000); j++) {
+            index(indexName, "_doc", Integer.toString(j), "foo", "bar" + j);
         }
         refresh();
 
@@ -361,9 +362,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         int numberOfFiles = numberOfFiles(repositoryPath);
 
         logger.info("--> adding some more documents to test index");
-        for (int j = 0; j < 10; ++j) {
+        for (int j = 0; j < randomIntBetween(100, 10000); ++j) {
             final BulkRequest bulkRequest = new BulkRequest();
-            for (int i = 0; i < 100; ++i) {
+            for (int i = 0; i < randomIntBetween(100, 1000); ++i) {
                 bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
             }
             client().bulk(bulkRequest).get();
@@ -379,6 +380,71 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made");
         assertFileCount(repositoryPath, numberOfFiles);
+
+        logger.info("--> done");
+    }
+
+    public void testSnapshotShardBlobDeletionRepositoryThrowingError() throws Exception {
+        Client client = client();
+        Path repositoryPath = randomRepoPath();
+        final String repositoryName = "test-repo";
+        final String firstSnapshot = "first-snapshot";
+        final String secondSnapshot = "second-snapshot";
+        final String indexName = "test-idx";
+
+        logger.info("-->  creating repository at {}", repositoryPath.toAbsolutePath());
+        int maxShardBlobDeleteBatchSize = randomIntBetween(1, 1000);
+        createRepository(
+            "test-repo",
+            "mock",
+            Settings.builder().put("location", repositoryPath).put(BlobStoreRepository.MAX_SHARD_BLOB_DELETE_BATCH_SIZE.getKey(), maxShardBlobDeleteBatchSize)
+        );
+
+        logger.info("--> creating index-0 and ingest data");
+        createIndex(indexName);
+        ensureGreen();
+        for (int j = 0; j < randomIntBetween(1, 1000); j++) {
+            index(indexName, "_doc", Integer.toString(j), "foo", "bar" + j);
+        }
+        refresh();
+
+        logger.info("--> creating first snapshot");
+        createFullSnapshot(repositoryName, firstSnapshot);
+
+        logger.info("--> adding some more documents to test index");
+        for (int j = 0; j < randomIntBetween(100, 1000); ++j) {
+            final BulkRequest bulkRequest = new BulkRequest();
+            for (int i = 0; i < randomIntBetween(100, 1000); ++i) {
+                bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+            }
+            client().bulk(bulkRequest).get();
+        }
+        refresh();
+
+        logger.info("--> creating second snapshot");
+        createFullSnapshot(repositoryName, secondSnapshot);
+
+        // Make repository to throw exception when trying to delete stale snapshot shard blobs
+        String clusterManagerNode = internalCluster().getMasterName();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repository("test-repo"))
+            .setThrowExceptionWhileDelete(true);
+
+        // Delete second snapshot
+        logger.info("--> delete second snapshot");
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, secondSnapshot).get();
+
+        // Make repository to work normally
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repository("test-repo"))
+            .setThrowExceptionWhileDelete(false);
+
+        // This snapshot should delete last snapshot's residual stale shard blobs as well
+        logger.info("--> delete first snapshot");
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, firstSnapshot).get();
+
+        // Expect two files to remain in the repository:
+        // (1) index-(N+1)
+        // (2) index-latest
+        assertFileCount(repositoryPath, 2);
 
         logger.info("--> done");
     }

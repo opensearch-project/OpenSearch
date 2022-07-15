@@ -960,7 +960,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     l.onResponse(null);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("{} Failed to delete blobs during snapshot delete", metadata.name()), e);
-                    throw e;
+                    l.onFailure(e);
                 }
                 executeStaleShardDelete(staleFilesToDeleteInBatch, listener);
             }));
