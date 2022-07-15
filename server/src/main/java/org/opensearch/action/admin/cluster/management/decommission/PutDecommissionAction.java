@@ -9,17 +9,18 @@
 package org.opensearch.action.admin.cluster.management.decommission;
 
 import org.opensearch.action.ActionType;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Transport endpoint for adding exclusions to voting config
  *
  * @opensearch.internal
  */
-public final class ClusterManagementDecommissionAction extends ActionType<ClusterManagementDecommissionResponse> {
-    public static final ClusterManagementDecommissionAction INSTANCE = new ClusterManagementDecommissionAction();
+public final class PutDecommissionAction extends ActionType<AcknowledgedResponse> {
+    public static final PutDecommissionAction INSTANCE = new PutDecommissionAction();
     public static final String NAME = "cluster:admin/management/decommission";
 
-    private ClusterManagementDecommissionAction() {
-        super(NAME, ClusterManagementDecommissionResponse::new);
+    private PutDecommissionAction() {
+        super(NAME, AcknowledgedResponse::new);
     }
 }

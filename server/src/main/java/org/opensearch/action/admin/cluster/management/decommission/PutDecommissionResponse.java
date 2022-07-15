@@ -17,15 +17,15 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * A response to {@link ClusterManagementDecommissionRequest} indicating that requested nodes has been decommissioned
+ * A response to {@link PutDecommissionRequest} indicating that requested nodes has been decommissioned
  *
  * @opensearch.internal
  */
-public class ClusterManagementDecommissionResponse extends ActionResponse implements ToXContentObject {
+public class PutDecommissionResponse extends ActionResponse implements ToXContentObject {
 
-    public ClusterManagementDecommissionResponse() {}
+    public PutDecommissionResponse() {}
 
-    public ClusterManagementDecommissionResponse(StreamInput in) throws IOException {
+    public PutDecommissionResponse(StreamInput in) throws IOException {
         super(in);
     }
 

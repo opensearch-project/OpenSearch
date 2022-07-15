@@ -10,12 +10,12 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.cluster.shutdown.NodeDecommissionService;
+import org.opensearch.cluster.decommission.DecommissionService;
 
 import java.io.IOException;
 
 /**
- * This exception is thrown if the node is decommissioned by @{@link NodeDecommissionService}
+ * This exception is thrown if the node is decommissioned by @{@link DecommissionService}
  * and this nodes needs to be removed from the cluster
  *
  * @opensearch.internal
