@@ -35,7 +35,7 @@ import java.util.List;
 
 public class TransportPutDecommissionAction extends TransportClusterManagerNodeAction<
     PutDecommissionRequest,
-    AcknowledgedResponse> {
+    PutDecommissionResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDecommissionAction.class);
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
@@ -76,20 +76,20 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+    protected PutDecommissionResponse read(StreamInput in) throws IOException {
+        return new PutDecommissionResponse(in);
     }
 
     @Override
     protected void masterOperation(
         PutDecommissionRequest request,
         ClusterState state,
-        ActionListener<AcknowledgedResponse> listener) throws Exception {
+        ActionListener<PutDecommissionResponse> listener) throws Exception {
         decommissionService.registerDecommissionAttribute(
             request,
             ActionListener.delegateFailure(
                 listener,
-                (delegatedListener, response) -> delegatedListener.onResponse(new AcknowledgedResponse(response.isAcknowledged()))
+                (delegatedListener, response) -> delegatedListener.onResponse(new PutDecommissionResponse(response.isAcknowledged()))
             )
         );
 //        List<DiscoveryNode> decommissionedNodes = resolveDecommissionedNodes(request, state);

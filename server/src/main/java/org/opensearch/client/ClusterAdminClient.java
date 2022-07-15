@@ -42,6 +42,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionRequest;
 import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
@@ -790,12 +791,12 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Decommission a node
      */
-    ActionFuture<AcknowledgedResponse> decommission(PutDecommissionRequest request);
+    ActionFuture<PutDecommissionResponse> decommission(PutDecommissionRequest request);
 
     /**
      * Decommission a node
      */
-    void decommission(PutDecommissionRequest request, ActionListener<AcknowledgedResponse> listener);
+    void decommission(PutDecommissionRequest request, ActionListener<PutDecommissionResponse> listener);
 
     /**
      * Decommission a node

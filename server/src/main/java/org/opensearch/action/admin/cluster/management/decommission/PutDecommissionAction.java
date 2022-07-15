@@ -16,11 +16,11 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
  *
  * @opensearch.internal
  */
-public final class PutDecommissionAction extends ActionType<AcknowledgedResponse> {
+public final class PutDecommissionAction extends ActionType<PutDecommissionResponse> {
     public static final PutDecommissionAction INSTANCE = new PutDecommissionAction();
     public static final String NAME = "cluster:admin/management/decommission";
 
     private PutDecommissionAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, PutDecommissionResponse::new);
     }
 }

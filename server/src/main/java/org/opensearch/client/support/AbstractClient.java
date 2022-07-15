@@ -50,6 +50,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionAction;
 import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionRequest;
 import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
@@ -1253,12 +1254,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> decommission(PutDecommissionRequest request) {
+        public ActionFuture<PutDecommissionResponse> decommission(PutDecommissionRequest request) {
             return execute(PutDecommissionAction.INSTANCE, request);
         }
 
         @Override
-        public void decommission(PutDecommissionRequest request, ActionListener<AcknowledgedResponse> listener) {
+        public void decommission(PutDecommissionRequest request, ActionListener<PutDecommissionResponse> listener) {
             execute(PutDecommissionAction.INSTANCE, request, listener);
         }
 

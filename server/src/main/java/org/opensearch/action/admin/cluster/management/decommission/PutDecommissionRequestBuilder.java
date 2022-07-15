@@ -20,7 +20,7 @@ import org.opensearch.cluster.decommission.DecommissionAttribute;
  */
 public class PutDecommissionRequestBuilder extends AcknowledgedRequestBuilder<
     PutDecommissionRequest,
-    AcknowledgedResponse,
+    PutDecommissionResponse,
     PutDecommissionRequestBuilder> {
     public PutDecommissionRequestBuilder(OpenSearchClient client, PutDecommissionAction action) {
         super(client, action, new PutDecommissionRequest());

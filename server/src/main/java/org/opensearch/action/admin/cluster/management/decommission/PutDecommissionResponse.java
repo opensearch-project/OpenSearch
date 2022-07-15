@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.management.decommission;
 
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
@@ -21,19 +22,20 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class PutDecommissionResponse extends ActionResponse implements ToXContentObject {
+public class PutDecommissionResponse extends AcknowledgedResponse implements ToXContentObject {
 
-    public PutDecommissionResponse() {}
-
-    public PutDecommissionResponse(StreamInput in) throws IOException {
+    PutDecommissionResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {}
+    PutDecommissionResponse(boolean acknowledged) {
+        super(acknowledged);
+    }
 
     @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        return builder;
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
     }
+
+    // TODO - once we have custom fields, we need to override addCustomFields method
 }
