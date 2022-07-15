@@ -146,7 +146,13 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
 
         if (fieldMaxAnalyzedOffset > maxAnalyzedOffset) {
             throw new IllegalArgumentException(
-                "max_analyzer_offset has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. "
+                "max_analyzer_offset has exceeded ["
+                    + maxAnalyzedOffset
+                    + "] - maximum allowed to be analyzed for highlighting. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
+                    + "] index level setting. "
+                    + "For large texts, indexing with offsets or term vectors is recommended! "
             );
         }
         // throws an execption if the value is invalid, negative values are not valued with the exception of -1 wich is used to mark that it
