@@ -47,10 +47,9 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.admin.cluster.management.decommission.ClusterManagementDecommissionAction;
-import org.opensearch.action.admin.cluster.management.decommission.ClusterManagementDecommissionRequest;
-import org.opensearch.action.admin.cluster.management.decommission.ClusterManagementDecommissionRequestBuilder;
-import org.opensearch.action.admin.cluster.management.decommission.ClusterManagementDecommissionResponse;
+import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionAction;
+import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionRequest;
+import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionRequestBuilder;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
@@ -1238,18 +1237,18 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<ClusterManagementDecommissionResponse> decommission(ClusterManagementDecommissionRequest request) {
-            return execute(ClusterManagementDecommissionAction.INSTANCE, request);
+        public ActionFuture<AcknowledgedResponse> decommission(PutDecommissionRequest request) {
+            return execute(PutDecommissionAction.INSTANCE, request);
         }
 
         @Override
-        public void decommission(ClusterManagementDecommissionRequest request, ActionListener<ClusterManagementDecommissionResponse> listener) {
-            execute(ClusterManagementDecommissionAction.INSTANCE, request, listener);
+        public void decommission(PutDecommissionRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(PutDecommissionAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ClusterManagementDecommissionRequestBuilder prepareDecommission() {
-            return new ClusterManagementDecommissionRequestBuilder(this, ClusterManagementDecommissionAction.INSTANCE);
+        public PutDecommissionRequestBuilder prepareDecommission() {
+            return new PutDecommissionRequestBuilder(this, PutDecommissionAction.INSTANCE);
         }
 
         @Override

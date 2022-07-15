@@ -42,8 +42,8 @@ import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfi
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
-import org.opensearch.action.admin.cluster.management.decommission.ClusterManagementDecommissionAction;
-import org.opensearch.action.admin.cluster.management.decommission.TransportClusterManagementDecommissionAction;
+import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionAction;
+import org.opensearch.action.admin.cluster.management.decommission.TransportPutDecommissionAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -513,7 +513,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
-        actions.register(ClusterManagementDecommissionAction.INSTANCE, TransportClusterManagementDecommissionAction.class);
+        actions.register(PutDecommissionAction.INSTANCE, TransportPutDecommissionAction.class);
 
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
@@ -810,7 +810,7 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
-        registerHandler.accept(new RestClusterManagementDecommissionAction());
+        registerHandler.accept(new RestPutDecommissionAction());
     }
 
     @Override

@@ -1601,6 +1601,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.indices.replication.common.ReplicationFailedException::new,
             161,
             V_2_1_0
+        ),
+        NODE_DECOMMISSIONED_EXCEPTION(
+            org.opensearch.cluster.coordination.NodeDecommissionedException.class,
+            org.opensearch.cluster.coordination.NodeDecommissionedException::new,
+            162,
+            V_2_1_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;
