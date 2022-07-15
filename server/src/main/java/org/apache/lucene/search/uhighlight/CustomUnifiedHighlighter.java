@@ -79,7 +79,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final FieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
     private final int fieldMaxAnalyzedOffset;
-    private final boolean fieldMaxAnalyzedIsNotValid;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -129,7 +128,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
         this.fieldMaxAnalyzedOffset = fieldMaxAnalyzedOffset;
-        this.fieldMaxAnalyzedIsNotValid = (fieldMaxAnalyzedOffset < 0 || fieldMaxAnalyzedOffset > maxAnalyzedOffset);
     }
 
     /**
@@ -146,7 +144,20 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         }
         int fieldValueLength = fieldValue.length();
 
-        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset && fieldMaxAnalyzedIsNotValid)) {
+        if (fieldMaxAnalyzedOffset > maxAnalyzedOffset) {
+            throw new IllegalArgumentException(
+                "max_analyzer_offset has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. "
+            );
+        }
+        // throws an execption if the value is invalid, negative values are not valued with the exception of -1 wich is used to mark that it
+        // is disabled
+        if (fieldMaxAnalyzedOffset < -1) {
+            throw new IllegalArgumentException("the value [" + fieldMaxAnalyzedOffset + "] of max_analyzer_offset is invalid ");
+        }
+
+        // if fieldMaxAnalyzedOffset is not defined if it is equal to -1
+        // and if this happens we should fallback to the previous behavior
+        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset && fieldMaxAnalyzedOffset == -1)) {
             throw new IllegalArgumentException(
                 "The length of ["
                     + field
@@ -161,7 +172,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                     + "This maximum can be set by changing the ["
                     + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
                     + "] index level setting. "
-                            + "For large texts, indexing with offsets or term vectors is recommended! "
+                    + "For large texts, indexing with offsets or term vectors is recommended! "
             );
         }
         Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);

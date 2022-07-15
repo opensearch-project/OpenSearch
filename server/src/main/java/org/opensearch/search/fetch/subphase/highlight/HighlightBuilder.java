@@ -401,9 +401,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         if (highlighterBuilder.highlightQuery != null) {
             targetOptionsBuilder.highlightQuery(highlighterBuilder.highlightQuery.toQuery(context));
         }
-        if (highlighterBuilder.maxAnalyzerOffset > 0) {
-            targetOptionsBuilder.maxAnalyzerOffset(highlighterBuilder.maxAnalyzerOffset);
-        }
+
+        targetOptionsBuilder.maxAnalyzerOffset(highlighterBuilder.maxAnalyzerOffset);
+
     }
 
     static Character[] convertCharArray(char[] array) {
