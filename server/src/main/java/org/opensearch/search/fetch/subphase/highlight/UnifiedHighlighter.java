@@ -135,23 +135,16 @@ public class UnifiedHighlighter implements Highlighter {
         return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
     }
 
-    public AnalyzerWrapper getLimitedOffsetAnalyzer(Analyzer a, int limit) {
-        return new AnalyzerWrapper(a.getReuseStrategy()) {
-
-            private Analyzer old = a;
-            private int maxOffset = limit;
-
+    public AnalyzerWrapper getLimitedOffsetAnalyzer(Analyzer analyzer, int limit) {
+        return new AnalyzerWrapper(analyzer.getReuseStrategy()) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
-                return old;
+                return analyzer;
             }
 
             @Override
             protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-                return new TokenStreamComponents(
-                    components.getSource(),
-                    new LimitTokenOffsetFilter(components.getTokenStream(), maxOffset)
-                );
+                return new TokenStreamComponents(components.getSource(), new LimitTokenOffsetFilter(components.getTokenStream(), limit));
             }
 
         };
