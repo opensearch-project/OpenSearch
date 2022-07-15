@@ -316,9 +316,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
                 logger.info("response {}", response);
 
+                logger.info("EXTENSION [" + extensionNode.getName() + "] returned " + response.getRegistry().size() + " entries");
                 if (response.getRegistry().isEmpty() == false) {
-
-                    logger.info("EXTENSION [" + extensionNode.getName() + "] returned " + response.getRegistry().size() + " entries");
 
                     // Extension has sent over entries to register, initialize inner category map
                     Map<Class<?>, Map<String, ExtensionReader>> categoryMap = new HashMap<>();
@@ -441,7 +440,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         return reader;
     }
 
-    // transport byte array (context) and categoryClass to SDK. Not necessary to transport name to SDK, as name already proceeds the named writeable within the byte array context
+    // transport byte array (context) and categoryClass to SDK. Not necessary to transport name to SDK, as name already proceeds the named
+    // writeable within the byte array context
     public void parseNamedWriteable(DiscoveryNode extensionNode, Class<?> categoryClass, byte[] context) throws UnknownHostException {
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportResponseHandler<NamedWriteableRegistryParseResponse> namedWriteableRegistryParseResponseHandler =
