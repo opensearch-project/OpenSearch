@@ -39,7 +39,7 @@ setup:
 ---
 "Unified highlighter on a field WITHOUT OFFSETS using max_analyzer_offset should SUCCEED":
   - skip:
-        version: " - 2.99.99"
+        version: [" - 2.01.00"," - 7.99.99"]
         reason: only starting supporting the parameter max_analyzer_offset on version 3.0
   - do:
       search:
