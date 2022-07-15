@@ -37,6 +37,7 @@
       - [testImplementation](#testimplementation)
     - [Gradle Plugins](#gradle-plugins)
       - [Distribution Download Plugin](#distribution-download-plugin)
+    - [Creating fat-JAR of a module](#creating-fat-jar-of-a-module)
   - [Misc](#misc)
     - [git-secrets](#git-secrets)
       - [Installation](#installation)
@@ -52,7 +53,6 @@
   - [Backports](#backports)
   - [LineLint](#linelint)
 - [Lucene Snapshots](#lucene-snapshots)
-- [Creating uber-JAR/fat-JAR of a module](#creating-uber-jarfat-jar-of-a-module)
 
 # Developer Guide
 
@@ -377,6 +377,28 @@ The Distribution Download plugin downloads the latest version of OpenSearch by d
 ./gradlew integTest -PcustomDistributionUrl="https://ci.opensearch.org/ci/dbc/bundle-build/1.2.0/1127/linux/x64/dist/opensearch-1.2.0-linux-x64.tar.gz"
 ```
 
+### Creating fat-JAR of a module
+
+A fat-JAR (or an uber-JAR ) is the JAR, which contains classes from all the libraries, on which your project depends and, of course, the classes of current project.
+
+There might be cases where the developer would like to add some custom logic to the code of a module (or multiple modules) and generate a fat-JAR that can be directly used by the dependency management tool. For example in [#3665](https://github.com/opensearch-project/OpenSearch/pull/3665) the developer wanted to provide a tentative patch as a fat-JAR to a consumer for changes made in the high level rest client. 
+
+To do so you will be using [Gradle Shadow plugin](https://imperceptiblethoughts.com/shadow/).
+Go to the `build.gradle` file of the module for which you want to create the fat-JAR.
+
+Add the shadow plugin:
+```
+apply plugin: 'com.github.johnrengelman.shadow'
+```
+After applying the plugin you should see a new gradle command `shadowJar`. Run the command using:
+```
+../../gradlew shadowJar
+```
+Note: `gradlew` is at the root of OpenSearch project directory. You will have to change the path according to the module you are trying to build the shadowJar for.
+
+This will generate a fat-JAR in the `build/distributions` folder of the module. The default name of the fat-JAR will be `opensearch-[MODULE NAME]-[VERSION].jar`. You can inspect that it contains all the requirements using a decompiler.
+
+You can further customize your fat-JAR by customising the plugin, details for this can be found in the Shadow plugin [documentation](https://imperceptiblethoughts.com/shadow/).
 
 ## Misc
 
@@ -497,15 +519,3 @@ Pass a list of files or directories to limit your search.
 The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a Github worfklow executable by maintainers to build a top-down snapshot build of lucene.
 These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version.
 Example: `lucene = 10.0.0-snapshot-2e941fc`.
-
-# Creating uber-JAR/fat-JAR of a module
-An uber-JAR is the JAR, which contains classes from all the libraries, on which your project depends and, of course, the classes of current project.
-
-There might be cases where the developer would like to add some custom logic to the code of a module (like the rest client) and generate anuber-JAR that can be directly used by the dependency management tool.
-
-To do so you will be using [Gradle Shadow plugin](https://imperceptiblethoughts.com/shadow/).
-Go to the `build.gradle` file of the module for which you want to create the uber-JAR.
-Add the shadow plugin:
-```
-apply plugin: 'com.github.johnrengelman.shadow'
-```
