@@ -36,7 +36,12 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.search.*;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -87,10 +92,10 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(
-                        Settings.builder()
-                                .put("number_of_shards", numberOfShards)
-                                .put("index.max_slices_per_scroll", 10000)
-                                .put("index.max_slices_per_pit", 10000)
+                    Settings.builder()
+                        .put("number_of_shards", numberOfShards)
+                        .put("index.max_slices_per_scroll", 10000)
+                        .put("index.max_slices_per_pit", 10000)
                 )
                 .setMapping(mapping)
         );
@@ -140,9 +145,9 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
         setupIndex(numDocs, numShards);
         int fetchSize = randomIntBetween(10, 100);
         SearchRequestBuilder request = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
-                .setSize(fetchSize)
-                .addSort(SortBuilders.fieldSort("_doc"));
+            .setQuery(matchAllQuery())
+            .setSize(fetchSize)
+            .addSort(SortBuilders.fieldSort("_doc"));
         SliceBuilder sliceBuilder = new SliceBuilder("_id", 0, 4);
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> request.slice(sliceBuilder).get());
         assertTrue(ex.getMessage().contains("all shards failed"));
@@ -162,18 +167,18 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
 
             // test _doc sort
             SearchRequestBuilder request = client().prepareSearch("test")
-                    .setQuery(matchAllQuery())
-                    .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
-                    .setSize(fetchSize)
-                    .addSort(SortBuilders.fieldSort("_doc"));
+                .setQuery(matchAllQuery())
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+                .setSize(fetchSize)
+                .addSort(SortBuilders.fieldSort("_doc"));
             assertSearchSlicesWithPIT(request, field, max, numDocs);
 
             // test numeric sort
             request = client().prepareSearch("test")
-                    .setQuery(matchAllQuery())
-                    .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
-                    .setSize(fetchSize)
-                    .addSort(SortBuilders.fieldSort("random_int"));
+                .setQuery(matchAllQuery())
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+                .setSize(fetchSize)
+                .addSort(SortBuilders.fieldSort("random_int"));
             assertSearchSlicesWithPIT(request, field, max, numDocs);
         }
         client().admin().indices().prepareDelete("test").get();

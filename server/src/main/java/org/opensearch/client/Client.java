@@ -55,7 +55,21 @@ import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.action.search.*;
+import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.ClearScrollRequestBuilder;
+import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.MultiSearchRequest;
+import org.opensearch.action.search.MultiSearchRequestBuilder;
+import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchScrollRequest;
+import org.opensearch.action.search.SearchScrollRequestBuilder;
 import org.opensearch.action.termvectors.MultiTermVectorsRequest;
 import org.opensearch.action.termvectors.MultiTermVectorsRequestBuilder;
 import org.opensearch.action.termvectors.MultiTermVectorsResponse;
@@ -319,6 +333,11 @@ public interface Client extends OpenSearchClient, Releasable {
      * Create point in time for one or more indices
      */
     void createPit(CreatePitRequest createPITRequest, ActionListener<CreatePitResponse> listener);
+
+    /**
+     * Delete one or more point in time contexts
+     */
+    void deletePits(DeletePitRequest deletePITRequest, ActionListener<DeletePitResponse> listener);
 
     /**
      * Performs multiple search requests.
