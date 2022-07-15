@@ -36,13 +36,13 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
 
     @Inject
     public TransportDeletePitAction(
-            TransportService transportService,
-            ActionFilters actionFilters,
-            NamedWriteableRegistry namedWriteableRegistry,
-            TransportSearchAction transportSearchAction,
-            ClusterService clusterService,
-            SearchTransportService searchTransportService,
-            PitService pitService
+        TransportService transportService,
+        ActionFilters actionFilters,
+        NamedWriteableRegistry namedWriteableRegistry,
+        TransportSearchAction transportSearchAction,
+        ClusterService clusterService,
+        SearchTransportService searchTransportService,
+        PitService pitService
     ) {
         super(DeletePitAction.NAME, transportService, actionFilters, DeletePitRequest::new);
         this.namedWriteableRegistry = namedWriteableRegistry;

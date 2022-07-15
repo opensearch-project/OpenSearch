@@ -49,24 +49,24 @@ public class PitService {
      * Delete list of pit contexts. Returns the details of success of operation per PIT ID.
      */
     public void deletePitContexts(
-            Map<String, List<PitSearchContextIdForNode>> nodeToContextsMap,
-            ActionListener<DeletePitResponse> listener
+        Map<String, List<PitSearchContextIdForNode>> nodeToContextsMap,
+        ActionListener<DeletePitResponse> listener
     ) {
         final Set<String> clusters = nodeToContextsMap.values()
-                .stream()
-                .flatMap(Collection::stream)
-                .filter(ctx -> Strings.isEmpty(ctx.getSearchContextIdForNode().getClusterAlias()) == false)
-                .map(c -> c.getSearchContextIdForNode().getClusterAlias())
-                .collect(Collectors.toSet());
+            .stream()
+            .flatMap(Collection::stream)
+            .filter(ctx -> Strings.isEmpty(ctx.getSearchContextIdForNode().getClusterAlias()) == false)
+            .map(c -> c.getSearchContextIdForNode().getClusterAlias())
+            .collect(Collectors.toSet());
         StepListener<BiFunction<String, String, DiscoveryNode>> lookupListener = SearchUtils.getConnectionLookupListener(
-                searchTransportService.getRemoteClusterService(),
-                clusterService.state(),
-                clusters
+            searchTransportService.getRemoteClusterService(),
+            clusterService.state(),
+            clusters
         );
         lookupListener.whenComplete(nodeLookup -> {
             final GroupedActionListener<DeletePitResponse> groupedListener = getDeletePitGroupedListener(
-                    listener,
-                    nodeToContextsMap.size()
+                listener,
+                nodeToContextsMap.size()
             );
 
             for (Map.Entry<String, List<PitSearchContextIdForNode>> entry : nodeToContextsMap.entrySet()) {
@@ -74,7 +74,7 @@ public class PitService {
                 final DiscoveryNode node = nodeLookup.apply(clusterAlias, entry.getValue().get(0).getSearchContextIdForNode().getNode());
                 if (node == null) {
                     logger.error(
-                            () -> new ParameterizedMessage("node [{}] not found", entry.getValue().get(0).getSearchContextIdForNode().getNode())
+                        () -> new ParameterizedMessage("node [{}] not found", entry.getValue().get(0).getSearchContextIdForNode().getNode())
                     );
                     List<DeletePitInfo> deletePitInfos = new ArrayList<>();
                     for (PitSearchContextIdForNode pitSearchContextIdForNode : entry.getValue()) {

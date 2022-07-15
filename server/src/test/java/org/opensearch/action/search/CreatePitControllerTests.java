@@ -82,10 +82,10 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
     }
 
     private MockTransportService startTransport(
-            final String id,
-            final List<DiscoveryNode> knownNodes,
-            final Version version,
-            final Settings settings
+        final String id,
+        final List<DiscoveryNode> knownNodes,
+        final Version version,
+        final Settings settings
     ) {
         return RemoteClusterConnectionTests.startTransport(id, knownNodes, version, threadPool, settings);
     }
@@ -97,41 +97,41 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
         pitId = getPitId();
         namedWriteableRegistry = new NamedWriteableRegistry(
-                Arrays.asList(
-                        new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
-                        new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
-                        new NamedWriteableRegistry.Entry(QueryBuilder.class, IdsQueryBuilder.NAME, IdsQueryBuilder::new)
-                )
+            Arrays.asList(
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, IdsQueryBuilder.NAME, IdsQueryBuilder::new)
+            )
         );
         nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         transportSearchAction = mock(TransportSearchAction.class);
         task = new Task(
-                randomLong(),
-                "transport",
-                SearchAction.NAME,
-                "description",
-                new TaskId(randomLong() + ":" + randomLong()),
-                Collections.emptyMap()
+            randomLong(),
+            "transport",
+            SearchAction.NAME,
+            "description",
+            new TaskId(randomLong() + ":" + randomLong()),
+            Collections.emptyMap()
         );
         InternalSearchResponse response = new InternalSearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                InternalAggregations.EMPTY,
-                null,
-                null,
-                false,
-                null,
-                1
+            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            InternalAggregations.EMPTY,
+            null,
+            null,
+            false,
+            null,
+            1
         );
         searchResponse = new SearchResponse(
-                response,
-                null,
-                3,
-                3,
-                0,
-                100,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY,
-                pitId
+            response,
+            null,
+            3,
+            3,
+            0,
+            100,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            pitId
         );
         createPitListener = new ActionListener<CreatePitResponse>() {
             @Override
@@ -165,29 +165,29 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-                MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-                MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
+            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
+            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
         ) {
             knownNodes.add(cluster1Transport.getLocalDiscoNode());
             knownNodes.add(cluster2Transport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
             try (
-                    MockTransportService transportService = MockTransportService.createNewService(
-                            Settings.EMPTY,
-                            Version.CURRENT,
-                            threadPool,
-                            null
-                    )
+                MockTransportService transportService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    null
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
                     @Override
                     public void updatePitContext(
-                            Transport.Connection connection,
-                            UpdatePitContextRequest request,
-                            ActionListener<UpdatePitContextResponse> listener
+                        Transport.Connection connection,
+                        UpdatePitContextRequest request,
+                        ActionListener<UpdatePitContextResponse> listener
                     ) {
                         updateNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onResponse(new UpdatePitContextResponse("pitid", 500000, 500000)));
@@ -199,9 +199,9 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                      */
                     @Override
                     public void sendFreePITContexts(
-                            Transport.Connection connection,
-                            List<PitSearchContextIdForNode> contextIds,
-                            ActionListener<DeletePitResponse> listener
+                        Transport.Connection connection,
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
@@ -221,14 +221,14 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                 PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 CreatePitController controller = new CreatePitController(
-                        request,
-                        searchTransportService,
-                        clusterServiceMock,
-                        transportSearchAction,
-                        namedWriteableRegistry,
-                        task,
-                        createPitListener,
-                        pitService
+                    request,
+                    searchTransportService,
+                    clusterServiceMock,
+                    transportSearchAction,
+                    namedWriteableRegistry,
+                    task,
+                    createPitListener,
+                    pitService
                 );
 
                 ActionListener<CreatePitResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
@@ -261,29 +261,29 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-                MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-                MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
+            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
+            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
         ) {
             knownNodes.add(cluster1Transport.getLocalDiscoNode());
             knownNodes.add(cluster2Transport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
             try (
-                    MockTransportService transportService = MockTransportService.createNewService(
-                            Settings.EMPTY,
-                            Version.CURRENT,
-                            threadPool,
-                            null
-                    )
+                MockTransportService transportService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    null
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
                     @Override
                     public void updatePitContext(
-                            Transport.Connection connection,
-                            UpdatePitContextRequest request,
-                            ActionListener<UpdatePitContextResponse> listener
+                        Transport.Connection connection,
+                        UpdatePitContextRequest request,
+                        ActionListener<UpdatePitContextResponse> listener
                     ) {
                         updateNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onResponse(new UpdatePitContextResponse("pitid", 500000, 500000)));
@@ -297,9 +297,9 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                     @Override
                     public void sendFreePITContexts(
-                            Transport.Connection connection,
-                            List<PitSearchContextIdForNode> contextIds,
-                            ActionListener<DeletePitResponse> listener
+                        Transport.Connection connection,
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
@@ -313,14 +313,14 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 request.setIndices(new String[] { "index" });
                 PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 CreatePitController controller = new CreatePitController(
-                        request,
-                        searchTransportService,
-                        clusterServiceMock,
-                        transportSearchAction,
-                        namedWriteableRegistry,
-                        task,
-                        createPitListener,
-                        pitService
+                    request,
+                    searchTransportService,
+                    clusterServiceMock,
+                    transportSearchAction,
+                    namedWriteableRegistry,
+                    task,
+                    createPitListener,
+                    pitService
                 );
 
                 ActionListener<CreatePitResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
@@ -357,20 +357,20 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-                MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-                MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
+            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
+            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
         ) {
             knownNodes.add(cluster1Transport.getLocalDiscoNode());
             knownNodes.add(cluster2Transport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
             try (
-                    MockTransportService transportService = MockTransportService.createNewService(
-                            Settings.EMPTY,
-                            Version.CURRENT,
-                            threadPool,
-                            null
-                    )
+                MockTransportService transportService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    null
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -378,9 +378,9 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
                     @Override
                     public void updatePitContext(
-                            Transport.Connection connection,
-                            UpdatePitContextRequest request,
-                            ActionListener<UpdatePitContextResponse> listener
+                        Transport.Connection connection,
+                        UpdatePitContextRequest request,
+                        ActionListener<UpdatePitContextResponse> listener
                     ) {
 
                         updateNodesInvoked.add(connection.getNode());
@@ -395,9 +395,9 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                     @Override
                     public void sendFreePITContexts(
-                            Transport.Connection connection,
-                            List<PitSearchContextIdForNode> contextIds,
-                            ActionListener<DeletePitResponse> listener
+                        Transport.Connection connection,
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
@@ -414,14 +414,14 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 request.setIndices(new String[] { "index" });
                 PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 CreatePitController controller = new CreatePitController(
-                        request,
-                        searchTransportService,
-                        clusterServiceMock,
-                        transportSearchAction,
-                        namedWriteableRegistry,
-                        task,
-                        createPitListener,
-                        pitService
+                    request,
+                    searchTransportService,
+                    clusterServiceMock,
+                    transportSearchAction,
+                    namedWriteableRegistry,
+                    task,
+                    createPitListener,
+                    pitService
                 );
 
                 CountDownLatch latch = new CountDownLatch(1);
@@ -456,29 +456,29 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-                MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-                MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
+            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
+            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
         ) {
             knownNodes.add(cluster1Transport.getLocalDiscoNode());
             knownNodes.add(cluster2Transport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
             try (
-                    MockTransportService transportService = MockTransportService.createNewService(
-                            Settings.EMPTY,
-                            Version.CURRENT,
-                            threadPool,
-                            null
-                    )
+                MockTransportService transportService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    null
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
                     @Override
                     public void updatePitContext(
-                            Transport.Connection connection,
-                            UpdatePitContextRequest request,
-                            ActionListener<UpdatePitContextResponse> listener
+                        Transport.Connection connection,
+                        UpdatePitContextRequest request,
+                        ActionListener<UpdatePitContextResponse> listener
                     ) {
                         updateNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onFailure(new Exception("node down")));
@@ -487,9 +487,9 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                     @Override
                     public void sendFreePITContexts(
-                            Transport.Connection connection,
-                            List<PitSearchContextIdForNode> contextIds,
-                            ActionListener<DeletePitResponse> listener
+                        Transport.Connection connection,
+                        List<PitSearchContextIdForNode> contextIds,
+                        ActionListener<DeletePitResponse> listener
                     ) {
                         deleteNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onResponse(new DeletePitResponse(new ArrayList<>())));
@@ -505,14 +505,14 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 request.setIndices(new String[] { "index" });
                 PitService pitService = new PitService(clusterServiceMock, searchTransportService);
                 CreatePitController controller = new CreatePitController(
-                        request,
-                        searchTransportService,
-                        clusterServiceMock,
-                        transportSearchAction,
-                        namedWriteableRegistry,
-                        task,
-                        createPitListener,
-                        pitService
+                    request,
+                    searchTransportService,
+                    clusterServiceMock,
+                    transportSearchAction,
+                    namedWriteableRegistry,
+                    task,
+                    createPitListener,
+                    pitService
                 );
 
                 CountDownLatch latch = new CountDownLatch(1);

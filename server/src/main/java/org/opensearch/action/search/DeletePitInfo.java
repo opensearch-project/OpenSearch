@@ -58,9 +58,9 @@ public class DeletePitInfo extends TransportResponse implements Writeable, ToXCo
     }
 
     static final ConstructingObjectParser<DeletePitInfo, Void> PARSER = new ConstructingObjectParser<>(
-            "delete_pit_info",
-            true,
-            args -> new DeletePitInfo((boolean) args[0], (String) args[1])
+        "delete_pit_info",
+        true,
+        args -> new DeletePitInfo((boolean) args[0], (String) args[1])
     );
 
     static {

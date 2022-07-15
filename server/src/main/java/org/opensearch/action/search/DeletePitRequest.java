@@ -111,7 +111,7 @@ public class DeletePitRequest extends ActionRequest implements ToXContentObject 
                     }
                 } else {
                     throw new IllegalArgumentException(
-                            "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "
+                        "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "
                     );
                 }
             }

@@ -1436,8 +1436,8 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         List<PitSearchContextIdForNode> contextIds = new ArrayList<>();
         ShardSearchContextId shardSearchContextId = future.actionGet();
         PitSearchContextIdForNode pitSearchContextIdForNode = new PitSearchContextIdForNode(
-                "1",
-                new SearchContextIdForNode(null, "node1", shardSearchContextId)
+            "1",
+            new SearchContextIdForNode(null, "node1", shardSearchContextId)
         );
         contextIds.add(pitSearchContextIdForNode);
 

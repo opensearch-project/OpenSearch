@@ -50,8 +50,8 @@ public class DeletePitResponseTests extends OpenSearchTestCase {
             parsedResponse = DeletePitResponse.fromXContent(parser);
         }
         assertEquals(
-                originalResponse.getDeletePitResults().get(0).isSuccessful(),
-                parsedResponse.getDeletePitResults().get(0).isSuccessful()
+            originalResponse.getDeletePitResults().get(0).isSuccessful(),
+            parsedResponse.getDeletePitResults().get(0).isSuccessful()
         );
         assertEquals(originalResponse.getDeletePitResults().get(0).getPitId(), parsedResponse.getDeletePitResults().get(0).getPitId());
         BytesReference parsedBytes = XContentHelper.toXContent(parsedResponse, xContentType, randomBoolean());

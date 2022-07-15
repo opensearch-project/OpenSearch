@@ -252,10 +252,10 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
                     latch.await();
                     for (int j = 0; j < 30; j++) {
                         client().prepareSearch()
-                                .setSize(2)
-                                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
-                                .execute()
-                                .get();
+                            .setSize(2)
+                            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+                            .execute()
+                            .get();
                     }
                 } catch (Exception e) {
                     /**

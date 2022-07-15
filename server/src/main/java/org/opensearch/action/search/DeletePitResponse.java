@@ -83,13 +83,13 @@ public class DeletePitResponse extends ActionResponse implements StatusToXConten
     }
 
     private static final ConstructingObjectParser<DeletePitResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "delete_pit_response",
-            true,
-            (Object[] parsedObjects) -> {
-                @SuppressWarnings("unchecked")
-                List<DeletePitInfo> deletePitInfoList = (List<DeletePitInfo>) parsedObjects[0];
-                return new DeletePitResponse(deletePitInfoList);
-            }
+        "delete_pit_response",
+        true,
+        (Object[] parsedObjects) -> {
+            @SuppressWarnings("unchecked")
+            List<DeletePitInfo> deletePitInfoList = (List<DeletePitInfo>) parsedObjects[0];
+            return new DeletePitResponse(deletePitInfoList);
+        }
     );
     static {
         PARSER.declareObjectArray(constructorArg(), DeletePitInfo.PARSER, new ParseField("pits"));
