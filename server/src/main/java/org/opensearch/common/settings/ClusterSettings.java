@@ -162,8 +162,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
-    public void registerSetting(Setting<?> setting) {
-        super.registerSetting(setting);
+    public boolean registerSetting(Setting<?> setting) {
+        return super.registerSetting(setting);
     }
 
     private static final class LoggingSettingUpdater implements SettingUpdater<Settings> {

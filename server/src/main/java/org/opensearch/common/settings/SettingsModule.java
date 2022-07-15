@@ -183,21 +183,23 @@ public class SettingsModule implements Module {
      * Dynamically registers a new Setting at Runtime. This method is mostly used by plugins/extensions
      * to register new settings at runtime. Settings can be of Node Scope or Index Scope.
      * @param setting which is being registered in the cluster.
+     * @return boolean value is set to true when successfully registered, else returns false
      */
-    public void registerDynamicSetting(Setting<?> setting) {
+    public boolean registerDynamicSetting(Setting<?> setting) {
         try {
             registerSetting(setting);
             if (setting.hasNodeScope()) {
-                clusterSettings.registerSetting(setting);
+                return clusterSettings.registerSetting(setting);
             }
             if (setting.hasIndexScope()) {
-                indexScopedSettings.registerSetting(setting);
+                return indexScopedSettings.registerSetting(setting);
             }
             logger.info("Registered new Setting: " + setting.getKey() + " successfully ");
         } catch (Exception e) {
             logger.error("Could not register setting " + setting.getKey());
             throw new SettingsException("Could not register setting:" + setting.getKey());
         }
+        return false;
     }
 
     /**

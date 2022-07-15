@@ -246,7 +246,7 @@ public class SettingsModuleTests extends ModuleTestCase {
         assertNull(module.getClusterSettings().get("some.custom.setting2"));
         assertInstanceBinding(module, Settings.class, (s) -> s == settings);
 
-        module.registerDynamicSetting(Setting.floatSetting("some.custom.setting2", 1.0f, Property.NodeScope));
+        assertTrue(module.registerDynamicSetting(Setting.floatSetting("some.custom.setting2", 1.0f, Property.NodeScope)));
         assertNotNull(module.getClusterSettings().get("some.custom.setting2"));
 
         // verify if some.custom.setting still exists
@@ -267,7 +267,7 @@ public class SettingsModuleTests extends ModuleTestCase {
         assertNull(module.getIndexScopedSettings().get("index.custom.setting2"));
         assertInstanceBinding(module, Settings.class, (s) -> s == settings);
 
-        module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope));
+        assertTrue(module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope)));
         assertNotNull(module.getIndexScopedSettings().get("index.custom.setting2"));
 
         // verify if some.custom.setting still exists
