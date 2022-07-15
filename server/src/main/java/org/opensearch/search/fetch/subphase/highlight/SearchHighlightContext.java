@@ -416,6 +416,9 @@ public class SearchHighlightContext {
                 if (fieldOptions.phraseLimit == -1) {
                     fieldOptions.phraseLimit = globalOptions.phraseLimit;
                 }
+                if (fieldOptions.maxAnalyzerOffset == -1) {
+                    fieldOptions.maxAnalyzerOffset = globalOptions.maxAnalyzerOffset;
+                }
                 return this;
             }
         }

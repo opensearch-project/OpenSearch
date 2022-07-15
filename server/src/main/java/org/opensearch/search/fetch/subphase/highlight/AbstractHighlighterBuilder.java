@@ -130,7 +130,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected Boolean requireFieldMatch;
 
-    protected int maxAnalyzerOffset;
+    protected int maxAnalyzerOffset = -1;
 
     public AbstractHighlighterBuilder() {}
 
@@ -642,9 +642,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (phraseLimit != null) {
             builder.field(PHRASE_LIMIT_FIELD.getPreferredName(), phraseLimit);
         }
-        if (maxAnalyzerOffset > 0) {
-            builder.field(MAX_ANALYZER_OFFSET_FIELD.getPreferredName(), maxAnalyzerOffset);
-        }
+
+        builder.field(MAX_ANALYZER_OFFSET_FIELD.getPreferredName(), maxAnalyzerOffset);
+
     }
 
     static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<XContentParser, HB, HB> setupParser(ObjectParser<HB, Void> parser) {

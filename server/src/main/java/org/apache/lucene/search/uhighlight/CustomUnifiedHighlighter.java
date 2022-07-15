@@ -152,13 +152,13 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                     + "This maximum can be set by changing the ["
                     + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
                     + "] index level setting. "
-                    + "For large texts, indexing with offsets or term vectors is recommended! "
+                    + "For large texts, indexing with offsets or term vectors is recommended!"
             );
         }
         // throws an execption if the value is invalid, negative values are not valued with the exception of -1 wich is used to mark that it
         // is disabled
         if (fieldMaxAnalyzedOffset < -1) {
-            throw new IllegalArgumentException("the value [" + fieldMaxAnalyzedOffset + "] of max_analyzer_offset is invalid ");
+            throw new IllegalArgumentException("the value [" + fieldMaxAnalyzedOffset + "] of max_analyzer_offset is invalid");
         }
 
         // if fieldMaxAnalyzedOffset is not defined if it is equal to -1
@@ -178,7 +178,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                     + "This maximum can be set by changing the ["
                     + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
                     + "] index level setting. "
-                    + "For large texts, indexing with offsets or term vectors is recommended! "
+                    + "For large texts, indexing with offsets or term vectors is recommended!"
             );
         }
         Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);
