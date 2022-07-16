@@ -166,7 +166,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         numOfFragments(in.readOptionalVInt());
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
-        maxAnalyzerOffset(in.readOptionalInt());
         if (in.readBoolean()) {
             highlightQuery(in.readNamedWriteable(QueryBuilder.class));
         }
@@ -187,6 +186,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             options(in.readMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
+        maxAnalyzerOffset(in.readOptionalVInt());
     }
 
     /**
@@ -200,7 +200,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalVInt(numOfFragments);
         out.writeOptionalString(highlighterType);
         out.writeOptionalString(fragmenter);
-        out.writeOptionalInt(maxAnalyzerOffset);
         boolean hasQuery = highlightQuery != null;
         out.writeBoolean(hasQuery);
         if (hasQuery) {
@@ -229,6 +228,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
+        out.writeOptionalVInt(maxAnalyzerOffset);
         doWriteTo(out);
     }
 
@@ -644,8 +644,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (phraseLimit != null) {
             builder.field(PHRASE_LIMIT_FIELD.getPreferredName(), phraseLimit);
         }
-
-        builder.field(MAX_ANALYZER_OFFSET_FIELD.getPreferredName(), maxAnalyzerOffset);
+        if (maxAnalyzerOffset != null) {
+            builder.field(MAX_ANALYZER_OFFSET_FIELD.getPreferredName(), maxAnalyzerOffset);
+        }
 
     }
 
