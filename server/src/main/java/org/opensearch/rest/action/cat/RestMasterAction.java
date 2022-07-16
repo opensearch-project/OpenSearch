@@ -15,7 +15,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -24,40 +24,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.cluster;
-
-import org.opensearch.cluster.service.MasterService;
-
-import java.util.List;
+package org.opensearch.rest.action.cat;
 
 /**
- * Interface to implement a cluster state change listener
+ * _cat API action to list cluster_manager information
  *
- * @opensearch.internal
+ * @opensearch.api
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link RestClusterManagerAction}
  */
-public interface ClusterStateTaskListener {
+@Deprecated
+public class RestMasterAction extends RestClusterManagerAction {
 
-    /**
-     * A callback called when execute fails.
-     */
-    void onFailure(String source, Exception e);
-
-    /**
-     * called when the task was rejected because the local node is no longer cluster-manager.
-     * Used only for tasks submitted to {@link MasterService}.
-     */
-    default void onNoLongerMaster(String source) {
-        onFailure(source, new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
-    }
-
-    /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
-     * properly by all listeners.
-     */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 }
