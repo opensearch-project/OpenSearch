@@ -186,10 +186,13 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (in.readBoolean()) {
             options(in.readMap());
         }
+
+        requireFieldMatch(in.readOptionalBoolean());
+
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            requireFieldMatch(in.readOptionalBoolean());
+            maxAnalyzerOffset(in.readOptionalVInt());
         }
-        maxAnalyzerOffset(in.readOptionalVInt());
+
     }
 
     /**
