@@ -154,9 +154,9 @@ public class SearchHighlightContext {
 
         private int phraseLimit = -1;
 
-        private int maxAnalyzerOffset = -1;
+        private Integer maxAnalyzerOffset = null;
 
-        public int maxAnalyzerOffset() {
+        public Integer maxAnalyzerOffset() {
             return maxAnalyzerOffset;
         }
 
@@ -339,7 +339,11 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder maxAnalyzerOffset(int maxAnalyzerOffset) {
+            Builder maxAnalyzerOffset(Integer maxAnalyzerOffset) {
+                // throws an execption if the value is not a positive integer
+                if (maxAnalyzerOffset != null && maxAnalyzerOffset <= 0) {
+                    throw new IllegalArgumentException("the value [" + maxAnalyzerOffset + "] of max_analyzer_offset is invalid");
+                }
                 fieldOptions.maxAnalyzerOffset = maxAnalyzerOffset;
                 return this;
             }
@@ -416,7 +420,7 @@ public class SearchHighlightContext {
                 if (fieldOptions.phraseLimit == -1) {
                     fieldOptions.phraseLimit = globalOptions.phraseLimit;
                 }
-                if (fieldOptions.maxAnalyzerOffset == -1) {
+                if (fieldOptions.maxAnalyzerOffset == null) {
                     fieldOptions.maxAnalyzerOffset = globalOptions.maxAnalyzerOffset;
                 }
                 return this;

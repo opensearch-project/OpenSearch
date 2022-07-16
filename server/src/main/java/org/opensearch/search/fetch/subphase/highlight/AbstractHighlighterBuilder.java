@@ -130,7 +130,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected Boolean requireFieldMatch;
 
-    protected int maxAnalyzerOffset = -1;
+    protected Integer maxAnalyzerOffset = null;
 
     public AbstractHighlighterBuilder() {}
 
@@ -552,12 +552,12 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      * @return this for chaining
      */
     @SuppressWarnings("unchecked")
-    public HB maxAnalyzerOffset(int maxAnalyzerOffset) {
+    public HB maxAnalyzerOffset(Integer maxAnalyzerOffset) {
         this.maxAnalyzerOffset = maxAnalyzerOffset;
         return (HB) this;
     }
 
-    public int maxAnalyzerOffset() {
+    public Integer maxAnalyzerOffset() {
         return this.maxAnalyzerOffset;
     }
 

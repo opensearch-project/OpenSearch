@@ -93,7 +93,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     static final String[] DEFAULT_PRE_TAGS = new String[] { "<em>" };
     /** the default closing tag  */
     static final String[] DEFAULT_POST_TAGS = new String[] { "</em>" };
-    static final int DEFAULT_MAX_ANALYZER_OFFSET = -1;
 
     /** the default opening tags when {@code tag_schema = "styled"}  */
     public static final String[] DEFAULT_STYLED_PRE_TAG = {
@@ -127,7 +126,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         .boundaryScannerLocale(Locale.ROOT)
         .noMatchSize(DEFAULT_NO_MATCH_SIZE)
         .phraseLimit(DEFAULT_PHRASE_LIMIT)
-        .maxAnalyzerOffset(DEFAULT_MAX_ANALYZER_OFFSET)
+        .maxAnalyzerOffset(null)
         .build();
 
     private final List<Field> fields;
@@ -401,8 +400,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         if (highlighterBuilder.highlightQuery != null) {
             targetOptionsBuilder.highlightQuery(highlighterBuilder.highlightQuery.toQuery(context));
         }
-
-        targetOptionsBuilder.maxAnalyzerOffset(highlighterBuilder.maxAnalyzerOffset);
+        if (highlighterBuilder.maxAnalyzerOffset != null) {
+            targetOptionsBuilder.maxAnalyzerOffset(highlighterBuilder.maxAnalyzerOffset);
+        }
 
     }
 

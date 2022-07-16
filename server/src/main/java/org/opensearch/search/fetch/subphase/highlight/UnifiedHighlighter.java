@@ -156,10 +156,10 @@ public class UnifiedHighlighter implements Highlighter {
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
         int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
-        int fieldMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzerOffset();
+        Integer fieldMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzerOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
-        if (fieldMaxAnalyzedOffset > 0) {
+        if (fieldMaxAnalyzedOffset != null) {
             analyzer = getLimitedOffsetAnalyzer(analyzer, fieldMaxAnalyzedOffset);
         }
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);

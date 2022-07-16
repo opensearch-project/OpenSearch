@@ -118,7 +118,7 @@ public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
                     expectedPassages.length,
                     name -> "text".equals(name),
                     Integer.MAX_VALUE,
-                    -1
+                    null
                 );
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
                 assertEquals(snippets.length, expectedPassages.length);

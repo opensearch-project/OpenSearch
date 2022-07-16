@@ -137,7 +137,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
             expectedPassages.length,
             name -> "text".equals(name),
             Integer.MAX_VALUE,
-            -1
+            null
         );
         highlighter.setFieldMatcher((name) -> "text".equals(name));
         final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);

@@ -78,7 +78,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final int noMatchSize;
     private final FieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
-    private final int fieldMaxAnalyzedOffset;
+    private final Integer fieldMaxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -114,7 +114,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         int maxPassages,
         Predicate<String> fieldMatcher,
         int maxAnalyzedOffset,
-        int fieldMaxAnalyzedOffset
+        Integer fieldMaxAnalyzedOffset
     ) throws IOException {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
@@ -144,7 +144,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         }
         int fieldValueLength = fieldValue.length();
 
-        if (fieldMaxAnalyzedOffset > maxAnalyzedOffset) {
+        if (fieldMaxAnalyzedOffset != null && fieldMaxAnalyzedOffset > maxAnalyzedOffset) {
             throw new IllegalArgumentException(
                 "max_analyzer_offset has exceeded ["
                     + maxAnalyzedOffset
@@ -155,15 +155,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                     + "For large texts, indexing with offsets or term vectors is recommended!"
             );
         }
-        // throws an execption if the value is invalid, negative values are not valued with the exception of -1 wich is used to mark that it
-        // is disabled
-        if (fieldMaxAnalyzedOffset < -1) {
-            throw new IllegalArgumentException("the value [" + fieldMaxAnalyzedOffset + "] of max_analyzer_offset is invalid");
-        }
-
         // if fieldMaxAnalyzedOffset is not defined if it is equal to -1
         // and if this happens we should fallback to the previous behavior
-        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset && fieldMaxAnalyzedOffset == -1)) {
+        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset && fieldMaxAnalyzedOffset == null)) {
             throw new IllegalArgumentException(
                 "The length of ["
                     + field
