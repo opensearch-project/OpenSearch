@@ -126,7 +126,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         .boundaryScannerLocale(Locale.ROOT)
         .noMatchSize(DEFAULT_NO_MATCH_SIZE)
         .phraseLimit(DEFAULT_PHRASE_LIMIT)
-        .maxAnalyzerOffset(null)
         .build();
 
     private final List<Field> fields;

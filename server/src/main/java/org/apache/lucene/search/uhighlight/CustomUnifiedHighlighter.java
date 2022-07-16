@@ -99,6 +99,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * @param fieldMatcher decides which terms should be highlighted
      * @param maxAnalyzedOffset if the field is more than this long we'll refuse to use the ANALYZED
      *                          offset source for it because it'd be super slow
+     * @param fieldMaxAnalyzedOffset this is used to limit the length of input that will be ANALYZED, this allows bigger fields to be partially highligthed
      */
     public CustomUnifiedHighlighter(
         IndexSearcher searcher,

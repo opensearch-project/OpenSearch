@@ -166,6 +166,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         numOfFragments(in.readOptionalVInt());
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
+        maxAnalyzerOffset(in.readOptionalInt());
         if (in.readBoolean()) {
             highlightQuery(in.readNamedWriteable(QueryBuilder.class));
         }
@@ -199,6 +200,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalVInt(numOfFragments);
         out.writeOptionalString(highlighterType);
         out.writeOptionalString(fragmenter);
+        out.writeOptionalInt(maxAnalyzerOffset);
         boolean hasQuery = highlightQuery != null;
         out.writeBoolean(hasQuery);
         if (hasQuery) {
