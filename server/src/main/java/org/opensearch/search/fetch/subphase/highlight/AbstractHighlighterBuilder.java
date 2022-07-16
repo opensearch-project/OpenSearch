@@ -34,6 +34,7 @@ package org.opensearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
+import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -185,7 +186,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (in.readBoolean()) {
             options(in.readMap());
         }
-        requireFieldMatch(in.readOptionalBoolean());
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            requireFieldMatch(in.readOptionalBoolean());
+        }
         maxAnalyzerOffset(in.readOptionalVInt());
     }
 
@@ -228,7 +231,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
-        out.writeOptionalVInt(maxAnalyzerOffset);
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            out.writeOptionalVInt(maxAnalyzerOffset);
+        }
         doWriteTo(out);
     }
 
