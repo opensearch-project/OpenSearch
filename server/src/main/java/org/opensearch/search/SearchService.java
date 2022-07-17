@@ -1056,22 +1056,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Free all active pit contexts
-     * @return response with list of PIT IDs deleted and if operation is successful
-     */
-    public DeletePitResponse freeAllPitContexts() {
-        List<DeletePitInfo> deleteResults = new ArrayList<>();
-        for (ReaderContext readerContext : activeReaders.values()) {
-            if (readerContext instanceof PitReaderContext) {
-                boolean result = freeReaderContext(readerContext.id());
-                DeletePitInfo deletePitInfo = new DeletePitInfo(result, ((PitReaderContext) readerContext).getPitId());
-                deleteResults.add(deletePitInfo);
-            }
-        }
-        return new DeletePitResponse(deleteResults);
-    }
-
-    /**
      * Update PIT reader with pit id, keep alive and created time etc
      */
     public void updatePitIdAndKeepAlive(UpdatePitContextRequest request, ActionListener<UpdatePitContextResponse> listener) {

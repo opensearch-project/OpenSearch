@@ -219,7 +219,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
 
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
                 CreatePitController controller = new CreatePitController(
                     request,
                     searchTransportService,
@@ -311,7 +311,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
                 CreatePitController controller = new CreatePitController(
                     request,
                     searchTransportService,
@@ -412,7 +412,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
                 CreatePitController controller = new CreatePitController(
                     request,
                     searchTransportService,
@@ -503,7 +503,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 };
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
                 CreatePitController controller = new CreatePitController(
                     request,
                     searchTransportService,

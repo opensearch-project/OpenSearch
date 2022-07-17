@@ -37,13 +37,13 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
 
     public GetAllPitNodesResponse(
         ClusterName clusterName,
-        List<GetAllPitNodeResponse> getAllPitNodeRespons,
+        List<GetAllPitNodeResponse> getAllPitNodeResponse,
         List<FailedNodeException> failures
     ) {
-        super(clusterName, getAllPitNodeRespons, failures);
+        super(clusterName, getAllPitNodeResponse, failures);
         Set<String> uniquePitIds = new HashSet<>();
         pitsInfo.addAll(
-            getAllPitNodeRespons.stream()
+            getAllPitNodeResponse.stream()
                 .flatMap(p -> p.getPitsInfo().stream().filter(t -> uniquePitIds.add(t.getPitId())))
                 .collect(Collectors.toList())
         );
