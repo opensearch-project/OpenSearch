@@ -156,7 +156,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                     + "For large texts, indexing with offsets or term vectors is recommended!"
             );
         }
-        // if fieldMaxAnalyzedOffset is not defined if it is equal to -1
+        // if fieldMaxAnalyzedOffset is not defined
         // and if this happens we should fallback to the previous behavior
         if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset && fieldMaxAnalyzedOffset == null)) {
             throw new IllegalArgumentException(
