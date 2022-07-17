@@ -42,6 +42,9 @@ public enum Architecture {
         switch (architecture) {
             case "amd64":
             case "x86_64":
+            case "ppc64":
+            case "ppc64le":
+            case "riscv64":
                 return X64;
             case "aarch64":
                 return ARM64;
