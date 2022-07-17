@@ -35,19 +35,23 @@ package org.opensearch.gradle;
 public enum Architecture {
 
     X64,
-    ARM64;
+    ARM64,
+    PPC,
+    RISCV;
 
     public static Architecture current() {
         final String architecture = System.getProperty("os.arch", "");
         switch (architecture) {
             case "amd64":
             case "x86_64":
-            case "ppc64":
-            case "ppc64le":
-            case "riscv64":
                 return X64;
             case "aarch64":
                 return ARM64;
+            case "ppc64":
+            case "ppc64le":
+                return PPC;
+            case "riscv64":
+                return RISCV;
             default:
                 throw new IllegalArgumentException("can not determine architecture from [" + architecture + "]");
         }

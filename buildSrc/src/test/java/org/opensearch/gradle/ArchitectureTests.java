@@ -17,11 +17,10 @@ public class ArchitectureTests extends GradleUnitTestCase {
     public void testCurrentArchitecture() {
         assertEquals(Architecture.X64, currentArchitecture("amd64"));
         assertEquals(Architecture.X64, currentArchitecture("x86_64"));
-        assertEquals(Architecture.X64, currentArchitecture("ppc64"));
-        assertEquals(Architecture.X64, currentArchitecture("ppc64le"));
-        assertEquals(Architecture.X64, currentArchitecture("riscv64"));
-
         assertEquals(Architecture.ARM64, currentArchitecture("aarch64"));
+        assertEquals(Architecture.PPC, currentArchitecture("ppc64"));
+        assertEquals(Architecture.PPC, currentArchitecture("ppc64le"));
+        assertEquals(Architecture.RISCV, currentArchitecture("riscv64"));
     }
 
     public void testInvalidCurrentArchitecture() {
