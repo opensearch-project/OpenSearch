@@ -25,11 +25,7 @@ public class ArchitectureTests extends GradleUnitTestCase {
     }
 
     public void testInvalidCurrentArchitecture() {
-        assertThrows(
-            "can not determine architecture from [",
-            IllegalArgumentException.class,
-            () -> currentArchitecture("fooBar64")
-        );
+        assertThrows("can not determine architecture from [", IllegalArgumentException.class, () -> currentArchitecture("fooBar64"));
     }
 
     /**
