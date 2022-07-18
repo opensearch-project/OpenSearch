@@ -47,11 +47,6 @@ interface AdmissionController {
     long setInitialQuota(long count);
 
     /**
-     * @return limit defined for the tracking-object being tracked by the admission-controller.
-     */
-    long getTotalQuota();
-
-    /**
      * @return currently acquired value of the tracking-object being tracked by the admission-controller.
      */
     long getUsedQuota();
@@ -67,4 +62,26 @@ interface AdmissionController {
      * @return count/value by which the resource tracking object is updated with.
      */
     long addRejectionCount(long count);
+
+    /**
+     * Admission Controllers
+     */
+    public enum Controllers {
+        REQUEST_SIZE("RequestSize");
+
+        private final String name;
+
+        Controllers(String name) {
+            this.name = name;
+        }
+
+        public String value() {
+            return this.name;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
 }
