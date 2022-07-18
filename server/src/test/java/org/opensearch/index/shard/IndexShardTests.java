@@ -4036,7 +4036,8 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch closeDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
+                throws IOException {
                 readyToCloseLatch.countDown();
                 try {
                     closeDoneLatch.await();
@@ -4094,8 +4095,9 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch snapshotDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-                Engine internalEngine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
+            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
+                throws IOException {
+                InternalEngine internalEngine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
                 readyToSnapshotLatch.countDown();
                 try {
                     snapshotDoneLatch.await();

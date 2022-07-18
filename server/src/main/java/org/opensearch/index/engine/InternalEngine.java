@@ -539,7 +539,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+    public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (translogManager().getPendingTranslogRecovery().get() == false) {

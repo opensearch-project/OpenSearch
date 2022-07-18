@@ -341,13 +341,11 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected void assertEngineCleanedUp(Engine engine, Translog translog) throws Exception {
-        if (engine.isClosed.get() == false) {
-            translog.getDeletionPolicy().assertNoOpenTranslogRefs();
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-            assertNoInFlightDocuments(engine);
-            assertMaxSeqNoInCommitUserData(engine);
-            assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
-        }
+        translog.getDeletionPolicy().assertNoOpenTranslogRefs();
+        assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+        assertNoInFlightDocuments(engine);
+        assertMaxSeqNoInCommitUserData(engine);
+        assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
     }
 
     protected static ParseContext.Document testDocumentWithTextField() {
