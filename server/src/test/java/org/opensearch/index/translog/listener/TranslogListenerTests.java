@@ -12,7 +12,11 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.reflect.Proxy;
-import java.util.*;
+import java.util.List;
+import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TranslogListenerTests extends OpenSearchTestCase {
