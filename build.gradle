@@ -320,7 +320,7 @@ allprojects {
     task.reproducibleFileOrder = true
     if (task instanceof SymbolicLinkPreservingTar) {
       // Replace file timestamps with latest Git revision date (if available)
-      task.lastModifiedTimestamp = gitRevisionDate 
+      task.lastModifiedTimestamp = gitRevisionDate
     }
   }
 
@@ -359,7 +359,8 @@ allprojects {
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
           String externalLinkName = upstreamProject.archivesBaseName
           String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
-          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
+          String projectRelativePath = project.relativePath(upstreamProject.buildDir)
+          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${projectRelativePath}/docs/javadoc/"
         }
       }
       boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
