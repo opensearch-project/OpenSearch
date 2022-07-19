@@ -69,7 +69,7 @@ public class MasterTaskThrottler extends Throttler {
          * TODO: Change the version number of check as per version in which this change will be merged.
          */
         if (masterService.state().nodes().getMinNodeVersion().compareTo(Version.V_3_0_0) < 0) {
-            throw new IllegalArgumentException("All the nodes in cluster should be on version later than or equal to 1.3.0");
+            throw new IllegalArgumentException("All the nodes in cluster should be on version later than or equal to 3.0.0");
         }
         Map<String, Settings> groups = settings.getAsGroups();
         for (String key : groups.keySet()) {

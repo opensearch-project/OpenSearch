@@ -78,10 +78,10 @@ public interface ClusterStateTaskExecutor<T> {
         return String.join(", ", tasks.stream().map(t -> (CharSequence) t.toString()).filter(t -> t.length() > 0)::iterator);
     }
 
-    public static final String DEFAULT_MASTER_THROOTLING_KEY = "";
+    public static final String DEFAULT_MASTER_THROTTLING_KEY = "";
 
     default String getMasterThrottlingKey() {
-        return DEFAULT_MASTER_THROOTLING_KEY;
+        return DEFAULT_MASTER_THROTTLING_KEY;
     }
 
     /**

@@ -121,6 +121,16 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
+    /**
+     * Throttler which performs throttling based on pending task count per task type.
+     * It acquire permits before task goes into queue and release the permit when task is removed from the queue.
+     *
+     * It acquire permits at one place, while submitting the tasks.
+     * It releases from three places.
+     * 1. If submit task is failed due to some exception (Since we already acquire permit and submit is failing so we need to release it).
+     * 2. Release before execution ( Task is removed from queue and went into execution).
+     * 3. Task is timed out in queue(Task is timed out in queue, so master will throw exception to data nodes. Releasing as task is removed from queue)
+     */
     protected final MasterTaskThrottler masterTaskThrottler;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {

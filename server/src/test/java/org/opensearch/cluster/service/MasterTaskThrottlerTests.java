@@ -103,7 +103,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
 
-        Settings newSettings = Settings.builder().put("master.throttling.thresholds.update_snapshot.value", newLimit).build();
+        Settings newSettings = Settings.builder().put("master.throttling.thresholds.put-mapping.value", newLimit).build();
 
         AtomicBoolean exceptionThrown = new AtomicBoolean();
         try {
@@ -171,14 +171,14 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
 
-        Settings newSettings = Settings.builder().put("master.throttling.thresholds.create-index.value", newLimit).build();
+        Settings newSettings = Settings.builder().put("master.throttling.thresholds.put-mapping.value", newLimit).build();
         clusterSettings.applySettings(newSettings);
-        assertEquals(newLimit, throttler.getThrottlingLimit("create-index").intValue());
+        assertEquals(newLimit, throttler.getThrottlingLimit("put-mapping").intValue());
 
         // set update snapshot task limit to default
-        newSettings = Settings.builder().put("master.throttling.thresholds.create-index.value", -1).build();
+        newSettings = Settings.builder().put("master.throttling.thresholds.put-mapping.value", -1).build();
         clusterSettings.applySettings(newSettings);
-        assertNull(throttler.getThrottlingLimit("create-index"));
+        assertNull(throttler.getThrottlingLimit("put-mapping"));
     }
 
     public void testValidateSettingForLimit() {
@@ -201,7 +201,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
 
-        Settings newSettings = Settings.builder().put("master.throttling.thresholds.create-index.values", -5).build();
+        Settings newSettings = Settings.builder().put("master.throttling.thresholds.put-mapping.values", -5).build();
         AtomicBoolean exceptionThrown = new AtomicBoolean();
         try {
             throttler.validateSetting(newSettings);

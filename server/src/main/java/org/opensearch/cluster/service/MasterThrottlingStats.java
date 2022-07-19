@@ -28,7 +28,7 @@ public class MasterThrottlingStats {
         throttledTasksCount.get(type).inc(permits);
     }
 
-    public long getThrottlingCount(Class type) {
+    public long getThrottlingCount(String type) {
         return throttledTasksCount.get(type).count();
     }
 
