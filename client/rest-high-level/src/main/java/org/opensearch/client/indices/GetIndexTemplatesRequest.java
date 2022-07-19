@@ -51,7 +51,7 @@ public class GetIndexTemplatesRequest implements Validatable {
 
     private final List<String> names;
 
-    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
     private boolean local = false;
 
     /**
