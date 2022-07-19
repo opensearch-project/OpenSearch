@@ -52,6 +52,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.IndexCache;
@@ -434,9 +435,12 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             when(sliceBuilder.getMax()).thenReturn(numSlicesForPit);
             context5.sliceBuilder(sliceBuilder);
 
-            exception = expectThrows(IllegalArgumentException.class, () -> context5.preProcess(false));
+            OpenSearchRejectedExecutionException exception1 = expectThrows(
+                OpenSearchRejectedExecutionException.class,
+                () -> context5.preProcess(false)
+            );
             assertThat(
-                exception.getMessage(),
+                exception1.getMessage(),
                 equalTo(
                     "The number of slices ["
                         + numSlicesForPit
