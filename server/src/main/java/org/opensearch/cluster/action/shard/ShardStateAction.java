@@ -39,6 +39,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -182,7 +183,7 @@ public class ShardStateAction {
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         DiscoveryNode clusterManagerNode = currentState.nodes().getClusterManagerNode();
-        Predicate<ClusterState> changePredicate = MClusterManagerNodeChangePredicate.build(currentState);
+        Predicate<ClusterState> changePredicate = ClusterManagerNodeChangePredicate.build(currentState);
         if (clusterManagerNode == null) {
             logger.warn("no cluster-manager known for action [{}] for shard entry [{}]", actionName, request);
             waitForNewClusterManagerAndRetry(actionName, observer, request, listener, changePredicate);
