@@ -399,7 +399,7 @@ public class ClusterStateChanges {
 
     public ClusterState joinNodesAndBecomeClusterManager(ClusterState clusterState, List<DiscoveryNode> nodes) {
         List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
-        joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
+        joinNodes.add(JoinTaskExecutor.newBecomeClusterManagerTask());
         joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
         joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList()));
 

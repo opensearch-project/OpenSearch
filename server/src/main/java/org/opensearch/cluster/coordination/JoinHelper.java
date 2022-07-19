@@ -540,7 +540,7 @@ public class JoinHelper {
 
                 final String stateUpdateSource = "elected-as-cluster-manager ([" + pendingAsTasks.size() + "] nodes joined)";
 
-                pendingAsTasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source, e) -> {});
+                pendingAsTasks.put(JoinTaskExecutor.newBecomeClusterManagerTask(), (source, e) -> {});
                 pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {});
                 joinTaskExecutor = joinTaskExecutorGenerator.get();
                 masterService.submitStateUpdateTasks(
