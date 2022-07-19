@@ -34,8 +34,8 @@ import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.discovery.PluginRequest;
-import org.opensearch.discovery.PluginResponse;
+import org.opensearch.discovery.InitializeExtensionsRequest;
+import org.opensearch.discovery.InitializeExtensionsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -204,15 +204,15 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private void extensionInitialize(DiscoveryNode extensionNode) {
 
-        final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
+        final TransportResponseHandler<InitializeExtensionsResponse> pluginResponseHandler = new TransportResponseHandler<InitializeExtensionsResponse>() {
 
             @Override
-            public PluginResponse read(StreamInput in) throws IOException {
-                return new PluginResponse(in);
+            public InitializeExtensionsResponse read(StreamInput in) throws IOException {
+                return new InitializeExtensionsResponse(in);
             }
 
             @Override
-            public void handleResponse(PluginResponse response) {
+            public void handleResponse(InitializeExtensionsResponse response) {
                 for (DiscoveryExtension extension : extensionsList) {
                     if (extension.getName().equals(response.getName())) {
                         extensionsInitializedList.add(extension);
@@ -236,7 +236,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new PluginRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
+                new InitializeExtensionsRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
                 pluginResponseHandler
             );
         } catch (Exception e) {
@@ -380,3 +380,4 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
 }
+
