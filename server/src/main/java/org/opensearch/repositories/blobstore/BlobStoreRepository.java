@@ -241,8 +241,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * For optimal performance the value of the setting should be equal to or close to repository's max # of keys that can be deleted in single operation
      * Most cloud storage support upto 1000 key(s) deletion in single operation, thus keeping default value to be 1000.
      */
-    public static final Setting<Integer> MAX_SHARD_BLOB_DELETE_BATCH_SIZE = Setting.intSetting(
-        "max_shard_blob_delete_batch_size",
+    public static final Setting<Integer> MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE = Setting.intSetting(
+        "max_snapshot_shard_blob_delete_batch_size",
         1000, // the default maximum batch size of stale snapshot shard blobs deletion
         Setting.Property.NodeScope
     );
@@ -372,7 +372,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         readOnly = metadata.settings().getAsBoolean("readonly", false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
-        maxShardBlobDeleteBatch = MAX_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
+        maxShardBlobDeleteBatch = MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
     }
 
     @Override
@@ -955,7 +955,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     deleteFromContainer(blobContainer(), filesToDelete);
                     l.onResponse(null);
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("{} Failed to delete blobs during snapshot delete", metadata.name()), e);
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "[{}] Failed to delete following blobs during snapshot delete : {}",
+                            metadata.name(),
+                            filesToDelete
+                        ),
+                        e
+                    );
                     l.onFailure(e);
                 }
                 executeStaleShardDelete(staleFilesToDeleteInBatch, listener);

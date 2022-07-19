@@ -347,7 +347,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             "mock",
             Settings.builder()
                 .put("location", repositoryPath)
-                .put(BlobStoreRepository.MAX_SHARD_BLOB_DELETE_BATCH_SIZE.getKey(), maxShardBlobDeleteBatchSize)
+                .put(BlobStoreRepository.MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.getKey(), maxShardBlobDeleteBatchSize)
         );
 
         logger.info("--> creating index-0 and ingest data");
@@ -401,7 +401,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             "mock",
             Settings.builder()
                 .put("location", repositoryPath)
-                .put(BlobStoreRepository.MAX_SHARD_BLOB_DELETE_BATCH_SIZE.getKey(), maxShardBlobDeleteBatchSize)
+                .put(BlobStoreRepository.MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.getKey(), maxShardBlobDeleteBatchSize)
         );
 
         logger.info("--> creating index-0 and ingest data");
