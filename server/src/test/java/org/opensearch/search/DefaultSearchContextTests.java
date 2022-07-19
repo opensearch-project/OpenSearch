@@ -435,7 +435,10 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             when(sliceBuilder.getMax()).thenReturn(numSlicesForPit);
             context5.sliceBuilder(sliceBuilder);
 
-            OpenSearchRejectedExecutionException exception1 = expectThrows(OpenSearchRejectedExecutionException.class, () -> context5.preProcess(false));
+            OpenSearchRejectedExecutionException exception1 = expectThrows(
+                OpenSearchRejectedExecutionException.class,
+                () -> context5.preProcess(false)
+            );
             assertThat(
                 exception1.getMessage(),
                 equalTo(
