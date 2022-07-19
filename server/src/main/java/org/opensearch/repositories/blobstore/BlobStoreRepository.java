@@ -147,6 +147,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -236,11 +237,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     /**
-     * Setting to set batch size of stale blobs to be deleted.
+     * Setting to set batch size of stale snapshot shard blobs that will be deleted by snapshot workers as part of snapshot deletion.
+     * For optimal performance the value of the setting should be equal to or close to repository's max # of keys that can be deleted in single operation
+     * Most cloud storage support upto 1000 key(s) deletion in single operation, thus keeping default value to be 1000.
      */
     public static final Setting<Integer> MAX_SHARD_BLOB_DELETE_BATCH_SIZE = Setting.intSetting(
         "max_shard_blob_delete_batch_size",
-        1000,
+        1000, // the default maximum batch size of stale snapshot shard blobs deletion
         Setting.Property.NodeScope
     );
 
@@ -915,20 +918,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
 
-        final BlockingQueue<List<String>> staleFilesToDeleteInBatch = new LinkedBlockingQueue<>();
-        final List<String> partition = new ArrayList<>();
-
         try {
-            for (String key : filesToDelete) {
-                partition.add(key);
-                if (maxShardBlobDeleteBatch == partition.size()) {
-                    staleFilesToDeleteInBatch.add(new ArrayList<>(partition));
-                    partition.clear();
-                }
-            }
-            if (partition.isEmpty() == false) {
-                staleFilesToDeleteInBatch.add(new ArrayList<>(partition));
-            }
+            AtomicInteger counter = new AtomicInteger();
+            Collection<List<String>> subList = filesToDelete.stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxShardBlobDeleteBatch))
+                .values();
+            final BlockingQueue<List<String>> staleFilesToDeleteInBatch = new LinkedBlockingQueue<>(subList);
+
             final GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(
                 ActionListener.wrap(r -> { listener.onResponse(null); }, listener::onFailure),
                 staleFilesToDeleteInBatch.size()
