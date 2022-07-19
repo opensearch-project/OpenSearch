@@ -21,16 +21,16 @@ public class NamedWriteableRegistryParseResponse extends TransportResponse {
 
     private final boolean status;
 
+    /**
+     * @param status boolean indicating the status of the parse request sent to the SDK
+     */
     public NamedWriteableRegistryParseResponse(boolean status) {
         this.status = status;
     }
 
     public NamedWriteableRegistryParseResponse(StreamInput in) throws IOException {
+        super(in);
         this.status = in.readBoolean();
-    }
-
-    public boolean getStatus() {
-        return this.status;
     }
 
     @Override
@@ -54,6 +54,13 @@ public class NamedWriteableRegistryParseResponse extends TransportResponse {
     @Override
     public int hashCode() {
         return Objects.hash(status);
+    }
+
+    /**
+     * Returns a boolean indicating the success of the parse request sent to the SDK
+     */
+    public boolean getStatus() {
+        return this.status;
     }
 
 }

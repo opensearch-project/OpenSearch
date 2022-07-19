@@ -10,6 +10,7 @@ package org.opensearch.common.io.stream;
 
 import org.opensearch.transport.TransportResponse;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -21,39 +22,44 @@ import java.util.Objects;
  */
 public class NamedWriteableRegistryResponse extends TransportResponse {
 
-    private final Map<String, String> registry;
+    private final Map<String, Class> registry;
 
-    public NamedWriteableRegistryResponse(Map<String, String> registry) {
-        this.registry = registry;
+    /**
+     * @param registry map of writeable names and their associated category class
+     */
+    public NamedWriteableRegistryResponse(Map<String, Class> registry) {
+        this.registry = new HashMap<>(registry);
     }
 
+    /**
+     * @param in StreamInput from which map entries of writeable names and their associated category classes are read from
+     * @throws IllegalArgumentException if the fully qualified class name is invalid and the class object cannot be generated at runtime
+     */
     public NamedWriteableRegistryResponse(StreamInput in) throws IOException {
-
-        Map<String, String> registry = new HashMap<>();
-
+        super(in);
         // stream output for registry map begins with a variable integer that tells us the number of entries being sent across the wire
+        Map<String, Class> registry = new HashMap<>();
         int registryEntryCount = in.readVInt();
         for (int i = 0; i < registryEntryCount; i++) {
-            String name = in.readString();
-            String categoryClassName = in.readString();
-            registry.put(name, categoryClassName);
+            try {
+                String name = in.readString();
+                Class categoryClass = Class.forName(in.readString());
+                registry.put(name, categoryClass);
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("Category class definition not found", e);
+            }
         }
 
         this.registry = registry;
     }
 
-    public Map<String, String> getRegistry() {
-        return this.registry;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
         // stream out registry size prior to streaming out registry entries
         out.writeVInt(this.registry.size());
-        for (Map.Entry<String, String> entry : registry.entrySet()) {
+        for (Map.Entry<String, Class> entry : registry.entrySet()) {
             out.writeString(entry.getKey());   // unique named writeable name
-            out.writeString(entry.getValue()); // fully qualified category class name
+            out.writeString(entry.getValue().getName()); // fully qualified category class name
         }
     }
 
@@ -73,6 +79,13 @@ public class NamedWriteableRegistryResponse extends TransportResponse {
     @Override
     public int hashCode() {
         return Objects.hash(registry);
+    }
+
+    /**
+     * Returns a map of writeable names and their associated category class
+     */
+    public Map<String, Class> getRegistry() {
+        return Collections.unmodifiableMap(this.registry);
     }
 
 }

@@ -36,8 +36,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.NamedWriteableRegistryParseRequest;
-import org.opensearch.common.io.stream.NamedWriteableRegistryParseResponse;
-import org.opensearch.common.io.stream.NamedWriteableRegistryRequest;
 import org.opensearch.common.io.stream.NamedWriteableRegistryResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -102,7 +100,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     List<DiscoveryExtension> extensionsInitializedList;
     TransportService transportService;
     ClusterService clusterService;
-    Map<DiscoveryNode, Map<Class<?>, Map<String, ExtensionReader>>> extensionNamedWriteableRegistry;
+    Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionNamedWriteableRegistry;
 
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
@@ -278,12 +276,15 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         return null;
     }
 
+    /**
+     * Iterates through all discovered extensions, sends transport requests for named writeables and consolidates all entires into a central named writeable registry for extensions.
+     */
     public void getNamedWriteables() {
 
         // retrieve named writeable registry entries from each extension
         for (DiscoveryNode extensionNode : extensionsList) {
             try {
-                Map<DiscoveryNode, Map<Class<?>, Map<String, ExtensionReader>>> extensionRegistry = getNamedWriteables(extensionNode);
+                Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionRegistry = getNamedWriteables(extensionNode);
                 if (extensionRegistry.isEmpty() == false) {
                     this.extensionNamedWriteableRegistry.putAll(extensionRegistry);
                 }
@@ -291,17 +292,18 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 logger.error(e.toString());
             }
         }
-
-        // TODO : enable dynamic registration of named writeables by returning the extension registry map within Node.java
     }
 
-    public Map<DiscoveryNode, Map<Class<?>, Map<String, ExtensionReader>>> getNamedWriteables(DiscoveryNode extensionNode)
+    /**
+     * Sends a transport request for named writeables to an extension, identified by the given DiscoveryNode, and processes the response into registry entries
+     *
+     * @param extensionNode DiscoveryNode identifying the extension
+     */
+    public Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> getNamedWriteables(DiscoveryNode extensionNode)
         throws UnknownHostException {
 
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
-
-        // initialize map of entries for this extension to return
-        final Map<DiscoveryNode, Map<Class<?>, Map<String, ExtensionReader>>> extensionRegistry = new HashMap<>();
+        // Initialize map of entries for this extension to return
+        final Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionRegistry = new HashMap<>();
 
         final TransportResponseHandler<NamedWriteableRegistryResponse> namedWriteableRegistryResponseHandler = new TransportResponseHandler<
             NamedWriteableRegistryResponse>() {
@@ -315,72 +317,64 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             public void handleResponse(NamedWriteableRegistryResponse response) {
 
                 logger.info("response {}", response);
-
                 logger.info("EXTENSION [" + extensionNode.getName() + "] returned " + response.getRegistry().size() + " entries");
+
                 if (response.getRegistry().isEmpty() == false) {
 
                     // Extension has sent over entries to register, initialize inner category map
-                    Map<Class<?>, Map<String, ExtensionReader>> categoryMap = new HashMap<>();
+                    Map<Class, Map<String, ExtensionReader>> categoryMap = new HashMap<>();
 
-                    // reader map associated with this current category
+                    // Reader map associated with this current category
                     Map<String, ExtensionReader> readers = null;
                     Class currentCategory = null;
 
                     // Extract response entries and process fully qualified class name into category class instance
-                    for (Map.Entry<String, String> entry : response.getRegistry().entrySet()) {
+                    for (Map.Entry<String, Class> entry : response.getRegistry().entrySet()) {
 
-                        try {
-                            String name = entry.getKey();
-                            Class<?> categoryClass = Class.forName(entry.getValue());
-
-                            if (currentCategory != categoryClass) {
-                                // after first pass, readers and current category are set
-                                if (currentCategory != null) {
-                                    categoryMap.put(currentCategory, readers);
-                                }
-                                readers = new HashMap<>();
-                                currentCategory = categoryClass;
+                        String name = entry.getKey();
+                        Class categoryClass = entry.getValue();
+                        if (currentCategory != categoryClass) {
+                            // After first pass, readers and current category are set
+                            if (currentCategory != null) {
+                                categoryMap.put(currentCategory, readers);
                             }
+                            readers = new HashMap<>();
+                            currentCategory = categoryClass;
+                        }
 
-                            // add name and callback method reference to inner reader map
-                            // Since appending the new reader entry returns the previous value associated with key, or null if there was no
-                            // mapping for key, validate that name has not yet been associated with a callback method to it's associated
-                            // extension
-                            ExtensionReader newReader = (en, cc, context) -> parseNamedWriteable(en, cc, context);
-                            ExtensionReader oldReader = readers.put(name, newReader);
-                            if (oldReader != null) {
-                                throw new IllegalArgumentException(
-                                    "NamedWriteable ["
-                                        + currentCategory.getName()
-                                        + "]["
-                                        + name
-                                        + "]"
-                                        + " is already registered for ["
-                                        + oldReader.getClass().getName()
-                                        + "],"
-                                        + " cannot register ["
-                                        + newReader.getClass().getName()
-                                        + "]"
-                                );
-                            }
-                        } catch (ClassNotFoundException e) {
-                            logger.error(e.toString());
+                        // Add name and callback method reference to inner reader map,
+                        ExtensionReader newReader = (en, cc, context) -> parseNamedWriteable(en, cc, context);
+
+                        // Validate that name has not yet been associated with a callback method
+                        ExtensionReader oldReader = readers.put(name, newReader);
+                        if (oldReader != null && oldReader.getClass() != null) {
+                            throw new IllegalArgumentException(
+                                "NamedWriteable ["
+                                    + currentCategory.getName()
+                                    + "]["
+                                    + name
+                                    + "]"
+                                    + " is already registered for ["
+                                    + oldReader.getClass().getName()
+                                    + "],"
+                                    + " cannot register ["
+                                    + newReader.getClass().getName()
+                                    + "]"
+                            );
                         }
                     }
 
-                    // handle last category and reader entry
+                    // Handle last category and reader entry
                     categoryMap.put(currentCategory, readers);
 
-                    // attach extension node to categoryMap
+                    // Attach extension node to categoryMap
                     extensionRegistry.put(extensionNode, categoryMap);
                 }
-                inProgressLatch.countDown();
             }
 
             @Override
             public void handleException(TransportException exp) {
-                logger.error(new ParameterizedMessage("NamedWriteableRegistryRequest failed", exp));
-                inProgressLatch.countDown();
+                logger.error(new ParameterizedMessage("ExtensionRequest failed", exp));
             }
 
             @Override
@@ -389,17 +383,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
         };
 
+        logger.info("Sending extension request type: " + REQUEST_EXTENSION_NAMED_WRITEABLE_REGISTRY);
         try {
-            logger.info("Sending extension request type: " + REQUEST_EXTENSION_NAMED_WRITEABLE_REGISTRY);
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_NAMED_WRITEABLE_REGISTRY,
-                new NamedWriteableRegistryRequest(true),
+                new DefaultExtensionPointRequest(REQUEST_EXTENSION_NAMED_WRITEABLE_REGISTRY),
                 namedWriteableRegistryResponseHandler
             );
-            // wait for response from SDK
-            inProgressLatch.await(100, TimeUnit.SECONDS);
-            logger.info("Recieved response from Extension");
         } catch (Exception e) {
             logger.error(e.toString());
         }
@@ -407,12 +398,19 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         return extensionRegistry;
     }
 
-    public Map<DiscoveryNode, ExtensionReader> getExtensionReader(Class<?> categoryClass, String name) {
+    /**
+     * Iterates through list of discovered extensions and returns the callback method associated with the given category class and name
+     *
+     * @param categoryClass class that the Writeable object extends
+     * @param name unique name identifiying the Writeable object
+     * @throws IllegalArgumentException if there is no reader associated with the given category class and name
+     */
+    public Map<DiscoveryNode, ExtensionReader> getExtensionReader(Class categoryClass, String name) {
 
         ExtensionReader reader = null;
         DiscoveryNode extension = null;
 
-        // the specific extension that the reader is associated with is not known, must iterate through all of them
+        // The specific extension that the reader is associated with is not known, must iterate through all of them
         for (DiscoveryNode extensionNode : extensionsList) {
             reader = getExtensionReader(extensionNode, categoryClass, name);
             if (reader != null) {
@@ -421,16 +419,23 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
         }
 
-        // at this point, if reader does not exist throughout all extensionNodes, named writeable is not registered, throw exception
+        // At this point, if reader does not exist throughout all extensionNodes, named writeable is not registered, throw exception
         if (reader == null) {
             throw new IllegalArgumentException("Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]");
         }
         return Collections.singletonMap(extension, reader);
     }
 
-    public ExtensionReader getExtensionReader(DiscoveryNode extensionNode, Class<?> categoryClass, String name) {
+    /**
+     * Returns the callback method associated with the given extension node, category class and name
+     *
+     * @param extensionNode Discovery Node identifying the extension associated with the category class and name
+     * @param categoryClass class that the Writeable object extends
+     * @param name unique name identifying the Writeable object
+     */
+    public ExtensionReader getExtensionReader(DiscoveryNode extensionNode, Class categoryClass, String name) {
         ExtensionReader reader = null;
-        Map<Class<?>, Map<String, ExtensionReader>> categoryMap = this.extensionNamedWriteableRegistry.get(extensionNode);
+        Map<Class, Map<String, ExtensionReader>> categoryMap = this.extensionNamedWriteableRegistry.get(extensionNode);
         if (categoryMap != null) {
             Map<String, ExtensionReader> readerMap = categoryMap.get(categoryClass);
             if (readerMap != null) {
@@ -440,57 +445,24 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         return reader;
     }
 
-    // transport byte array (context) and categoryClass to SDK. Not necessary to transport name to SDK, as name already proceeds the named
-    // writeable within the byte array context
-    public void parseNamedWriteable(DiscoveryNode extensionNode, Class<?> categoryClass, byte[] context) throws UnknownHostException {
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
-        final TransportResponseHandler<NamedWriteableRegistryParseResponse> namedWriteableRegistryParseResponseHandler =
-            new TransportResponseHandler<NamedWriteableRegistryParseResponse>() {
-
-                @Override
-                public NamedWriteableRegistryParseResponse read(StreamInput in) throws IOException {
-                    return new NamedWriteableRegistryParseResponse(in);
-                }
-
-                @Override
-                public void handleResponse(NamedWriteableRegistryParseResponse response) {
-
-                    // SDK will respond with the status of the parse request
-                    logger.info("response {}", response.getStatus());
-
-                    inProgressLatch.countDown();
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    // log request error to OpenSearch
-                    logger.error(new ParameterizedMessage("NamedWriteableRegistryParseRequest failed", exp));
-
-                    // count down latch to proceed with next execution instead of waiting for request error
-                    inProgressLatch.countDown();
-                }
-
-                // executor override
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
-                }
-            };
+    /**
+     * Transports a byte array and associated category class to the given extension, identified by its discovery node
+     *
+     * @param extensionNode Discovery Node identifying the extension associated with the category class and name
+     * @param categoryClass class that the Writeable object extends
+     * @param context byte array generated from a {@link StreamInput} object to transport to the extension
+     */
+    public void parseNamedWriteable(DiscoveryNode extensionNode, Class categoryClass, byte[] context) throws UnknownHostException {
+        logger.info("Sending extension request type: " + REQUEST_EXTENSION_PARSE_NAMED_WRITEABLE);
+        NamedWriteableRegistryParseResponseHandler namedWriteableRegistryParseResponseHandler =
+            new NamedWriteableRegistryParseResponseHandler();
         try {
-
-            logger.info("Sending extension request type: " + REQUEST_EXTENSION_PARSE_NAMED_WRITEABLE);
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_PARSE_NAMED_WRITEABLE,
                 new NamedWriteableRegistryParseRequest(categoryClass.getName(), context),
                 namedWriteableRegistryParseResponseHandler
             );
-
-            // wait for response from SDK
-            inProgressLatch.await(100, TimeUnit.SECONDS);
-
-            // at this point, either request was processed successfully or timed out, response is given
-            logger.info("Recieved response from Extension");
         } catch (Exception e) {
             logger.error(e.toString());
         }
