@@ -88,8 +88,8 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
  *
  * @opensearch.internal
  */
-public class ClusterManagerService extends AbstractLifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(ClusterManagerService.class);
+public class MasterService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(MasterService.class);
 
     public static final Setting<TimeValue> MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
         "cluster.service.slow_master_task_logging_threshold",
@@ -122,7 +122,7 @@ public class ClusterManagerService extends AbstractLifecycleComponent {
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
 
-    public ClusterManagerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);

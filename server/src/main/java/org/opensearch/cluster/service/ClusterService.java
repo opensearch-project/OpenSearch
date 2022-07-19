@@ -62,7 +62,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class ClusterService extends AbstractLifecycleComponent {
-    private final ClusterManagerService clusterManagerService;
+    private final MasterService masterService;
 
     private final ClusterApplierService clusterApplierService;
 
@@ -92,7 +92,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         this(
             settings,
             clusterSettings,
-            new ClusterManagerService(settings, clusterSettings, threadPool),
+            new MasterService(settings, clusterSettings, threadPool),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }
@@ -100,12 +100,12 @@ public class ClusterService extends AbstractLifecycleComponent {
     public ClusterService(
         Settings settings,
         ClusterSettings clusterSettings,
-        ClusterManagerService clusterManagerService,
+        MasterService masterService,
         ClusterApplierService clusterApplierService
     ) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.clusterManagerService = clusterManagerService;
+        this.masterService = masterService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -131,18 +131,18 @@ public class ClusterService extends AbstractLifecycleComponent {
     @Override
     protected synchronized void doStart() {
         clusterApplierService.start();
-        clusterManagerService.start();
+        masterService.start();
     }
 
     @Override
     protected synchronized void doStop() {
-        clusterManagerService.stop();
+        masterService.stop();
         clusterApplierService.stop();
     }
 
     @Override
     protected synchronized void doClose() {
-        clusterManagerService.close();
+        masterService.close();
         clusterApplierService.close();
     }
 
@@ -226,16 +226,9 @@ public class ClusterService extends AbstractLifecycleComponent {
     public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
         addLocalNodeClusterManagerListener(listener);
     }
-    public ClusterManagerService getClusterManagerService() {
-        return clusterManagerService;
-    }
 
-    /**
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerService}
-     */
-    @Deprecated
     public MasterService getMasterService() {
-        return clusterManagerService;
+        return masterService;
     }
 
     /**
@@ -258,7 +251,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public static boolean assertClusterOrMasterStateThread() {
         assert Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
-            || Thread.currentThread().getName().contains(ClusterManagerService.MASTER_UPDATE_THREAD_NAME)
+            || Thread.currentThread().getName().contains(MasterService.MASTER_UPDATE_THREAD_NAME)
             : "not called from the master/cluster state update thread";
         return true;
     }
@@ -349,6 +342,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskConfig config,
         final ClusterStateTaskExecutor<T> executor
     ) {
-        clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
+        masterService.submitStateUpdateTasks(source, tasks, config, executor);
     }
 }
