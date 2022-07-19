@@ -51,8 +51,7 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         ClusterService clusterService,
         TransportSearchAction transportSearchAction,
         NamedWriteableRegistry namedWriteableRegistry,
-        PitService pitService
-        NamedWriteableRegistry namedWriteableRegistry,
+        PitService pitService,
         CreatePitController createPitController
     ) {
         super(CreatePitAction.NAME, transportService, actionFilters, in -> new CreatePitRequest(in));
@@ -68,13 +67,10 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
     @Override
     protected void doExecute(Task task, CreatePitRequest request, ActionListener<CreatePitResponse> listener) {
         CreatePitController controller = new CreatePitController(
-            request,
             searchTransportService,
             clusterService,
             transportSearchAction,
             namedWriteableRegistry,
-            task,
-            listener,
             pitService
         );
         final StepListener<SearchResponse> createPitListener = new StepListener<>();
