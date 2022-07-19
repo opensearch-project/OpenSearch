@@ -65,6 +65,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.Rewriteable;
@@ -295,6 +296,81 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Transport.Connection connection,
             ActionListener<SearchPhaseResult> listener
         );
+    }
+
+    public void executeRequest(
+        Task task,
+        SearchRequest searchRequest,
+        String actionName,
+        boolean includeSearchContext,
+        SinglePhaseSearchAction phaseSearchAction,
+        ActionListener<SearchResponse> listener
+    ) {
+        executeRequest(task, searchRequest, new SearchAsyncActionProvider() {
+            @Override
+            public AbstractSearchAsyncAction<? extends SearchPhaseResult> asyncSearchAction(
+                SearchTask task,
+                SearchRequest searchRequest,
+                Executor executor,
+                GroupShardsIterator<SearchShardIterator> shardsIts,
+                SearchTimeProvider timeProvider,
+                BiFunction<String, String, Transport.Connection> connectionLookup,
+                ClusterState clusterState,
+                Map<String, AliasFilter> aliasFilter,
+                Map<String, Float> concreteIndexBoosts,
+                Map<String, Set<String>> indexRoutings,
+                ActionListener<SearchResponse> listener,
+                boolean preFilter,
+                ThreadPool threadPool,
+                SearchResponse.Clusters clusters
+            ) {
+                return new AbstractSearchAsyncAction<SearchPhaseResult>(
+                    actionName,
+                    logger,
+                    searchTransportService,
+                    connectionLookup,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    indexRoutings,
+                    executor,
+                    searchRequest,
+                    listener,
+                    shardsIts,
+                    timeProvider,
+                    clusterState,
+                    task,
+                    new ArraySearchPhaseResults<>(shardsIts.size()),
+                    searchRequest.getMaxConcurrentShardRequests(),
+                    clusters
+                ) {
+                    @Override
+                    protected void executePhaseOnShard(
+                        SearchShardIterator shardIt,
+                        SearchShardTarget shard,
+                        SearchActionListener<SearchPhaseResult> listener
+                    ) {
+                        final Transport.Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+                        phaseSearchAction.executeOnShardTarget(task, shard, connection, listener);
+                    }
+
+                    @Override
+                    protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                        return new SearchPhase(getName()) {
+                            @Override
+                            public void run() {
+                                final AtomicArray<SearchPhaseResult> atomicArray = results.getAtomicArray();
+                                sendSearchResponse(InternalSearchResponse.empty(), atomicArray);
+                            }
+                        };
+                    }
+
+                    @Override
+                    boolean buildPointInTimeFromSearchResults() {
+                        return includeSearchContext;
+                    }
+                };
+            }
+        }, listener);
     }
 
     private void executeRequest(
