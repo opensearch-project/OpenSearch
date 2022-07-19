@@ -45,12 +45,12 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public final class SearchContextIdForNode implements Writeable {
+final class SearchContextIdForNode implements Writeable {
     private final String node;
     private final ShardSearchContextId searchContextId;
     private final String clusterAlias;
 
-    public SearchContextIdForNode(@Nullable String clusterAlias, String node, ShardSearchContextId searchContextId) {
+    SearchContextIdForNode(@Nullable String clusterAlias, String node, ShardSearchContextId searchContextId) {
         this.node = node;
         this.clusterAlias = clusterAlias;
         this.searchContextId = searchContextId;

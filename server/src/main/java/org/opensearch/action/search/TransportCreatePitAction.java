@@ -41,6 +41,7 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
     private final TransportSearchAction transportSearchAction;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final PitService pitService;
+    private final CreatePitController createPitController;
 
     @Inject
     public TransportCreatePitAction(
@@ -51,6 +52,8 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         TransportSearchAction transportSearchAction,
         NamedWriteableRegistry namedWriteableRegistry,
         PitService pitService
+        NamedWriteableRegistry namedWriteableRegistry,
+        CreatePitController createPitController
     ) {
         super(CreatePitAction.NAME, transportService, actionFilters, in -> new CreatePitRequest(in));
         this.transportService = transportService;
@@ -58,6 +61,7 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         this.clusterService = clusterService;
         this.transportSearchAction = transportSearchAction;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.createPitController = createPitController;
         this.pitService = pitService;
     }
 
@@ -83,7 +87,7 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
             );
             listener.onFailure(e);
         });
-        controller.executeCreatePit(createPitListener, updatePitIdListener);
+        createPitController.executeCreatePit(request, task, createPitListener, updatePitIdListener);
     }
 
     /**

@@ -19,6 +19,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
@@ -53,41 +54,38 @@ public class CreatePitController {
     private final ClusterService clusterService;
     private final TransportSearchAction transportSearchAction;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final Task task;
-    private final ActionListener<CreatePitResponse> listener;
-    private final CreatePitRequest request;
     private final PitService pitService;
     private static final Logger logger = LogManager.getLogger(CreatePitController.class);
     public static final Setting<TimeValue> PIT_INIT_KEEP_ALIVE = Setting.positiveTimeSetting(
-        "pit.init.keep_alive",
+        "point_in_time.init.keep_alive",
         timeValueSeconds(30),
         Setting.Property.NodeScope
     );
 
+    @Inject
     public CreatePitController(
-        CreatePitRequest request,
         SearchTransportService searchTransportService,
         ClusterService clusterService,
         TransportSearchAction transportSearchAction,
         NamedWriteableRegistry namedWriteableRegistry,
-        Task task,
-        ActionListener<CreatePitResponse> listener,
         PitService pitService
     ) {
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
         this.transportSearchAction = transportSearchAction;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.task = task;
-        this.listener = listener;
-        this.request = request;
         this.pitService = pitService;
     }
 
     /**
      * This method creates PIT reader context
      */
-    public void executeCreatePit(StepListener<SearchResponse> createPitListener, ActionListener<CreatePitResponse> updatePitIdListener) {
+    public void executeCreatePit(
+        CreatePitRequest request,
+        Task task,
+        StepListener<SearchResponse> createPitListener,
+        ActionListener<CreatePitResponse> updatePitIdListener
+    ) {
         SearchRequest searchRequest = new SearchRequest(request.getIndices());
         searchRequest.preference(request.getPreference());
         searchRequest.routing(request.getRouting());
@@ -235,7 +233,11 @@ public class CreatePitController {
             .filter(ctx -> Strings.isEmpty(ctx.getClusterAlias()) == false)
             .map(SearchContextIdForNode::getClusterAlias)
             .collect(Collectors.toSet());
-        return SearchUtils.getConnectionLookupListener(searchTransportService.getRemoteClusterService(), state, clusters);
+        return (StepListener<BiFunction<String, String, DiscoveryNode>>) SearchUtils.getConnectionLookupListener(
+            searchTransportService.getRemoteClusterService(),
+            state,
+            clusters
+        );
     }
 
     private ActionListener<UpdatePitContextResponse> getGroupedListener(

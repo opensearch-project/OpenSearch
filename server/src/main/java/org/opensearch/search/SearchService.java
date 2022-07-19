@@ -177,7 +177,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * This setting will help validate the max keep alive that can be set during creation or extension for a PIT reader context
      */
     public static final Setting<TimeValue> MAX_PIT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
-        "pit.max_keep_alive",
+        "point_in_time.max_keep_alive",
         timeValueHours(24),
         Property.NodeScope,
         Property.Dynamic
