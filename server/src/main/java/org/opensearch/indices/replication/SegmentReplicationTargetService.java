@@ -53,6 +53,27 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = new HashMap<>();
 
+    // Empty Implementation, only required while Segment Replication is under feature flag.
+    public static final SegmentReplicationTargetService NO_OP = new SegmentReplicationTargetService() {
+        @Override
+        public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+            // NoOp;
+        }
+
+        @Override
+        public synchronized void onNewCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
+            // noOp;
+        }
+    };
+
+    // Used only for empty implementation.
+    private SegmentReplicationTargetService() {
+        threadPool = null;
+        recoverySettings = null;
+        onGoingReplications = null;
+        sourceFactory = null;
+    }
+
     /**
      * The internal actions
      *

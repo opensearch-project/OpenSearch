@@ -566,6 +566,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             clusterService,
             threadPool,
             SegmentReplicationCheckpointPublisher.EMPTY,
+            null,
             recoveryTargetService,
             shardStateAction,
             null,

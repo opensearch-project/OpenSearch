@@ -1396,9 +1396,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the lastest Replication Checkpoint that shard received
+     * Returns the lastest Replication Checkpoint that shard received. Shards will return an EMPTY checkpoint before
+     * the engine is opened.
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        if (getEngineOrNull() == null) {
+            return ReplicationCheckpoint.empty(shardId);
+        }
         try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
             return Optional.ofNullable(snapshot.get())
                 .map(
@@ -1410,15 +1414,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentInfos.getVersion()
                     )
                 )
-                .orElse(
-                    new ReplicationCheckpoint(
-                        shardId,
-                        getOperationPrimaryTerm(),
-                        SequenceNumbers.NO_OPS_PERFORMED,
-                        getProcessedLocalCheckpoint(),
-                        SequenceNumbers.NO_OPS_PERFORMED
-                    )
-                );
+                .orElse(ReplicationCheckpoint.empty(shardId));
         } catch (IOException ex) {
             throw new OpenSearchException("Error Closing SegmentInfos Snapshot", ex);
         }
