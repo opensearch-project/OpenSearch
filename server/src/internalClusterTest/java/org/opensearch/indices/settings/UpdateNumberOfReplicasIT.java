@@ -608,9 +608,29 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
 
     public void testAwarenessReplicaBalance() {
         createIndex("aware-replica", Settings.builder().put("index.number_of_replicas", 0).build());
+        createIndex(".system-index", Settings.builder().put("index.number_of_replicas", 0).build());
         manageReplicaBalanceSetting(true);
+        int updated = 0;
 
         try {
+            // replica count of 1 is ideal
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("aware-replica")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                .execute()
+                .actionGet();
+            updated++;
+
+            // system index - should be able to update
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(".system-index")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2))
+                .execute()
+                .actionGet();
+            updated++;
+
             client().admin()
                 .indices()
                 .prepareUpdateSettings("aware-replica")
@@ -619,18 +639,12 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
                 .actionGet();
             fail("should have thrown an exception about the replica  count");
 
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("aware-replica")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-                .execute()
-                .actionGet();
-
         } catch (IllegalArgumentException e) {
             assertEquals(
                 "Validation Failed: 1: expected total copies needs to be a multiple of total awareness attributes [2];",
                 e.getMessage()
             );
+            assertEquals(2, updated);
         } finally {
             manageReplicaBalanceSetting(false);
         }

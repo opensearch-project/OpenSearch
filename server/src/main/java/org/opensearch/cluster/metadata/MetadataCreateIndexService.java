@@ -1155,7 +1155,7 @@ public class MetadataCreateIndexService {
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
 
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
@@ -1164,21 +1164,31 @@ public class MetadataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
+    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings, String indexName) {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, Optional.of(indexName));
+        return validationErrors;
+    }
+
+    List<String> getIndexSettingsValidationErrors(
+        final Settings settings,
+        final boolean forbidPrivateIndexSettings,
+        Optional<String> indexName
+    ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }
-
-        int replicaCount = settings.getAsInt(
-            IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-            INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(Settings.EMPTY)
-        );
-        Optional<String> error = awarenessReplicaBalance.validate(replicaCount);
-        if (error.isPresent()) {
-            validationErrors.add(error.get());
+        if (indexName.isEmpty() || indexName.get().charAt(0) != '.') {
+            // Apply aware replica balance only to non system indices
+            int replicaCount = settings.getAsInt(
+                IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(Settings.EMPTY)
+            );
+            Optional<String> error = awarenessReplicaBalance.validate(replicaCount);
+            if (error.isPresent()) {
+                validationErrors.add(error.get());
+            }
         }
-
         return validationErrors;
     }
 

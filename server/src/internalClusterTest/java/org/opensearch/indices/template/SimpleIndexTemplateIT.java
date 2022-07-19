@@ -1037,18 +1037,17 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("template_1")
                 .setPatterns(Arrays.asList("a*", "b*"))
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
                 .get();
-
-            fail("should have thrown an exception about the replica  count");
 
             client().admin()
                 .indices()
                 .preparePutTemplate("template_1")
                 .setPatterns(Arrays.asList("a*", "b*"))
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
                 .get();
 
+            fail("should have thrown an exception about the replica  count");
         } catch (InvalidIndexTemplateException e) {
             assertEquals(
                 "index_template [template_1] invalid, cause [Validation Failed: 1: expected total copies needs to be a multiple of total awareness attributes [2];]",

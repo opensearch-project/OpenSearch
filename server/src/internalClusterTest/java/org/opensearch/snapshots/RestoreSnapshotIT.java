@@ -978,8 +978,12 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         try {
             createRepository("test-repo", "fs");
             createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
+            createIndex(".system-index", Settings.builder().put("index.number_of_replicas", 0).build());
             ensureGreen();
-            clusterAdmin().prepareCreateSnapshot("test-repo", "snapshot-0").setIndices("test-index").setWaitForCompletion(true).get();
+            clusterAdmin().prepareCreateSnapshot("test-repo", "snapshot-0")
+                .setIndices("test-index", ".system-index")
+                .setWaitForCompletion(true)
+                .get();
             manageReplicaBalanceSetting(true);
 
             final IllegalArgumentException restoreError = expectThrows(
@@ -987,6 +991,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
                     .setRenamePattern("test-index")
                     .setRenameReplacement("new-index")
+                    .setIndices("test-index")
                     .get()
             );
             assertThat(
@@ -995,10 +1000,21 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             );
 
             RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                .setRenamePattern(".system-index")
+                .setRenameReplacement(".system-index-restore-1")
+                .setWaitForCompletion(true)
+                .setIndices(".system-index")
+                .execute()
+                .actionGet();
+
+            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+            restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
                 .setRenamePattern("test-index")
                 .setRenameReplacement("new-index")
                 .setIndexSettings(Settings.builder().put("index.number_of_replicas", 1).build())
                 .setWaitForCompletion(true)
+                .setIndices("test-index")
                 .execute()
                 .actionGet();
 

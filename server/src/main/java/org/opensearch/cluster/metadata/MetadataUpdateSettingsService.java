@@ -198,18 +198,23 @@ public class MetadataUpdateSettingsService {
                     if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
                         final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
                         if (preserveExisting == false) {
-                            Optional<String> error = awarenessReplicaBalance.validate(updatedNumberOfReplicas);
-                            if (error.isPresent()) {
-                                ValidationException ex = new ValidationException();
-                                ex.addValidationError(error.get());
-                                throw ex;
+                            for (Index index : request.indices()) {
+                                if (index.getName().charAt(0) != '.') {
+                                    // No replica count validation for system indices
+                                    Optional<String> error = awarenessReplicaBalance.validate(updatedNumberOfReplicas);
+                                    if (error.isPresent()) {
+                                        ValidationException ex = new ValidationException();
+                                        ex.addValidationError(error.get());
+                                        throw ex;
+                                    }
+                                }
                             }
 
                             // Verify that this won't take us over the cluster shard limit.
                             int totalNewShards = Arrays.stream(request.indices())
                                 .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
                                 .sum();
-                            error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
+                            Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
                             if (error.isPresent()) {
                                 ValidationException ex = new ValidationException();
                                 ex.addValidationError(error.get());

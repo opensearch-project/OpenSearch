@@ -98,6 +98,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1099,7 +1100,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             new AwarenessReplicaBalance(settings, clusterService.getClusterSettings())
         );
 
-        List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false);
+        List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
         assertThat(validationErrors.size(), is(1));
         assertThat(validationErrors.get(0), is("expected total copies needs to be a multiple of total awareness attributes [3]"));
 
@@ -1111,7 +1112,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, 2)
             .build();
 
-        validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false);
+        validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
         assertThat(validationErrors.size(), is(0));
 
         threadPool.shutdown();
@@ -1243,7 +1244,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
 
-            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(ilnSetting, true);
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(ilnSetting, true, Optional.empty());
             assertThat(validationErrors.size(), is(1));
             assertThat(validationErrors.get(0), is("expected [index.lifecycle.name] to be private but it was not"));
         }));
