@@ -49,6 +49,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
@@ -309,7 +310,7 @@ final class DefaultSearchContext extends SearchContext {
             int sliceLimit = indexService.getIndexSettings().getMaxSlicesPerPit();
             int numSlices = sliceBuilder.getMax();
             if (numSlices > sliceLimit) {
-                throw new IllegalArgumentException(
+                throw new OpenSearchRejectedExecutionException(
                     "The number of slices ["
                         + numSlices
                         + "] is too large. It must "
