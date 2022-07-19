@@ -138,7 +138,7 @@ public class MappingUpdatedAction {
      * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#clusterManagerNodeTimeout()}),
      * potentially waiting for a cluster-manager node to be available.
      *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #updateMappingOnClusterManager(Index, Mapping, ActionListener)}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateMappingOnClusterManager(Index, Mapping, ActionListener)}
      */
     @Deprecated
     public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {

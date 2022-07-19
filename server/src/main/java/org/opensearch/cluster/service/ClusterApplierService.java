@@ -42,6 +42,7 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
+import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.TimeoutClusterStateListener;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;

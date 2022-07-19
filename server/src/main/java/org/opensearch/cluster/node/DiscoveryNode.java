@@ -100,7 +100,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) || hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 
-    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #isClusterManagerNode(Settings)} */
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode(Settings)} */
     @Deprecated
     public static boolean isMasterNode(Settings settings) {
         return isClusterManagerNode(settings);
@@ -475,7 +475,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Can this node become cluster-manager or not.
      *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #isClusterManagerNode()}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode()}
      */
     @Deprecated
     public boolean isMasterNode() {

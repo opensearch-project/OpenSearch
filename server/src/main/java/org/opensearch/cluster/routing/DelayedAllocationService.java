@@ -237,11 +237,11 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
     // protected so that it can be overridden (and disabled) by unit tests
     protected void assertClusterOrClusterManagerStateThread() {
-        assert ClusterService.assertClusterOrMasterStateThread();
+        assert ClusterService.assertClusterOrClusterManagerStateThread();
     }
 
     // protected so that it can be overridden (and disabled) by unit tests
-    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #assertClusterOrClusterManagerStateThread()} */
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #assertClusterOrClusterManagerStateThread()} */
     @Deprecated
     protected void assertClusterOrMasterStateThread() {
         assertClusterOrClusterManagerStateThread();

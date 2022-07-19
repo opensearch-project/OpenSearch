@@ -288,7 +288,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         return clusterStateHealth.hasDiscoveredClusterManager();
     }
 
-    /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #hasDiscoveredClusterManager()} */
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #hasDiscoveredClusterManager()} */
     @Deprecated
     public boolean hasDiscoveredMaster() {
         return hasDiscoveredClusterManager();

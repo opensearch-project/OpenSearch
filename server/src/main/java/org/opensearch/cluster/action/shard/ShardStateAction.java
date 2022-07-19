@@ -44,7 +44,6 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
-import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexMetadata;

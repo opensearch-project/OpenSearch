@@ -214,7 +214,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
                 }
 
-                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd);
+                state = cluster.joinNodesAndBecomeClusterManager(state, nodesToAdd);
                 postTable = state.routingTable().index("index").shard(0);
             }
 

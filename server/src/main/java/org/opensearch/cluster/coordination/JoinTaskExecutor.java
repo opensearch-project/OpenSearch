@@ -107,7 +107,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             return reason.equals(BECOME_MASTER_TASK_REASON) || reason.equals(BECOME_CLUSTER_MANAGER_TASK_REASON);
         }
 
-        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #isBecomeClusterManagerTask()} */
+        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isBecomeClusterManagerTask()} */
         @Deprecated
         public boolean isBecomeMasterTask() {
             return isBecomeClusterManagerTask();
@@ -372,7 +372,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     /**
      * a task that is used to signal the election is stopped and we should process pending joins.
-     * it may be used in combination with {@link JoinTaskExecutor#newBecomeMasterTask()}
+     * it may be used in combination with {@link JoinTaskExecutor#newBecomeClusterManagerTask()}
      */
     public static Task newFinishElectionTask() {
         return new Task(null, Task.FINISH_ELECTION_TASK_REASON);

@@ -1244,7 +1244,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the cluster-manager
      * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
      * @param routingTable                the shard routing table
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #updateFromClusterManager(long, Set, IndexShardRoutingTable)}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateFromClusterManager(long, Set, IndexShardRoutingTable)}
      */
     @Deprecated
     public synchronized void updateFromMaster(

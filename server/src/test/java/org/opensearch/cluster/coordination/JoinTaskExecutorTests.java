@@ -208,7 +208,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     }
 
     /**
-     * Validate isBecomeMasterTask() can identify "become cluster manager task" properly
+     * Validate isBecomeClusterManagerTask() can identify "become cluster manager task" properly
      */
     public void testIsBecomeClusterManagerTask() {
         JoinTaskExecutor.Task joinTaskOfMaster = JoinTaskExecutor.newBecomeMasterTask();

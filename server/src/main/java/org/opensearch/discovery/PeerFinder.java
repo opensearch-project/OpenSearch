@@ -457,11 +457,11 @@ public abstract class PeerFinder {
 
                         peersRequestInFlight = false;
 
-                        response.getMasterNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
+                        response.getClusterManagerNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
                         response.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(PeerFinder.this::startProbe);
                     }
 
-                    if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
+                    if (response.getClusterManagerNode().equals(Optional.of(discoveryNode))) {
                         // Must not hold lock here to avoid deadlock
                         assert holdsLock() == false : "PeerFinder mutex is held in error";
                         onActiveClusterManagerFound(discoveryNode, response.getTerm());
