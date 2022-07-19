@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -26,7 +27,7 @@ public class SearchUtils {
     /**
      * Get connection lookup listener for list of clusters passed
      */
-    public static StepListener<BiFunction<String, String, DiscoveryNode>> getConnectionLookupListener(
+    public static ActionListener<BiFunction<String, String, DiscoveryNode>> getConnectionLookupListener(
         RemoteClusterService remoteClusterService,
         ClusterState state,
         Set<String> clusters

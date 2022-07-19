@@ -40,6 +40,7 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
     private final ClusterService clusterService;
     private final TransportSearchAction transportSearchAction;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final CreatePitController createPitController;
 
     @Inject
     public TransportCreatePitAction(
@@ -48,7 +49,8 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         SearchTransportService searchTransportService,
         ClusterService clusterService,
         TransportSearchAction transportSearchAction,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        CreatePitController createPitController
     ) {
         super(CreatePitAction.NAME, transportService, actionFilters, in -> new CreatePitRequest(in));
         this.transportService = transportService;
@@ -56,19 +58,11 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         this.clusterService = clusterService;
         this.transportSearchAction = transportSearchAction;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.createPitController = createPitController;
     }
 
     @Override
     protected void doExecute(Task task, CreatePitRequest request, ActionListener<CreatePitResponse> listener) {
-        CreatePitController controller = new CreatePitController(
-            request,
-            searchTransportService,
-            clusterService,
-            transportSearchAction,
-            namedWriteableRegistry,
-            task,
-            listener
-        );
         final StepListener<SearchResponse> createPitListener = new StepListener<>();
         final ActionListener<CreatePitResponse> updatePitIdListener = ActionListener.wrap(r -> listener.onResponse(r), e -> {
             logger.error(
@@ -79,7 +73,7 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
             );
             listener.onFailure(e);
         });
-        controller.executeCreatePit(createPitListener, updatePitIdListener);
+        createPitController.executeCreatePit(request, task, createPitListener, updatePitIdListener);
     }
 
     /**

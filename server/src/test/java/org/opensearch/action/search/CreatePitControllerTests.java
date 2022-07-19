@@ -204,13 +204,10 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 request.setIndices(new String[] { "index" });
 
                 CreatePitController controller = new CreatePitController(
-                    request,
                     searchTransportService,
                     clusterServiceMock,
                     transportSearchAction,
-                    namedWriteableRegistry,
-                    task,
-                    createPitListener
+                    namedWriteableRegistry
                 );
 
                 ActionListener<CreatePitResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
@@ -226,7 +223,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 }, latch);
 
                 StepListener<SearchResponse> createListener = new StepListener<>();
-                controller.executeCreatePit(createListener, updatelistener);
+                controller.executeCreatePit(request, task, createListener, updatelistener);
                 createListener.onResponse(searchResponse);
                 latch.await();
                 assertEquals(3, updateNodesInvoked.size());
@@ -281,13 +278,10 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
                 CreatePitController controller = new CreatePitController(
-                    request,
                     searchTransportService,
                     clusterServiceMock,
                     transportSearchAction,
-                    namedWriteableRegistry,
-                    task,
-                    createPitListener
+                    namedWriteableRegistry
                 );
 
                 ActionListener<CreatePitResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
@@ -304,7 +298,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                 StepListener<SearchResponse> createListener = new StepListener<>();
 
-                controller.executeCreatePit(createListener, updatelistener);
+                controller.executeCreatePit(request, task, createListener, updatelistener);
                 createListener.onFailure(new Exception("Exception occurred in phase 1"));
                 latch.await();
                 assertEquals(0, updateNodesInvoked.size());
@@ -364,13 +358,10 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
                 CreatePitController controller = new CreatePitController(
-                    request,
                     searchTransportService,
                     clusterServiceMock,
                     transportSearchAction,
-                    namedWriteableRegistry,
-                    task,
-                    createPitListener
+                    namedWriteableRegistry
                 );
 
                 CountDownLatch latch = new CountDownLatch(1);
@@ -388,7 +379,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 }, latch);
 
                 StepListener<SearchResponse> createListener = new StepListener<>();
-                controller.executeCreatePit(createListener, updatelistener);
+                controller.executeCreatePit(request, task, createListener, updatelistener);
                 createListener.onResponse(searchResponse);
                 latch.await();
                 assertEquals(3, updateNodesInvoked.size());
@@ -437,13 +428,10 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
                 CreatePitController controller = new CreatePitController(
-                    request,
                     searchTransportService,
                     clusterServiceMock,
                     transportSearchAction,
-                    namedWriteableRegistry,
-                    task,
-                    createPitListener
+                    namedWriteableRegistry
                 );
 
                 CountDownLatch latch = new CountDownLatch(1);
@@ -461,7 +449,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 }, latch);
 
                 StepListener<SearchResponse> createListener = new StepListener<>();
-                controller.executeCreatePit(createListener, updatelistener);
+                controller.executeCreatePit(request, task, createListener, updatelistener);
                 createListener.onResponse(searchResponse);
                 latch.await();
                 assertEquals(3, updateNodesInvoked.size());

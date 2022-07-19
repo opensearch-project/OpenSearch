@@ -109,8 +109,8 @@ public class ReaderContext implements Releasable {
         return refCounted;
     }
 
-    protected AtomicLong getLastAccessTime() {
-        return lastAccessTime;
+    protected void updateLastAccessTime() {
+        this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
     }
 
     protected long nowInMillis() {

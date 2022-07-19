@@ -55,7 +55,7 @@ public class PitReaderContext extends ReaderContext {
         setPitId(pitId);
         setCreationTime(createTime);
         return Releasables.releaseOnce(() -> {
-            getLastAccessTime().updateAndGet(curr -> Math.max(curr, nowInMillis()));
+            updateLastAccessTime();
             getRefCounted().decRef();
         });
     }

@@ -141,7 +141,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("pit.max_keep_alive", "1m").put("search.default_keep_alive", "2m"))
+                .setPersistentSettings(Settings.builder().put("point_in_time.max_keep_alive", "1m").put("search.default_keep_alive", "2m"))
                 .get()
         );
         assertThat(exc.getMessage(), containsString("was (2m > 1m)"));
@@ -149,7 +149,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("pit.max_keep_alive", "5m"))
+                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("point_in_time.max_keep_alive", "5m"))
                 .get()
         );
         assertAcked(
@@ -163,7 +163,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("pit.max_keep_alive", "2m"))
+                .setPersistentSettings(Settings.builder().put("point_in_time.max_keep_alive", "2m"))
                 .get()
         );
         exc = expectThrows(
@@ -187,7 +187,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("pit.max_keep_alive", "30s"))
+                .setPersistentSettings(Settings.builder().put("point_in_time.max_keep_alive", "30s"))
                 .get()
         );
         assertThat(exc.getMessage(), containsString("was (1m > 30s)"));
