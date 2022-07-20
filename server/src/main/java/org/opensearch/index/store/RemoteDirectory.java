@@ -50,6 +50,10 @@ public final class RemoteDirectory extends Directory {
         return blobContainer.listBlobs().keySet().stream().sorted().toArray(String[]::new);
     }
 
+    public Collection<String> listFilesByPrefix(String filenamePrefix) throws IOException {
+        return blobContainer.listBlobsByPrefix(filenamePrefix).keySet();
+    }
+
     /**
      * Removes an existing file in the directory.
      *

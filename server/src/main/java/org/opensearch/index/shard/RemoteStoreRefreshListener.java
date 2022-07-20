@@ -19,6 +19,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.IOContext;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.store.RemoteDirectory;
+import org.opensearch.index.store.RemoteDirectoryWrapper;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -45,16 +47,24 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
     private static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
     private final IndexShard indexShard;
     private final Directory storeDirectory;
-    private final Directory remoteDirectory;
-    private final ConcurrentHashMap<String, String> segmentsUploadedToRemoteStore;
+    private final Directory remoteDirectory1;
+    private boolean isPrimary;
+    private RemoteDirectoryWrapper remoteDirectoryWrapper;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
     public RemoteStoreRefreshListener(IndexShard indexShard) throws IOException {
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
-        this.remoteDirectory = ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate()).getDelegate();
+        this.remoteDirectory1 = ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate()).getDelegate();
+        this.isPrimary = indexShard.shardRouting.primary();
+        if(indexShard.shardRouting.primary()) {
+            initPrimary();
+        }
+    }
+
+    public void initPrimary() throws IOException {
         // ToDo: Handle failures in reading list of files (GitHub #3397)
-        this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(Arrays.stream(remoteDirectory.listAll()).collect(Collectors.toMap(Function.identity(), Function.identity())));
+        this.remoteDirectoryWrapper = new RemoteDirectoryWrapper((RemoteDirectory) remoteDirectory1, indexShard.getOperationPrimaryTerm());
     }
 
     @Override
@@ -70,36 +80,40 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
      */
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
-        try {
-            Set<String> localFiles = new HashSet<>();
-            String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
-            if(!segmentsUploadedToRemoteStore.containsKey(lastCommittedLocalSegmentFileName)) {
-                Collection<String> committedLocalFiles = SegmentInfos.readCommit(storeDirectory, lastCommittedLocalSegmentFileName).files(true);
-                localFiles.addAll(committedLocalFiles);
-                boolean uploadStatus = uploadNewSegments(committedLocalFiles);
-                if(uploadStatus) {
-                    remoteDirectory.copyFrom(storeDirectory, lastCommittedLocalSegmentFileName, lastCommittedLocalSegmentFileName, IOContext.DEFAULT);
-                    segmentsUploadedToRemoteStore.put(lastCommittedLocalSegmentFileName, lastCommittedLocalSegmentFileName);
+        synchronized (this) {
+            if (indexShard.shardRouting.primary()) {
+                if (!isPrimary) {
+                    isPrimary = true;
+                    initPrimary();
                 }
-            } else {
-                logger.info("Latest commit point {} is present in remote store", lastCommittedLocalSegmentFileName);
-            }
-            try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-                SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
-                Collection<String> refreshedLocalFiles = segmentInfos.files(true);
-                localFiles.addAll(refreshedLocalFiles);
-                boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
-                if (uploadStatus) {
-                    uploadRemoteSegmentsMetadata(segmentInfos);
+                try {
+                    String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
+                    if (!remoteDirectoryWrapper.containsFile(lastCommittedLocalSegmentFileName)) {
+                        Collection<String> committedLocalFiles = SegmentInfos.readCommit(storeDirectory, lastCommittedLocalSegmentFileName).files(true);
+                        boolean uploadStatus = uploadNewSegments(committedLocalFiles);
+                        if (uploadStatus) {
+                            remoteDirectoryWrapper.copyFrom(storeDirectory, lastCommittedLocalSegmentFileName, lastCommittedLocalSegmentFileName, IOContext.DEFAULT);
+                        }
+                    } else {
+                        logger.info("Latest commit point {} is present in remote store", lastCommittedLocalSegmentFileName);
+                    }
+                    try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
+                        SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+                        Collection<String> refreshedLocalFiles = segmentInfos.files(true);
+                        boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
+                        if (uploadStatus) {
+                            uploadRemoteSegmentsMetadata(segmentInfos);
+                        }
+                    } catch (EngineException e) {
+                        logger.warn("Exception while reading SegmentInfosSnapshot", e);
+                    }
+                    //deleteStaleSegments(Set.of(storeDirectory.listAll()));
+                } catch (IOException e) {
+                    // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
+                    // in the next refresh. This should not affect durability of the indexed data after remote trans-log integration.
+                    logger.warn("Exception while uploading new segments to the remote segment store", e);
                 }
-            } catch (EngineException e) {
-                logger.warn("Exception while reading SegmentInfosSnapshot", e);
             }
-            deleteStaleSegments(Set.of(storeDirectory.listAll()));
-        } catch (IOException e) {
-            // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
-            // in the next refresh. This should not affect durability of the indexed data after remote trans-log integration.
-            logger.warn("Exception while uploading new segments to the remote segment store", e);
         }
     }
 
@@ -110,11 +124,10 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
             .filter(file -> !EXCLUDE_FILES.contains(file))
             .filter(file -> !file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME))
             .filter(file -> !file.startsWith(COMMITTED_SEGMENTINFOS_FILENAME))
-            .filter(file -> !segmentsUploadedToRemoteStore.containsKey(file))
+            .filter(file -> !remoteDirectoryWrapper.containsFile(file))
             .forEach(file -> {
                 try {
-                    remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
-                    segmentsUploadedToRemoteStore.put(file, file);
+                    remoteDirectoryWrapper.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
                 } catch (NoSuchFileException e) {
                     logger.info("The file {} does not exist anymore. It can happen in case of temp files", file);
                 } catch (IOException e) {
@@ -145,9 +158,8 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
         segmentInfos.write(indexOutput);
         indexOutput.close();
         storeDirectory.sync(Collections.singleton(segmentInfosFileName));
-        remoteDirectory.copyFrom(storeDirectory, segmentInfosFileName, segmentInfosFileName, IOContext.DEFAULT);
-        segmentsUploadedToRemoteStore.put(segmentInfosFileName, segmentInfosFileName);
-        Set<String> staleSegmentInfosFiles = segmentsUploadedToRemoteStore.keySet().stream()
+        remoteDirectoryWrapper.copyFrom(storeDirectory, segmentInfosFileName, segmentInfosFileName, IOContext.DEFAULT);
+        Set<String> staleSegmentInfosFiles = Arrays.stream(remoteDirectoryWrapper.listAll())
             .filter(file -> file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME))
             .filter(file -> !file.equals(segmentInfosFileName))
             .collect(Collectors.toSet());
@@ -155,7 +167,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
             try {
                 storeDirectory.deleteFile(file);
             } catch(NoSuchFileException e) {
-                segmentsUploadedToRemoteStore.remove(file);
+                //segmentsUploadedToRemoteStore.remove(file);
                 logger.warn(() -> new ParameterizedMessage("Delete failed as file {} does not exist in local store", file), e);
             } catch (IOException e) {
                 logger.warn(() -> new ParameterizedMessage("Exception while deleting file {} from the local store", file), e);
@@ -163,22 +175,21 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
         });
     }
 
-    synchronized void deleteStaleSegments(Set<String> localFiles) {
-        Set<String> remoteStaleSegments = segmentsUploadedToRemoteStore.keySet().stream()
+    synchronized void deleteStaleSegments(Set<String> localFiles) throws IOException {
+        Set<String> remoteStaleSegments = Arrays.stream(remoteDirectoryWrapper.listAll())
             .filter(file -> !localFiles.contains(file))
             .collect(Collectors.toSet());
         remoteStaleSegments.forEach(file -> {
             try {
-                remoteDirectory.deleteFile(file);
-                segmentsUploadedToRemoteStore.remove(file);
+                remoteDirectoryWrapper.deleteFile(file);
             } catch(IOException e) {
                 logger.warn(() -> new ParameterizedMessage("Exception while deleting file {} from the remote segment store", file), e);
             }
         });
     }
 
-    // Visible for testing
-    Map<String, String> getUploadedSegments() {
-        return this.segmentsUploadedToRemoteStore;
-    }
+//    // Visible for testing
+//    Map<String, String> getUploadedSegments() {
+//        return remoteDirectoryWrapper.listAll();
+//    }
 }
