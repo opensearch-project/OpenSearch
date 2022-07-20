@@ -405,6 +405,10 @@ public class TransportService extends AbstractLifecycleComponent
         PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
     }
 
+    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, boolean skipValidation) {
+        PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null), skipValidation));
+    }
+
     /**
      * Connect to the specified node with the given connection profile.
      * The ActionListener will be called on the calling thread or the generic thread pool.
@@ -414,6 +418,10 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
         connectToNode(node, null, listener);
+    }
+
+    public void connectToNode(DiscoveryNode node, ActionListener<Void> listener, boolean skipValidation) throws ConnectTransportException {
+        connectToNode(node, null, listener, skipValidation);
     }
 
     /**
@@ -454,7 +462,9 @@ public class TransportService extends AbstractLifecycleComponent
             // We don't validate cluster names to allow for CCS connections.
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
-                if (!skipValidation && node.equals(remote) == false) {
+                if (skipValidation) {
+                    logger.info("Connection validation was skipped");
+                } else if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                 }
                 return null;
