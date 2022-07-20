@@ -44,14 +44,14 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class PluginResponse extends TransportResponse {
+public class InitializeExtensionsResponse extends TransportResponse {
     private String name;
 
-    public PluginResponse(String name) {
+    public InitializeExtensionsResponse(String name) {
         this.name = name;
     }
 
-    public PluginResponse(StreamInput in) throws IOException {
+    public InitializeExtensionsResponse(StreamInput in) throws IOException {
         name = in.readString();
     }
 
@@ -77,7 +77,7 @@ public class PluginResponse extends TransportResponse {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PluginResponse that = (PluginResponse) o;
+        InitializeExtensionsResponse that = (InitializeExtensionsResponse) o;
         return Objects.equals(name, that.name);
     }
 
