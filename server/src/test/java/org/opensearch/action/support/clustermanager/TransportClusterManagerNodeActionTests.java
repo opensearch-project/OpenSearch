@@ -405,7 +405,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
@@ -432,7 +432,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
@@ -447,14 +447,14 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             if (randomBoolean()) {
                 // simulate cluster-manager node removal
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(null);
+                nodesBuilder.clusterManagerNodeId(null);
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
             }
             if (randomBoolean()) {
                 // reset the same state to increment a version simulating a join of an existing node
                 // simulating use being disconnected
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(clusterManagerNode.getId());
+                nodesBuilder.clusterManagerNodeId(clusterManagerNode.getId());
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
             } else {
                 // simulate cluster-manager restart followed by a state recovery - this will reset the cluster state version
@@ -466,7 +466,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
                     clusterManagerNode.getVersion()
                 );
                 nodesBuilder.add(clusterManagerNode);
-                nodesBuilder.masterNodeId(clusterManagerNode.getId());
+                nodesBuilder.clusterManagerNodeId(clusterManagerNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
                 setState(clusterService, builder.version(0));
             }
@@ -474,7 +474,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             capturedRequests = transport.getCapturedRequestsAndClear();
             assertThat(capturedRequests.length, equalTo(1));
             capturedRequest = capturedRequests[0];
-            assertTrue(capturedRequest.node.isMasterNode());
+            assertTrue(capturedRequest.node.isClusterManagerNode());
             assertThat(capturedRequest.request, equalTo(request));
             assertThat(capturedRequest.action, equalTo("internal:testAction"));
         } else if (failsWithConnectTransportException) {
@@ -524,7 +524,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
@@ -559,7 +559,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 

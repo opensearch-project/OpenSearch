@@ -168,7 +168,7 @@ public class FollowersChecker {
             followerCheckers.keySet().removeIf(isUnknownNode);
             faultyNodes.removeIf(isUnknownNode);
 
-            discoveryNodes.mastersFirstStream().forEach(discoveryNode -> {
+            discoveryNodes.clusterManagersFirstStream().forEach(discoveryNode -> {
                 if (discoveryNode.equals(discoveryNodes.getLocalNode()) == false
                     && followerCheckers.containsKey(discoveryNode) == false
                     && faultyNodes.contains(discoveryNode) == false) {

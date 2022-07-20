@@ -86,7 +86,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -134,7 +134,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -166,7 +166,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -205,7 +205,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
         reference.set(replicationTracker);
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -243,7 +243,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -308,7 +308,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
         replicationTrackerRef.set(replicationTracker);
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -353,7 +353,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -382,7 +382,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -415,7 +415,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -454,7 +454,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
         reference.set(replicationTracker);
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -506,7 +506,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -585,7 +585,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -638,7 +638,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -673,7 +673,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -726,7 +726,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)
@@ -790,7 +790,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
             routingTable(Collections.emptySet(), allocationId)

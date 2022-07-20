@@ -132,7 +132,7 @@ public class MetadataIndexTemplateService {
 
             @Override
             public TimeValue timeout() {
-                return request.masterTimeout;
+                return request.clusterManagerTimeout;
             }
 
             @Override
@@ -860,7 +860,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public TimeValue timeout() {
-                    return request.masterTimeout;
+                    return request.clusterManagerTimeout;
                 }
 
                 @Override
@@ -1526,6 +1526,10 @@ public class MetadataIndexTemplateService {
         String mappings = null;
         List<Alias> aliases = new ArrayList<>();
 
+        TimeValue clusterManagerTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+
+        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
+        @Deprecated
         TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
         public PutRequest(String cause, String name) {
@@ -1563,9 +1567,15 @@ public class MetadataIndexTemplateService {
             return this;
         }
 
-        public PutRequest masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
+        public PutRequest clusterManagerTimeout(TimeValue clusterManagerTimeout) {
+            this.clusterManagerTimeout = clusterManagerTimeout;
             return this;
+        }
+
+        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerTimeout(TimeValue)} */
+        @Deprecated
+        public PutRequest masterTimeout(TimeValue masterTimeout) {
+            return clusterManagerTimeout(masterTimeout);
         }
 
         public PutRequest version(Integer version) {
@@ -1598,15 +1608,25 @@ public class MetadataIndexTemplateService {
      */
     public static class RemoveRequest {
         final String name;
+        TimeValue clusterManagerTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+
+        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
+        @Deprecated
         TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
         public RemoveRequest(String name) {
             this.name = name;
         }
 
-        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
+        public RemoveRequest clusterManagerTimeout(TimeValue clusterManagerTimeout) {
+            this.clusterManagerTimeout = clusterManagerTimeout;
             return this;
+        }
+
+        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
+        @Deprecated
+        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
+            return clusterManagerTimeout(masterTimeout);
         }
     }
 

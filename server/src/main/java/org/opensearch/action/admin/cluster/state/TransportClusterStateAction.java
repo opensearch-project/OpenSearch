@@ -127,7 +127,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
 
         final Predicate<ClusterState> acceptableClusterStateOrNotMasterPredicate = request.local()
             ? acceptableClusterStatePredicate
-            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
+            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedClusterManager() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));

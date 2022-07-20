@@ -135,7 +135,7 @@ public class GatewayServiceTests extends OpenSearchTestCase {
             nodeId
         );
         ClusterState stateWithBlock = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(clusterManagerNode).build())
+            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).clusterManagerNodeId(nodeId).add(clusterManagerNode).build())
             .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
             .build();
 

@@ -103,8 +103,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             return node != null ? node + " " + reason : reason;
         }
 
-        public boolean isBecomeMasterTask() {
+        public boolean isBecomeClusterManagerTask() {
             return reason.equals(BECOME_MASTER_TASK_REASON) || reason.equals(BECOME_CLUSTER_MANAGER_TASK_REASON);
+        }
+
+        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isBecomeClusterManagerTask()} */
+        @Deprecated
+        public boolean isBecomeMasterTask() {
+            return isBecomeClusterManagerTask();
         }
 
         public boolean isFinishElectionTask() {
@@ -143,7 +149,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         if (joiningNodes.size() == 1 && joiningNodes.get(0).isFinishElectionTask()) {
             return results.successes(joiningNodes).build(currentState);
-        } else if (currentNodes.getMasterNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
+        } else if (currentNodes.getClusterManagerNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeClusterManagerTask)) {
             assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask) : "becoming a cluster-manager but election is not finished "
                 + joiningNodes;
             // use these joins to try and become the cluster-manager.
@@ -151,10 +157,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             // during the cluster state publishing guarantees that we have enough
             newState = becomeClusterManagerAndTrimConflictingNodes(currentState, joiningNodes);
             nodesChanged = true;
-        } else if (currentNodes.isLocalNodeElectedMaster() == false) {
+        } else if (currentNodes.isLocalNodeElectedClusterManager() == false) {
             logger.trace(
                 "processing node joins, but we are not the cluster-manager. current cluster-manager: {}",
-                currentNodes.getMasterNode()
+                currentNodes.getClusterManagerNode()
             );
             throw new NotClusterManagerException("Node [" + currentNodes.getLocalNode() + "] not cluster-manager for join request");
         } else {
@@ -163,7 +169,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
 
-        assert nodesBuilder.isLocalNodeElectedMaster();
+        assert nodesBuilder.isLocalNodeElectedClusterManager();
 
         Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
         Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
@@ -172,7 +178,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // processing any joins
         Map<String, String> joiniedNodeNameIds = new HashMap<>();
         for (final Task joinTask : joiningNodes) {
-            if (joinTask.isBecomeMasterTask() || joinTask.isFinishElectionTask()) {
+            if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // noop
             } else if (currentNodes.nodeExistsWithSameRoles(joinTask.node()) && !currentNodes.nodeExistsWithBWCVersion(joinTask.node())) {
                 logger.debug("received a join request for an existing node [{}]", joinTask.node());
@@ -190,7 +196,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                     maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
-                    if (node.isMasterNode()) {
+                    if (node.isClusterManagerNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
                 } catch (IllegalArgumentException | IllegalStateException e) {
@@ -245,13 +251,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     protected ClusterState.Builder becomeClusterManagerAndTrimConflictingNodes(ClusterState currentState, List<Task> joiningNodes) {
-        assert currentState.nodes().getMasterNodeId() == null : currentState;
+        assert currentState.nodes().getClusterManagerNodeId() == null : currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
-        nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
+        nodesBuilder.clusterManagerNodeId(currentState.nodes().getLocalNodeId());
 
         for (final Task joinTask : joiningNodes) {
-            if (joinTask.isBecomeMasterTask()) {
+            if (joinTask.isBecomeClusterManagerTask()) {
                 refreshDiscoveryNodeVersionAfterUpgrade(currentNodes, nodesBuilder);
             } else if (joinTask.isFinishElectionTask()) {
                 // no-op
@@ -343,7 +349,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     @Override
-    public boolean runOnlyOnMaster() {
+    public boolean runOnlyOnClusterManager() {
         // we validate that we are allowed to change the cluster state during cluster state processing
         return false;
     }
@@ -366,7 +372,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     /**
      * a task that is used to signal the election is stopped and we should process pending joins.
-     * it may be used in combination with {@link JoinTaskExecutor#newBecomeMasterTask()}
+     * it may be used in combination with {@link JoinTaskExecutor#newBecomeClusterManagerTask()}
      */
     public static Task newFinishElectionTask() {
         return new Task(null, Task.FINISH_ELECTION_TASK_REASON);
