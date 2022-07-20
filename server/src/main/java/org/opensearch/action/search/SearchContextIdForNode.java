@@ -45,7 +45,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public final class SearchContextIdForNode implements Writeable {
+final class SearchContextIdForNode implements Writeable {
     private final String node;
     private final ShardSearchContextId searchContextId;
     private final String clusterAlias;
