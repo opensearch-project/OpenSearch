@@ -40,7 +40,6 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
     private final ClusterService clusterService;
     private final TransportSearchAction transportSearchAction;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final PitService pitService;
     private final CreatePitController createPitController;
 
     @Inject
@@ -51,7 +50,6 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         ClusterService clusterService,
         TransportSearchAction transportSearchAction,
         NamedWriteableRegistry namedWriteableRegistry,
-        PitService pitService,
         CreatePitController createPitController
     ) {
         super(CreatePitAction.NAME, transportService, actionFilters, in -> new CreatePitRequest(in));
@@ -61,7 +59,6 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         this.transportSearchAction = transportSearchAction;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.createPitController = createPitController;
-        this.pitService = pitService;
     }
 
     @Override
