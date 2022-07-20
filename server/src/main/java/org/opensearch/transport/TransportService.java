@@ -391,7 +391,7 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, (ConnectionProfile) null);
     }
 
-    //We are skipping node validation for extensibility as extensionNode and opensearchNode(LocalNode) will have different ephemeral id's
+    // We are skipping node validation for extensibility as extensionNode and opensearchNode(LocalNode) will have different ephemeral id's
     public void connectToNode(final DiscoveryNode node, boolean skipValidation) {
         PlainActionFuture.get(fut -> connectToNode(node, (ConnectionProfile) null, ActionListener.map(fut, x -> null), skipValidation));
     }
