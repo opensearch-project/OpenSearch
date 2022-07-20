@@ -43,7 +43,12 @@ public class RemoteIndexInput extends IndexInput {
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        inputStream.read(b, offset, len);
+        int bytesRead = inputStream.read(b, offset, len);
+        while (bytesRead > 0 && bytesRead < len) {
+            len -= bytesRead;
+            offset += bytesRead;
+            bytesRead = inputStream.read(b, offset, len);
+        }
     }
 
     @Override

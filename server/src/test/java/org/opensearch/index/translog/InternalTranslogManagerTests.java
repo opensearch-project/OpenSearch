@@ -33,7 +33,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicBoolean beginTranslogRecoveryInvoked = new AtomicBoolean(false);
         final AtomicBoolean onTranslogRecoveryInvoked = new AtomicBoolean(false);
-        TranslogManager translogManager = null;
+        InternalTranslogManager translogManager = null;
 
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try {
@@ -56,7 +56,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 Engine.Index index = indexForDoc(doc);
                 Engine.IndexResult indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), i, true);
                 tracker.markSeqNoAsProcessed(i);
-                translogManager.getTranslog().add(new Translog.Index(index, indexResult));
+                translogManager.add(new Translog.Index(index, indexResult));
                 translogManager.rollTranslogGeneration();
             }
             long maxSeqNo = tracker.getMaxSeqNo();
@@ -64,7 +64,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertEquals(maxSeqNo + 1, translogManager.getTranslogStats().estimatedNumberOfOperations());
 
             translogManager.syncTranslog();
-            translogManager.getTranslog().close();
+            translogManager.close();
             translogManager = new InternalTranslogManager(
                 new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
                 primaryTerm,
@@ -103,13 +103,13 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertTrue(onTranslogRecoveryInvoked.get());
 
         } finally {
-            translogManager.getTranslog().close();
+            translogManager.close();
         }
     }
 
     public void testTranslogRollsGeneration() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        TranslogManager translogManager = null;
+        InternalTranslogManager translogManager = null;
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try {
             translogManager = new InternalTranslogManager(
@@ -131,7 +131,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 Engine.Index index = indexForDoc(doc);
                 Engine.IndexResult indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), i, true);
                 tracker.markSeqNoAsProcessed(i);
-                translogManager.getTranslog().add(new Translog.Index(index, indexResult));
+                translogManager.add(new Translog.Index(index, indexResult));
                 translogManager.rollTranslogGeneration();
             }
             long maxSeqNo = tracker.getMaxSeqNo();
@@ -139,7 +139,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertEquals(maxSeqNo + 1, translogManager.getTranslogStats().estimatedNumberOfOperations());
 
             translogManager.syncTranslog();
-            translogManager.getTranslog().close();
+            translogManager.close();
             translogManager = new InternalTranslogManager(
                 new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
                 primaryTerm,
@@ -164,13 +164,13 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertEquals(maxSeqNo + 1, opsRecovered.get());
             assertEquals(maxSeqNo + 1, opsRecoveredFromTranslog);
         } finally {
-            translogManager.getTranslog().close();
+            translogManager.close();
         }
     }
 
     public void testTrimOperationsFromTranslog() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        TranslogManager translogManager = null;
+        InternalTranslogManager translogManager = null;
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try {
             translogManager = new InternalTranslogManager(
@@ -192,7 +192,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 Engine.Index index = indexForDoc(doc);
                 Engine.IndexResult indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), i, true);
                 tracker.markSeqNoAsProcessed(i);
-                translogManager.getTranslog().add(new Translog.Index(index, indexResult));
+                translogManager.add(new Translog.Index(index, indexResult));
             }
             long maxSeqNo = tracker.getMaxSeqNo();
             assertEquals(maxSeqNo + 1, translogManager.getTranslogStats().getUncommittedOperations());
@@ -202,7 +202,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManager.rollTranslogGeneration();
             translogManager.trimOperationsFromTranslog(primaryTerm.get(), NO_OPS_PERFORMED); // trim everything in translog
 
-            translogManager.getTranslog().close();
+            translogManager.close();
             translogManager = new InternalTranslogManager(
                 new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
                 primaryTerm,
@@ -227,19 +227,19 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertEquals(0, opsRecovered.get());
             assertEquals(0, opsRecoveredFromTranslog);
         } finally {
-            translogManager.getTranslog().close();
+            translogManager.close();
         }
     }
 
     public void testTranslogSync() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         AtomicBoolean syncListenerInvoked = new AtomicBoolean();
-        TranslogManager translogManager = null;
+        InternalTranslogManager translogManager = null;
         final AtomicInteger maxSeqNo = new AtomicInteger(randomIntBetween(0, 128));
         final AtomicInteger localCheckpoint = new AtomicInteger(randomIntBetween(0, maxSeqNo.get()));
         try {
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
-            AtomicReference<TranslogManager> translogManagerAtomicReference = new AtomicReference<>();
+            AtomicReference<InternalTranslogManager> translogManagerAtomicReference = new AtomicReference<>();
             translogManager = new InternalTranslogManager(
                 new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
                 primaryTerm,
@@ -253,7 +253,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                     @Override
                     public void onAfterTranslogSync() {
                         try {
-                            translogManagerAtomicReference.get().getTranslog().trimUnreferencedReaders();
+                            translogManagerAtomicReference.get().trimUnreferencedReaders();
                             syncListenerInvoked.set(true);
                         } catch (IOException ex) {
                             fail("Failed due to " + ex);
@@ -265,7 +265,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManagerAtomicReference.set(translogManager);
             Engine.Index index = indexForDoc(doc);
             Engine.IndexResult indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), 1, false);
-            translogManager.getTranslog().add(new Translog.Index(index, indexResult));
+            translogManager.add(new Translog.Index(index, indexResult));
 
             translogManager.syncTranslog();
 
@@ -273,7 +273,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertThat(translogManager.getTranslog().getMinFileGeneration(), equalTo(2L));
             assertTrue(syncListenerInvoked.get());
         } finally {
-            translogManager.getTranslog().close();
+            translogManager.close();
         }
     }
 }

@@ -2246,6 +2246,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         storeRecovery.recoverFromStore(this, listener);
     }
 
+    public void restoreFromRemoteStore(ActionListener<Boolean> listener) {
+        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+        storeRecovery.recoverFromRemoteStore(this, listener);
+    }
+
     public void restoreFromRepository(Repository repository, ActionListener<Boolean> listener) {
         try {
             assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
@@ -3006,6 +3012,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case EMPTY_STORE:
             case EXISTING_STORE:
                 executeRecovery("from store", recoveryState, recoveryListener, this::recoverFromStore);
+                break;
+            case REMOTE_STORE:
+                executeRecovery("from remote store", recoveryState, recoveryListener, this::restoreFromRemoteStore);
                 break;
             case PEER:
                 try {

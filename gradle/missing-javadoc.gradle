@@ -70,7 +70,7 @@ allprojects {
       classpath = sourceSets.main.compileClasspath
       srcDirSet = sourceSets.main.java
 
-      outputDir = project.javadoc.destinationDir
+      outputDir = file("${project.buildDir}/tmp/missingJavadoc/")
     }
   }
 }
@@ -183,6 +183,7 @@ configure(project(":server")) {
   }
 }
 
+@CacheableTask
 class MissingJavadocTask extends DefaultTask {
   @InputFiles
   @SkipWhenEmpty
@@ -227,7 +228,8 @@ class MissingJavadocTask extends DefaultTask {
   @Input
   def executable
 
-  @Input
+  @InputFiles
+  @PathSensitive(PathSensitivity.RELATIVE)
   def taskResources
 
   /** Utility method to recursively collect all tasks with same name like this one that we depend on */

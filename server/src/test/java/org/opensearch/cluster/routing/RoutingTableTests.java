@@ -60,6 +60,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
+import org.opensearch.repositories.IndexId;
+
 public class RoutingTableTests extends OpenSearchAllocationTestCase {
 
     private static final String TEST_INDEX_1 = "test1";
@@ -490,6 +493,20 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
             assertThat(routingTable.allShards(TEST_INDEX_1).size(), is(this.shardsPerIndex));
             assertThat(routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size(), is(this.shardsPerIndex));
         }
+    }
+
+    public void testAddAsRemoteStoreRestore() {
+        final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN).build();
+        final RemoteStoreRecoverySource remoteStoreRecoverySource = new RemoteStoreRecoverySource(
+            "restore_uuid",
+            Version.CURRENT,
+            new IndexId(TEST_INDEX_1, "1")
+        );
+        final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(indexMetadata, remoteStoreRecoverySource)
+            .build();
+        assertTrue(routingTable.hasIndex(TEST_INDEX_1));
+        assertEquals(this.numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
+        assertEquals(this.numberOfShards, routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size());
     }
 
     /** reverse engineer the in sync aid based on the given indexRoutingTable **/
