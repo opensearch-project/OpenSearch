@@ -380,4 +380,3 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
 }
-
