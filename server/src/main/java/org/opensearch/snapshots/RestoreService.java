@@ -345,7 +345,7 @@ public class RestoreService implements ClusterStateApplier {
                                 boolean partial = checkPartial(index);
 
                                 final RecoverySource recoverySource;
-                                if (renamedIndexName.startsWith("restored_")) {
+                                if (request.storageType().equals("remote_snapshot")) {
                                     recoverySource = RecoverySource.EmptyStoreRecoverySource.INSTANCE;
                                 } else {
                                     recoverySource = new SnapshotRecoverySource(

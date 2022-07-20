@@ -775,7 +775,7 @@ public class IndicesService extends AbstractLifecycleComponent
             if (idxSettings.isSegRepEnabled()) {
                 return new NRTReplicationEngineFactory();
             }
-            if (idxSettings.getIndexMetadata().getIndex().getName().startsWith("restored_")) {
+            if (IndexSettings.SNAPSHOT_REPOSITORY.exists(idxSettings.getSettings())) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
             return new InternalEngineFactory();
