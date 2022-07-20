@@ -251,6 +251,8 @@ public class TransportServiceHandshakeTests extends OpenSearchTestCase {
             handleA.transportService.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE, true);
 
             mockLogAppender.assertAllExpectationsMatched();
+
+            assertTrue(handleA.transportService.nodeConnected(discoveryNode));
         }
     }
 
