@@ -113,6 +113,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             );
             return;
         }
+        final Thread thread = Thread.currentThread();
         if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
             startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
                 @Override
@@ -120,8 +121,14 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     // if we received a checkpoint during the copy event that is ahead of this
                     // try and process it.
                     if (latestReceivedCheckpoint.get(replicaShard.shardId()).isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
-                        threadPool.generic()
-                            .execute(() -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard));
+                        Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+                        // Checks if we are using same thread and forks if necessary.
+                        if (thread == Thread.currentThread()){
+                            threadPool.generic().execute(runnable);
+                        }
+                        else{
+                            runnable.run();
+                        }
                     }
                 }
 
