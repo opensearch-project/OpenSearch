@@ -82,10 +82,10 @@ import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHEC
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;

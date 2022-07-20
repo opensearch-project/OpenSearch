@@ -32,7 +32,6 @@
 
 package org.opensearch.systemd;
 
-import org.opensearch.Build;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
@@ -58,13 +57,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SystemdPluginTests extends OpenSearchTestCase {
-
-    private final Build.Type randomPackageBuildType = randomFrom(Build.Type.DEB, Build.Type.RPM);
-    private final Build.Type randomNonPackageBuildType = randomValueOtherThanMany(
-        t -> t == Build.Type.DEB || t == Build.Type.RPM,
-        () -> randomFrom(Build.Type.values())
-    );
-
     final Scheduler.Cancellable extender = mock(Scheduler.Cancellable.class);
     final ThreadPool threadPool = mock(ThreadPool.class);
 
@@ -74,29 +66,15 @@ public class SystemdPluginTests extends OpenSearchTestCase {
             .thenReturn(extender);
     }
 
-    public void testIsEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
-        assertTrue(plugin.isEnabled());
-        assertNotNull(plugin.extender());
-    }
-
-    public void testIsNotPackageDistribution() {
-        final SystemdPlugin plugin = new SystemdPlugin(false, randomNonPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
-        assertFalse(plugin.isEnabled());
-        assertNull(plugin.extender());
-    }
-
     public void testIsImplicitlyNotEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, null);
+        final SystemdPlugin plugin = new SystemdPlugin(null);
         plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
 
     public void testIsExplicitlyNotEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.FALSE.toString());
+        final SystemdPlugin plugin = new SystemdPlugin(Boolean.FALSE.toString());
         plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
@@ -107,7 +85,7 @@ public class SystemdPluginTests extends OpenSearchTestCase {
             s -> Boolean.TRUE.toString().equals(s) || Boolean.FALSE.toString().equals(s),
             () -> randomAlphaOfLength(4)
         );
-        final RuntimeException e = expectThrows(RuntimeException.class, () -> new SystemdPlugin(false, randomPackageBuildType, esSDNotify));
+        final RuntimeException e = expectThrows(RuntimeException.class, () -> new SystemdPlugin(esSDNotify));
         assertThat(e, hasToString(containsString("OPENSEARCH_SD_NOTIFY set to unexpected value [" + esSDNotify + "]")));
     }
 
@@ -174,7 +152,7 @@ public class SystemdPluginTests extends OpenSearchTestCase {
         final AtomicBoolean invoked = new AtomicBoolean();
         final AtomicInteger invokedUnsetEnvironment = new AtomicInteger();
         final AtomicReference<String> invokedState = new AtomicReference<>();
-        final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, esSDNotify) {
+        final SystemdPlugin plugin = new SystemdPlugin(esSDNotify) {
 
             @Override
             int sd_notify(final int unset_environment, final String state) {

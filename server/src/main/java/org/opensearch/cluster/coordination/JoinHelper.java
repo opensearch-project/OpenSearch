@@ -40,7 +40,7 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskListener;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -143,13 +143,13 @@ public class JoinHelper {
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
-                // The current state that MasterService uses might have been updated by a (different) cluster-manager in a higher term
-                // already
+                // The current state that ClusterManagerService uses might have been updated by a (different) cluster-manager
+                // in a higher term already
                 // Stop processing the current cluster state update, as there's no point in continuing to compute it as
                 // it will later be rejected by Coordinator.publish(...) anyhow
                 if (currentState.term() > term) {
                     logger.trace("encountered higher term {} than current {}, there is a newer cluster-manager", currentState.term(), term);
-                    throw new NotMasterException(
+                    throw new NotClusterManagerException(
                         "Higher term encountered (current: "
                             + currentState.term()
                             + " > used: "
@@ -284,7 +284,7 @@ public class JoinHelper {
             Throwable cause = e.unwrapCause();
             if (cause instanceof CoordinationStateRejectedException
                 || cause instanceof FailedToCommitClusterStateException
-                || cause instanceof NotMasterException) {
+                || cause instanceof NotClusterManagerException) {
                 return Level.DEBUG;
             }
             return Level.INFO;

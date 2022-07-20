@@ -55,7 +55,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -434,7 +434,7 @@ public final class InternalTestCluster extends TestCluster {
         );
         // TODO: currently we only randomize "cluster.no_cluster_manager_block" between "write" and "metadata_write", as "all" is fragile
         // and fails shards when a cluster-manager abdicates, which breaks many tests.
-        builder.put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
+        builder.put(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
         defaultSettings = builder.build();
         executor = OpenSearchExecutors.newScaling(
             "internal_test_cluster_executor",

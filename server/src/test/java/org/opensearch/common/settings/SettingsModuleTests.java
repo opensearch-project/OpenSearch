@@ -237,4 +237,46 @@ public class SettingsModuleTests extends ModuleTestCase {
             ex.getMessage()
         );
     }
+
+    public void testDynamicNodeSettingsRegistration() {
+        Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
+        SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+        // For unregistered setting the value is expected to be null
+        assertNull(module.getClusterSettings().get("some.custom.setting2"));
+        assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+
+        assertTrue(module.registerDynamicSetting(Setting.floatSetting("some.custom.setting2", 1.0f, Property.NodeScope)));
+        assertNotNull(module.getClusterSettings().get("some.custom.setting2"));
+
+        // verify if some.custom.setting still exists
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+
+        // verify exception is thrown when setting registration fails
+        expectThrows(
+            SettingsException.class,
+            () -> module.registerDynamicSetting(Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope))
+        );
+    }
+
+    public void testDynamicIndexSettingsRegistration() {
+        Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
+        SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+        // For unregistered setting the value is expected to be null
+        assertNull(module.getIndexScopedSettings().get("index.custom.setting2"));
+        assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+
+        assertTrue(module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope)));
+        assertNotNull(module.getIndexScopedSettings().get("index.custom.setting2"));
+
+        // verify if some.custom.setting still exists
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+
+        // verify exception is thrown when setting registration fails
+        expectThrows(
+            SettingsException.class,
+            () -> module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope))
+        );
+    }
 }

@@ -107,10 +107,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     public void setTransportService(TransportService transportService) {
         this.transportService = transportService;
+        registerRequestHandler();
     }
 
     public void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
+    }
+
+    private void registerRequestHandler() {
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
             ThreadPool.Names.GENERIC,
@@ -244,7 +248,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) {
+    TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
         // Read enum
         if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
             ClusterStateResponse clusterStateResponse = new ClusterStateResponse(
@@ -260,7 +264,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
             return clusterSettingsResponse;
         }
-        return null;
+        throw new Exception("Handler not present for the provided request");
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {

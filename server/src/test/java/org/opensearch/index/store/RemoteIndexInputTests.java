@@ -14,7 +14,14 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.io.InputStream;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.doThrow;
 
 public class RemoteIndexInputTests extends OpenSearchTestCase {
 
@@ -52,6 +59,17 @@ public class RemoteIndexInputTests extends OpenSearchTestCase {
         remoteIndexInput.readBytes(buffer, 10, 20);
 
         verify(inputStream).read(buffer, 10, 20);
+    }
+
+    public void testReadBytesMultipleIterations() throws IOException {
+        byte[] buffer = new byte[20];
+        when(inputStream.read(eq(buffer), anyInt(), anyInt())).thenReturn(10).thenReturn(3).thenReturn(6).thenReturn(-1);
+        remoteIndexInput.readBytes(buffer, 0, 20);
+
+        verify(inputStream).read(buffer, 0, 20);
+        verify(inputStream).read(buffer, 10, 10);
+        verify(inputStream).read(buffer, 13, 7);
+        verify(inputStream).read(buffer, 19, 1);
     }
 
     public void testReadBytesIOException() throws IOException {
