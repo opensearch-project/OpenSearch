@@ -32,6 +32,7 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -62,7 +63,7 @@ import org.opensearch.cluster.coordination.FollowersChecker;
 import org.opensearch.cluster.coordination.JoinHelper;
 import org.opensearch.cluster.coordination.LagDetector;
 import org.opensearch.cluster.coordination.LeaderChecker;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.coordination.Reconfigurator;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.Metadata;
@@ -277,8 +278,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
                 InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
                 DestructiveOperations.REQUIRES_NAME_SETTING,
-                NoMasterBlockService.NO_MASTER_BLOCK_SETTING,  // deprecated
-                NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING,
+                NoClusterManagerBlockService.NO_MASTER_BLOCK_SETTING,  // deprecated
+                NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING,
                 GatewayService.EXPECTED_DATA_NODES_SETTING,
                 GatewayService.EXPECTED_MASTER_NODES_SETTING,
                 GatewayService.EXPECTED_NODES_SETTING,
@@ -471,6 +472,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 MultiBucketConsumerService.MAX_BUCKET_SETTING,
                 SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
+                SearchService.MAX_OPEN_PIT_CONTEXT,
+                SearchService.MAX_PIT_KEEPALIVE_SETTING,
+                CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,
                 Node.NODE_ATTRIBUTES,

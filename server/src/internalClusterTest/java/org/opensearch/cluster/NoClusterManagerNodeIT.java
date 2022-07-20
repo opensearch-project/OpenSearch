@@ -44,13 +44,13 @@ import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.discovery.MasterNotDiscoveredException;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.script.Script;
@@ -90,7 +90,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
     public void testNoClusterManagerActions() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true)
-            .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all")
+            .put(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all")
             .build();
 
         final TimeValue timeout = TimeValue.timeValueMillis(10);
@@ -117,7 +117,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet()
                 .getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
         });
 
         assertRequestBuilderThrows(
@@ -233,9 +233,9 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
         // we clean the metadata when loosing a cluster-manager, therefore all operations on indices will auto create it, if allowed
         try {
             builder.get();
-            fail("expected ClusterBlockException or MasterNotDiscoveredException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            if (e instanceof MasterNotDiscoveredException) {
+            fail("expected ClusterBlockException or ClusterManagerNotDiscoveredException");
+        } catch (ClusterBlockException | ClusterManagerNotDiscoveredException e) {
+            if (e instanceof ClusterManagerNotDiscoveredException) {
                 assertTrue(autoCreateIndex);
             } else {
                 assertFalse(autoCreateIndex);
@@ -256,7 +256,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
     public void testNoClusterManagerActionsWriteClusterManagerBlock() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false)
-            .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "write")
+            .put(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "write")
             .build();
 
         final List<String> nodes = internalCluster().startNodes(3, settings);
@@ -288,7 +288,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
 
         assertBusy(() -> {
             ClusterState state = clientToClusterManagerlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
         });
 
         GetResponse getResponse = clientToClusterManagerlessNode.prepareGet("test1", "1").get();
@@ -340,7 +340,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
 
     public void testNoClusterManagerActionsMetadataWriteClusterManagerBlock() throws Exception {
         Settings settings = Settings.builder()
-            .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "metadata_write")
+            .put(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "metadata_write")
             .put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), "100ms")
             .build();
 
@@ -387,7 +387,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             for (String node : nodesWithShards) {
                 ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
-                assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+                assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
             }
         });
 
@@ -429,7 +429,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
 
         // dynamic mapping updates fail
         expectThrows(
-            MasterNotDiscoveredException.class,
+            ClusterManagerNotDiscoveredException.class,
             () -> client(randomFrom(nodesWithShards)).prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("new_field", "value").endObject())
@@ -439,7 +439,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
 
         // dynamic index creation fails
         expectThrows(
-            MasterNotDiscoveredException.class,
+            ClusterManagerNotDiscoveredException.class,
             () -> client(randomFrom(nodesWithShards)).prepareIndex("test2")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())

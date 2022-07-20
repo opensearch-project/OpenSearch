@@ -52,7 +52,7 @@ public interface ClusterStateTaskListener {
      * Used only for tasks submitted to {@link MasterService}.
      */
     default void onNoLongerMaster(String source) {
-        onFailure(source, new NotMasterException("no longer cluster-manager. source: [" + source + "]"));
+        onFailure(source, new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
     }
 
     /**

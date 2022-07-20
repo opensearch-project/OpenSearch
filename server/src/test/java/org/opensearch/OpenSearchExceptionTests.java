@@ -41,7 +41,7 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -478,7 +478,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             "foo",
             new OpenSearchException(
                 "bar",
-                new OpenSearchException("baz", new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)))
+                new OpenSearchException("baz", new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES)))
             )
         );
         e.addHeader("foo_0", "0");
@@ -1032,7 +1032,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         int type = randomIntBetween(0, 5);
         switch (type) {
             case 0:
-                actual = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
+                actual = new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES));
                 expected = new OpenSearchException(
                     "OpenSearch exception [type=cluster_block_exception, "
                         + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"
