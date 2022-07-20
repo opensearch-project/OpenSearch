@@ -189,7 +189,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
                 DiscoveryNodes.builder()
                     .add(clusterManagerNode)
                     .localNodeId(clusterManagerNode.getId())
-                    .masterNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
                     .add(bwcNode)
             )
             .build();
@@ -282,12 +282,12 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     }
 
     /**
-     * Validate isBecomeMasterTask() can identify "become cluster manager task" properly
+     * Validate isBecomeClusterManagerTask() can identify "become cluster manager task" properly
      */
     public void testIsBecomeClusterManagerTask() {
         JoinTaskExecutor.Task joinTaskOfMaster = JoinTaskExecutor.newBecomeMasterTask();
-        assertThat(joinTaskOfMaster.isBecomeMasterTask(), is(true));
+        assertThat(joinTaskOfMaster.isBecomeClusterManagerTask(), is(true));
         JoinTaskExecutor.Task joinTaskOfClusterManager = JoinTaskExecutor.newBecomeClusterManagerTask();
-        assertThat(joinTaskOfClusterManager.isBecomeMasterTask(), is(true));
+        assertThat(joinTaskOfClusterManager.isBecomeClusterManagerTask(), is(true));
     }
 }

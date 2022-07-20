@@ -140,7 +140,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
                     for (final Map.Entry<TransportAddress, DiscoveryNode> addressAndNode : reachableNodes.entrySet()) {
                         if (addressAndNode.getKey().equals(transportAddress)) {
                             final DiscoveryNode discoveryNode = addressAndNode.getValue();
-                            if (discoveryNode.isMasterNode()) {
+                            if (discoveryNode.isClusterManagerNode()) {
                                 disconnectedNodes.remove(discoveryNode);
                                 connectedNodes.add(discoveryNode);
                                 assertTrue(inFlightConnectionAttempts.remove(transportAddress));
@@ -477,7 +477,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
 
         peerFinder.activate(lastAcceptedNodes);
         final PeersResponse peersResponse1 = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
-        assertFalse(peersResponse1.getMasterNode().isPresent());
+        assertFalse(peersResponse1.getClusterManagerNode().isPresent());
         assertThat(peersResponse1.getKnownPeers(), empty()); // sourceNode is not yet known
         assertThat(peersResponse1.getTerm(), is(0L));
 
@@ -488,7 +488,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         final long updatedTerm = randomNonNegativeLong();
         peerFinder.setCurrentTerm(updatedTerm);
         final PeersResponse peersResponse2 = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
-        assertFalse(peersResponse2.getMasterNode().isPresent());
+        assertFalse(peersResponse2.getClusterManagerNode().isPresent());
         assertThat(peersResponse2.getKnownPeers(), contains(sourceNode));
         assertThat(peersResponse2.getTerm(), is(updatedTerm));
     }
@@ -531,7 +531,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
                 @Override
                 public void handleResponse(PeersResponse response) {
                     assertTrue(responseReceived.compareAndSet(false, true));
-                    assertFalse(response.getMasterNode().isPresent());
+                    assertFalse(response.getClusterManagerNode().isPresent());
                     assertThat(response.getKnownPeers(), empty()); // sourceNode is not yet known
                     assertThat(response.getTerm(), is(0L));
                 }

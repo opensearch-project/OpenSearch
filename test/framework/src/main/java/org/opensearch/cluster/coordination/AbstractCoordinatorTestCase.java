@@ -311,7 +311,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     nodeHealthService
                 );
                 clusterNodes.add(clusterNode);
-                if (clusterNode.getLocalNode().isMasterNode()) {
+                if (clusterNode.getLocalNode().isClusterManagerNode()) {
                     clusterManagerEligibleNodeIds.add(clusterNode.getId());
                 }
             }
@@ -617,7 +617,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     assertTrue(nodeId + " has been bootstrapped", clusterNode.coordinator.isInitialConfigurationSet());
                     assertThat(
                         nodeId + " has correct cluster-manager",
-                        clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
+                        clusterNode.getLastAppliedClusterState().nodes().getClusterManagerNode(),
                         equalTo(leader.getLocalNode())
                     );
                     assertThat(
@@ -634,7 +634,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(
                         nodeId + " has no cluster-manager",
-                        clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
+                        clusterNode.getLastAppliedClusterState().nodes().getClusterManagerNode(),
                         nullValue()
                     );
                     assertThat(
@@ -784,7 +784,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         ClusterNode getAnyBootstrappableNode() {
             return randomFrom(
                 clusterNodes.stream()
-                    .filter(n -> n.getLocalNode().isMasterNode())
+                    .filter(n -> n.getLocalNode().isClusterManagerNode())
                     .filter(n -> initialConfiguration.getNodeIds().contains(n.getLocalNode().getId()))
                     .collect(Collectors.toList())
             );
@@ -899,7 +899,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                         final long persistedCurrentTerm;
 
                         if ( // node is cluster-manager-ineligible either before or after the restart ...
-                        (oldState.getLastAcceptedState().nodes().getLocalNode().isMasterNode() && newLocalNode.isMasterNode()) == false
+                        (oldState.getLastAcceptedState().nodes().getLocalNode().isClusterManagerNode()
+                            && newLocalNode.isClusterManagerNode()) == false
                             // ... and it's accepted some non-initial state so we can roll back ...
                             && (oldState.getLastAcceptedState().term() > 0L || oldState.getLastAcceptedState().version() > 0L)
                             // ... and we're feeling lucky ...
@@ -1194,7 +1195,9 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     address.getAddress(),
                     address,
                     Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(nodeSettings) ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(),
+                    localNode.isClusterManagerNode() && DiscoveryNode.isClusterManagerNode(nodeSettings)
+                        ? DiscoveryNodeRole.BUILT_IN_ROLES
+                        : emptySet(),
                     Version.CURRENT
                 );
                 return new ClusterNode(
@@ -1291,7 +1294,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         // in this case, we know for sure that event was not processed by the system and will not change history
                         // remove event to help avoid bloated history and state space explosion in linearizability checker
                         history.remove(eventId);
@@ -1346,9 +1349,9 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                         }
 
                         @Override
-                        public void onNoLongerMaster(String source) {
+                        public void onNoLongerClusterManager(String source) {
                             logger.trace("no longer cluster-manager: [{}]", source);
-                            taskListener.onNoLongerMaster(source);
+                            taskListener.onNoLongerClusterManager(source);
                         }
 
                         @Override
@@ -1427,7 +1430,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             }
 
             private boolean isNotUsefullyBootstrapped() {
-                return getLocalNode().isMasterNode() == false || coordinator.isInitialConfigurationSet() == false;
+                return getLocalNode().isClusterManagerNode() == false || coordinator.isInitialConfigurationSet() == false;
             }
 
             void allowClusterStateApplicationFailure() {

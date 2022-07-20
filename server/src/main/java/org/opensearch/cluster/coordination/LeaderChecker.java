@@ -193,7 +193,7 @@ public class LeaderChecker {
 
     // For assertions
     boolean currentNodeIsClusterManager() {
-        return discoveryNodes.isLocalNodeElectedMaster();
+        return discoveryNodes.isLocalNodeElectedClusterManager();
     }
 
     private void handleLeaderCheck(LeaderCheckRequest request) {
@@ -209,7 +209,7 @@ public class LeaderChecker {
                 + "]";
             logger.debug(message);
             throw new NodeHealthCheckFailureException(message);
-        } else if (discoveryNodes.isLocalNodeElectedMaster() == false) {
+        } else if (discoveryNodes.isLocalNodeElectedClusterManager() == false) {
             logger.debug("rejecting leader check on non-cluster-manager {}", request);
             throw new CoordinationStateRejectedException(
                 "rejecting leader check from [" + request.getSender() + "] sent to a node that is no longer the cluster-manager"

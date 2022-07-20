@@ -129,7 +129,7 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
     private void ensureNoMaster(String node) throws Exception {
         assertBusy(
             () -> assertNull(
-                client(node).admin().cluster().state(new ClusterStateRequest().local(true)).get().getState().nodes().getMasterNode()
+                client(node).admin().cluster().state(new ClusterStateRequest().local(true)).get().getState().nodes().getClusterManagerNode()
             )
         );
     }
@@ -220,8 +220,8 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
         for (final String node : majoritySide) {
             clusterManagers.put(node, new ArrayList<>());
             internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
-                DiscoveryNode previousClusterManager = event.previousState().nodes().getMasterNode();
-                DiscoveryNode currentClusterManager = event.state().nodes().getMasterNode();
+                DiscoveryNode previousClusterManager = event.previousState().nodes().getClusterManagerNode();
+                DiscoveryNode currentClusterManager = event.state().nodes().getClusterManagerNode();
                 if (!Objects.equals(previousClusterManager, currentClusterManager)) {
                     logger.info(
                         "--> node {} received new cluster state: {} \n and had previous cluster state: {}",
@@ -238,7 +238,7 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
 
         final CountDownLatch oldClusterManagerNodeSteppedDown = new CountDownLatch(1);
         internalCluster().getInstance(ClusterService.class, oldClusterManagerNode).addListener(event -> {
-            if (event.state().nodes().getMasterNodeId() == null) {
+            if (event.state().nodes().getClusterManagerNodeId() == null) {
                 oldClusterManagerNodeSteppedDown.countDown();
             }
         });

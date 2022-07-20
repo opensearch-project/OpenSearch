@@ -105,7 +105,7 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
         final Set<String> votingConfiguration = clusterState.getLastCommittedConfiguration().getNodeIds();
         assertThat(votingConfiguration, hasSize(3));
         assertThat(clusterState.nodes().getSize(), equalTo(4));
-        assertThat(votingConfiguration, hasItem(clusterState.nodes().getMasterNodeId()));
+        assertThat(votingConfiguration, hasItem(clusterState.nodes().getClusterManagerNodeId()));
         for (DiscoveryNode discoveryNode : clusterState.nodes()) {
             if (votingConfiguration.contains(discoveryNode.getId()) == false) {
                 assertThat(excludedNodeName, nullValue());
@@ -155,7 +155,10 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
             .setMetadata(true)
             .get()
             .getState();
-        assertThat(newClusterState.nodes().getMasterNode().getName(), equalTo(excludedNodeName));
-        assertThat(newClusterState.getLastCommittedConfiguration().getNodeIds(), hasItem(newClusterState.nodes().getMasterNodeId()));
+        assertThat(newClusterState.nodes().getClusterManagerNode().getName(), equalTo(excludedNodeName));
+        assertThat(
+            newClusterState.getLastCommittedConfiguration().getNodeIds(),
+            hasItem(newClusterState.nodes().getClusterManagerNodeId())
+        );
     }
 }

@@ -53,10 +53,10 @@ public final class ClusterManagerNodeChangePredicate {
      */
     public static Predicate<ClusterState> build(ClusterState currentState) {
         final long currentVersion = currentState.version();
-        final DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
+        final DiscoveryNode clusterManagerNode = currentState.nodes().getClusterManagerNode();
         final String currentMasterId = clusterManagerNode == null ? null : clusterManagerNode.getEphemeralId();
         return newState -> {
-            final DiscoveryNode newClusterManager = newState.nodes().getMasterNode();
+            final DiscoveryNode newClusterManager = newState.nodes().getClusterManagerNode();
             final boolean accept;
             if (newClusterManager == null) {
                 accept = false;

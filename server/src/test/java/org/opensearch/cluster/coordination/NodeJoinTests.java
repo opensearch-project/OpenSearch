@@ -336,17 +336,17 @@ public class NodeJoinTests extends OpenSearchTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
         assertFalse(isLocalNodeElectedMaster());
-        assertNull(coordinator.getStateForClusterManagerService().nodes().getMasterNodeId());
+        assertNull(coordinator.getStateForClusterManagerService().nodes().getClusterManagerNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture fut = joinNodeAsync(
             new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
         );
         assertEquals(Coordinator.Mode.LEADER, coordinator.getMode());
-        assertNull(coordinator.getStateForClusterManagerService().nodes().getMasterNodeId());
+        assertNull(coordinator.getStateForClusterManagerService().nodes().getClusterManagerNodeId());
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(fut.isDone());
         assertTrue(isLocalNodeElectedMaster());
-        assertTrue(coordinator.getStateForClusterManagerService().nodes().isLocalNodeElectedMaster());
+        assertTrue(coordinator.getStateForClusterManagerService().nodes().isLocalNodeElectedClusterManager());
     }
 
     public void testJoinWithHigherTermButBetterStateGetsRejected() {

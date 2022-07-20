@@ -132,7 +132,7 @@ public class AddVotingConfigExclusionsRequest extends ClusterManagerNodeRequest<
         if (nodeDescriptions.length >= 1) {
             newVotingConfigExclusions = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
                 .map(allNodes::get)
-                .filter(DiscoveryNode::isMasterNode)
+                .filter(DiscoveryNode::isClusterManagerNode)
                 .map(VotingConfigExclusion::new)
                 .collect(Collectors.toSet());
 
@@ -147,7 +147,7 @@ public class AddVotingConfigExclusionsRequest extends ClusterManagerNodeRequest<
             for (String nodeId : nodeIds) {
                 if (allNodes.nodeExists(nodeId)) {
                     DiscoveryNode discoveryNode = allNodes.get(nodeId);
-                    if (discoveryNode.isMasterNode()) {
+                    if (discoveryNode.isClusterManagerNode()) {
                         newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
                     }
                 } else {
@@ -162,7 +162,7 @@ public class AddVotingConfigExclusionsRequest extends ClusterManagerNodeRequest<
             for (String nodeName : nodeNames) {
                 if (existingNodes.containsKey(nodeName)) {
                     DiscoveryNode discoveryNode = existingNodes.get(nodeName);
-                    if (discoveryNode.isMasterNode()) {
+                    if (discoveryNode.isClusterManagerNode()) {
                         newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
                     }
                 } else {

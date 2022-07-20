@@ -473,7 +473,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                     return;
                 }
 
-                if (state.nodes().isLocalNodeElectedMaster()) {
+                if (state.nodes().isLocalNodeElectedClusterManager()) {
                     if (state.custom("test") == null) {
                         if (installed.compareAndSet(false, true)) {
                             clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {

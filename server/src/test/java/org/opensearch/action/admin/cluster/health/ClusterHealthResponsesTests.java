@@ -116,7 +116,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         DiscoveryNode localNode = new DiscoveryNode("node", OpenSearchTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         // set the node information to verify cluster_manager_node discovery in ClusterHealthResponse
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).clusterManagerNodeId(localNode.getId()))
             .build();
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
@@ -132,7 +132,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             pendingTaskInQueueTime
         );
         clusterHealth = maybeSerialize(clusterHealth);
-        assertThat(clusterHealth.getClusterStateHealth().hasDiscoveredMaster(), Matchers.equalTo(true));
+        assertThat(clusterHealth.getClusterStateHealth().hasDiscoveredClusterManager(), Matchers.equalTo(true));
         assertClusterHealth(clusterHealth);
     }
 
@@ -146,7 +146,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         assertThat(clusterHealth.getUnassignedShards(), Matchers.equalTo(clusterStateHealth.getUnassignedShards()));
         assertThat(clusterHealth.getNumberOfNodes(), Matchers.equalTo(clusterStateHealth.getNumberOfNodes()));
         assertThat(clusterHealth.getNumberOfDataNodes(), Matchers.equalTo(clusterStateHealth.getNumberOfDataNodes()));
-        assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(clusterStateHealth.hasDiscoveredMaster()));
+        assertThat(clusterHealth.hasDiscoveredClusterManager(), Matchers.equalTo(clusterStateHealth.hasDiscoveredClusterManager()));
     }
 
     public void testVersionCompatibleSerialization() throws IOException {
@@ -240,7 +240,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             assertNotNull(clusterHealth);
             assertThat(clusterHealth.getClusterName(), Matchers.equalTo("535799904437:7-1-3-node"));
             assertThat(clusterHealth.getNumberOfNodes(), Matchers.equalTo(6));
-            assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(true));
+            assertThat(clusterHealth.hasDiscoveredClusterManager(), Matchers.equalTo(true));
         }
     }
 
@@ -261,7 +261,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             assertNotNull(clusterHealth);
             assertThat(clusterHealth.getClusterName(), Matchers.equalTo("535799904437:7-1-3-node"));
             assertThat(clusterHealth.getNumberOfNodes(), Matchers.equalTo(6));
-            assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(false));
+            assertThat(clusterHealth.hasDiscoveredClusterManager(), Matchers.equalTo(false));
         }
     }
 
@@ -283,7 +283,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             )
         ) {
             ClusterHealthResponse clusterHealth = ClusterHealthResponse.fromXContent(parser);
-            assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(true));
+            assertThat(clusterHealth.hasDiscoveredClusterManager(), Matchers.equalTo(true));
         }
 
         try (
@@ -299,7 +299,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             )
         ) {
             ClusterHealthResponse clusterHealth = ClusterHealthResponse.fromXContent(parser);
-            assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(true));
+            assertThat(clusterHealth.hasDiscoveredClusterManager(), Matchers.equalTo(true));
         }
     }
 
@@ -449,7 +449,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
                     state.getUnassignedShards(),
                     state.getNumberOfNodes(),
                     state.getNumberOfDataNodes(),
-                    state.hasDiscoveredMaster(),
+                    state.hasDiscoveredClusterManager(),
                     state.getActiveShardsPercent(),
                     state.getStatus(),
                     state.getIndices()

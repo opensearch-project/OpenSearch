@@ -1510,7 +1510,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             );
             phase1ReadyBlocked.await();
             internalCluster().restartNode(
-                clusterService().state().nodes().getMasterNode().getName(),
+                clusterService().state().nodes().getClusterManagerNode().getName(),
                 new InternalTestCluster.RestartCallback()
             );
             internalCluster().ensureAtLeastNumDataNodes(3);
