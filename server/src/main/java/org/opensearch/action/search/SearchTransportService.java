@@ -95,6 +95,8 @@ public class SearchTransportService {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
+    public static final String CREATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[create_context]";
+    public static final String UPDATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[update_context]";
 
     private final TransportService transportService;
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
@@ -139,6 +141,36 @@ public class SearchTransportService {
             new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new)
+        );
+    }
+
+    public void updatePitContext(
+        Transport.Connection connection,
+        UpdatePitContextRequest request,
+        ActionListener<UpdatePitContextResponse> actionListener
+    ) {
+        transportService.sendRequest(
+            connection,
+            UPDATE_READER_CONTEXT_ACTION_NAME,
+            request,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(actionListener, UpdatePitContextResponse::new)
+        );
+    }
+
+    public void createPitContext(
+        Transport.Connection connection,
+        TransportCreatePitAction.CreateReaderContextRequest request,
+        SearchTask task,
+        ActionListener<TransportCreatePitAction.CreateReaderContextResponse> actionListener
+    ) {
+        transportService.sendChildRequest(
+            connection,
+            CREATE_READER_CONTEXT_ACTION_NAME,
+            request,
+            task,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(actionListener, TransportCreatePitAction.CreateReaderContextResponse::new)
         );
     }
 
@@ -562,6 +594,48 @@ public class SearchTransportService {
             }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
+        transportService.registerRequestHandler(
+            CREATE_READER_CONTEXT_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            TransportCreatePitAction.CreateReaderContextRequest::new,
+            (request, channel, task) -> {
+                ChannelActionListener<
+                    TransportCreatePitAction.CreateReaderContextResponse,
+                    TransportCreatePitAction.CreateReaderContextRequest> listener = new ChannelActionListener<>(
+                        channel,
+                        CREATE_READER_CONTEXT_ACTION_NAME,
+                        request
+                    );
+                searchService.createPitReaderContext(
+                    request.getShardId(),
+                    request.getKeepAlive(),
+                    ActionListener.wrap(
+                        r -> listener.onResponse(new TransportCreatePitAction.CreateReaderContextResponse(r)),
+                        listener::onFailure
+                    )
+                );
+            }
+        );
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            CREATE_READER_CONTEXT_ACTION_NAME,
+            TransportCreatePitAction.CreateReaderContextResponse::new
+        );
+
+        transportService.registerRequestHandler(
+            UPDATE_READER_CONTEXT_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            UpdatePitContextRequest::new,
+            (request, channel, task) -> {
+                ChannelActionListener<UpdatePitContextResponse, UpdatePitContextRequest> listener = new ChannelActionListener<>(
+                    channel,
+                    UPDATE_READER_CONTEXT_ACTION_NAME,
+                    request
+                );
+                searchService.updatePitIdAndKeepAlive(request, listener);
+            }
+        );
+        TransportActionProxy.registerProxyAction(transportService, UPDATE_READER_CONTEXT_ACTION_NAME, UpdatePitContextResponse::new);
     }
 
     /**
