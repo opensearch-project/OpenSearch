@@ -6,29 +6,31 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.io.stream;
+package org.opensearch.extensions;
 
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Extensibility support for Named Writeable Registry: parse response from extensions
+ * Generic boolean response indicating the status of some previous request sent to the SDK
  *
  * @opensearch.internal
  */
-public class NamedWriteableRegistryParseResponse extends TransportResponse {
+public class BooleanResponse extends TransportResponse {
 
     private final boolean status;
 
     /**
      * @param status boolean indicating the status of the parse request sent to the SDK
      */
-    public NamedWriteableRegistryParseResponse(boolean status) {
+    public BooleanResponse(boolean status) {
         this.status = status;
     }
 
-    public NamedWriteableRegistryParseResponse(StreamInput in) throws IOException {
+    public BooleanResponse(StreamInput in) throws IOException {
         super(in);
         this.status = in.readBoolean();
     }
@@ -40,14 +42,14 @@ public class NamedWriteableRegistryParseResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "NamedWriteableRegistryParseResponse{" + "status=" + this.status + "}";
+        return "BooleanResponse{" + "status=" + this.status + "}";
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        NamedWriteableRegistryParseResponse that = (NamedWriteableRegistryParseResponse) o;
+        BooleanResponse that = (BooleanResponse) o;
         return Objects.equals(this.status, that.status);
     }
 
@@ -57,7 +59,7 @@ public class NamedWriteableRegistryParseResponse extends TransportResponse {
     }
 
     /**
-     * Returns a boolean indicating the success of the parse request sent to the SDK
+     * Returns a boolean indicating the success of the request sent to the SDK
      */
     public boolean getStatus() {
         return this.status;

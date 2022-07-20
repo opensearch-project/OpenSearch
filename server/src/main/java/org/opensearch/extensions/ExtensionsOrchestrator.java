@@ -76,8 +76,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
-    public static final String REQUEST_EXTENSION_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
-    public static final String REQUEST_EXTENSION_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
+    public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
+    public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
 
@@ -94,6 +94,15 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         ON_INDEX_MODULE,
         GET_SETTINGS
     };
+
+    /**
+     * Enum for OpenSearch Requests
+     *
+     * @opensearch.internal
+     */
+    public static enum OpenSearchRequestType {
+        REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY
+    }
 
     private final Path extensionsPath;
     final List<DiscoveryExtension> extensionsList;
@@ -298,6 +307,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Sends a transport request for named writeables to an extension, identified by the given DiscoveryNode, and processes the response into registry entries
      *
      * @param extensionNode DiscoveryNode identifying the extension
+     * @return A map of category classes and their associated names and readers for this discovery node
      */
     public Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> getNamedWriteables(DiscoveryNode extensionNode)
         throws UnknownHostException {
@@ -383,12 +393,12 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
         };
 
-        logger.info("Sending extension request type: " + REQUEST_EXTENSION_NAMED_WRITEABLE_REGISTRY);
+        logger.info("Sending extension request type: " + REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY);
         try {
             transportService.sendRequest(
                 extensionNode,
-                REQUEST_EXTENSION_NAMED_WRITEABLE_REGISTRY,
-                new DefaultExtensionPointRequest(REQUEST_EXTENSION_NAMED_WRITEABLE_REGISTRY),
+                REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY,
+                new OpenSearchRequest(OpenSearchRequestType.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY),
                 namedWriteableRegistryResponseHandler
             );
         } catch (Exception e) {
@@ -402,8 +412,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Iterates through list of discovered extensions and returns the callback method associated with the given category class and name
      *
      * @param categoryClass class that the Writeable object extends
-     * @param name unique name identifiying the Writeable object
+     * @param name Unique name identifiying the Writeable object
      * @throws IllegalArgumentException if there is no reader associated with the given category class and name
+     * @return A map of the discovery node and its associated extension reader
      */
     public Map<DiscoveryNode, ExtensionReader> getExtensionReader(Class categoryClass, String name) {
 
@@ -430,8 +441,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Returns the callback method associated with the given extension node, category class and name
      *
      * @param extensionNode Discovery Node identifying the extension associated with the category class and name
-     * @param categoryClass class that the Writeable object extends
-     * @param name unique name identifying the Writeable object
+     * @param categoryClass Class that the Writeable object extends
+     * @param name Unique name identifying the Writeable object
+     * @return The extension reader
      */
     public ExtensionReader getExtensionReader(DiscoveryNode extensionNode, Class categoryClass, String name) {
         ExtensionReader reader = null;
@@ -453,13 +465,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * @param context byte array generated from a {@link StreamInput} object to transport to the extension
      */
     public void parseNamedWriteable(DiscoveryNode extensionNode, Class categoryClass, byte[] context) throws UnknownHostException {
-        logger.info("Sending extension request type: " + REQUEST_EXTENSION_PARSE_NAMED_WRITEABLE);
+        logger.info("Sending extension request type: " + REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE);
         NamedWriteableRegistryParseResponseHandler namedWriteableRegistryParseResponseHandler =
             new NamedWriteableRegistryParseResponseHandler();
         try {
             transportService.sendRequest(
                 extensionNode,
-                REQUEST_EXTENSION_PARSE_NAMED_WRITEABLE,
+                REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE,
                 new NamedWriteableRegistryParseRequest(categoryClass.getName(), context),
                 namedWriteableRegistryParseResponseHandler
             );

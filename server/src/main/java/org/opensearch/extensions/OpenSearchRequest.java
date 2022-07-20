@@ -18,52 +18,56 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Request from OpenSearch to an Extension to invoke a default extension point
+ * Request from OpenSearch to an Extension
  *
  * @opensearch.internal
  */
-public class DefaultExtensionPointRequest extends TransportRequest {
+public class OpenSearchRequest extends TransportRequest {
 
-    private static final Logger logger = LogManager.getLogger(DefaultExtensionPointRequest.class);
-    private String extensionPoint;
+    private static final Logger logger = LogManager.getLogger(OpenSearchRequest.class);
+    private ExtensionsOrchestrator.OpenSearchRequestType requestType;
 
     /**
-     * @param extensionPoint string identifying the default extension point to invoke on the extension
+     * @param requestType string identifying the default extension point to invoke on the extension
      */
-    public DefaultExtensionPointRequest(String extensionPoint) {
-        this.extensionPoint = extensionPoint;
+    public OpenSearchRequest(ExtensionsOrchestrator.OpenSearchRequestType requestType) {
+        this.requestType = requestType;
     }
 
     /**
      * @param in StreamInput from which a string identifying the default extension point to invoke on the extension is read from
      */
-    public DefaultExtensionPointRequest(StreamInput in) throws IOException {
+    public OpenSearchRequest(StreamInput in) throws IOException {
         super(in);
-        this.extensionPoint = in.readString();
+        this.requestType = in.readEnum(ExtensionsOrchestrator.OpenSearchRequestType.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(extensionPoint);
+        out.writeEnum(requestType);
     }
 
     @Override
     public String toString() {
-        return "DefaultExtensionPointRequest{" + "extensionPoint=" + extensionPoint + '}';
+        return "OpenSearchRequest{" + "requestType=" + requestType + '}';
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DefaultExtensionPointRequest that = (DefaultExtensionPointRequest) o;
-        return Objects.equals(extensionPoint, that.extensionPoint);
+        OpenSearchRequest that = (OpenSearchRequest) o;
+        return Objects.equals(requestType, that.requestType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(extensionPoint);
+        return Objects.hash(requestType);
+    }
+
+    public ExtensionsOrchestrator.OpenSearchRequestType getRequestType() {
+        return this.requestType;
     }
 
 }
