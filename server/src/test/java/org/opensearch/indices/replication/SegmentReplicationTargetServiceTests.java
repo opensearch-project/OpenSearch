@@ -43,8 +43,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     private SegmentReplicationSource replicationSource;
     private SegmentReplicationTargetService sut;
 
-    private ReplicationCheckpoint cp;
-    private ReplicationCheckpoint newCheckpoint;
+    private ReplicationCheckpoint initialCheckpoint;
+    private ReplicationCheckpoint aheadCheckpoint;
 
     @Override
     public void setUp() throws Exception {
@@ -60,13 +60,13 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         when(replicationSourceFactory.get(indexShard)).thenReturn(replicationSource);
 
         sut = new SegmentReplicationTargetService(threadPool, recoverySettings, transportService, replicationSourceFactory);
-        cp = indexShard.getLatestReplicationCheckpoint();
-        newCheckpoint = new ReplicationCheckpoint(
-            cp.getShardId(),
-            cp.getPrimaryTerm(),
-            cp.getSegmentsGen(),
-            cp.getSeqNo(),
-            cp.getSegmentInfosVersion() + 1
+        initialCheckpoint = indexShard.getLatestReplicationCheckpoint();
+        aheadCheckpoint = new ReplicationCheckpoint(
+            initialCheckpoint.getShardId(),
+            initialCheckpoint.getPrimaryTerm(),
+            initialCheckpoint.getSegmentsGen(),
+            initialCheckpoint.getSeqNo(),
+            initialCheckpoint.getSegmentInfosVersion() + 1
         );
     }
 
@@ -142,20 +142,23 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testShardAlreadyReplicating() throws InterruptedException {
+        // Create a spy of Target Service so that we can verify invocation of startReplication call with specific checkpoint on it.
         SegmentReplicationTargetService serviceSpy = spy(sut);
-        // Create a separate target and start it so the shard is already replicating.
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,
             indexShard,
             replicationSource,
             mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
         );
+        // Create a Mockito spy of target to stub response of few method calls.
         final SegmentReplicationTarget targetSpy = Mockito.spy(target);
         CountDownLatch latch = new CountDownLatch(1);
+        // Mocking response when startReplication is called on targetSpy we send a new checkpoint to serviceSpy and later reduce countdown
+        // of latch.
         doAnswer(invocation -> {
             final ActionListener<Void> listener = invocation.getArgument(0);
             // a new checkpoint arrives before we've completed.
-            serviceSpy.onNewCheckpoint(newCheckpoint, indexShard);
+            serviceSpy.onNewCheckpoint(aheadCheckpoint, indexShard);
             listener.onResponse(null);
             latch.countDown();
             return null;
@@ -167,7 +170,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
         // wait for the new checkpoint to arrive, before the listener completes.
         latch.await(30, TimeUnit.SECONDS);
-        verify(serviceSpy, times(0)).startReplication(eq(newCheckpoint), eq(indexShard), any());
+        verify(serviceSpy, times(0)).startReplication(eq(aheadCheckpoint), eq(indexShard), any());
     }
 
     public void testNewCheckpointBehindCurrentCheckpoint() {
@@ -192,7 +195,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
         doNothing().when(spy).startReplication(any(), any(), any());
-        spy.onNewCheckpoint(newCheckpoint, spyShard);
+        spy.onNewCheckpoint(aheadCheckpoint, spyShard);
         verify(spy, times(1)).startReplication(any(), any(), captor.capture());
         SegmentReplicationTargetService.SegmentReplicationListener listener = captor.getValue();
         listener.onFailure(new SegmentReplicationState(new ReplicationLuceneIndex()), new OpenSearchException("testing"), true);
