@@ -10,6 +10,14 @@ package org.opensearch.extensions;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.mock;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -26,10 +34,16 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.cluster.ClusterSettingsResponse;
+import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
@@ -52,10 +66,58 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 
 public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
+
+    private TransportService transportService;
+    private ClusterService clusterService;
+    private MockNioTransport transport;
+    private final ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
+    private final Settings settings = Settings.builder()
+        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+        .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+        .build();
+
+    @Before
+    public void setup() throws Exception {
+        Settings settings = Settings.builder().put("cluster.name", "test").build();
+        transport = new MockNioTransport(
+            settings,
+            Version.CURRENT,
+            threadPool,
+            new NetworkService(Collections.emptyList()),
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NoneCircuitBreakerService()
+        );
+        transportService = new MockTransportService(
+            settings,
+            transport,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (boundAddress) -> new DiscoveryNode(
+                "test_node",
+                "test_node",
+                boundAddress.publishAddress(),
+                emptyMap(),
+                emptySet(),
+                Version.CURRENT
+            ),
+            null,
+            Collections.emptySet()
+        );
+        clusterService = createClusterService(threadPool);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        transportService.close();
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
 
     public void testExtensionsDiscovery() throws Exception {
         Path extensionDir = createTempDir();
@@ -89,7 +151,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
-        Settings settings = Settings.builder().build();
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         List<DiscoveryExtension> expectedExtensionsList = new ArrayList<DiscoveryExtension>();
@@ -143,8 +204,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testNonAccessibleDirectory() throws Exception {
-        Settings settings = Settings.builder().put("node.name", "my-node").build();
-        ;
         AccessControlException e = expectThrows(
 
             AccessControlException.class,
@@ -218,36 +277,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
-        Settings settings = Settings.builder().put("cluster.name", "test").build();
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
-        MockNioTransport transport = new MockNioTransport(
-            settings,
-            Version.CURRENT,
-            threadPool,
-            new NetworkService(Collections.emptyList()),
-            PageCacheRecycler.NON_RECYCLING_INSTANCE,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
-        );
-
-        TransportService transportService = new MockTransportService(
-            settings,
-            transport,
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            (boundAddress) -> new DiscoveryNode(
-                "test_node",
-                "test_node",
-                boundAddress.publishAddress(),
-                emptyMap(),
-                emptySet(),
-                Version.CURRENT
-            ),
-            null,
-            Collections.emptySet()
-        );
         transportService.start();
         transportService.acceptIncomingRequests();
         extensionsOrchestrator.setTransportService(transportService);
@@ -273,11 +304,54 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             );
 
             extensionsOrchestrator.extensionsInitialize();
-
-            transportService.close();
-            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
             mockLogAppender.assertAllExpectationsMatched();
         }
+    }
+
+    public void testHandleExtensionRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        extensionsOrchestrator.setTransportService(transportService);
+        extensionsOrchestrator.setClusterService(clusterService);
+        ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
+        assertEquals(extensionsOrchestrator.handleExtensionRequest(clusterStateRequest).getClass(), ClusterStateResponse.class);
+
+        ExtensionRequest clusterSettingRequest = new ExtensionRequest(
+            ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS
+        );
+        assertEquals(extensionsOrchestrator.handleExtensionRequest(clusterSettingRequest).getClass(), ClusterSettingsResponse.class);
+
+        ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
+        assertEquals(extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass(), LocalNodeResponse.class);
+
+        ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
+        Exception exception = expectThrows(Exception.class, () -> extensionsOrchestrator.handleExtensionRequest(exceptionRequest));
+        assertEquals(exception.getMessage(), "Handler not present for the provided request");
+    }
+
+    public void testRegisterHandler() throws Exception {
+        Path extensionDir = createTempDir();
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        TransportService mockTransportService = spy(
+            new TransportService(
+                Settings.EMPTY,
+                mock(Transport.class),
+                null,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                x -> null,
+                null,
+                Collections.emptySet()
+            )
+        );
+
+        extensionsOrchestrator.setTransportService(mockTransportService);
+        verify(mockTransportService, times(3)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+
     }
 
     public void testOnIndexModule() throws Exception {
@@ -313,39 +387,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
-        MockNioTransport transport = new MockNioTransport(
-            settings,
-            Version.CURRENT,
-            threadPool,
-            new NetworkService(Collections.emptyList()),
-            PageCacheRecycler.NON_RECYCLING_INSTANCE,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
-        );
-
-        TransportService transportService = new MockTransportService(
-            settings,
-            transport,
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            (boundAddress) -> new DiscoveryNode(
-                "test_node",
-                "test_node",
-                boundAddress.publishAddress(),
-                emptyMap(),
-                emptySet(),
-                Version.CURRENT
-            ),
-            null,
-            Collections.emptySet()
-        );
         transportService.start();
         transportService.acceptIncomingRequests();
         extensionsOrchestrator.setTransportService(transportService);
@@ -388,9 +431,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             );
 
             extensionsOrchestrator.onIndexModule(indexModule);
-
-            transportService.close();
-            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
             mockLogAppender.assertAllExpectationsMatched();
         }
     }
