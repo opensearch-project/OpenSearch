@@ -75,7 +75,7 @@ public class CloseIndexRequestTests extends OpenSearchTestCase {
     public void testTimeout() {
         final CloseIndexRequest request = new CloseIndexRequest("index");
         assertEquals(request.timeout(), TimedRequest.DEFAULT_ACK_TIMEOUT);
-        assertEquals(request.masterNodeTimeout(), TimedRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
+        assertEquals(request.masterNodeTimeout(), TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT);
 
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         request.setTimeout(timeout);

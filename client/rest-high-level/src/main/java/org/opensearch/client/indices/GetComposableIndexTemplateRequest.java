@@ -44,7 +44,7 @@ public class GetComposableIndexTemplateRequest implements Validatable {
 
     private final String name;
 
-    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
     private boolean local = false;
 
     /**
