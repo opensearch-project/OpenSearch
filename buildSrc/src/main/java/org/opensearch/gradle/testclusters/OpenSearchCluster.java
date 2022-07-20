@@ -133,13 +133,14 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             );
         }
 
-        if(numberOfNodes < zoneCount) {
-            throw new IllegalArgumentException("Number of nodes should be >= zoneCount but was " + numberOfNodes + " for " + this.zoneCount);
+        if (numberOfNodes < zoneCount) {
+            throw new IllegalArgumentException(
+                "Number of nodes should be >= zoneCount but was " + numberOfNodes + " for " + this.zoneCount
+            );
         }
 
         int currentZone = 1;
         for (int i = nodes.size(); i < numberOfNodes; i++) {
-            //addNode(clusterName + "-" + i);
             currentZone = (currentZone >= zoneCount) ? 1 : (currentZone + 1);
             String zoneName = "zone-" + currentZone;
             addNode(clusterName + "-" + i, zoneName);
