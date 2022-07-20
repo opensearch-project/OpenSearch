@@ -172,6 +172,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private void start(final long replicationId) {
         try (ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)) {
+            if(replicationRef == null){
+                logger.trace("Cannot find any running replication with id [{}]", replicationId);
+                return;
+            }
             replicationRef.get().startReplication(new ActionListener<>() {
                 @Override
                 public void onResponse(Void o) {
