@@ -32,6 +32,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.settings.ClusterSettingsListenerResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.PluginRequest;
@@ -67,6 +68,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
+    public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS_ADD_SETTINGS_UPDATE_CONSUMER = "internal:discovery/clustersettings/addsettingsupdateconsumer";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
 
@@ -79,6 +81,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
+        REQUEST_EXTENSION_CLUSTER_SETTINGS_ADD_SETTINGS_UPDATE_CONSUMER,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -134,6 +137,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_CLUSTER_SETTINGS_ADD_SETTINGS_UPDATE_CONSUMER,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            AddSettingsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleAddSettingsRequest(request)))
         );
     }
 
@@ -259,8 +270,22 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS) {
             ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
             return clusterSettingsResponse;
+        } else if(extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS_ADD_SETTINGS_UPDATE_CONSUMER) {
+            ClusterSettingsListenerResponse clusterSettingsListenerResponse = new ClusterSettingsListenerResponse(true);
+            return clusterSettingsListenerResponse;
         }
         return null;
+    }
+
+    TransportResponse handleAddSettingsRequest(AddSettingsRequest addSettingsRequest) {
+        // Change to a new boolean response
+        // Maintain a map, when consumer is getting called
+        // Call the method here
+        //clusterService.getClusterSettings().addSettingsUpdateConsumer(addSettingsRequest.getSettings(), (s) -> {});
+        // check how consumer received the call back
+        //After getting the call back, send the  new settings back after getting the update
+        IndicesModuleNameResponse indicesModuleNameResponse = new IndicesModuleNameResponse(true);
+        return indicesModuleNameResponse;
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
@@ -371,6 +396,56 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             logger.error(e.toString());
         }
     }
+
+//    public void onClusterService(ClusterService clusterService) throws UnknownHostException {
+//        for (DiscoveryNode extensionNode : extensionsList) {
+//            onClusterService(clusterService, extensionNode);
+//        }
+//    }
+//
+//    private void onClusterService(ClusterService clusterService, DiscoveryNode extensionNode) {
+//        final CountDownLatch inProgressLatch = new CountDownLatch(1);
+//        final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
+//
+//        final TransportResponseHandler<ClusterSettingsListenerResponse> clusterSettingsResponseTransportResponseHandler = new TransportResponseHandler<ClusterSettingsListenerResponse>() {
+//
+//            @Override
+//            public void handleResponse(ClusterSettingsListenerResponse response) {
+//                logger.info("ADD SETTINGS SETTINGS SETTINGS received {}", response);
+//                if(response.getAddSettingsUpdateConsumer() == true) {
+//                    clusterService.getClusterSettings().addSettingsUpdateConsumer((s) -> {},null);
+//                }
+//            }
+//
+//            @Override
+//            public void handleException(TransportException exp) {
+//                logger.error(new ParameterizedMessage("AddSettingsRequest failed"), exp);
+//                inProgressLatch.countDown();
+//            }
+//
+//            @Override
+//            public String executor() {
+//                return ThreadPool.Names.GENERIC;
+//            }
+//
+//            @Override
+//            public ClusterSettingsListenerResponse read(StreamInput in) throws IOException {
+//                return new ClusterSettingsListenerResponse(in);
+//            }
+//        };
+
+//        try {
+//            transportService.sendRequest(
+//                extensionNode,
+//                REQUEST_EXTENSION_CLUSTER_SETTINGS_ADD_SETTINGS_UPDATE_CONSUMER,
+//                new AddSettingsRequest(true),
+//                clusterSettingsResponseTransportResponseHandler
+//            );
+//            logger.info("SEND ACK TO EXTENSIONS");
+//        } catch (Exception e) {
+//            logger.error(e.toString());
+//        }
+    //}
 
     private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
