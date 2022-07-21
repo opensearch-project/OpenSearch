@@ -147,6 +147,18 @@ public final class IndexModule {
         Property.NodeScope
     );
 
+    /** Which lucene file extensions to load with the mmap directory when using hybridfs store.
+     *  This is an expert setting.
+     *  @see <a href="https://lucene.apache.org/core/9_2_0/core/org/apache/lucene/codecs/lucene92/package-summary.html#file-names">Lucene File Extensions</a>.
+     */
+    public static final Setting<List<String>> INDEX_STORE_HYBRID_MMAP_EXTENSIONS = Setting.listSetting(
+        "index.store.hybrid.mmap.extensions",
+        List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"),
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
 
     // whether to use the query cache
