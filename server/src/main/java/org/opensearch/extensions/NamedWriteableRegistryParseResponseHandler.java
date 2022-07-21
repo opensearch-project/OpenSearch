@@ -37,7 +37,7 @@ public class NamedWriteableRegistryParseResponseHandler implements TransportResp
 
     @Override
     public void handleException(TransportException exp) {
-        logger.error(new ParameterizedMessage("NamedWriteableRegistryParseRequest failed", exp));
+        logger.error(new ParameterizedMessage("NamedWriteableRegistryParseRequest failed"), exp);
     }
 
     @Override
