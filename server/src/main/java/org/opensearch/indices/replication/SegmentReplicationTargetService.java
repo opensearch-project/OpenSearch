@@ -172,6 +172,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private void start(final long replicationId) {
         try (ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)) {
+            // This check is for handling edge cases where the reference is removed before the ReplicationRunner is started by the
+            // threadpool.
+            if (replicationRef == null) {
+                return;
+            }
             replicationRef.get().startReplication(new ActionListener<>() {
                 @Override
                 public void onResponse(Void o) {
