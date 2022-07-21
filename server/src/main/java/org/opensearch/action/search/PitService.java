@@ -58,11 +58,12 @@ public class PitService {
             .filter(ctx -> Strings.isEmpty(ctx.getSearchContextIdForNode().getClusterAlias()) == false)
             .map(c -> c.getSearchContextIdForNode().getClusterAlias())
             .collect(Collectors.toSet());
-        StepListener<BiFunction<String, String, DiscoveryNode>> lookupListener = SearchUtils.getConnectionLookupListener(
-            searchTransportService.getRemoteClusterService(),
-            clusterService.state(),
-            clusters
-        );
+        StepListener<BiFunction<String, String, DiscoveryNode>> lookupListener = (StepListener<
+            BiFunction<String, String, DiscoveryNode>>) SearchUtils.getConnectionLookupListener(
+                searchTransportService.getRemoteClusterService(),
+                clusterService.state(),
+                clusters
+            );
         lookupListener.whenComplete(nodeLookup -> {
             final GroupedActionListener<DeletePitResponse> groupedListener = getDeletePitGroupedListener(
                 listener,
