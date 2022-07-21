@@ -53,6 +53,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
+import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
@@ -61,7 +62,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.opensearch.test.NodeRoles.masterNode;
+import static org.opensearch.test.NodeRoles.clusterManagerNode;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -130,7 +131,7 @@ public class GatewayServiceTests extends OpenSearchTestCase {
         ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode clusterManagerNode = DiscoveryNode.createLocal(
-            settings(Version.CURRENT).put(masterNode()).build(),
+            settings(Version.CURRENT).put(NodeRoles.clusterManagerNode()).build(),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             nodeId
         );

@@ -38,6 +38,7 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -46,7 +47,6 @@ import org.opensearch.test.InternalTestCluster;
 import java.io.IOException;
 
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
-import static org.opensearch.test.NodeRoles.masterNode;
 import static org.opensearch.test.NodeRoles.nonDataNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -129,7 +129,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
 
         logger.info("--> start previous cluster-manager node again");
         final String nextClusterManagerEligibleNodeName = internalCluster().startNode(
-            Settings.builder().put(nonDataNode(masterNode())).put(clusterManagerDataPathSettings)
+            Settings.builder().put(nonDataNode(NodeRoles.clusterManagerNode())).put(clusterManagerDataPathSettings)
         );
         assertThat(
             internalCluster().nonMasterClient()

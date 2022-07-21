@@ -62,7 +62,7 @@ import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE
 import static org.opensearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -175,7 +175,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     public void testBootstrapNotClusterManagerEligible() {
         final Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(nonMasterNode(internalCluster().getDefaultSettings())).build()
+            Settings.builder().put(nonClusterManagerNode(internalCluster().getDefaultSettings())).build()
         );
         expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapClusterManagerCommand.NOT_CLUSTER_MANAGER_NODE_MSG);
     }

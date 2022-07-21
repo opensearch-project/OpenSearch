@@ -34,6 +34,7 @@ package org.opensearch.transport;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -45,7 +46,6 @@ import java.util.HashSet;
 import java.util.List;
 
 import static org.opensearch.test.NodeRoles.nonDataNode;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
 import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -240,7 +240,7 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
         assertEquals(TransportSettings.TRANSPORT_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
         assertEquals(TransportSettings.PING_SCHEDULE.get(Settings.EMPTY), profile.getPingInterval());
 
-        profile = ConnectionProfile.buildDefaultConnectionProfile(nonMasterNode());
+        profile = ConnectionProfile.buildDefaultConnectionProfile(NodeRoles.nonClusterManagerNode());
         assertEquals(12, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
