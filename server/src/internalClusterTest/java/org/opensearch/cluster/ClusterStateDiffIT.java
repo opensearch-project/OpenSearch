@@ -37,7 +37,7 @@ import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexGraveyardTests;
@@ -396,9 +396,9 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
     private ClusterBlock randomGlobalBlock() {
         switch (randomInt(2)) {
             case 0:
-                return NoMasterBlockService.NO_MASTER_BLOCK_ALL;
+                return NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL;
             case 1:
-                return NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
+                return NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES;
             default:
                 return GatewayService.STATE_NOT_RECOVERED_BLOCK;
         }

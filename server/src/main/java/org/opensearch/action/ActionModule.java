@@ -232,10 +232,12 @@ import org.opensearch.action.ingest.SimulatePipelineTransportAction;
 import org.opensearch.action.main.MainAction;
 import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.action.search.ClearScrollAction;
+import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.TransportClearScrollAction;
+import org.opensearch.action.search.TransportCreatePitAction;
 import org.opensearch.action.search.TransportMultiSearchAction;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.search.TransportSearchScrollAction;
@@ -368,7 +370,7 @@ import org.opensearch.rest.action.cat.RestCatRecoveryAction;
 import org.opensearch.rest.action.cat.RestFielddataAction;
 import org.opensearch.rest.action.cat.RestHealthAction;
 import org.opensearch.rest.action.cat.RestIndicesAction;
-import org.opensearch.rest.action.cat.RestMasterAction;
+import org.opensearch.rest.action.cat.RestClusterManagerAction;
 import org.opensearch.rest.action.cat.RestNodeAttrsAction;
 import org.opensearch.rest.action.cat.RestNodesAction;
 import org.opensearch.rest.action.cat.RestPluginsAction;
@@ -657,6 +659,9 @@ public class ActionModule extends AbstractModule {
         actions.register(DeleteDanglingIndexAction.INSTANCE, TransportDeleteDanglingIndexAction.class);
         actions.register(FindDanglingIndexAction.INSTANCE, TransportFindDanglingIndexAction.class);
 
+        // point in time actions
+        actions.register(CreatePitAction.INSTANCE, TransportCreatePitAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -809,7 +814,7 @@ public class ActionModule extends AbstractModule {
         // CAT API
         registerHandler.accept(new RestAllocationAction());
         registerHandler.accept(new RestShardsAction());
-        registerHandler.accept(new RestMasterAction());
+        registerHandler.accept(new RestClusterManagerAction());
         registerHandler.accept(new RestNodesAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
         registerHandler.accept(new RestIndicesAction());

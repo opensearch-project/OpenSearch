@@ -1644,7 +1644,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
             private final DiscoveryNode node;
 
-            private final MasterService clusterManagerService;
+            private final MasterService masterService;
 
             private final AllocationService allocationService;
 
@@ -1664,18 +1664,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable));
-                clusterManagerService = new FakeThreadPoolMasterService(
-                    node.getName(),
-                    "test",
-                    threadPool,
-                    deterministicTaskQueue::scheduleNow
-                );
+                masterService = new FakeThreadPoolMasterService(node.getName(), "test", threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
                     settings,
                     clusterSettings,
-                    clusterManagerService,
+                    masterService,
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
@@ -2207,7 +2202,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     transportService,
                     namedWriteableRegistry,
                     allocationService,
-                    clusterManagerService,
+                    masterService,
                     () -> persistedState,
                     hostsResolver -> nodes.values()
                         .stream()
@@ -2221,7 +2216,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ElectionStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info")
                 );
-                clusterManagerService.setClusterStatePublisher(coordinator);
+                masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();

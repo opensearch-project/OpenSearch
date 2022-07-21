@@ -391,6 +391,11 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, (ConnectionProfile) null);
     }
 
+    // We are skipping node validation for extensibility as extensionNode and opensearchNode(LocalNode) will have different ephemeral id's
+    public void connectToNode(final DiscoveryNode node, boolean skipValidation) {
+        PlainActionFuture.get(fut -> connectToNode(node, (ConnectionProfile) null, ActionListener.map(fut, x -> null), skipValidation));
+    }
+
     /**
      * Connect to the specified node with the given connection profile
      *
@@ -399,6 +404,10 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
         PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
+    }
+
+    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, boolean skipValidation) {
+        PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null), skipValidation));
     }
 
     /**
@@ -410,6 +419,10 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
         connectToNode(node, null, listener);
+    }
+
+    public void connectToNode(DiscoveryNode node, ActionListener<Void> listener, boolean skipValidation) throws ConnectTransportException {
+        connectToNode(node, null, listener, skipValidation);
     }
 
     /**
@@ -428,18 +441,33 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.connectToNode(node, connectionProfile, connectionValidator(node), listener);
     }
 
+    public void connectToNode(
+        final DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        ActionListener<Void> listener,
+        boolean skipValidation
+    ) {
+        if (isLocalNode(node)) {
+            listener.onResponse(null);
+            return;
+        }
+        connectionManager.connectToNode(node, connectionProfile, connectionValidator(node, skipValidation), listener);
+    }
+
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
+        return connectionValidator(node, false);
+    }
+
+    public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node, boolean skipValidation) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
-                /*
-                 * TODO: https://github.com/opensearch-project/OpenSearch/issues/2772
-                 *
-                 * if (node.equals(remote) == false) {
-                 *   throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
-                 * }
-                 */
+                if (skipValidation) {
+                    logger.info("Connection validation was skipped");
+                } else if (node.equals(remote) == false) {
+                    throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
+                }
                 return null;
             }));
         };

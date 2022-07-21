@@ -149,6 +149,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_CHECK_ON_STARTUP,
                 IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
                 IndexSettings.MAX_SLICES_PER_SCROLL,
+                IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 IndexSettings.INDEX_GC_DELETES_SETTING,
@@ -234,6 +235,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public IndexScopedSettings copy(Settings settings, IndexMetadata metadata) {
         return new IndexScopedSettings(settings, this, metadata);
+    }
+
+    public boolean registerSetting(Setting<?> setting) {
+        validateSettingKey(setting);
+        return super.registerSetting(setting);
     }
 
     @Override

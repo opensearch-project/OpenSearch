@@ -43,7 +43,7 @@ import org.opensearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
@@ -331,7 +331,7 @@ public final class RandomObjects {
         int type = randomIntBetween(random, 0, 3);
         switch (type) {
             case 0:
-                actualException = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
+                actualException = new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES));
                 expectedException = new OpenSearchException(
                     "OpenSearch exception [type=cluster_block_exception, "
                         + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"

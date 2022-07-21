@@ -26,7 +26,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 
 public class RemoteDirectoryTests extends OpenSearchTestCase {
     private BlobContainer blobContainer;

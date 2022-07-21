@@ -139,7 +139,7 @@ import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHEC
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_ID;
 import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -557,7 +557,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
 
-            final int pendingTaskCount = leader.clusterManagerService.getFakeMasterServicePendingTaskCount();
+            final int pendingTaskCount = leader.masterService.getFakeMasterServicePendingTaskCount();
             runFor((pendingTaskCount + 1) * DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "draining task queue");
 
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
@@ -1025,7 +1025,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private final DiscoveryNode localNode;
             final MockPersistedState persistedState;
             final Settings nodeSettings;
-            private AckedFakeThreadPoolClusterManagerService clusterManagerService;
+            private AckedFakeThreadPoolMasterService masterService;
             private DisruptableClusterApplierService clusterApplierService;
             private ClusterService clusterService;
             TransportService transportService;
@@ -1105,7 +1105,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     null,
                     emptySet()
                 );
-                clusterManagerService = new AckedFakeThreadPoolClusterManagerService(
+                masterService = new AckedFakeThreadPoolMasterService(
                     localNode.getId(),
                     "test",
                     threadPool,
@@ -1119,7 +1119,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     deterministicTaskQueue,
                     threadPool
                 );
-                clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
+                clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
                 );
@@ -1134,7 +1134,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     transportService,
                     writableRegistry(),
                     allocationService,
-                    clusterManagerService,
+                    masterService,
                     this::getPersistedState,
                     Cluster.this::provideSeedHosts,
                     clusterApplierService,
@@ -1144,7 +1144,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getElectionStrategy(),
                     nodeHealthService
                 );
-                clusterManagerService.setClusterStatePublisher(coordinator);
+                masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,
                     allocationService,
@@ -1331,11 +1331,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                 onNode(() -> {
                     logger.trace("[{}] submitUpdateTask: enqueueing [{}]", localNode.getId(), source);
                     final long submittedTerm = coordinator.getCurrentTerm();
-                    clusterManagerService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+                    masterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             assertThat(currentState.term(), greaterThanOrEqualTo(submittedTerm));
-                            clusterManagerService.nextAckCollector = ackCollector;
+                            masterService.nextAckCollector = ackCollector;
                             return clusterStateUpdate.apply(currentState);
                         }
 
@@ -1510,11 +1510,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         }
     }
 
-    static class AckedFakeThreadPoolClusterManagerService extends FakeThreadPoolMasterService {
+    static class AckedFakeThreadPoolMasterService extends FakeThreadPoolMasterService {
 
         AckCollector nextAckCollector = new AckCollector();
 
-        AckedFakeThreadPoolClusterManagerService(
+        AckedFakeThreadPoolMasterService(
             String nodeName,
             String serviceName,
             ThreadPool threadPool,
