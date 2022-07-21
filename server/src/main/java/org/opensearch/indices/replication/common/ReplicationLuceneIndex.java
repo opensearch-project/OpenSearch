@@ -397,6 +397,11 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
         }
     }
 
+    /**
+     * Metadata about a file
+     *
+     * @opensearch.internal
+     */
     public static final class FileMetadata implements ToXContentObject, Writeable {
         private String name;
         private long length;
