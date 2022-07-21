@@ -56,7 +56,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.Fuzziness;
@@ -717,20 +716,25 @@ public class QueryStringQueryParser extends XQueryParser {
             // effectively, we check if a field exists or not
             return existsQuery(field);
         }
+        String indexedNameField = field;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
             MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
-            if (currentFieldType == null) {
-                return newUnmappedFieldQuery(field);
+            if (currentFieldType != null) {
+                // return newUnmappedFieldQuery(field);
+                setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+                indexedNameField = currentFieldType.name();
             }
-            if (forceAnalyzer != null && (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
-                setAnalyzer(forceAnalyzer);
-                return super.getWildcardQuery(currentFieldType.name(), termStr);
-            }
+
+            // if (forceAnalyzer != null && (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
+            // setAnalyzer(forceAnalyzer);
+            // return super.getWildcardQuery(currentFieldType.name(), termStr);
+            // }
             if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
                 throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
             }
-            return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
+            return super.getWildcardQuery(indexedNameField, termStr);
+            // return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -781,11 +785,13 @@ public class QueryStringQueryParser extends XQueryParser {
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
-            if (forceAnalyzer != null) {
-                setAnalyzer(forceAnalyzer);
-                return super.getRegexpQuery(field, termStr);
-            }
-            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getDeterminizeWorkLimit(), getMultiTermRewriteMethod(), context);
+            setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+            return super.getRegexpQuery(field, termStr);
+            // if (forceAnalyzer != null) {
+            // setAnalyzer(forceAnalyzer);
+            // return super.getRegexpQuery(field, termStr);
+            // }
+            // return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getDeterminizeWorkLimit(), getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
