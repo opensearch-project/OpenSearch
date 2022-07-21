@@ -127,7 +127,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 logger.error("Unexpected failure", e);
-                Assert.fail();
+                Assert.fail("Unexpected failure from startSegmentCopy listener: " + e);
             }
         });
     }
