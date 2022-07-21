@@ -31,33 +31,22 @@ import org.opensearch.gradle.testclusters.RunTask
 
 apply plugin: 'opensearch.testclusters'
 
+def numNodes = findProperty('numNodes') as Integer ?: 1
+def numZones = findProperty('numZones') as Integer ?: 1
+
 testClusters {
   runTask {
     testDistribution = 'archive'
   }
-}
-
-testClusters {
   runMultiNodeTask {
     testDistribution = 'archive'
-  }
-}
-
-final String nodes = findProperty('nodeCount') ?: "3"
-final String zones = findProperty('zoneCount') ?: "1"
-final int nodeCount = Integer.valueOf(nodes)
-final int zoneCount = Integer.valueOf(zones)
-
-testClusters {
-  runMultiNodeTask {
-    testDistribution = 'archive'
-    numberOfZones = zoneCount
-    numberOfNodes = nodeCount
+    numberOfNodes = numNodes
+    numberOfZones = numZones
   }
 }
 
 tasks.register("run", RunTask) {
-  if (project.hasProperty('nodeCount')) {
+  if (project.hasProperty('numNodes') || project.hasProperty('numZones')) {
     useCluster testClusters.runMultiNodeTask;
   } else {
     useCluster testClusters.runTask;
