@@ -79,7 +79,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
         logger.info("--> start cluster-manager node");
         final String clusterManagerNodeName = internalCluster().startClusterManagerOnlyNode();
         assertThat(
-            internalCluster().nonMasterClient()
+            internalCluster().nonClusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -92,7 +92,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
             equalTo(clusterManagerNodeName)
         );
         assertThat(
-            internalCluster().masterClient()
+            internalCluster().clusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -106,8 +106,8 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> stop cluster-manager node");
-        Settings clusterManagerDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
-        internalCluster().stopCurrentMasterNode();
+        Settings clusterManagerDataPathSettings = internalCluster().dataPathSettings(internalCluster().getClusterManagerName());
+        internalCluster().stopCurrentClusterManagerNode();
 
         try {
             assertThat(
@@ -132,7 +132,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
             Settings.builder().put(nonDataNode(NodeRoles.clusterManagerNode())).put(clusterManagerDataPathSettings)
         );
         assertThat(
-            internalCluster().nonMasterClient()
+            internalCluster().nonClusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -145,7 +145,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
             equalTo(nextClusterManagerEligibleNodeName)
         );
         assertThat(
-            internalCluster().masterClient()
+            internalCluster().clusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -183,7 +183,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
         logger.info("--> start cluster-manager node (1)");
         final String clusterManagerNodeName = internalCluster().startClusterManagerOnlyNode();
         assertThat(
-            internalCluster().nonMasterClient()
+            internalCluster().nonClusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -196,7 +196,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
             equalTo(clusterManagerNodeName)
         );
         assertThat(
-            internalCluster().masterClient()
+            internalCluster().clusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -212,7 +212,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
         logger.info("--> start cluster-manager node (2)");
         final String nextClusterManagerEligableNodeName = internalCluster().startClusterManagerOnlyNode();
         assertThat(
-            internalCluster().nonMasterClient()
+            internalCluster().nonClusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -225,7 +225,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
             equalTo(clusterManagerNodeName)
         );
         assertThat(
-            internalCluster().nonMasterClient()
+            internalCluster().nonClusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -238,7 +238,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
             equalTo(clusterManagerNodeName)
         );
         assertThat(
-            internalCluster().masterClient()
+            internalCluster().clusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -256,7 +256,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
         // removing the cluster-manager from the voting configuration immediately triggers the cluster-manager to step down
         assertBusy(() -> {
             assertThat(
-                internalCluster().nonMasterClient()
+                internalCluster().nonClusterManagerClient()
                     .admin()
                     .cluster()
                     .prepareState()
@@ -269,7 +269,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 equalTo(nextClusterManagerEligableNodeName)
             );
             assertThat(
-                internalCluster().masterClient()
+                internalCluster().clusterManagerClient()
                     .admin()
                     .cluster()
                     .prepareState()
@@ -284,7 +284,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
         });
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(clusterManagerNodeName));
         assertThat(
-            internalCluster().nonMasterClient()
+            internalCluster().nonClusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()
@@ -297,7 +297,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
             equalTo(nextClusterManagerEligableNodeName)
         );
         assertThat(
-            internalCluster().masterClient()
+            internalCluster().clusterManagerClient()
                 .admin()
                 .cluster()
                 .prepareState()

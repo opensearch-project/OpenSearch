@@ -460,7 +460,7 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
     public void testShardActiveElseWhere() throws Exception {
         List<String> nodes = internalCluster().startNodes(2);
 
-        final String clusterManagerNode = internalCluster().getMasterName();
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
         final String nonClusterManagerNode = nodes.get(0).equals(clusterManagerNode) ? nodes.get(1) : nodes.get(0);
 
         final String clusterManagerId = internalCluster().clusterService(clusterManagerNode).localNode().getId();

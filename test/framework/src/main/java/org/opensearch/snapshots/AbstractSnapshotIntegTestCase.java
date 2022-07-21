@@ -166,7 +166,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected RepositoryData getRepositoryData(String repository) {
-        return getRepositoryData(internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repository));
+        return getRepositoryData(internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class).repository(repository));
     }
 
     protected RepositoryData getRepositoryData(Repository repository) {
@@ -175,7 +175,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;
-        for (RepositoriesService repositoriesService : internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
+        for (RepositoriesService repositoriesService : internalCluster().getDataOrClusterManagerNodeInstances(RepositoriesService.class)) {
             MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
             failureCount += mockRepository.getFailureCount();
         }
@@ -252,27 +252,27 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     public static String blockClusterManagerFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
-        final String clusterManagerName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getClusterManagerName();
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerName).repository(repositoryName))
             .setBlockAndFailOnWriteIndexFile();
         return clusterManagerName;
     }
 
     public static String blockClusterManagerOnWriteIndexFile(final String repositoryName) {
-        final String clusterManagerName = internalCluster().getMasterName();
-        ((MockRepository) internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repositoryName))
+        final String clusterManagerName = internalCluster().getClusterManagerName();
+        ((MockRepository) internalCluster().getClusterManagerNodeInstance(RepositoriesService.class).repository(repositoryName))
             .setBlockOnWriteIndexFile();
         return clusterManagerName;
     }
 
     public static void blockClusterManagerFromDeletingIndexNFile(String repositoryName) {
-        final String clusterManagerName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getClusterManagerName();
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerName).repository(repositoryName))
             .setBlockOnDeleteIndexFile();
     }
 
     public static String blockClusterManagerFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
-        final String clusterManagerName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getClusterManagerName();
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerName).repository(repositoryName))
             .setBlockAndFailOnWriteSnapFiles(true);
         return clusterManagerName;
@@ -503,7 +503,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             initialRepoMetadata.generation(),
             is(RepositoryData.UNKNOWN_REPO_GEN)
         );
-        final Repository repo = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final Repository repo = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class).repository(repoName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(
@@ -535,7 +535,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected void awaitNoMoreRunningOperations() throws Exception {
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+        awaitNoMoreRunningOperations(internalCluster().getClusterManagerName());
     }
 
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
@@ -548,7 +548,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(internalCluster().getMasterName(), statePredicate);
+        awaitClusterState(internalCluster().getClusterManagerName(), statePredicate);
     }
 
     protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
@@ -625,7 +625,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     protected void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final ClusterService clusterService = internalCluster().getCurrentClusterManagerNodeInstance(ClusterService.class);
         clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -653,7 +653,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     protected void awaitClusterManagerFinishRepoOperations() throws Exception {
         logger.info("--> waiting for cluster-manager to finish all repo operations on its SNAPSHOT pool");
-        final ThreadPool clusterManagerThreadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
+        final ThreadPool clusterManagerThreadPool = internalCluster().getClusterManagerNodeInstance(ThreadPool.class);
         assertBusy(() -> {
             for (ThreadPoolStats.Stats stat : clusterManagerThreadPool.stats()) {
                 if (ThreadPool.Names.SNAPSHOT.equals(stat.getName())) {

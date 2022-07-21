@@ -157,7 +157,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repositoryName, snapshotToBeDeletedLastName);
 
         // Create more snapshots to be deleted in bulk
-        int maxThreadsForSnapshotDeletion = internalCluster().getMasterNodeInstance(ThreadPool.class)
+        int maxThreadsForSnapshotDeletion = internalCluster().getClusterManagerNodeInstance(ThreadPool.class)
             .info(ThreadPool.Names.SNAPSHOT)
             .getMax();
         for (int i = 1; i <= maxThreadsForSnapshotDeletion + 1; i++) {
@@ -177,7 +177,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         // Make repository to throw exception when trying to delete stale indices
         // This will make sure stale indices stays in repository after snapshot delete
-        String clusterManagerNode = internalCluster().getMasterName();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repository("test-repo"))
             .setThrowExceptionWhileDelete(true);
 

@@ -130,7 +130,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
 
     public void testDeleteSingleItem() {
         final String repoName = createRepository(randomName());
-        final RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
+        final RepositoriesService repositoriesService = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         PlainActionFuture.get(
             f -> repository.threadPool()

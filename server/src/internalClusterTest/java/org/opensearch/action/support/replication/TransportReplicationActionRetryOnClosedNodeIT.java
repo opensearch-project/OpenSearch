@@ -203,7 +203,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
     }
 
     public void testRetryOnStoppedTransportService() throws Exception {
-        internalCluster().startMasterOnlyNodes(2);
+        internalCluster().startClusterManagerOnlyNodes(2);
         String primary = internalCluster().startDataOnlyNode();
         assertAcked(
             prepareCreate("test").setSettings(

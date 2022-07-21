@@ -837,7 +837,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testClusterManagerShutdownDuringSnapshot() throws Exception {
         logger.info("-->  starting two cluster-manager nodes and two data nodes");
-        internalCluster().startMasterOnlyNodes(2);
+        internalCluster().startClusterManagerOnlyNodes(2);
         internalCluster().startDataOnlyNodes(2);
 
         final Path repoPath = randomRepoPath();
@@ -860,7 +860,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .get();
 
         logger.info("--> stopping cluster-manager node");
-        internalCluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentClusterManagerNode();
 
         logger.info("--> wait until the snapshot is done");
 
@@ -875,7 +875,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testClusterManagerAndDataShutdownDuringSnapshot() throws Exception {
         logger.info("-->  starting three cluster-manager nodes and two data nodes");
-        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startClusterManagerOnlyNodes(3);
         internalCluster().startDataOnlyNodes(2);
 
         final Path repoPath = randomRepoPath();
@@ -903,7 +903,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> stopping data node {}", dataNode);
         stopNode(dataNode);
         logger.info("--> stopping cluster-manager node {} ", clusterManagerNode);
-        internalCluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentClusterManagerNode();
 
         logger.info("--> wait until the snapshot is done");
 
@@ -1159,7 +1159,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("-->  snapshot");
         ServiceDisruptionScheme disruption = new BusyMasterServiceDisruption(random(), Priority.HIGH);
         setDisruptionScheme(disruption);
-        client(internalCluster().getMasterName()).admin()
+        client(internalCluster().getClusterManagerName()).admin()
             .cluster()
             .prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(false)
@@ -1213,7 +1213,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         blockAllDataNodes("test-repo");
         logger.info("-->  snapshot");
-        client(internalCluster().getMasterName()).admin()
+        client(internalCluster().getClusterManagerName()).admin()
             .cluster()
             .prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(false)
@@ -1399,7 +1399,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository(repoName, "fs");
         createIndex("some-index");
 
-        final SnapshotsService snapshotsService = internalCluster().getMasterNodeInstance(SnapshotsService.class);
+        final SnapshotsService snapshotsService = internalCluster().getClusterManagerNodeInstance(SnapshotsService.class);
         final Snapshot snapshot1 = PlainActionFuture.get(
             f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f)
         );
