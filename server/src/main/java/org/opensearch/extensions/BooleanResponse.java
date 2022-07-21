@@ -24,7 +24,7 @@ public class BooleanResponse extends TransportResponse {
     private final boolean status;
 
     /**
-     * @param status boolean indicating the status of the parse request sent to the SDK
+     * @param status Boolean indicating the status of the parse request sent to the SDK
      */
     public BooleanResponse(boolean status) {
         this.status = status;

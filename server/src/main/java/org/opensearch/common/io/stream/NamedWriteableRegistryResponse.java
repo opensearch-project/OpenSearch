@@ -25,7 +25,7 @@ public class NamedWriteableRegistryResponse extends TransportResponse {
     private final Map<String, Class> registry;
 
     /**
-     * @param registry map of writeable names and their associated category class
+     * @param registry Map of writeable names and their associated category class
      */
     public NamedWriteableRegistryResponse(Map<String, Class> registry) {
         this.registry = new HashMap<>(registry);
@@ -37,7 +37,7 @@ public class NamedWriteableRegistryResponse extends TransportResponse {
      */
     public NamedWriteableRegistryResponse(StreamInput in) throws IOException {
         super(in);
-        // stream output for registry map begins with a variable integer that tells us the number of entries being sent across the wire
+        // Stream output for registry map begins with a variable integer that tells us the number of entries being sent across the wire
         Map<String, Class> registry = new HashMap<>();
         int registryEntryCount = in.readVInt();
         for (int i = 0; i < registryEntryCount; i++) {
@@ -55,11 +55,11 @@ public class NamedWriteableRegistryResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // stream out registry size prior to streaming out registry entries
+        // Stream out registry size prior to streaming out registry entries
         out.writeVInt(this.registry.size());
         for (Map.Entry<String, Class> entry : registry.entrySet()) {
-            out.writeString(entry.getKey());   // unique named writeable name
-            out.writeString(entry.getValue().getName()); // fully qualified category class name
+            out.writeString(entry.getKey());   // Unique named writeable name
+            out.writeString(entry.getValue().getName()); // Fully qualified category class name
         }
     }
 

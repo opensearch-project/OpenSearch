@@ -24,8 +24,8 @@ public class NamedWriteableRegistryParseRequest extends TransportRequest {
     private byte[] context;
 
     /**
-     * @param categoryClassName string representing the fully qualified class name used to generate the corresponding class object at runtime
-     * @param context byte array generated from a {@link StreamInput} instance
+     * @param categoryClassName String representing the fully qualified class name used to generate the corresponding class object at runtime
+     * @param context Byte array generated from a {@link StreamInput} instance
      * @throws IllegalArgumentException if the fully qualified class name is invalid and the class object cannot be generated at runtime
      */
     public NamedWriteableRegistryParseRequest(String categoryClassName, byte[] context) {

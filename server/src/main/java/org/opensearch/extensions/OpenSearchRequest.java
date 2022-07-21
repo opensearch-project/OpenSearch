@@ -28,7 +28,7 @@ public class OpenSearchRequest extends TransportRequest {
     private ExtensionsOrchestrator.OpenSearchRequestType requestType;
 
     /**
-     * @param requestType string identifying the default extension point to invoke on the extension
+     * @param requestType String identifying the default extension point to invoke on the extension
      */
     public OpenSearchRequest(ExtensionsOrchestrator.OpenSearchRequestType requestType) {
         this.requestType = requestType;

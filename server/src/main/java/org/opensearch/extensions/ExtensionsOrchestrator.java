@@ -294,7 +294,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      */
     public void getNamedWriteables() {
 
-        // retrieve named writeable registry entries from each extension
+        // Retrieve named writeable registry entries from each extension
         for (DiscoveryNode extensionNode : extensionsList) {
             try {
                 Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionRegistry = getNamedWriteables(extensionNode);
@@ -415,7 +415,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     /**
      * Iterates through list of discovered extensions and returns the callback method associated with the given category class and name
      *
-     * @param categoryClass class that the Writeable object extends
+     * @param categoryClass Class that the Writeable object extends
      * @param name Unique name identifiying the Writeable object
      * @throws IllegalArgumentException if there is no reader associated with the given category class and name
      * @return A map of the discovery node and its associated extension reader
@@ -465,8 +465,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Transports a byte array and associated category class to the given extension, identified by its discovery node
      *
      * @param extensionNode Discovery Node identifying the extension associated with the category class and name
-     * @param categoryClass class that the Writeable object extends
-     * @param context byte array generated from a {@link StreamInput} object to transport to the extension
+     * @param categoryClass Class that the Writeable object extends
+     * @param context Byte array generated from a {@link StreamInput} object to transport to the extension
      */
     public void parseNamedWriteable(DiscoveryNode extensionNode, Class categoryClass, byte[] context) throws UnknownHostException {
         logger.info("Sending extension request type: " + REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE);
