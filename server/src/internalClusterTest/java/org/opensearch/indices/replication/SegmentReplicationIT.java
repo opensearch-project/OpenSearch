@@ -9,12 +9,16 @@
 package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.apache.lucene.index.SegmentInfos;
 import org.junit.BeforeClass;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
@@ -27,6 +31,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +93,6 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             refresh(INDEX_NAME);
             waitForReplicaUpdate();
 
-            // wait a short amount of time to give replication a chance to complete.
             assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
             assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
 
@@ -141,7 +145,6 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             waitForDocs(expectedHitCount, indexer);
 
             // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
-            // This case tests that replicas preserve these files so the local store is not corrupt.
             client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
             refresh(INDEX_NAME);
             waitForReplicaUpdate();
@@ -151,14 +154,6 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             ensureGreen(INDEX_NAME);
             assertSegmentStats(REPLICA_COUNT);
         }
-
-    }
-
-    private IndexShard getIndexShard(Index index, String node) {
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
-        final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
-        return indexService.getShard(shardId.get());
     }
 
     public void testStartReplicaAfterPrimaryIndexesDocs() throws Exception {
@@ -176,7 +171,6 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         client().prepareIndex(INDEX_NAME).setId("2").setSource("foo", "bar").get();
 
         // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
-        // This case tests that we are still sending these older segments to replicas so the index on disk is not corrupt.
         client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
         refresh(INDEX_NAME);
 
@@ -205,7 +199,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertSegmentStats(REPLICA_COUNT);
     }
 
-    private void assertSegmentStats(int numberOfReplicas) {
+    private void assertSegmentStats(int numberOfReplicas) throws IOException {
         final IndicesSegmentResponse indicesSegmentResponse = client().admin().indices().segments(new IndicesSegmentsRequest()).actionGet();
 
         List<ShardSegments[]> segmentsByIndex = getShardSegments(indicesSegmentResponse);
@@ -237,6 +231,17 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                     assertEquals(replicaSegment.getDeletedDocs(), primarySegment.getDeletedDocs());
                     assertEquals(replicaSegment.getSize(), primarySegment.getSize());
                 }
+
+                // Fetch the IndexShard for this replica and try and build its SegmentInfos from the previous commit point.
+                // This ensures the previous commit point is not wiped.
+                final ShardRouting replicaShardRouting = shardSegment.getShardRouting();
+                ClusterState state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
+                final DiscoveryNode replicaNode = state.nodes().resolveNode(replicaShardRouting.currentNodeId());
+                final Index index = resolveIndex(INDEX_NAME);
+                IndexShard indexShard = getIndexShard(index, replicaNode.getName());
+                final String lastCommitSegmentsFileName = SegmentInfos.getLastCommitSegmentsFileName(indexShard.store().directory());
+                // calls to readCommit will fail if a valid commit point and all its segments are not in the store.
+                SegmentInfos.readCommit(indexShard.store().directory(), lastCommitSegmentsFileName);
             }
         }
     }
@@ -245,7 +250,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
      * Waits until the replica is caught up to the latest primary segments gen.
      * @throws Exception
      */
-    public void waitForReplicaUpdate() throws Exception {
+    private void waitForReplicaUpdate() throws Exception {
         // wait until the replica has the latest segment generation.
         assertBusy(() -> {
             final IndicesSegmentResponse indicesSegmentResponse = client().admin()
@@ -269,6 +274,13 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                 }
             }
         });
+    }
+
+    private IndexShard getIndexShard(Index index, String node) {
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+        IndexService indexService = indicesService.indexServiceSafe(index);
+        final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
+        return indexService.getShard(shardId.get());
     }
 
     private List<ShardSegments[]> getShardSegments(IndicesSegmentResponse indicesSegmentResponse) {

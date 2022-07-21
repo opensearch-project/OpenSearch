@@ -123,7 +123,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final PeerRecoveryTargetService recoveryTargetService;
-    private final SegmentReplicationTargetService segmentReplicationTargetService;
     private final ShardStateAction shardStateAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
@@ -138,7 +137,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();
 
     private final boolean sendRefreshMapping;
-    private final List<IndexEventListener> buildInIndexListener;
+    private final List<IndexEventListener> builtInIndexListener;
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final Consumer<ShardId> globalCheckpointSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
@@ -213,12 +212,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
             indexEventListeners.add(segmentReplicationTargetService);
         }
-        this.buildInIndexListener = Collections.unmodifiableList(indexEventListeners);
+        this.builtInIndexListener = Collections.unmodifiableList(indexEventListeners);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.recoveryTargetService = recoveryTargetService;
-        this.segmentReplicationTargetService = segmentReplicationTargetService;
         this.shardStateAction = shardStateAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
         this.repositoriesService = repositoriesService;
@@ -530,7 +528,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
+                indexService = indicesService.createIndex(indexMetadata, builtInIndexListener, true);
                 if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(
                         state.nodes().getClusterManagerNode(),
