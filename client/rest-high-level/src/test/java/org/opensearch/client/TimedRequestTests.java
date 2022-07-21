@@ -41,7 +41,7 @@ public class TimedRequestTests extends OpenSearchTestCase {
         TimedRequest timedRequest = new TimedRequest() {
         };
         assertEquals(timedRequest.timeout(), TimedRequest.DEFAULT_ACK_TIMEOUT);
-        assertEquals(timedRequest.masterNodeTimeout(), TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT);
+        assertEquals(timedRequest.clusterManagerNodeTimeout(), TimedRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
     }
 
     public void testNonDefaults() {
@@ -50,8 +50,8 @@ public class TimedRequestTests extends OpenSearchTestCase {
         TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         TimeValue clusterManagerTimeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         timedRequest.setTimeout(timeout);
-        timedRequest.setMasterTimeout(clusterManagerTimeout);
+        timedRequest.setClusterManagerTimeout(clusterManagerTimeout);
         assertEquals(timedRequest.timeout(), timeout);
-        assertEquals(timedRequest.masterNodeTimeout(), clusterManagerTimeout);
+        assertEquals(timedRequest.clusterManagerNodeTimeout(), clusterManagerTimeout);
     }
 }
