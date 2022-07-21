@@ -59,7 +59,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -112,8 +111,8 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
 
     public void testIndexCleanup() throws Exception {
         internalCluster().startNode(nonDataNode());
-        final String node_1 = internalCluster().startNode(NodeRoles.nonClusterManagerNode());
-        final String node_2 = internalCluster().startNode(NodeRoles.nonClusterManagerNode());
+        final String node_1 = internalCluster().startNode(nonClusterManagerNode());
+        final String node_2 = internalCluster().startNode(nonClusterManagerNode());
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(
             prepareCreate("test").setSettings(
@@ -134,7 +133,7 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
         assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
 
         logger.info("--> starting node server3");
-        final String node_3 = internalCluster().startNode(NodeRoles.nonClusterManagerNode());
+        final String node_3 = internalCluster().startNode(nonClusterManagerNode());
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin()
             .cluster()

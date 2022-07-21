@@ -90,7 +90,6 @@ import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.InternalTestCluster;
@@ -125,6 +124,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFutureThrows;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
@@ -760,7 +760,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startNode();
         logger.info("--> start second node");
         // Make sure the first node is elected as cluster-manager
-        internalCluster().startNode(NodeRoles.nonClusterManagerNode());
+        internalCluster().startNode(nonClusterManagerNode());
         // Register mock repositories
         for (int i = 0; i < 5; i++) {
             clusterAdmin().preparePutRepository("test-repo" + i)

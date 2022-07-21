@@ -53,7 +53,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
-import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
@@ -131,7 +130,7 @@ public class GatewayServiceTests extends OpenSearchTestCase {
         ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode clusterManagerNode = DiscoveryNode.createLocal(
-            settings(Version.CURRENT).put(NodeRoles.clusterManagerNode()).build(),
+            settings(Version.CURRENT).put(clusterManagerNode()).build(),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             nodeId
         );

@@ -37,7 +37,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoveryModule;
-import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.TransportRequest;
@@ -64,6 +63,7 @@ import static org.opensearch.common.settings.Settings.builder;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -680,7 +680,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         final Settings.Builder settings = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
             .put(NODE_NAME_SETTING.getKey(), localNode.getName())
-            .put(NodeRoles.nonClusterManagerNode());
+            .put(nonClusterManagerNode());
 
         assertThat(
             expectThrows(

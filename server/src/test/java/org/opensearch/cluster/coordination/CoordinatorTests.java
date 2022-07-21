@@ -57,7 +57,6 @@ import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.MockLogAppender;
-import org.opensearch.test.NodeRoles;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -91,6 +90,7 @@ import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SH
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1702,7 +1702,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             chosenNode.close();
             cluster.clusterNodes.replaceAll(
-                cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), NodeRoles.nonClusterManagerNode()) : cn
+                cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), nonClusterManagerNode()) : cn
             );
             cluster.stabilise();
 

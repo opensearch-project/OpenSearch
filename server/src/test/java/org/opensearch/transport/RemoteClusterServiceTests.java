@@ -44,7 +44,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -64,6 +63,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -552,7 +552,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
     public void testRemoteNodeRoles() throws IOException, InterruptedException {
         final Settings settings = Settings.EMPTY;
         final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        final Settings data = NodeRoles.nonClusterManagerNode();
+        final Settings data = nonClusterManagerNode();
         final Settings dedicatedClusterManager = clusterManagerOnlyNode();
         try (
             MockTransportService c1N1 = startTransport("cluster_1_node_1", knownNodes, Version.CURRENT, dedicatedClusterManager);
