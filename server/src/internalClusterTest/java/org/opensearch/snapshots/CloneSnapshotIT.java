@@ -469,7 +469,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repoName, sourceSnapshot);
 
         final String targetSnapshot = "target-snapshot";
-        blockMasterFromFinalizingSnapshotOnSnapFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnSnapFile(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture = startCloneFromDataNode(repoName, sourceSnapshot, targetSnapshot, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
         final String clusterManagerNode = internalCluster().getMasterName();
@@ -528,7 +528,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        blockMasterOnWriteIndexFile(repoName);
+        blockClusterManagerOnWriteIndexFile(repoName);
         final String cloneName = "clone-blocked";
         final ActionFuture<AcknowledgedResponse> blockedClone = startClone(repoName, sourceSnapshot, cloneName, indexName);
         waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
@@ -558,7 +558,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        blockMasterOnWriteIndexFile(repoName);
+        blockClusterManagerOnWriteIndexFile(repoName);
         final String cloneName = "clone-blocked";
         final ActionFuture<AcknowledgedResponse> blockedClone = startClone(repoName, sourceSnapshot, cloneName, indexName);
         waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
@@ -588,7 +588,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        blockMasterOnWriteIndexFile(repoName);
+        blockClusterManagerOnWriteIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> blockedSnapshot = startFullSnapshot(repoName, "snap-blocked");
         waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         awaitNumberOfSnapshotsInProgress(1);

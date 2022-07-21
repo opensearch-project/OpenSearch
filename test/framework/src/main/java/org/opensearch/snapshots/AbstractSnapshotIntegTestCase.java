@@ -251,31 +251,55 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         return null;
     }
 
-    public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
+    public static String blockClusterManagerFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
         final String clusterManagerName = internalCluster().getMasterName();
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerName).repository(repositoryName))
             .setBlockAndFailOnWriteIndexFile();
         return clusterManagerName;
     }
 
-    public static String blockMasterOnWriteIndexFile(final String repositoryName) {
+    public static String blockClusterManagerOnWriteIndexFile(final String repositoryName) {
         final String clusterManagerName = internalCluster().getMasterName();
         ((MockRepository) internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repositoryName))
             .setBlockOnWriteIndexFile();
         return clusterManagerName;
     }
 
-    public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
+    public static void blockClusterManagerFromDeletingIndexNFile(String repositoryName) {
         final String clusterManagerName = internalCluster().getMasterName();
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerName).repository(repositoryName))
             .setBlockOnDeleteIndexFile();
     }
 
-    public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
+    public static String blockClusterManagerFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
         final String clusterManagerName = internalCluster().getMasterName();
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerName).repository(repositoryName))
             .setBlockAndFailOnWriteSnapFiles(true);
         return clusterManagerName;
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerFromFinalizingSnapshotOnIndexFile(String)} */
+    @Deprecated
+    public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
+        return blockClusterManagerFromFinalizingSnapshotOnIndexFile(repositoryName);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerOnWriteIndexFile(String)} */
+    @Deprecated
+    public static String blockMasterOnWriteIndexFile(final String repositoryName) {
+        return blockClusterManagerOnWriteIndexFile(repositoryName);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerFromDeletingIndexNFile(String)} */
+    @Deprecated
+    public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
+        blockClusterManagerFromDeletingIndexNFile(repositoryName);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerFromFinalizingSnapshotOnSnapFile(String)} */
+    @Deprecated
+    public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
+        return blockClusterManagerFromFinalizingSnapshotOnSnapFile(repositoryName);
     }
 
     public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
@@ -638,5 +662,11 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 }
             }
         });
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #awaitClusterManagerFinishRepoOperations()} */
+    @Deprecated
+    protected void awaitMasterFinishRepoOperations() throws Exception {
+        awaitClusterManagerFinishRepoOperations();
     }
 }

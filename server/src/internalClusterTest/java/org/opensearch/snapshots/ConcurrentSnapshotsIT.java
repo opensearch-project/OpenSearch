@@ -312,7 +312,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String firstSnapshot = "first-snapshot";
         createFullSnapshot(repoName, firstSnapshot);
 
-        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, firstSnapshot);
         waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
 
@@ -591,7 +591,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent("index-one");
         createNSnapshots(repoName, randomIntBetween(2, 5));
 
-        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<AcknowledgedResponse> firstDeleteFuture = startDeleteSnapshot(repoName, "*");
         waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
 
@@ -718,7 +718,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final NetworkDisruption networkDisruption = isolateClusterManagerDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
-        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> firstFailedSnapshotFuture = startFullSnapshotFromClusterManagerClient(
             repoName,
             "failing-snapshot-1"
@@ -819,7 +819,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final long generation = getRepositoryData(repoName).getGenId();
         final String clusterManagerNode = internalCluster().getMasterName();
-        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromNonClusterManagerClient(repoName, "snapshot-three");
         waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
 
@@ -1044,7 +1044,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent("index-test");
         createNSnapshots(repoName, randomIntBetween(1, 5));
         final String snapshotName = "snap-name";
-        blockMasterFromDeletingIndexNFile(repoName);
+        blockClusterManagerFromDeletingIndexNFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, snapshotName);
         waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, snapshotName);
@@ -1091,7 +1091,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(2, 5));
         final String clusterManagerName = internalCluster().getMasterName();
-        blockMasterFromDeletingIndexNFile(repoName);
+        blockClusterManagerFromDeletingIndexNFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromClusterManagerClient(repoName, "snap-other");
         waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
 
@@ -1210,8 +1210,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         corruptIndexN(repoPath, getRepositoryData(repoName).getGenId());
 
-        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
-        blockMasterFromFinalizingSnapshotOnIndexFile(otherRepoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(otherRepoName);
 
         client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-blocked-1").setWaitForCompletion(false).get();
         client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-blocked-2").setWaitForCompletion(false).get();
@@ -1338,7 +1338,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
-        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
         final String snapshotName = "snap-1";
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, snapshotName);
         waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
@@ -1386,7 +1386,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent("test-idx");
         createFullSnapshot(repoName, "first-snapshot");
 
-        blockMasterOnWriteIndexFile(repoName);
+        blockClusterManagerOnWriteIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> blockedSnapshot = startFullSnapshot(repoName, "snap-blocked");
         waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         awaitNumberOfSnapshotsInProgress(1);
@@ -1510,7 +1510,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     private ActionFuture<CreateSnapshotResponse> startAndBlockFailingFullSnapshot(String blockedRepoName, String snapshotName)
         throws InterruptedException {
-        blockMasterFromFinalizingSnapshotOnIndexFile(blockedRepoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(blockedRepoName);
         final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(blockedRepoName, snapshotName);
         waitForBlock(internalCluster().getMasterName(), blockedRepoName, TimeValue.timeValueSeconds(30L));
         return fut;

@@ -890,7 +890,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numberOfShards = getNumShards("test-idx").numPrimaries;
         logger.info("number of shards: {}", numberOfShards);
 
-        final String clusterManagerNode = blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
+        final String clusterManagerNode = blockClusterManagerFromFinalizingSnapshotOnSnapFile("test-repo");
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
 
         dataNodeClient().admin()

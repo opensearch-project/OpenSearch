@@ -117,7 +117,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
             );
         garbageFuture.get();
 
-        final String clusterManagerNode = blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        final String clusterManagerNode = blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
 
         logger.info("--> starting repository cleanup");
         client().admin().cluster().prepareCleanupRepository(repoName).execute();

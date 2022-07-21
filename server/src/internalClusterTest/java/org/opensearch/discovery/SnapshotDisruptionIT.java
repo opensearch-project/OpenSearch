@@ -212,7 +212,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         index(idxName, "type", JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
         logger.info("--> run a snapshot that fails to finalize but succeeds on the data node");
-        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = client(clusterManagerNode).admin()
             .cluster()
             .prepareCreateSnapshot(repoName, "snapshot-2")
