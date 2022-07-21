@@ -99,7 +99,7 @@ public class NoOpEngineTests extends EngineTestCase {
             allocationId
         );
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
-        tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
+        tracker.updateFromClusterManager(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
         for (int i = 0; i < docs; i++) {
             ParsedDocument doc = testParsedDocument("" + i, null, testDocumentWithTextField(), B_1, null);
@@ -203,7 +203,7 @@ public class NoOpEngineTests extends EngineTestCase {
             allocationId
         );
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
-        tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
+        tracker.updateFromClusterManager(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
         engine.onSettingsChanged(TimeValue.MINUS_ONE, ByteSizeValue.ZERO, randomNonNegativeLong());
         final int numDocs = scaledRandomIntBetween(10, 3000);

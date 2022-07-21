@@ -728,7 +728,7 @@ public class Node implements Closeable {
                 systemIndices,
                 scriptService
             );
-            if (DiscoveryNode.isMasterNode(settings)) {
+            if (DiscoveryNode.isClusterManagerNode(settings)) {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             }
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
@@ -1122,7 +1122,7 @@ public class Node implements Closeable {
             ClusterState clusterState = clusterService.state();
             ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
 
-            if (clusterState.nodes().getMasterNodeId() == null) {
+            if (clusterState.nodes().getClusterManagerNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -1141,7 +1141,7 @@ public class Node implements Closeable {
                         logger.warn("timed out while waiting for initial discovery state - timeout: {}", initialStateTimeout);
                         latch.countDown();
                     }
-                }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
+                }, state -> state.nodes().getClusterManagerNodeId() != null, initialStateTimeout);
 
                 try {
                     latch.await();
@@ -1464,7 +1464,7 @@ public class Node implements Closeable {
         NodeClient client
     ) {
         final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
-        if (DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
             // listen for state changes (this node starts/stops being the elected cluster manager, or new nodes are added)
             clusterService.addListener(service);
         }

@@ -82,7 +82,10 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             } catch (ClusterManagerNotDiscoveredException e) {
                 return; // ok, we hit the disconnected node
             }
-            assertNotNull("should always contain a cluster-manager node", clusterStateResponse.getState().nodes().getMasterNodeId());
+            assertNotNull(
+                "should always contain a cluster-manager node",
+                clusterStateResponse.getState().nodes().getClusterManagerNodeId()
+            );
         });
     }
 
@@ -134,7 +137,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             }
             if (clusterStateResponse.isWaitForTimedOut() == false) {
                 final ClusterState state = clusterStateResponse.getState();
-                assertNotNull("should always contain a cluster-manager node", state.nodes().getMasterNodeId());
+                assertNotNull("should always contain a cluster-manager node", state.nodes().getClusterManagerNodeId());
                 assertThat("waited for metadata version", state.metadata().version(), greaterThanOrEqualTo(waitForMetadataVersion));
             }
         });

@@ -221,7 +221,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         logger.trace(
                             "stopped being cluster-manager while waiting for events with priority [{}]. retrying.",
                             request.waitForEvents()

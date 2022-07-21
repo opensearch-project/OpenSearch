@@ -244,13 +244,13 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(clusterManager, state.nodes().getMasterNode().getName());
+        assertEquals(clusterManager, state.nodes().getClusterManagerNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(1));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
                 // primary must not be on the cluster-manager node
-                assertFalse(state.nodes().getMasterNodeId().equals(shard.currentNodeId()));
+                assertFalse(state.nodes().getClusterManagerNodeId().equals(shard.currentNodeId()));
             } else {
                 fail(); // only primaries
             }
@@ -336,13 +336,13 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(clusterManager, state.nodes().getMasterNode().getName());
+        assertEquals(clusterManager, state.nodes().getClusterManagerNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(2));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
                 // primary must be on the cluster-manager
-                assertEquals(state.nodes().getMasterNodeId(), shard.currentNodeId());
+                assertEquals(state.nodes().getClusterManagerNodeId(), shard.currentNodeId());
             } else {
                 assertTrue(shard.active());
             }

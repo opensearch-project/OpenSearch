@@ -136,7 +136,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 DiscoveryNodes.builder()
                     .add(localNode)
                     .localNodeId(localNode.getId())
-                    .masterNodeId(makeClusterManager ? localNode.getId() : null)
+                    .clusterManagerNodeId(makeClusterManager ? localNode.getId() : null)
             )
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();

@@ -397,13 +397,19 @@ public class ClusterStateChanges {
         );
     }
 
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+    public ClusterState joinNodesAndBecomeClusterManager(ClusterState clusterState, List<DiscoveryNode> nodes) {
         List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
-        joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
+        joinNodes.add(JoinTaskExecutor.newBecomeClusterManagerTask());
         joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
         joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList()));
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #joinNodesAndBecomeClusterManager(ClusterState, List)} */
+    @Deprecated
+    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+        return joinNodesAndBecomeClusterManager(clusterState, nodes);
     }
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {

@@ -168,7 +168,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         assertThat(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         // verify that both nodes are still in the cluster state but there is no cluster-manager
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.nodes().getMasterNode(), equalTo(null));
+        assertThat(state.nodes().getClusterManagerNode(), equalTo(null));
 
         logger.info("--> starting the previous cluster-manager node again...");
         node2Name = internalCluster().startNode(Settings.builder().put(settings).put(clusterManagerDataPathSettings).build());
@@ -387,7 +387,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         assertThat(failure.get(), instanceOf(FailedToCommitClusterStateException.class));
 
         logger.debug("--> check that there is no cluster-manager in minor partition");
-        assertBusy(() -> assertThat(clusterManagerClusterService.state().nodes().getMasterNode(), nullValue()));
+        assertBusy(() -> assertThat(clusterManagerClusterService.state().nodes().getClusterManagerNode(), nullValue()));
 
         // let major partition to elect new cluster-manager, to ensure that old cluster-manager is not elected once partition is restored,
         // otherwise persistent setting (which is a part of accepted state on old cluster-manager) will be propagated to other nodes
@@ -401,7 +401,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode();
+                .getClusterManagerNode();
             assertThat(clusterManagerNode, notNullValue());
             assertThat(clusterManagerNode.getName(), not(equalTo(clusterManager)));
         });

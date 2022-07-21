@@ -85,7 +85,7 @@ public class ClusterSerializationTests extends OpenSearchAllocationTestCase {
             .add(newNode("node2"))
             .add(newNode("node3"))
             .localNodeId("node1")
-            .masterNodeId("node2")
+            .clusterManagerNodeId("node2")
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("clusterName1"))

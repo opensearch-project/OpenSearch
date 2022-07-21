@@ -189,7 +189,7 @@ public class RestoreService implements ClusterStateApplier {
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.metadataIndexUpgradeService = metadataIndexUpgradeService;
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+        if (DiscoveryNode.isClusterManagerNode(clusterService.getSettings())) {
             clusterService.addStateApplier(this);
         }
         this.clusterSettings = clusterService.getClusterSettings();
@@ -969,7 +969,7 @@ public class RestoreService implements ClusterStateApplier {
         }
 
         @Override
-        public void onNoLongerMaster(String source) {
+        public void onNoLongerClusterManager(String source) {
             logger.debug("no longer cluster-manager while processing restore state update [{}]", source);
         }
 
@@ -1119,7 +1119,7 @@ public class RestoreService implements ClusterStateApplier {
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         try {
-            if (event.localNodeMaster()) {
+            if (event.localNodeClusterManager()) {
                 cleanupRestoreState(event);
             }
         } catch (Exception t) {
