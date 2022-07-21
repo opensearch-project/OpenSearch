@@ -60,13 +60,29 @@ public class RestGetAllPitsAction extends BaseRestHandler {
                 }
                 DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
                 nodes.toArray(disNodesArr);
-                GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
+                GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(
+                        request.paramAsBoolean("include_all", false), disNodesArr);
                 client.execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest, new RestResponseListener<GetAllPitNodesResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(final GetAllPitNodesResponse getAllPITNodesResponse) throws Exception {
                         try (XContentBuilder builder = channel.newBuilder()) {
                             builder.startObject();
+                            if(getAllPITNodesResponse.hasFailures()) {
+                                builder.startArray("failures");
+                                for (int idx = 0; idx < getAllPITNodesResponse.failures().size(); idx++) {
+                                    builder.field(getAllPITNodesResponse.failures().get(idx).nodeId(),
+                                            getAllPITNodesResponse.failures().get(idx).getDetailedMessage());
+                                }
+                                builder.endArray();
+                            }
                             builder.field("pits", getAllPITNodesResponse.getPITIDs());
+                            if(getAllPITNodesRequest.getIncludeAll()) {
+                                builder.startArray("nodeResults");
+                                for (int idx = 0; idx < getAllPITNodesResponse.getNodes().size(); idx++) {
+                                    builder.value(getAllPITNodesResponse.getNodes().get(idx));
+                                }
+                                builder.endArray();
+                            }
                             builder.endObject();
                             return new BytesRestResponse(RestStatus.OK, builder);
                         }

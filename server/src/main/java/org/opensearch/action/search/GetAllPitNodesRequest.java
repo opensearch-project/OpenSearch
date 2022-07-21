@@ -20,17 +20,26 @@ import java.io.IOException;
  * Request to get all active PIT IDs from all nodes of cluster
  */
 public class GetAllPitNodesRequest extends BaseNodesRequest<GetAllPitNodesRequest> {
+
+    boolean includeAll;
+
     @Inject
-    public GetAllPitNodesRequest(DiscoveryNode... concreteNodes) {
+    public GetAllPitNodesRequest(boolean includeAll, DiscoveryNode... concreteNodes) {
         super(concreteNodes);
+        this.includeAll = includeAll;
+
     }
 
     public GetAllPitNodesRequest(StreamInput in) throws IOException {
         super(in);
+        this.includeAll = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeBoolean(includeAll);
     }
+
+    public boolean getIncludeAll() { return includeAll; }
 }

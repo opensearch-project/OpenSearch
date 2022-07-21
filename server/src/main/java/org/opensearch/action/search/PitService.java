@@ -151,7 +151,7 @@ public class PitService {
         transportService.sendRequest(
             transportService.getLocalNode(),
             GetAllPitsAction.NAME,
-            new GetAllPitNodesRequest(disNodesArr),
+            new GetAllPitNodesRequest(false, disNodesArr),
             new TransportResponseHandler<GetAllPitNodesResponse>() {
                 @Override
                 public void handleResponse(GetAllPitNodesResponse response) {
