@@ -62,6 +62,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -547,7 +548,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         final Set<String> files = new HashSet<>();
         for (final RecoveryState recoveryState : initialRecoveryReponse.shardRecoveryStates().get("test")) {
             if (recoveryState.getTargetNode().getName().equals(replicaNode)) {
-                for (final RecoveryState.FileDetail file : recoveryState.getIndex().fileDetails()) {
+                for (final ReplicationLuceneIndex.FileMetadata file : recoveryState.getIndex().fileDetails()) {
                     files.add(file.name());
                 }
                 break;
@@ -607,7 +608,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             long reused = 0;
             int filesRecovered = 0;
             int filesReused = 0;
-            for (final RecoveryState.FileDetail file : recoveryState.getIndex().fileDetails()) {
+            for (final ReplicationLuceneIndex.FileMetadata file : recoveryState.getIndex().fileDetails()) {
                 if (files.contains(file.name()) == false) {
                     recovered += file.length();
                     filesRecovered++;
