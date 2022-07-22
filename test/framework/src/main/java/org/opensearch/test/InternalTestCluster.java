@@ -207,8 +207,15 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.node.settings()
     );
 
-    public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
-    public static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
+    public static final int DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES = 1;
+    public static final int DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES = 3;
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES} */
+    @Deprecated
+    public static final int DEFAULT_LOW_NUM_MASTER_NODES = DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES;
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES} */
+    @Deprecated
+    public static final int DEFAULT_HIGH_NUM_MASTER_NODES = DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES;
 
     static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
     static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
@@ -341,9 +348,9 @@ public final class InternalTestCluster extends TestCluster {
             if (useDedicatedClusterManagerNodes) {
                 if (random.nextBoolean()) {
                     // use a dedicated cluster-manager, but only low number to reduce overhead to tests
-                    this.numSharedDedicatedClusterManagerNodes = DEFAULT_LOW_NUM_MASTER_NODES;
+                    this.numSharedDedicatedClusterManagerNodes = DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES;
                 } else {
-                    this.numSharedDedicatedClusterManagerNodes = DEFAULT_HIGH_NUM_MASTER_NODES;
+                    this.numSharedDedicatedClusterManagerNodes = DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES;
                 }
             } else {
                 this.numSharedDedicatedClusterManagerNodes = 0;
@@ -921,7 +928,10 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    public static final int REMOVED_MINIMUM_MASTER_NODES = Integer.MAX_VALUE;
+    public static final int REMOVED_MINIMUM_CLUSTER_MANAGER_NODES = Integer.MAX_VALUE;
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #REMOVED_MINIMUM_CLUSTER_MANAGER_NODES} */
+    @Deprecated
+    public static final int REMOVED_MINIMUM_MASTER_NODES = REMOVED_MINIMUM_CLUSTER_MANAGER_NODES;
 
     private final class NodeAndClient implements Closeable {
         private MockNode node;
