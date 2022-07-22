@@ -52,7 +52,7 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
 
     @Override
     public void startDisrupting() {
-        disruptedNode = cluster.getMasterName();
+        disruptedNode = cluster.getClusterManagerName();
         final String disruptionNodeCopy = disruptedNode;
         if (disruptionNodeCopy == null) {
             return;

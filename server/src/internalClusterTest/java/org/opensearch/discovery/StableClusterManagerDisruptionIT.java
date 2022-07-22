@@ -92,7 +92,7 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
         ensureStableCluster(3);
 
         // Figure out what is the elected cluster-manager node
-        final String clusterManagerNode = internalCluster().getMasterName();
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
         logger.info("---> legit elected cluster-manager node={}", clusterManagerNode);
 
         // Pick a node that isn't the elected cluster-manager.
@@ -123,7 +123,7 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
         ensureStableCluster(3);
 
         // The elected cluster-manager shouldn't have changed, since the unlucky node never could have elected itself as cluster-manager
-        assertThat(internalCluster().getMasterName(), equalTo(clusterManagerNode));
+        assertThat(internalCluster().getClusterManagerName(), equalTo(clusterManagerNode));
     }
 
     private void ensureNoMaster(String node) throws Exception {
@@ -162,11 +162,11 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
         ensureStableCluster(4);
 
         logger.info("--> stopping current cluster-manager");
-        internalCluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentClusterManagerNode();
 
         ensureStableCluster(3);
 
-        final String clusterManager = internalCluster().getMasterName();
+        final String clusterManager = internalCluster().getClusterManagerName();
         final List<String> nonClusterManagers = Arrays.stream(internalCluster().getNodeNames())
             .filter(n -> clusterManager.equals(n) == false)
             .collect(Collectors.toList());
@@ -205,7 +205,7 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
         ensureStableCluster(3);
 
         // Save the current cluster-manager node as old cluster-manager node, because that node will get frozen
-        final String oldClusterManagerNode = internalCluster().getMasterName();
+        final String oldClusterManagerNode = internalCluster().getClusterManagerName();
 
         // Simulating a painful gc by suspending all threads for a long time on the current elected cluster-manager node.
         SingleNodeDisruption clusterManagerNodeDisruption = new LongGCDisruption(random(), oldClusterManagerNode);
@@ -274,7 +274,7 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
             });
 
         // Save the new elected cluster-manager node
-        final String newClusterManagerNode = internalCluster().getMasterName(majoritySide.get(0));
+        final String newClusterManagerNode = internalCluster().getClusterManagerName(majoritySide.get(0));
         logger.info("--> new detected cluster-manager node [{}]", newClusterManagerNode);
 
         // Stop disruption

@@ -105,7 +105,7 @@ import static org.mockito.Mockito.when;
 public final class BlobStoreTestUtil {
 
     public static void assertRepoConsistency(InternalTestCluster testCluster, String repoName) {
-        final BlobStoreRepository repo = (BlobStoreRepository) testCluster.getCurrentMasterNodeInstance(RepositoriesService.class)
+        final BlobStoreRepository repo = (BlobStoreRepository) testCluster.getCurrentClusterManagerNodeInstance(RepositoriesService.class)
             .repository(repoName);
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }

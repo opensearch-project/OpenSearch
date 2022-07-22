@@ -205,7 +205,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
 
-        final Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final Repository repository = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class).repository(repoName);
 
         logger.info("--> move index-N blob to next generation");
         final RepositoryData repositoryData = getRepositoryData(repository);
@@ -215,7 +215,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify index-N blob is found at the new location");
         assertThat(getRepositoryData(repository).getGenId(), is(beforeMoveGen + 1));
 
-        final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
+        final SnapshotsService snapshotsService = internalCluster().getCurrentClusterManagerNodeInstance(SnapshotsService.class);
         logger.info("--> wait for all listeners on snapshots service to be resolved to avoid snapshot task batching causing a conflict");
         assertBusy(() -> assertTrue(snapshotsService.assertAllListenersResolved()));
 
@@ -267,7 +267,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
 
-        final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final Repository repository = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class)
+            .repository(repoName);
 
         logger.info("--> move index-N blob to next generation");
         final RepositoryData repositoryData = getRepositoryData(repoName);
@@ -367,8 +368,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
 
         logger.info("--> verify that repo is assumed in old metadata format");
-        final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
-        final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
+        final SnapshotsService snapshotsService = internalCluster().getCurrentClusterManagerNodeInstance(SnapshotsService.class);
+        final ThreadPool threadPool = internalCluster().getCurrentClusterManagerNodeInstance(ThreadPool.class);
         assertThat(
             PlainActionFuture.get(
                 f -> threadPool.generic()
@@ -435,7 +436,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
 
         logger.info("--> corrupt index-N blob");
-        final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final Repository repository = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class)
+            .repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repoName);
         Files.write(repo.resolve("index-" + repositoryData.getGenId()), randomByteArrayOfLength(randomIntBetween(1, 100)));
 
@@ -444,7 +446,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         final String otherRepoName = "other-repo";
         createRepository(otherRepoName, "fs", Settings.builder().put("location", repo).put("compress", false));
-        final Repository otherRepo = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(otherRepoName);
+        final Repository otherRepo = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class)
+            .repository(otherRepoName);
 
         logger.info("--> verify loading repository data from newly mounted repository throws RepositoryException");
         expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
