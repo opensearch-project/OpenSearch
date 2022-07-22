@@ -79,7 +79,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                         boolean uploadStatus = uploadNewSegments(committedLocalFiles);
                         if (uploadStatus) {
                             remoteDirectory.copyFrom(storeDirectory, lastCommittedLocalSegmentFileName, lastCommittedLocalSegmentFileName, IOContext.DEFAULT);
-                            remoteDirectory.uploadCommitMapping(storeDirectory, commitSegmentInfos.getGeneration(), indexShard.getOperationPrimaryTerm());
+                            remoteDirectory.uploadCommitMapping(committedLocalFiles, storeDirectory, commitSegmentInfos.getGeneration(), indexShard.getOperationPrimaryTerm());
                         }
                     } else {
                         logger.info("Latest commit point {} is present in remote store", lastCommittedLocalSegmentFileName);
@@ -89,7 +89,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                         Collection<String> refreshedLocalFiles = segmentInfos.files(true);
                         boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                         if (uploadStatus) {
-                            remoteDirectory.uploadRefreshMapping(storeDirectory, segmentInfos.getGeneration(), indexShard.getOperationPrimaryTerm());
+                            remoteDirectory.uploadRefreshMapping(refreshedLocalFiles, storeDirectory, segmentInfos.getGeneration(), indexShard.getOperationPrimaryTerm());
                         }
                     } catch (EngineException e) {
                         logger.warn("Exception while reading SegmentInfosSnapshot", e);

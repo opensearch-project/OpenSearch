@@ -51,43 +51,45 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     }
 
     private Map<String, UploadedSegmentMetadata> readLatestMappingFile() throws IOException {
+        Map<String, UploadedSegmentMetadata> segmentMetadataMap = new HashMap<>();
         Collection<String> commitMappingFiles = remoteMetadataDirectory.listFilesByPrefix(COMMIT_MAPPING_PREFIX);
         Optional<String> latestCommitMappingFile = commitMappingFiles.stream().max(new RemoteFilenameComparator());
+
+        if(latestCommitMappingFile.isPresent()) {
+            readMappingFile(latestCommitMappingFile.get(), segmentMetadataMap);
+        }
 
         Collection<String> refreshMappingFiles = remoteMetadataDirectory.listFilesByPrefix(REFRESH_MAPPING_PREFIX);
         Optional<String> latestRefreshMappingFile = refreshMappingFiles.stream().max(new RemoteFilenameComparator());
 
-        String latestMappingFilename;
+        this.lastRefreshMappingFile = null;
         if(latestRefreshMappingFile.isPresent()) {
             String refreshMappingFile = latestRefreshMappingFile.get();
-            this.lastRefreshMappingFile = refreshMappingFile;
             if(latestCommitMappingFile.isPresent()) {
                 String commitMappingFile = latestCommitMappingFile.get();
                 String[] refreshMappingFileTokens = refreshMappingFile.split(SEPARATOR);
                 String[] commitMappingFileTokens = commitMappingFile.split(SEPARATOR);
                 int suffixComparison = RemoteFilenameComparator.compareSuffix(refreshMappingFileTokens, commitMappingFileTokens);
                 if(suffixComparison >= 0) {
-                    latestMappingFilename = refreshMappingFile;
-                } else {
-                    latestMappingFilename = commitMappingFile;
+                    this.lastRefreshMappingFile = refreshMappingFile;
                 }
             } else {
-                latestMappingFilename = refreshMappingFile;
+                this.lastRefreshMappingFile = refreshMappingFile;
             }
-        } else if (latestCommitMappingFile.isPresent()){
-            latestMappingFilename = latestCommitMappingFile.get();
-        } else {
-            return new HashMap<>();
         }
-        IndexInput indexInput = remoteMetadataDirectory.openInput(latestMappingFilename, IOContext.DEFAULT);
-        Map<String, String> segmentMapping = indexInput.readMapOfStrings();
-        Map<String, UploadedSegmentMetadata> segmentMetadataMap = segmentMapping.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> {
-            String[] values = entry.getValue().split(SEPARATOR);
-            return new UploadedSegmentMetadata(values[0], values[1], values[2]);
-        }));
-        String mappingPrefix = latestMappingFilename.split(SEPARATOR)[0];
-        segmentMetadataMap.put(mappingPrefix, new UploadedSegmentMetadata(mappingPrefix, latestMappingFilename, "0"));
+        if(this.lastRefreshMappingFile != null) {
+            readMappingFile(this.lastRefreshMappingFile, segmentMetadataMap);
+        }
         return segmentMetadataMap;
+    }
+
+    private void readMappingFile(String mappingFilename, Map<String, UploadedSegmentMetadata> segmentMetadataMap) throws IOException {
+        IndexInput indexInput = remoteMetadataDirectory.openInput(mappingFilename, IOContext.DEFAULT);
+        Map<String, String> segmentMapping = indexInput.readMapOfStrings();
+        segmentMapping.entrySet().stream().filter(entry -> !segmentMetadataMap.containsKey(entry.getKey())).forEach(entry -> {
+            String[] values = entry.getValue().split(SEPARATOR);
+            segmentMetadataMap.put(entry.getKey(), new UploadedSegmentMetadata(values[0], values[1], values[2]));
+        });
     }
 
     static class UploadedSegmentMetadata {
@@ -207,12 +209,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         return segmentsUploadedToRemoteStore.containsKey(localFilename);
     }
 
-    public void uploadCommitMapping(Directory storeDirectory, long generation, long primaryTerm) throws IOException {
+    public void uploadCommitMapping(Collection<String> committedFiles, Directory storeDirectory, long generation, long primaryTerm) throws IOException {
         String commitFilename = getNewRemoteFilename(COMMIT_MAPPING_PREFIX, generation, primaryTerm);
-        uploadMappingFile(storeDirectory, commitFilename);
+        uploadMappingFile(committedFiles, storeDirectory, commitFilename);
     }
 
-    public void uploadRefreshMapping(Directory storeDirectory, long generation, long primaryTerm) throws IOException {
+    public void uploadRefreshMapping(Collection<String> refreshedFiles, Directory storeDirectory, long generation, long primaryTerm) throws IOException {
         String refreshFilename = getNewRemoteFilename(REFRESH_MAPPING_PREFIX, generation, primaryTerm);
         int suffixComparison = 1;
         if(this.lastRefreshMappingFile != null) {
@@ -221,15 +223,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
                 refreshFilename = this.lastRefreshMappingFile;
             }
         }
-        uploadMappingFile(storeDirectory, refreshFilename);
+        uploadMappingFile(refreshedFiles, storeDirectory, refreshFilename);
         if(suffixComparison != 0) {
             this.lastRefreshMappingFile = refreshFilename;
         }
     }
 
-    private void uploadMappingFile(Directory storeDirectory, String filename) throws IOException {
+    private void uploadMappingFile(Collection<String> files, Directory storeDirectory, String filename) throws IOException {
         IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
-        indexOutput.writeMapOfStrings(segmentsUploadedToRemoteStore.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toString())));
+        indexOutput.writeMapOfStrings(segmentsUploadedToRemoteStore.entrySet().stream().filter(entry -> files.contains(entry.getKey())).collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toString())));
         indexOutput.close();
         storeDirectory.sync(Collections.singleton(filename));
         remoteMetadataDirectory.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT);
