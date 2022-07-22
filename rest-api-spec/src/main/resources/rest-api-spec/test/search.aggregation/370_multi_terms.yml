@@ -77,7 +77,6 @@ setup:
   - match: { aggregations.num_terms.buckets.2.key: 200 }
   - match: { aggregations.num_terms.buckets.2.doc_count: 1 }
 
-
 ---
 "Test keyword terms agg with doc_count":
   - skip:
@@ -98,7 +97,6 @@ setup:
   - match: { aggregations.str_terms.buckets.2.doc_count: 5 }
 
 ---
-
 "Test unmapped string terms agg with doc_count":
   - skip:
       version: " - 7.99.99"
@@ -148,7 +146,6 @@ setup:
   - match: { aggregations.composite_agg.buckets.1.doc_count: 8 }
   - match: { aggregations.composite_agg.buckets.2.key.str_terms: "xyz" }
   - match: { aggregations.composite_agg.buckets.2.doc_count: 5 }
-
 
 ---
 "Test composite num_terms agg with doc_count":
