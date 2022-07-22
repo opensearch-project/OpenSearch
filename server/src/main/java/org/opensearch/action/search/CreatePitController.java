@@ -274,13 +274,14 @@ public class CreatePitController {
                     .filter(r -> !r.isSuccessful())
                     .forEach(r -> failedPitsStringBuilder.append(r.getPitId()).append(","));
                 logger.warn(() -> new ParameterizedMessage("Failed to delete PIT IDs {}", failedPitsStringBuilder.toString()));
-                if (!logger.isDebugEnabled()) return;
-                final StringBuilder successfulPitsStringBuilder = new StringBuilder();
-                response.getDeletePitResults()
-                    .stream()
-                    .filter(r -> r.isSuccessful())
-                    .forEach(r -> successfulPitsStringBuilder.append(r.getPitId()).append(","));
-                logger.debug(() -> new ParameterizedMessage("Deleted PIT with IDs {}", successfulPitsStringBuilder.toString()));
+                if (logger.isDebugEnabled()) {
+                    final StringBuilder successfulPitsStringBuilder = new StringBuilder();
+                    response.getDeletePitResults()
+                        .stream()
+                        .filter(r -> r.isSuccessful())
+                        .forEach(r -> successfulPitsStringBuilder.append(r.getPitId()).append(","));
+                    logger.debug(() -> new ParameterizedMessage("Deleted PIT with IDs {}", successfulPitsStringBuilder.toString()));
+                }
             }
 
             @Override
