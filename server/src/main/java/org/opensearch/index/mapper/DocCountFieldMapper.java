@@ -32,7 +32,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-/** Mapper for the doc_count field. */
+/**
+ * Mapper for the doc_count field.
+ *
+ * @opensearch.internal
+ */
 public class DocCountFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_doc_count";
@@ -60,6 +64,11 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    /**
+     * Field type for DocCount Field Mapper
+     *
+     * @opensearch.internal
+     */
     public static final class DocCountFieldType extends MappedFieldType {
 
         public static final DocCountFieldType INSTANCE = new DocCountFieldType();
