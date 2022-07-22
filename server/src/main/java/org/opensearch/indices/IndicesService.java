@@ -132,7 +132,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.store.RemoteDirectoryFactory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -266,7 +266,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final RemoteDirectoryFactory remoteDirectoryFactory;
+    private final IndexStorePlugin.RemoteDirectoryFactory remoteSegmentStoreDirectoryFactory;
 
     @Override
     protected void doStart() {
@@ -295,7 +295,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        RemoteDirectoryFactory remoteDirectoryFactory
+        IndexStorePlugin.RemoteDirectoryFactory remoteSegmentStoreDirectoryFactory
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -389,7 +389,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
-        this.remoteDirectoryFactory = remoteDirectoryFactory;
+        this.remoteSegmentStoreDirectoryFactory = remoteSegmentStoreDirectoryFactory;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -750,7 +750,7 @@ public class IndicesService extends AbstractLifecycleComponent
             namedWriteableRegistry,
             this::isIdFieldDataEnabled,
             valuesSourceRegistry,
-            remoteDirectoryFactory
+            remoteSegmentStoreDirectoryFactory
         );
     }
 

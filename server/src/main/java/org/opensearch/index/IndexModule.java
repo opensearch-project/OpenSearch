@@ -70,7 +70,7 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
-import org.opensearch.index.store.RemoteDirectoryFactory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -475,7 +475,7 @@ public final class IndexModule {
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
-        RemoteDirectoryFactory remoteDirectoryFactory
+        IndexStorePlugin.RemoteDirectoryFactory remoteSegmentStoreDirectoryFactory
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -518,7 +518,7 @@ public final class IndexModule {
                 client,
                 queryCache,
                 directoryFactory,
-                remoteDirectoryFactory,
+                remoteSegmentStoreDirectoryFactory,
                 eventListener,
                 readerWrapperFactory,
                 mapperRegistry,
