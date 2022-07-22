@@ -99,7 +99,7 @@ public interface NodeSelector {
 
         @Override
         public String toString() {
-            return "SKIP_DEDICATED_MASTERS";
+            return "SKIP_DEDICATED_CLUSTER_MANAGERS";
         }
     };
 }
