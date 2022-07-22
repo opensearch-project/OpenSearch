@@ -49,7 +49,6 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     private final long id;
 
     protected final AtomicBoolean finished = new AtomicBoolean();
-    private final ShardId shardId;
     protected final IndexShard indexShard;
     protected final Store store;
     protected final ReplicationListener listener;
@@ -89,7 +88,6 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         this.stateIndex = stateIndex;
         this.indexShard = indexShard;
         this.store = indexShard.store();
-        this.shardId = indexShard.shardId();
         // make sure the store is not released until we are done.
         this.cancellableThreads = new CancellableThreads();
         store.incRef();
@@ -131,7 +129,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     }
 
     public ShardId shardId() {
-        return shardId;
+        return indexShard.shardId();
     }
 
     /**

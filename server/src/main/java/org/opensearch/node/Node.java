@@ -961,6 +961,8 @@ public class Node implements Closeable {
                             );
                         b.bind(SegmentReplicationSourceService.class)
                             .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
+                    } else {
+                        b.bind(SegmentReplicationTargetService.class).toInstance(SegmentReplicationTargetService.NO_OP);
                     }
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
