@@ -124,13 +124,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
 
         public static int compareSuffix(String[] firstTokens, String[] secondTokens) {
-            long firstPrimaryTerm = Long.parseLong(firstTokens[2]);
-            long secondPrimaryTerm = Long.parseLong(secondTokens[2]);
+            long firstPrimaryTerm = Long.parseLong(firstTokens[1]);
+            long secondPrimaryTerm = Long.parseLong(secondTokens[1]);
             if(firstPrimaryTerm != secondPrimaryTerm) {
                 return (int) (firstPrimaryTerm - secondPrimaryTerm);
             } else {
-                int firstGeneration = Integer.parseInt(firstTokens[1], Character.MAX_RADIX);
-                int secondGeneration = Integer.parseInt(secondTokens[1], Character.MAX_RADIX);
+                int firstGeneration = Integer.parseInt(firstTokens[2], Character.MAX_RADIX);
+                int secondGeneration = Integer.parseInt(secondTokens[2], Character.MAX_RADIX);
                 if(firstGeneration != secondGeneration) {
                     return firstGeneration - secondGeneration;
                 } else {
@@ -209,13 +209,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         return segmentsUploadedToRemoteStore.containsKey(localFilename);
     }
 
-    public void uploadCommitMapping(Collection<String> committedFiles, Directory storeDirectory, long generation, long primaryTerm) throws IOException {
-        String commitFilename = getNewRemoteFilename(COMMIT_MAPPING_PREFIX, generation, primaryTerm);
+    public void uploadCommitMapping(Collection<String> committedFiles, Directory storeDirectory, long primaryTerm, long generation) throws IOException {
+        String commitFilename = getNewRemoteFilename(COMMIT_MAPPING_PREFIX, primaryTerm, generation);
         uploadMappingFile(committedFiles, storeDirectory, commitFilename);
     }
 
-    public void uploadRefreshMapping(Collection<String> refreshedFiles, Directory storeDirectory, long generation, long primaryTerm) throws IOException {
-        String refreshFilename = getNewRemoteFilename(REFRESH_MAPPING_PREFIX, generation, primaryTerm);
+    public void uploadRefreshMapping(Collection<String> refreshedFiles, Directory storeDirectory, long primaryTerm, long generation) throws IOException {
+        String refreshFilename = getNewRemoteFilename(REFRESH_MAPPING_PREFIX, primaryTerm, generation);
         int suffixComparison = 1;
         if(this.lastRefreshMappingFile != null) {
             suffixComparison = RemoteFilenameComparator.compareSuffix(this.lastRefreshMappingFile.split(SEPARATOR), refreshFilename.split(SEPARATOR));
@@ -252,8 +252,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         return localFilename + SEPARATOR + UUIDs.base64UUID();
     }
 
-    private String getNewRemoteFilename(String localFilename, long generation, long primaryTerm) {
-        return localFilename + SEPARATOR + Long.toString(generation, Character.MAX_RADIX) + SEPARATOR + primaryTerm + SEPARATOR + UUIDs.base64UUID();
+    private String getNewRemoteFilename(String localFilename, long primaryTerm, long generation) {
+        return localFilename + SEPARATOR + primaryTerm + SEPARATOR + Long.toString(generation, Character.MAX_RADIX) + SEPARATOR + UUIDs.base64UUID();
     }
 
 }

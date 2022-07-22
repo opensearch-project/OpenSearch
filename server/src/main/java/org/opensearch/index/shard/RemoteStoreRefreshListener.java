@@ -33,8 +33,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListener {
 
-    public static final String COMMITTED_SEGMENTINFOS_FILENAME = "segments_";
-    public static final String REFRESHED_SEGMENTINFOS_FILENAME = "refreshed_segments_";
     private static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
     private final IndexShard indexShard;
     private final Directory storeDirectory;
@@ -79,7 +77,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                         boolean uploadStatus = uploadNewSegments(committedLocalFiles);
                         if (uploadStatus) {
                             remoteDirectory.copyFrom(storeDirectory, lastCommittedLocalSegmentFileName, lastCommittedLocalSegmentFileName, IOContext.DEFAULT);
-                            remoteDirectory.uploadCommitMapping(committedLocalFiles, storeDirectory, commitSegmentInfos.getGeneration(), indexShard.getOperationPrimaryTerm());
+                            remoteDirectory.uploadCommitMapping(committedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), commitSegmentInfos.getGeneration());
                         }
                     } else {
                         logger.info("Latest commit point {} is present in remote store", lastCommittedLocalSegmentFileName);
@@ -89,7 +87,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                         Collection<String> refreshedLocalFiles = segmentInfos.files(true);
                         boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                         if (uploadStatus) {
-                            remoteDirectory.uploadRefreshMapping(refreshedLocalFiles, storeDirectory, segmentInfos.getGeneration(), indexShard.getOperationPrimaryTerm());
+                            remoteDirectory.uploadRefreshMapping(refreshedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), segmentInfos.getGeneration());
                         }
                     } catch (EngineException e) {
                         logger.warn("Exception while reading SegmentInfosSnapshot", e);
@@ -108,8 +106,6 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
         AtomicBoolean uploadSuccess = new AtomicBoolean(true);
         localFiles.stream()
             .filter(file -> !EXCLUDE_FILES.contains(file))
-            .filter(file -> !file.startsWith(REFRESHED_SEGMENTINFOS_FILENAME))
-            .filter(file -> !file.startsWith(COMMITTED_SEGMENTINFOS_FILENAME))
             .filter(file -> !remoteDirectory.containsFile(file))
             .forEach(file -> {
                 try {

@@ -59,6 +59,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -449,7 +450,7 @@ final class StoreRecovery {
         }
         indexShard.preRecovery();
         indexShard.prepareForIndexRecovery();
-        final Directory remoteDirectory = remoteStore.directory();
+        final Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
         final Store store = indexShard.store();
         final Directory storeDirectory = store.directory();
         store.incRef();
