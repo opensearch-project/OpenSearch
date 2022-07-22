@@ -340,7 +340,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
             IllegalStateException.class
         );
 
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getMasterName());
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getClusterManagerName());
         for (IndexService indexService : indicesService) {
             assertThat(indexService.index().getName(), not("test-idx-2"));
         }

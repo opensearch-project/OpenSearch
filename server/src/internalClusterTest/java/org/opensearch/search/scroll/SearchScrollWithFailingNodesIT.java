@@ -97,7 +97,7 @@ public class SearchScrollWithFailingNodesIT extends OpenSearchIntegTestCase {
         assertThat(numHits, equalTo(100L));
         clearScroll("_all");
 
-        internalCluster().stopRandomNonMasterNode();
+        internalCluster().stopRandomNonClusterManagerNode();
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).setScroll(TimeValue.timeValueMinutes(1)).get();
         assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));

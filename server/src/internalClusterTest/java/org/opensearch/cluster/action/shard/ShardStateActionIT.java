@@ -123,7 +123,7 @@ public class ShardStateActionIT extends OpenSearchIntegTestCase {
         final AtomicBoolean stopSpammingClusterManager = new AtomicBoolean();
         final ClusterService clusterManagerClusterService = internalCluster().getInstance(
             ClusterService.class,
-            internalCluster().getMasterName()
+            internalCluster().getClusterManagerName()
         );
         clusterManagerClusterService.submitStateUpdateTask("spam", new ClusterStateUpdateTask(Priority.HIGH) {
             @Override

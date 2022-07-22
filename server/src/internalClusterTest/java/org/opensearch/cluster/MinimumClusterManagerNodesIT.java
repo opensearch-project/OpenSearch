@@ -151,7 +151,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
             );
         }
 
-        String clusterManagerNode = internalCluster().getMasterName();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
         String otherNode = node1Name.equals(clusterManagerNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for non-cluster-manager node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(otherNode)).get();
@@ -204,7 +204,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         clearRequest.setWaitForRemoval(false);
         client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearRequest).get();
 
-        clusterManagerNode = internalCluster().getMasterName();
+        clusterManagerNode = internalCluster().getClusterManagerName();
         otherNode = node1Name.equals(clusterManagerNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for cluster-manager node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(clusterManagerNode)).get();
@@ -310,12 +310,15 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         }
 
         List<String> nonClusterManagerNodes = new ArrayList<>(
-            Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()), Collections.singleton(internalCluster().getMasterName()))
+            Sets.difference(
+                Sets.newHashSet(internalCluster().getNodeNames()),
+                Collections.singleton(internalCluster().getClusterManagerName())
+            )
         );
         Settings nonClusterManagerDataPathSettings1 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(0));
         Settings nonClusterManagerDataPathSettings2 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(1));
-        internalCluster().stopRandomNonMasterNode();
-        internalCluster().stopRandomNonMasterNode();
+        internalCluster().stopRandomNonClusterManagerNode();
+        internalCluster().stopRandomNonClusterManagerNode();
 
         logger.info("--> verify that there is no cluster-manager anymore on remaining node");
         // spin here to wait till the state is set
@@ -347,7 +350,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(3, settings);
         ensureStableCluster(3);
 
-        final String clusterManager = internalCluster().getMasterName();
+        final String clusterManager = internalCluster().getClusterManagerName();
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         otherNodes.remove(clusterManager);
         NetworkDisruption partition = isolateClusterManagerDisruption(NetworkDisruption.DISCONNECT);
