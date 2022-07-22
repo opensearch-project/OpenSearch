@@ -59,15 +59,15 @@ If you would like to contribute to the documentation, please do so in the [docum
 
 As with other types of contributions, the first step is to [**open an issue on GitHub**](https://github.com/opensearch-project/OpenSearch/issues/new/choose). Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem. It also lets us all work together to find the right approach before you spend a bunch of time on a PR. So again, when in doubt, open an issue.
 
-Additionally, here are a few guidelines to help you decide whether a particular feature should be included in OpenSearch,
+Additionally, here are a few guidelines to help you decide whether a particular feature should be included in OpenSearch.
 
 **Is your feature important to most users of OpenSearch?**
 
-If you believe that your feature is going to fulfill the need of most users of OpenSearch, then this should belong in OpenSearch. However, we don't want every feature to be built into the server, so if the feature requires additional permissions or bring in extra dependencies it should be included as a core module.
+If you believe that your feature is going to fulfill a need for most users of OpenSearch, then this belongs in OpenSearch. However, we don't want every feature to be built into the server, so if the feature requires additional permissions or brings in extra dependencies it should instead be included as a core module.
 
 **Is your feature a common dependency across multiple plugins?**
 
-Does this feature contain functionality that cuts across multiple plugins? If so, then most likely, this should belong in OpenSearch as a core module or plugin.
+Does this feature contain functionality that cuts across multiple plugins? If so, this most likely belongs in OpenSearch as a core module or plugin.
 
 Once you've opened an issue, check out our [Developer Guide](./DEVELOPER_GUIDE.md) for instructions on how to get started.
 
