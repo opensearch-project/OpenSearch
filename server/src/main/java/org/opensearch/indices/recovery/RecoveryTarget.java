@@ -62,9 +62,12 @@ import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+
+import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -398,13 +401,29 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             store.incRef();
             try {
                 store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
-                final String translogUUID = Translog.createEmptyTranslog(
-                    indexShard.shardPath().resolveTranslog(),
-                    globalCheckpoint,
-                    shardId(),
-                    indexShard.getPendingPrimaryTerm()
-                );
-                store.associateIndexWithNewTranslog(translogUUID);
+
+                // If Segment Replication is enabled, we need to reuse the primary's translog UUID already stored in the index.
+                // With Segrep, replicas should never create their own commit points. This ensures the index and xlog share the same
+                // UUID without the extra step to associate the index with a new xlog.
+                if (indexShard.indexSettings().isSegRepEnabled()) {
+                    final String translogUUID = store.getMetadata().getCommitUserData().get(TRANSLOG_UUID_KEY);
+                    Translog.createEmptyTranslog(
+                        indexShard.shardPath().resolveTranslog(),
+                        shardId(),
+                        globalCheckpoint,
+                        indexShard.getPendingPrimaryTerm(),
+                        translogUUID,
+                        FileChannel::open
+                    );
+                } else {
+                    final String translogUUID = Translog.createEmptyTranslog(
+                        indexShard.shardPath().resolveTranslog(),
+                        globalCheckpoint,
+                        shardId(),
+                        indexShard.getPendingPrimaryTerm()
+                    );
+                    store.associateIndexWithNewTranslog(translogUUID);
+                }
 
                 if (indexShard.getRetentionLeases().leases().isEmpty()) {
                     // if empty, may be a fresh IndexShard, so write an empty leases file to disk
