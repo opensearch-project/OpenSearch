@@ -136,7 +136,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         // shutting down the nodes, to avoid the leakage check tripping
         // on the states associated with the commit requests we may have dropped
-        internalCluster().stopRandomNonMasterNode();
+        internalCluster().stopRandomNonClusterManagerNode();
     }
 
     public void testClusterFormingWithASlowNode() {
@@ -170,7 +170,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         }
         internalCluster().clearDisruptionScheme();
         ensureStableCluster(3);
-        final String preferredClusterManagerName = internalCluster().getMasterName();
+        final String preferredClusterManagerName = internalCluster().getClusterManagerName();
         final DiscoveryNode preferredClusterManager = internalCluster().clusterService(preferredClusterManagerName).localNode();
 
         logger.info("--> preferred cluster-manager is {}", preferredClusterManager);
@@ -214,7 +214,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     public void testNodeNotReachableFromClusterManager() throws Exception {
         startCluster(3);
 
-        String clusterManagerNode = internalCluster().getMasterName();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
         String nonClusterManagerNode = null;
         while (nonClusterManagerNode == null) {
             nonClusterManagerNode = randomFrom(internalCluster().getNodeNames());

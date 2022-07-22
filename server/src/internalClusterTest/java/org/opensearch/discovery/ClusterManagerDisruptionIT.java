@@ -71,7 +71,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
     public void testClusterManagerNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
 
-        String oldClusterManagerNode = internalCluster().getMasterName();
+        String oldClusterManagerNode = internalCluster().getClusterManagerName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
         SingleNodeDisruption clusterManagerNodeDisruption = new IntermittentLongGCDisruption(
             random(),
@@ -105,7 +105,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3, waitTime, false, oldNonClusterManagerNodes.get(0));
 
         // make sure all nodes agree on cluster-manager
-        String newClusterManager = internalCluster().getMasterName();
+        String newClusterManager = internalCluster().getClusterManagerName();
         assertThat(newClusterManager, not(equalTo(oldClusterManagerNode)));
         assertClusterManager(newClusterManager, nodes);
     }
@@ -126,7 +126,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         );
 
         ensureGreen();
-        String isolatedNode = internalCluster().getMasterName();
+        String isolatedNode = internalCluster().getClusterManagerName();
         TwoPartitions partitions = isolateNode(isolatedNode);
         NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
         networkDisruption.startDisrupting();
@@ -296,7 +296,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
             Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1)
-                .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
+                .put("index.routing.allocation.exclude._name", internalCluster().getClusterManagerName())
                 .build()
         );
 

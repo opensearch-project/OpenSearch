@@ -194,7 +194,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             )
         );
 
-        final String clusterManagerName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getClusterManagerName();
 
         final AtomicBoolean shutdown = new AtomicBoolean();
         final Thread assertingThread = new Thread(() -> {
@@ -245,7 +245,7 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
                 clusterManagerName,
                 () -> randomFrom(internalCluster().getNodeNames())
             );
-            final String claimedClusterManagerName = internalCluster().getMasterName(nonClusterManagerNode);
+            final String claimedClusterManagerName = internalCluster().getClusterManagerName(nonClusterManagerNode);
             assertThat(claimedClusterManagerName, not(equalTo(clusterManagerName)));
         });
 

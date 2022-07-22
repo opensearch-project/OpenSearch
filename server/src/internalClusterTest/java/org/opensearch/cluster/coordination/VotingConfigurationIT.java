@@ -64,12 +64,12 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
     public void testAbdicateAfterVotingConfigExclusionAdded() throws ExecutionException, InterruptedException {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         internalCluster().startNodes(2);
-        final String originalClusterManager = internalCluster().getMasterName();
+        final String originalClusterManager = internalCluster().getClusterManagerName();
 
         logger.info("--> excluding cluster-manager node {}", originalClusterManager);
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalClusterManager)).get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
-        assertNotEquals(originalClusterManager, internalCluster().getMasterName());
+        assertNotEquals(originalClusterManager, internalCluster().getClusterManagerName());
     }
 
     public void testElectsNodeNotInVotingConfiguration() throws Exception {
@@ -134,7 +134,7 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
             }
         }
 
-        internalCluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentClusterManagerNode();
         assertFalse(
             internalCluster().client()
                 .admin()
