@@ -87,12 +87,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         IndexInput indexInput = remoteMetadataDirectory.openInput(mappingFilename, IOContext.DEFAULT);
         Map<String, String> segmentMapping = indexInput.readMapOfStrings();
         segmentMapping.entrySet().stream().filter(entry -> !segmentMetadataMap.containsKey(entry.getKey())).forEach(entry -> {
-            String[] values = entry.getValue().split(SEPARATOR);
-            segmentMetadataMap.put(entry.getKey(), new UploadedSegmentMetadata(values[0], values[1], values[2]));
+            segmentMetadataMap.put(entry.getKey(), UploadedSegmentMetadata.fromString(entry.getValue()));
         });
     }
 
     static class UploadedSegmentMetadata {
+        private static final String SEPARATOR = "::";
         private final String originalFilename;
         private final String uploadedFilename;
         private final String checksum;
@@ -106,6 +106,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         @Override
         public String toString() {
             return originalFilename + SEPARATOR + uploadedFilename + SEPARATOR + checksum;
+        }
+
+        public static UploadedSegmentMetadata fromString(String uploadedFilename) {
+            String[] values = uploadedFilename.split(SEPARATOR);
+            return new UploadedSegmentMetadata(values[0], values[1], values[2]);
         }
     }
 
