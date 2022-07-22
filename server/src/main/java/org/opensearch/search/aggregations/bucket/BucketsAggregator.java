@@ -73,6 +73,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private final IntConsumer multiBucketConsumer;
     private LongArray docCounts;
     protected final DocCountProvider docCountProvider;
+
     public BucketsAggregator(
         String name,
         AggregatorFactories factories,

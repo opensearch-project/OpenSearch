@@ -210,6 +210,7 @@ public abstract class AggregatorBase extends Aggregator {
      * of children aggregators are instantiated for the next segment.
      */
     protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {}
+
     /**
      * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */

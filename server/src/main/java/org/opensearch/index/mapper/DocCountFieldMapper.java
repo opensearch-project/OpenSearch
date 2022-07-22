@@ -40,7 +40,8 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
         c -> new DocCountFieldMapper(),
-        c -> new DocCountFieldMapper.Builder());
+        c -> new DocCountFieldMapper.Builder()
+    );
 
     static class Builder extends MetadataFieldMapper.Builder {
 
@@ -66,10 +67,8 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         private static final Long defaultValue = 1L;
 
         public DocCountFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.NONE,  Collections.emptyMap());
+            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
-
-
 
         @Override
         public String typeName() {
@@ -128,7 +127,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) { }
+    public void preParse(ParseContext context) {}
 
     @Override
     public DocCountFieldType fieldType() {
