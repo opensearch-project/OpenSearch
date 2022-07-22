@@ -63,7 +63,7 @@ Additionally, here are a few guidelines to help you decide whether a particular 
 
 **Is your feature important to most users of OpenSearch?**
 
-If you believe that your feature is going to fulfill a need for most users of OpenSearch, then this belongs in OpenSearch. However, we don't want every feature to be built into the server, so if the feature requires additional permissions or brings in extra dependencies it should instead be included as a core module.
+If you believe that a feature is going to fulfill a need for most users of OpenSearch, then it belongs in OpenSearch. However, we don't want every feature built into the core server. If the feature requires additional permissions or brings in extra dependencies it should instead be included as a module in core.
 
 **Is your feature a common dependency across multiple plugins?**
 
