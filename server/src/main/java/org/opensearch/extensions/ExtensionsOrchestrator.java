@@ -208,7 +208,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private void extensionInitialize(DiscoveryNode extensionNode) {
 
-        final TransportResponseHandler<InitializeExtensionsResponse> pluginResponseHandler = new TransportResponseHandler<InitializeExtensionsResponse>() {
+        final TransportResponseHandler<InitializeExtensionsResponse> pluginResponseHandler = new TransportResponseHandler<
+            InitializeExtensionsResponse>() {
 
             @Override
             public InitializeExtensionsResponse read(StreamInput in) throws IOException {
