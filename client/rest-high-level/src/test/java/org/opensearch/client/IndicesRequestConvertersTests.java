@@ -917,7 +917,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         List<String> names = OpenSearchTestCase.randomSubsetOf(1, encodes.keySet());
         GetIndexTemplatesRequest getTemplatesRequest = new GetIndexTemplatesRequest(names);
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomClusterManagerTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(getTemplatesRequest::setClusterManagerNodeTimeout, expectedParams);
         RequestConvertersTests.setRandomLocal(getTemplatesRequest::setLocal, expectedParams);
 
         Request request = IndicesRequestConverters.getTemplates(getTemplatesRequest);
@@ -946,7 +946,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         );
         final Map<String, String> expectedParams = new HashMap<>();
         final IndexTemplatesExistRequest indexTemplatesExistRequest = new IndexTemplatesExistRequest(names);
-        RequestConvertersTests.setRandomClusterManagerTimeout(indexTemplatesExistRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(indexTemplatesExistRequest::setClusterManagerNodeTimeout, expectedParams);
         RequestConvertersTests.setRandomLocal(indexTemplatesExistRequest::setLocal, expectedParams);
         assertThat(indexTemplatesExistRequest.names(), equalTo(names));
 
