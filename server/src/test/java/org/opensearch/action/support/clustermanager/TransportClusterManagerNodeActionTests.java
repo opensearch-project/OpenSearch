@@ -42,7 +42,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -58,7 +58,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.discovery.MasterNotDiscoveredException;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.tasks.Task;
@@ -314,7 +314,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
                 listener.get();
                 fail("Expected exception but returned proper result");
             } catch (ExecutionException ex) {
-                assertThat(ex.getCause(), instanceOf(MasterNotDiscoveredException.class));
+                assertThat(ex.getCause(), instanceOf(ClusterManagerNotDiscoveredException.class));
                 assertThat(ex.getCause().getCause(), instanceOf(ClusterBlockException.class));
             }
         } else {
@@ -382,7 +382,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
         assertTrue(listener.isDone());
-        assertListenerThrows("MasterNotDiscoveredException should be thrown", listener, MasterNotDiscoveredException.class);
+        assertListenerThrows("ClusterManagerNotDiscoveredException should be thrown", listener, ClusterManagerNotDiscoveredException.class);
     }
 
     public void testClusterManagerBecomesAvailable() throws ExecutionException, InterruptedException {
@@ -517,7 +517,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()
                     ? new FailedToCommitClusterStateException("Fake error")
-                    : new NotMasterException("Fake error");
+                    : new NotClusterManagerException("Fake error");
                 listener.onFailure(failure);
             }
         }.execute(request, listener);

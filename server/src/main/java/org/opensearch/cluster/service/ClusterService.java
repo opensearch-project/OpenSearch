@@ -39,7 +39,7 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
-import org.opensearch.cluster.LocalNodeMasterListener;
+import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
@@ -214,7 +214,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * Add a listener for on/off local node cluster-manager events
      */
-    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
+    public void addLocalNodeMasterListener(LocalNodeClusterManagerListener listener) {
         clusterApplierService.addLocalNodeMasterListener(listener);
     }
 

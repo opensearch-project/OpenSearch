@@ -109,9 +109,15 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
     }
 
     private MockTerminal unsafeBootstrap(Environment environment, boolean abort, Boolean applyClusterReadOnlyBlock) throws Exception {
-        final MockTerminal terminal = executeCommand(new UnsafeBootstrapMasterCommand(), environment, 0, abort, applyClusterReadOnlyBlock);
-        assertThat(terminal.getOutput(), containsString(UnsafeBootstrapMasterCommand.CONFIRMATION_MSG));
-        assertThat(terminal.getOutput(), containsString(UnsafeBootstrapMasterCommand.CLUSTER_MANAGER_NODE_BOOTSTRAPPED_MSG));
+        final MockTerminal terminal = executeCommand(
+            new UnsafeBootstrapClusterManagerCommand(),
+            environment,
+            0,
+            abort,
+            applyClusterReadOnlyBlock
+        );
+        assertThat(terminal.getOutput(), containsString(UnsafeBootstrapClusterManagerCommand.CONFIRMATION_MSG));
+        assertThat(terminal.getOutput(), containsString(UnsafeBootstrapClusterManagerCommand.CLUSTER_MANAGER_NODE_BOOTSTRAPPED_MSG));
         return terminal;
     }
 
@@ -171,7 +177,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         final Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(nonMasterNode(internalCluster().getDefaultSettings())).build()
         );
-        expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapMasterCommand.NOT_CLUSTER_MANAGER_NODE_MSG);
+        expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapClusterManagerCommand.NOT_CLUSTER_MANAGER_NODE_MSG);
     }
 
     public void testBootstrapNoDataFolder() {
@@ -214,7 +220,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         );
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
         });
 
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
@@ -224,7 +230,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
         );
-        expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapMasterCommand.EMPTY_LAST_COMMITTED_VOTING_CONFIG_MSG);
+        expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapClusterManagerCommand.EMPTY_LAST_COMMITTED_VOTING_CONFIG_MSG);
     }
 
     public void testBootstrapNoClusterState() throws IOException {
@@ -332,14 +338,17 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet()
                 .getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
         });
 
         logger.info("--> try to unsafely bootstrap 1st cluster-manager-eligible node, while node lock is held");
         Environment environmentClusterManager1 = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(clusterManager1DataPathSettings).build()
         );
-        expectThrows(() -> unsafeBootstrap(environmentClusterManager1), UnsafeBootstrapMasterCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
+        expectThrows(
+            () -> unsafeBootstrap(environmentClusterManager1),
+            UnsafeBootstrapClusterManagerCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG
+        );
 
         logger.info("--> stop 1st cluster-manager-eligible node and data-only node");
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -356,7 +365,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
             containsString(
                 String.format(
                     Locale.ROOT,
-                    UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,
+                    UnsafeBootstrapClusterManagerCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,
                     metadata.coordinationMetadata().term(),
                     metadata.version()
                 )
@@ -385,8 +394,10 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet()
                 .getState();
-            assertFalse(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-            assertTrue(state.metadata().persistentSettings().getAsBoolean(UnsafeBootstrapMasterCommand.UNSAFE_BOOTSTRAP.getKey(), false));
+            assertFalse(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(
+                state.metadata().persistentSettings().getAsBoolean(UnsafeBootstrapClusterManagerCommand.UNSAFE_BOOTSTRAP.getKey(), false)
+            );
         });
 
         List<String> bootstrappedNodes = new ArrayList<>();
@@ -497,7 +508,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         );
 
         ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+        assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node));
     }
