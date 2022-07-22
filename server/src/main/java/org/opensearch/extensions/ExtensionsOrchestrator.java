@@ -311,6 +311,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Sends a transport request for named writeables to an extension, identified by the given DiscoveryNode, and processes the response into registry entries
      *
      * @param extensionNode DiscoveryNode identifying the extension
+     * @throws UnknownHostException if connection to the extension node failed
      * @return A map of category classes and their associated names and readers for this discovery node
      */
     public Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> getNamedWriteables(DiscoveryNode extensionNode)
@@ -388,7 +389,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleException(TransportException exp) {
-                logger.error(new ParameterizedMessage("ExtensionRequest failed"), exp);
+                logger.error(new ParameterizedMessage("OpenSearchRequest failed"), exp);
             }
 
             @Override
@@ -467,6 +468,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * @param extensionNode Discovery Node identifying the extension associated with the category class and name
      * @param categoryClass Class that the Writeable object extends
      * @param context Byte array generated from a {@link StreamInput} object to transport to the extension
+     * @throws UnknownHostException if connection to the extension node failed
      */
     public void parseNamedWriteable(DiscoveryNode extensionNode, Class categoryClass, byte[] context) throws UnknownHostException {
         logger.info("Sending extension request type: " + REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE);
