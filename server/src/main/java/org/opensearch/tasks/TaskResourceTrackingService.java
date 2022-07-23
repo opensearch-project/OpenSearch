@@ -111,6 +111,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
                 taskExecutionFinishedOnThread(task.getId(), Thread.currentThread().getId());
             }
 
+            task.awaitResourceTrackingThreadsCompletion();
             List<Long> threadsWorkingOnTask = getThreadsWorkingOnTask(task);
             if (threadsWorkingOnTask.size() > 0) {
                 logger.warn("No thread should be active when task finishes. Active threads: {}", threadsWorkingOnTask);

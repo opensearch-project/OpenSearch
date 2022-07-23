@@ -45,6 +45,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Current task information
@@ -73,6 +76,8 @@ public class Task {
     private final Map<String, String> headers;
 
     private final Map<Long, List<ThreadResourceInfo>> resourceStats;
+
+    private final Phaser resourceTrackingThreadsBarrier = new Phaser(1);
 
     /**
      * The task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
@@ -288,6 +293,7 @@ public class Task {
             }
         }
         threadResourceInfoList.add(new ThreadResourceInfo(threadId, statsType, resourceUsageMetrics));
+        resourceTrackingThreadsBarrier.register();
     }
 
     /**
@@ -327,6 +333,7 @@ public class Task {
                 if (threadResourceInfo.getStatsType() == statsType && threadResourceInfo.isActive()) {
                     threadResourceInfo.setActive(false);
                     threadResourceInfo.recordResourceUsageMetrics(resourceUsageMetrics);
+                    resourceTrackingThreadsBarrier.arriveAndDeregister();
                     return;
                 }
             }
@@ -376,5 +383,18 @@ public class Task {
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }
+    }
+
+    /**
+     * Awaits for stopThreadResourceTracking to be called for all threads of the current task.
+     * @throws InterruptedException if thread interrupted while waiting
+     * @throws TimeoutException if timed out while waiting
+     */
+    public void awaitResourceTrackingThreadsCompletion() throws InterruptedException, TimeoutException {
+        resourceTrackingThreadsBarrier.awaitAdvanceInterruptibly(
+            resourceTrackingThreadsBarrier.arriveAndDeregister(),
+            10L,
+            TimeUnit.SECONDS
+        );
     }
 }

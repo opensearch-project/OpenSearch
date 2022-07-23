@@ -28,7 +28,6 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.tasks.ThreadResourceInfo;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.test.tasks.MockTaskManagerListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -42,7 +41,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -215,13 +214,9 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
             } finally {
                 if (taskTestContext.operationFinishedValidator != null) {
                     try {
-                        // Wait until Task.stopThreadResourceTracking is called and threads are marked inactive
-                        // before performing validation checks.
-                        assertTrue(
-                            "threads should not be marked active when task finishes",
-                            waitUntil(() -> !hasActiveThreads(task), 5, TimeUnit.SECONDS)
-                        );
-                    } catch (InterruptedException ignored) {}
+                        // Wait for threads to be marked inactive before performing validation checks.
+                        task.awaitResourceTrackingThreadsCompletion();
+                    } catch (InterruptedException | TimeoutException ignored) {}
                     taskTestContext.operationFinishedValidator.accept(threadId.get());
                 }
             }
@@ -654,17 +649,5 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         // 5% buffer up to 200 KB to account for classloading overhead.
         long maxOverhead = Math.min(200000, expected * 5 / 100);
         assertThat(actual, lessThanOrEqualTo(expected + maxOverhead));
-    }
-
-    private boolean hasActiveThreads(Task task) {
-        for (List<ThreadResourceInfo> threadResourceInfos : task.getResourceStats().values()) {
-            for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
-                if (threadResourceInfo.isActive()) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 }
