@@ -419,12 +419,16 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
         extensionsOrchestrator.setTransportService(transportService);
 
-        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsOrchestrator.class))) {
+        try (
+            MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
+                LogManager.getLogger(NamedWriteableRegistryResponseHandler.class)
+            )
+        ) {
 
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "OpenSearchRequest Failure",
-                    "org.opensearch.extensions.ExtensionsOrchestrator",
+                    "org.opensearch.extensions.NamedWriteableRegistryResponseHandler",
                     Level.ERROR,
                     "OpenSearchRequest failed"
                 )
@@ -495,6 +499,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
         extensionsOrchestrator.setTransportService(transportService);
 
+        String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
         DiscoveryNode extensionNode = extensionsOrchestrator.extensionsList.get(0);
         Class categoryClass = Example.class;
         byte[] context = new byte[0];
@@ -514,7 +519,12 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             );
 
-            extensionsOrchestrator.parseNamedWriteable(extensionNode, categoryClass, context);
+            NamedWriteableRegistryResponseHandler responseHandler = new NamedWriteableRegistryResponseHandler(
+                extensionNode,
+                transportService,
+                requestType
+            );
+            responseHandler.parseNamedWriteable(extensionNode, categoryClass, context);
             mockLogAppender.assertAllExpectationsMatched();
         }
     }

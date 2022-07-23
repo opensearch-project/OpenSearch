@@ -35,8 +35,6 @@ import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
-import org.opensearch.common.io.stream.NamedWriteableRegistryParseRequest;
-import org.opensearch.common.io.stream.NamedWriteableRegistryResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
@@ -45,7 +43,6 @@ import org.opensearch.discovery.PluginResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.IndicesModuleNameResponse;
 import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
@@ -258,6 +255,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
         };
         try {
+            logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
             transportService.connectToNode(extensionNode, true);
             transportService.sendRequest(
                 extensionNode,
@@ -316,90 +314,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      */
     public Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> getNamedWriteables(DiscoveryNode extensionNode)
         throws UnknownHostException {
-
-        // Initialize map of entries for this extension to return
-        final Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionRegistry = new HashMap<>();
-
-        final TransportResponseHandler<NamedWriteableRegistryResponse> namedWriteableRegistryResponseHandler = new TransportResponseHandler<
-            NamedWriteableRegistryResponse>() {
-
-            @Override
-            public NamedWriteableRegistryResponse read(StreamInput in) throws IOException {
-                return new NamedWriteableRegistryResponse(in);
-            }
-
-            @Override
-            public void handleResponse(NamedWriteableRegistryResponse response) {
-
-                logger.info("response {}", response);
-                logger.info("EXTENSION [" + extensionNode.getName() + "] returned " + response.getRegistry().size() + " entries");
-
-                if (response.getRegistry().isEmpty() == false) {
-
-                    // Extension has sent over entries to register, initialize inner category map
-                    Map<Class, Map<String, ExtensionReader>> categoryMap = new HashMap<>();
-
-                    // Reader map associated with this current category
-                    Map<String, ExtensionReader> readers = null;
-                    Class currentCategory = null;
-
-                    // Extract response entries and process fully qualified class name into category class instance
-                    for (Map.Entry<String, Class> entry : response.getRegistry().entrySet()) {
-
-                        String name = entry.getKey();
-                        Class categoryClass = entry.getValue();
-                        if (currentCategory != categoryClass) {
-                            // After first pass, readers and current category are set
-                            if (currentCategory != null) {
-                                categoryMap.put(currentCategory, readers);
-                            }
-                            readers = new HashMap<>();
-                            currentCategory = categoryClass;
-                        }
-
-                        // Add name and callback method reference to inner reader map,
-                        ExtensionReader newReader = (en, cc, context) -> parseNamedWriteable(en, cc, context);
-
-                        // Validate that name has not yet been associated with a callback method
-                        ExtensionReader oldReader = readers.put(name, newReader);
-                        if (oldReader != null && oldReader.getClass() != null) {
-                            throw new IllegalArgumentException(
-                                "NamedWriteable ["
-                                    + currentCategory.getName()
-                                    + "]["
-                                    + name
-                                    + "]"
-                                    + " is already registered for ["
-                                    + oldReader.getClass().getName()
-                                    + "],"
-                                    + " cannot register ["
-                                    + newReader.getClass().getName()
-                                    + "]"
-                            );
-                        }
-                    }
-
-                    // Handle last category and reader entry
-                    categoryMap.put(currentCategory, readers);
-
-                    // Attach extension node to categoryMap
-                    extensionRegistry.put(extensionNode, categoryMap);
-                }
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                logger.error(new ParameterizedMessage("OpenSearchRequest failed"), exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-        };
-
-        logger.info("Sending extension request type: " + REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY);
+        NamedWriteableRegistryResponseHandler namedWriteableRegistryResponseHandler = new NamedWriteableRegistryResponseHandler(
+            extensionNode,
+            transportService,
+            REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE
+        );
         try {
+            logger.info("Sending extension request type: " + REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY);
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY,
@@ -410,7 +331,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             logger.error(e.toString());
         }
 
-        return extensionRegistry;
+        return namedWriteableRegistryResponseHandler.getExtensionRegistry();
     }
 
     /**
@@ -462,30 +383,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         return reader;
     }
 
-    /**
-     * Transports a byte array and associated category class to the given extension, identified by its discovery node
-     *
-     * @param extensionNode Discovery Node identifying the extension associated with the category class and name
-     * @param categoryClass Class that the Writeable object extends
-     * @param context Byte array generated from a {@link StreamInput} object to transport to the extension
-     * @throws UnknownHostException if connection to the extension node failed
-     */
-    public void parseNamedWriteable(DiscoveryNode extensionNode, Class categoryClass, byte[] context) throws UnknownHostException {
-        logger.info("Sending extension request type: " + REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE);
-        NamedWriteableRegistryParseResponseHandler namedWriteableRegistryParseResponseHandler =
-            new NamedWriteableRegistryParseResponseHandler();
-        try {
-            transportService.sendRequest(
-                extensionNode,
-                REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE,
-                new NamedWriteableRegistryParseRequest(categoryClass.getName(), context),
-                namedWriteableRegistryParseResponseHandler
-            );
-        } catch (Exception e) {
-            logger.error(e.toString());
-        }
-    }
-
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
         for (DiscoveryNode extensionNode : extensionsList) {
             onIndexModule(indexModule, extensionNode);
@@ -497,10 +394,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
 
-        final TransportResponseHandler<IndicesModuleNameResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<
-            IndicesModuleNameResponse>() {
+        final TransportResponseHandler<ExtensionBooleanResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<
+            ExtensionBooleanResponse>() {
             @Override
-            public void handleResponse(IndicesModuleNameResponse response) {
+            public void handleResponse(ExtensionBooleanResponse response) {
                 logger.info("ACK Response" + response);
                 inProgressIndexNameLatch.countDown();
             }
@@ -516,8 +413,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
 
             @Override
-            public IndicesModuleNameResponse read(StreamInput in) throws IOException {
-                return new IndicesModuleNameResponse(in);
+            public ExtensionBooleanResponse read(StreamInput in) throws IOException {
+                return new ExtensionBooleanResponse(in);
             }
 
         };
@@ -544,7 +441,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                             String indexName = indexService.index().getName();
                             logger.info("Index Name" + indexName.toString());
                             try {
-                                logger.info("Sending request of index name to extension");
+                                logger.info("Sending extension request type: " + INDICES_EXTENSION_NAME_ACTION_NAME);
                                 transportService.sendRequest(
                                     extensionNode,
                                     INDICES_EXTENSION_NAME_ACTION_NAME,
@@ -578,7 +475,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         };
 
         try {
-            logger.info("Sending request to extension");
+            logger.info("Sending extension request type: " + INDICES_EXTENSION_POINT_ACTION_NAME);
             transportService.sendRequest(
                 extensionNode,
                 INDICES_EXTENSION_POINT_ACTION_NAME,

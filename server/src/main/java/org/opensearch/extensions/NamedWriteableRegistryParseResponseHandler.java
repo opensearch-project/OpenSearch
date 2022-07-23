@@ -22,16 +22,16 @@ import org.opensearch.transport.TransportResponseHandler;
  *
  * @opensearch.internal
  */
-public class NamedWriteableRegistryParseResponseHandler implements TransportResponseHandler<BooleanResponse> {
+public class NamedWriteableRegistryParseResponseHandler implements TransportResponseHandler<ExtensionBooleanResponse> {
     private static final Logger logger = LogManager.getLogger(NamedWriteableRegistryParseResponseHandler.class);
 
     @Override
-    public BooleanResponse read(StreamInput in) throws IOException {
-        return new BooleanResponse(in);
+    public ExtensionBooleanResponse read(StreamInput in) throws IOException {
+        return new ExtensionBooleanResponse(in);
     }
 
     @Override
-    public void handleResponse(BooleanResponse response) {
+    public void handleResponse(ExtensionBooleanResponse response) {
         logger.info("response {}", response.getStatus());
     }
 
