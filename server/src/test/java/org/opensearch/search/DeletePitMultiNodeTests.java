@@ -11,6 +11,8 @@ package org.opensearch.search;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
@@ -70,6 +72,7 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         execute = client().execute(CreatePitAction.INSTANCE, request);
         pitResponse = execute.get();
         pitIds.add(pitResponse.getId());
+        validatePitStats("index", 10, 0);
         DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
         ActionFuture<DeletePitResponse> deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = deleteExecute.get();
@@ -78,6 +81,7 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
             assertTrue(pitIds.contains(deletePitInfo.getPitId()));
             assertTrue(deletePitInfo.isSuccessful());
         }
+        validatePitStats("index", 0, 10);
         /**
          * Checking deleting the same PIT id again results in succeeded
          */
@@ -96,7 +100,7 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         CreatePitResponse pitResponse = execute.get();
         List<String> pitIds = new ArrayList<>();
         pitIds.add(pitResponse.getId());
-
+        validatePitStats("index", 5, 0);
         /**
          * Delete Pit #1
          */
@@ -107,9 +111,11 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
             assertTrue(pitIds.contains(deletePitInfo.getPitId()));
             assertTrue(deletePitInfo.isSuccessful());
         }
+        validatePitStats("index", 0, 5);
         execute = client().execute(CreatePitAction.INSTANCE, request);
         pitResponse = execute.get();
         pitIds.add(pitResponse.getId());
+        validatePitStats("index", 5, 5);
         /**
          * Delete PIT with both Ids #1 (which is deleted) and #2 (which is present)
          */
@@ -120,6 +126,7 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
             assertTrue(pitIds.contains(deletePitInfo.getPitId()));
             assertTrue(deletePitInfo.isSuccessful());
         }
+        validatePitStats("index", 0, 10);
     }
 
     public void testDeletePitWithValidAndInvalidIds() throws Exception {
@@ -142,6 +149,8 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         client().prepareIndex("index1").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).execute().get();
         ensureGreen();
         createPitOnIndex("index1");
+        validatePitStats("index", 5, 0);
+        validatePitStats("index1", 5, 0);
         DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
 
         /**
@@ -154,6 +163,8 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
             assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
             assertTrue(deletePitInfo.isSuccessful());
         }
+        validatePitStats("index", 0, 5);
+        validatePitStats("index1", 0, 5);
         client().admin().indices().prepareDelete("index1").get();
     }
 
@@ -282,6 +293,18 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
+    }
+
+    public void validatePitStats(String index, long expectedPitCurrent, long expectedPitCount) throws ExecutionException,
+        InterruptedException {
+        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+        indicesStatsRequest.indices(index);
+        indicesStatsRequest.all();
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(indicesStatsRequest).get();
+        long pitCurrent = indicesStatsResponse.getIndex(index).getTotal().search.getTotal().getPitCurrent();
+        long pitCount = indicesStatsResponse.getIndex(index).getTotal().search.getTotal().getPitCount();
+        assertEquals(expectedPitCurrent, pitCurrent);
+        assertEquals(expectedPitCount, pitCount);
     }
 
 }

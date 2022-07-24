@@ -597,6 +597,21 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.search.scroll_total", "default:false;text-align:right;desc:completed scroll contexts");
 
+        table.addCell("search.pit_current", "sibling:pri;alias:scc,searchPitCurrent;default:false;text-align:right;desc:open pit contexts");
+        table.addCell("pri.search.pit_current", "default:false;text-align:right;desc:open pit contexts");
+
+        table.addCell(
+            "search.pit_time",
+            "sibling:pri;alias:scti,searchPitTime;default:false;text-align:right;desc:time pit contexts held open"
+        );
+        table.addCell("pri.search.pit_time", "default:false;text-align:right;desc:time pit contexts held open");
+
+        table.addCell(
+            "search.pit_total",
+            "sibling:pri;alias:scto,searchPitTotal;default:false;text-align:right;desc:completed pit contexts"
+        );
+        table.addCell("pri.search.pit_total", "default:false;text-align:right;desc:completed pit contexts");
+
         table.addCell("segments.count", "sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("pri.segments.count", "default:false;text-align:right;desc:number of segments");
 
@@ -877,6 +892,15 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCurrent());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCurrent());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitTime());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitTime());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCount());
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());

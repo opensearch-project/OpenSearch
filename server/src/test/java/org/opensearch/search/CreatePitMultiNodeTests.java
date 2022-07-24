@@ -11,6 +11,8 @@ package org.opensearch.search;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
@@ -56,6 +58,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
             .get();
         assertEquals(2, searchResponse.getSuccessfulShards());
         assertEquals(2, searchResponse.getTotalShards());
+        validatePitStats("index", 2, 2);
     }
 
     public void testCreatePitWhileNodeDropWithAllowPartialCreationFalse() throws Exception {
@@ -68,6 +71,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
                 ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
                 assertTrue(ex.getMessage().contains("Failed to execute phase [create_pit]"));
                 assertTrue(ex.getMessage().contains("Partial shards failure"));
+                validatePitStats("index", 0, 0);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -89,6 +93,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
                     .get();
                 assertEquals(1, searchResponse.getSuccessfulShards());
                 assertEquals(1, searchResponse.getTotalShards());
+                validatePitStats("index", 1, 1);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -110,6 +115,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
                 assertEquals(1, searchResponse.getFailedShards());
                 assertEquals(0, searchResponse.getSkippedShards());
                 assertEquals(2, searchResponse.getTotalShards());
+                validatePitStats("index", 1, 1);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -208,4 +214,15 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
 
     }
 
+    public void validatePitStats(String index, long expectedPitCurrent, long expectedOpenContexts) throws ExecutionException,
+        InterruptedException {
+        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+        indicesStatsRequest.indices("index");
+        indicesStatsRequest.all();
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(indicesStatsRequest).get();
+        long pitCurrent = indicesStatsResponse.getIndex(index).getTotal().search.getTotal().getPitCurrent();
+        long openContexts = indicesStatsResponse.getIndex(index).getTotal().search.getOpenContexts();
+        assertEquals(expectedPitCurrent, pitCurrent);
+        assertEquals(expectedOpenContexts, openContexts);
+    }
 }

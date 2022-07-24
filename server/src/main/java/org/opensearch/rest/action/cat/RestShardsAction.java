@@ -226,6 +226,10 @@ public class RestShardsAction extends AbstractCatAction {
         );
         table.addCell("search.scroll_total", "alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
 
+        table.addCell("search.pit_current", "alias:spc,searchPitCurrent;default:false;text-align:right;desc:open pit contexts");
+        table.addCell("search.pit_time", "alias:spti,searchPitTime;default:false;text-align:right;desc:time pit contexts held open");
+        table.addCell("search.pit_total", "alias:spto,searchPitTotal;default:false;text-align:right;desc:completed pit contexts");
+
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell(
@@ -390,6 +394,10 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCount()));
+
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getPitCurrent()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getPitTime()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getPitCount()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getCount));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getZeroMemory));
