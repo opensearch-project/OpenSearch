@@ -729,7 +729,6 @@ public class QueryStringQueryParser extends XQueryParser {
                 throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
             }
             return super.getWildcardQuery(indexedNameField, termStr);
-            // return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
