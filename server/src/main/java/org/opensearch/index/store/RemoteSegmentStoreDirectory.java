@@ -39,13 +39,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private final RemoteDirectory remoteDataDirectory;
     private final RemoteDirectory remoteMetadataDirectory;
+    private String refreshMappingFileUniqueSuffix;
     private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
-    private String lastRefreshMappingFile;
 
     public RemoteSegmentStoreDirectory(RemoteDirectory remoteDataDirectory, RemoteDirectory remoteMetadataDirectory) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
+        this.refreshMappingFileUniqueSuffix = UUIDs.base64UUID();
         // Read latest mapping file and populate this map with list of files uploaded
         this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(readLatestMappingFile());
     }
@@ -53,32 +54,37 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     private Map<String, UploadedSegmentMetadata> readLatestMappingFile() throws IOException {
         Map<String, UploadedSegmentMetadata> segmentMetadataMap = new HashMap<>();
         Collection<String> commitMappingFiles = remoteMetadataDirectory.listFilesByPrefix(COMMIT_MAPPING_PREFIX);
-        Optional<String> latestCommitMappingFile = commitMappingFiles.stream().max(new RemoteFilenameComparator());
+        Optional<String> latestCommitMappingFile = commitMappingFiles.stream().max(new MappingFilenameComparator());
 
         if(latestCommitMappingFile.isPresent()) {
             readMappingFile(latestCommitMappingFile.get(), segmentMetadataMap);
+            this.refreshMappingFileUniqueSuffix = latestCommitMappingFile.get().split(SEPARATOR)[3];
         }
 
         Collection<String> refreshMappingFiles = remoteMetadataDirectory.listFilesByPrefix(REFRESH_MAPPING_PREFIX);
-        Optional<String> latestRefreshMappingFile = refreshMappingFiles.stream().max(new RemoteFilenameComparator());
+        Optional<String> latestRefreshMappingFile = refreshMappingFiles.stream().filter(file -> {
+            if(latestCommitMappingFile.isPresent()) {
+                return file.endsWith(latestCommitMappingFile.get().split(SEPARATOR)[3]);
+            } else {
+                return true;
+            }
+        }).max(new MappingFilenameComparator());
 
-        this.lastRefreshMappingFile = null;
+        String latestRefreshMappingFilename = null;
         if(latestRefreshMappingFile.isPresent()) {
             String refreshMappingFile = latestRefreshMappingFile.get();
             if(latestCommitMappingFile.isPresent()) {
                 String commitMappingFile = latestCommitMappingFile.get();
-                String[] refreshMappingFileTokens = refreshMappingFile.split(SEPARATOR);
-                String[] commitMappingFileTokens = commitMappingFile.split(SEPARATOR);
-                int suffixComparison = RemoteFilenameComparator.compareSuffix(refreshMappingFileTokens, commitMappingFileTokens);
+                int suffixComparison = MappingFilenameComparator.compareSuffix(refreshMappingFile, commitMappingFile);
                 if(suffixComparison >= 0) {
-                    this.lastRefreshMappingFile = refreshMappingFile;
+                    latestRefreshMappingFilename = refreshMappingFile;
                 }
             } else {
-                this.lastRefreshMappingFile = refreshMappingFile;
+                latestRefreshMappingFilename = refreshMappingFile;
             }
         }
-        if(this.lastRefreshMappingFile != null) {
-            readMappingFile(this.lastRefreshMappingFile, segmentMetadataMap);
+        if(latestRefreshMappingFilename != null) {
+            readMappingFile(latestRefreshMappingFilename, segmentMetadataMap);
         }
         return segmentMetadataMap;
     }
@@ -114,21 +120,21 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
     }
 
-    static class RemoteFilenameComparator implements Comparator<String> {
+    static class MappingFilenameComparator implements Comparator<String> {
 
         @Override
         public int compare(String first, String second) {
-            String[] firstTokens = first.split(SEPARATOR);
-            String[] secondTokens = second.split(SEPARATOR);
-            int suffixComparison = compareSuffix(firstTokens, secondTokens);
+            int suffixComparison = compareSuffix(first, second);
             if(suffixComparison == 0) {
-                return firstTokens[3].compareTo(secondTokens[3]);
+                return first.split(SEPARATOR)[3].compareTo(second.split(SEPARATOR)[3]);
             } else {
                 return suffixComparison;
             }
         }
 
-        public static int compareSuffix(String[] firstTokens, String[] secondTokens) {
+        public static int compareSuffix(String first, String second) {
+            String[] firstTokens = first.split(SEPARATOR);
+            String[] secondTokens = second.split(SEPARATOR);
             long firstPrimaryTerm = Long.parseLong(firstTokens[1]);
             long secondPrimaryTerm = Long.parseLong(secondTokens[1]);
             if(firstPrimaryTerm != secondPrimaryTerm) {
@@ -151,8 +157,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     @Override
     public String[] listAll() throws IOException {
-        init();
-        return segmentsUploadedToRemoteStore.keySet().toArray(new String[0]);
+        return readLatestMappingFile().keySet().toArray(new String[0]);
     }
 
     @Override
@@ -210,28 +215,19 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         segmentsUploadedToRemoteStore.put(src, metadata);
     }
 
-    public boolean containsFile(String localFilename) {
-        return segmentsUploadedToRemoteStore.containsKey(localFilename);
+    public boolean containsFile(String localFilename, String checksum) {
+        return segmentsUploadedToRemoteStore.containsKey(localFilename) && segmentsUploadedToRemoteStore.get(localFilename).checksum.equals(checksum);
     }
 
     public void uploadCommitMapping(Collection<String> committedFiles, Directory storeDirectory, long primaryTerm, long generation) throws IOException {
         String commitFilename = getNewRemoteFilename(COMMIT_MAPPING_PREFIX, primaryTerm, generation);
         uploadMappingFile(committedFiles, storeDirectory, commitFilename);
+        this.refreshMappingFileUniqueSuffix = commitFilename.split(SEPARATOR)[3];
     }
 
     public void uploadRefreshMapping(Collection<String> refreshedFiles, Directory storeDirectory, long primaryTerm, long generation) throws IOException {
-        String refreshFilename = getNewRemoteFilename(REFRESH_MAPPING_PREFIX, primaryTerm, generation);
-        int suffixComparison = 1;
-        if(this.lastRefreshMappingFile != null) {
-            suffixComparison = RemoteFilenameComparator.compareSuffix(this.lastRefreshMappingFile.split(SEPARATOR), refreshFilename.split(SEPARATOR));
-            if (suffixComparison == 0) {
-                refreshFilename = this.lastRefreshMappingFile;
-            }
-        }
+        String refreshFilename = getNewRemoteFilename(REFRESH_MAPPING_PREFIX, primaryTerm, generation, this.refreshMappingFileUniqueSuffix);
         uploadMappingFile(refreshedFiles, storeDirectory, refreshFilename);
-        if(suffixComparison != 0) {
-            this.lastRefreshMappingFile = refreshFilename;
-        }
     }
 
     private void uploadMappingFile(Collection<String> files, Directory storeDirectory, String filename) throws IOException {
@@ -258,7 +254,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     }
 
     private String getNewRemoteFilename(String localFilename, long primaryTerm, long generation) {
-        return localFilename + SEPARATOR + primaryTerm + SEPARATOR + Long.toString(generation, Character.MAX_RADIX) + SEPARATOR + UUIDs.base64UUID();
+        return getNewRemoteFilename(localFilename, primaryTerm, generation, UUIDs.base64UUID());
     }
 
+    private String getNewRemoteFilename(String localFilename, long primaryTerm, long generation, String uuid) {
+        return localFilename + SEPARATOR + primaryTerm + SEPARATOR + Long.toString(generation, Character.MAX_RADIX) + SEPARATOR + uuid;
+    }
 }

@@ -11,11 +11,13 @@ package org.opensearch.index.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
@@ -40,13 +42,17 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
     private boolean isPrimary;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
-    public RemoteStoreRefreshListener(IndexShard indexShard) throws IOException {
+    public RemoteStoreRefreshListener(IndexShard indexShard) {
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate()).getDelegate();
         this.isPrimary = indexShard.shardRouting.primary();
         if(indexShard.shardRouting.primary()) {
-            this.remoteDirectory.init();
+            try {
+                this.remoteDirectory.init();
+            } catch(IOException e) {
+                logger.error("Exception while initialising RemoteSegmentStoreDirectory", e);
+            }
         }
     }
 
@@ -62,51 +68,62 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
      * @throws IOException in case of I/O error in reading list of local files
      */
     @Override
-    public void afterRefresh(boolean didRefresh) throws IOException {
+    public void afterRefresh(boolean didRefresh) {
         synchronized (this) {
-            if (indexShard.shardRouting.primary()) {
-                if (!isPrimary) {
-                    isPrimary = true;
-                    this.remoteDirectory.init();
-                }
-                try {
-                    String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
-                    if (!remoteDirectory.containsFile(lastCommittedLocalSegmentFileName)) {
-                        SegmentInfos commitSegmentInfos = SegmentInfos.readCommit(storeDirectory, lastCommittedLocalSegmentFileName);
-                        Collection<String> committedLocalFiles = commitSegmentInfos.files(true);
-                        boolean uploadStatus = uploadNewSegments(committedLocalFiles);
-                        if (uploadStatus) {
-                            remoteDirectory.copyFrom(storeDirectory, lastCommittedLocalSegmentFileName, lastCommittedLocalSegmentFileName, IOContext.DEFAULT);
-                            remoteDirectory.uploadCommitMapping(committedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), commitSegmentInfos.getGeneration());
-                        }
-                    } else {
-                        logger.info("Latest commit point {} is present in remote store", lastCommittedLocalSegmentFileName);
+            try {
+                if (indexShard.shardRouting.primary()) {
+                    if (!isPrimary) {
+                        isPrimary = true;
+                        this.remoteDirectory.init();
                     }
-                    try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-                        SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
-                        Collection<String> refreshedLocalFiles = segmentInfos.files(true);
-                        boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
-                        if (uploadStatus) {
-                            remoteDirectory.uploadRefreshMapping(refreshedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), segmentInfos.getGeneration());
+                    try {
+                        String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
+                        if (!remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName))) {
+                            SegmentInfos commitSegmentInfos = SegmentInfos.readCommit(storeDirectory, lastCommittedLocalSegmentFileName);
+                            Collection<String> committedLocalFiles = commitSegmentInfos.files(true);
+                            boolean uploadStatus = uploadNewSegments(committedLocalFiles);
+                            if (uploadStatus) {
+                                remoteDirectory.copyFrom(storeDirectory, lastCommittedLocalSegmentFileName, lastCommittedLocalSegmentFileName, IOContext.DEFAULT);
+                                remoteDirectory.uploadCommitMapping(committedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), commitSegmentInfos.getGeneration());
+                            }
+                        } else {
+                            logger.info("Latest commit point {} is present in remote store", lastCommittedLocalSegmentFileName);
                         }
-                    } catch (EngineException e) {
-                        logger.warn("Exception while reading SegmentInfosSnapshot", e);
+                        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
+                            SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+                            Collection<String> refreshedLocalFiles = segmentInfos.files(true);
+                            boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
+                            if (uploadStatus) {
+                                remoteDirectory.uploadRefreshMapping(refreshedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), segmentInfos.getGeneration());
+                            }
+                        } catch (EngineException e) {
+                            logger.warn("Exception while reading SegmentInfosSnapshot", e);
+                        }
+                    } catch (IOException e) {
+                        // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
+                        // in the next refresh. This should not affect durability of the indexed data after remote trans-log integration.
+                        logger.warn("Exception while uploading new segments to the remote segment store", e);
                     }
-                } catch (IOException e) {
-                    // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
-                    // in the next refresh. This should not affect durability of the indexed data after remote trans-log integration.
-                    logger.warn("Exception while uploading new segments to the remote segment store", e);
                 }
+            } catch(Throwable t) {
+                logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
             }
         }
     }
 
     // Visible for testing
-    synchronized boolean uploadNewSegments(Collection<String> localFiles) throws IOException {
+    boolean uploadNewSegments(Collection<String> localFiles) throws IOException {
         AtomicBoolean uploadSuccess = new AtomicBoolean(true);
         localFiles.stream()
             .filter(file -> !EXCLUDE_FILES.contains(file))
-            .filter(file -> !remoteDirectory.containsFile(file))
+            .filter(file -> {
+                try {
+                    return !remoteDirectory.containsFile(file, getChecksumOfLocalFile(file));
+                } catch (IOException e) {
+                    logger.info("Exception while reading checksum of local segment file: {}, ignoring the exception and re-uploading the file", file);
+                    return true;
+                }
+            })
             .forEach(file -> {
                 try {
                     remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
@@ -121,7 +138,12 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                     );
                 }
             });
-
         return uploadSuccess.get();
+    }
+
+    private String getChecksumOfLocalFile(String file) throws IOException {
+        try (IndexInput indexInput = storeDirectory.openInput(file, IOContext.DEFAULT)) {
+            return Long.toString(CodecUtil.retrieveChecksum(indexInput));
+        }
     }
 }
