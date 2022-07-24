@@ -721,15 +721,10 @@ public class QueryStringQueryParser extends XQueryParser {
         try {
             MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
             if (currentFieldType != null) {
-                // return newUnmappedFieldQuery(field);
-                setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+                setAnalyzer(getSearchAnalyzer(currentFieldType));
                 indexedNameField = currentFieldType.name();
             }
 
-            // if (forceAnalyzer != null && (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
-            // setAnalyzer(forceAnalyzer);
-            // return super.getWildcardQuery(currentFieldType.name(), termStr);
-            // }
             if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
                 throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
             }
@@ -743,6 +738,13 @@ public class QueryStringQueryParser extends XQueryParser {
         } finally {
             setAnalyzer(oldAnalyzer);
         }
+    }
+
+    private Analyzer getSearchAnalyzer(MappedFieldType currentFieldType) {
+        if (forceAnalyzer == null) {
+            return queryBuilder.context.getSearchAnalyzer(currentFieldType);
+        }
+        return forceAnalyzer;
     }
 
     @Override
@@ -785,14 +787,10 @@ public class QueryStringQueryParser extends XQueryParser {
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
-            setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+            setAnalyzer(getSearchAnalyzer(currentFieldType));
             return super.getRegexpQuery(field, termStr);
-            // if (forceAnalyzer != null) {
-            // setAnalyzer(forceAnalyzer);
-            // return super.getRegexpQuery(field, termStr);
-            // }
-            // return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getDeterminizeWorkLimit(), getMultiTermRewriteMethod(), context);
-        } catch (RuntimeException e) {
+
+           } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
             }
