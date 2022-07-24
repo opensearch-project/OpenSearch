@@ -716,19 +716,17 @@ public class QueryStringQueryParser extends XQueryParser {
             // effectively, we check if a field exists or not
             return existsQuery(field);
         }
-        String indexedNameField = field;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
             MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
             if (currentFieldType != null) {
                 setAnalyzer(getSearchAnalyzer(currentFieldType));
-                indexedNameField = currentFieldType.name();
             }
 
             if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
                 throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
             }
-            return super.getWildcardQuery(indexedNameField, termStr);
+            return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
