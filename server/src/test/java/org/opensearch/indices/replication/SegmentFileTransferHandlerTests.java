@@ -31,7 +31,17 @@ import java.util.function.IntSupplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.doNothing;
 
 public class SegmentFileTransferHandlerTests extends IndexShardTestCase {
 

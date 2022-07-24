@@ -399,6 +399,10 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         if (highlighterBuilder.highlightQuery != null) {
             targetOptionsBuilder.highlightQuery(highlighterBuilder.highlightQuery.toQuery(context));
         }
+        if (highlighterBuilder.maxAnalyzerOffset != null) {
+            targetOptionsBuilder.maxAnalyzerOffset(highlighterBuilder.maxAnalyzerOffset);
+        }
+
     }
 
     static Character[] convertCharArray(char[] array) {

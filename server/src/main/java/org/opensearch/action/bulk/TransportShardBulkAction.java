@@ -169,7 +169,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
-            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
+            mappingUpdatedAction.updateMappingOnClusterManager(shardId.getIndex(), update, mappingListener);
         }, mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
@@ -626,7 +626,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
             // Even though the primary waits on all nodes to ack the mapping changes to the cluster-manager
-            // (see MappingUpdatedAction.updateMappingOnMaster) we still need to protect against missing mappings
+            // (see MappingUpdatedAction.updateMappingOnClusterManager) we still need to protect against missing mappings
             // and wait for them. The reason is concurrent requests. Request r1 which has new field f triggers a
             // mapping update. Assume that that update is first applied on the primary, and only later on the replica
             // (it’s happening concurrently). Request r2, which now arrives on the primary and which also has the new

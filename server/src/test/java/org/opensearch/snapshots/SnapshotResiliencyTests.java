@@ -183,6 +183,8 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
@@ -1342,13 +1344,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             testClusterNodes.nodes.values()
                 .stream()
                 .map(n -> n.node)
-                .filter(DiscoveryNode::isMasterNode)
+                .filter(DiscoveryNode::isClusterManagerNode)
                 .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet())
         );
         testClusterNodes.nodes.values()
             .stream()
-            .filter(n -> n.node.isMasterNode())
+            .filter(n -> n.node.isClusterManagerNode())
             .forEach(testClusterNode -> testClusterNode.coordinator.setInitialConfiguration(votingConfiguration));
         // Connect all nodes to each other
         testClusterNodes.nodes.values()
@@ -1377,7 +1379,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 .map(node -> node.clusterService.state())
                 .collect(Collectors.toList());
             final Set<String> clusterManagerNodeIds = clusterStates.stream()
-                .map(clusterState -> clusterState.nodes().getMasterNodeId())
+                .map(clusterState -> clusterState.nodes().getClusterManagerNodeId())
                 .collect(Collectors.toSet());
             final Set<Long> terms = clusterStates.stream().map(ClusterState::term).collect(Collectors.toSet());
             final List<Long> versions = clusterStates.stream().map(ClusterState::version).distinct().collect(Collectors.toList());
@@ -1537,7 +1539,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
             final List<TestClusterNode> clusterManagerNodes = testClusterNodes.nodes.values()
                 .stream()
-                .filter(n -> n.node.isMasterNode())
+                .filter(n -> n.node.isClusterManagerNode())
                 .filter(n -> disconnectedNodes.contains(n.node.getName()) == false)
                 .sorted(Comparator.comparing(n -> n.node.getName()))
                 .collect(Collectors.toList());
@@ -1608,9 +1610,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
          * @return Cluster Manager Node
          */
         public TestClusterNode currentClusterManager(ClusterState state) {
-            TestClusterNode clusterManager = nodes.get(state.nodes().getMasterNode().getName());
+            TestClusterNode clusterManager = nodes.get(state.nodes().getClusterManagerNode().getName());
             assertNotNull(clusterManager);
-            assertTrue(clusterManager.node.isMasterNode());
+            assertTrue(clusterManager.node.isClusterManagerNode());
             return clusterManager;
         }
 
@@ -1643,7 +1645,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
             private final DiscoveryNode node;
 
-            private final MasterService clusterManagerService;
+            private final MasterService masterService;
 
             private final AllocationService allocationService;
 
@@ -1663,18 +1665,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable));
-                clusterManagerService = new FakeThreadPoolMasterService(
-                    node.getName(),
-                    "test",
-                    threadPool,
-                    deterministicTaskQueue::scheduleNow
-                );
+                masterService = new FakeThreadPoolMasterService(node.getName(), "test", threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
                     settings,
                     clusterSettings,
-                    clusterManagerService,
+                    masterService,
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
@@ -1845,6 +1842,12 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     clusterService,
                     threadPool,
                     new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
+                    new SegmentReplicationTargetService(
+                        threadPool,
+                        recoverySettings,
+                        transportService,
+                        new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                    ),
                     shardStateAction,
                     new NodeMappingRefreshAction(transportService, metadataMappingService),
                     repositoriesService,
@@ -2205,11 +2208,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     transportService,
                     namedWriteableRegistry,
                     allocationService,
-                    clusterManagerService,
+                    masterService,
                     () -> persistedState,
                     hostsResolver -> nodes.values()
                         .stream()
-                        .filter(n -> n.node.isMasterNode())
+                        .filter(n -> n.node.isClusterManagerNode())
                         .map(n -> n.node.getAddress())
                         .collect(Collectors.toList()),
                     clusterService.getClusterApplierService(),
@@ -2219,7 +2222,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ElectionStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info")
                 );
-                clusterManagerService.setClusterStatePublisher(coordinator);
+                masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();

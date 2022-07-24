@@ -153,16 +153,16 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(InternalSettingsPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/3561")
     public void testHighWatermarkNotExceeded() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
 
-        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(
-            ClusterInfoService.class
-        );
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
+        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) internalCluster()
+            .getCurrentClusterManagerNodeInstance(ClusterInfoService.class);
+        internalCluster().getCurrentClusterManagerNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
 
         final String dataNode0Id = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
         final Path dataNode0Path = internalCluster().getInstance(Environment.class, dataNodeName).dataFiles()[0];
@@ -202,10 +202,9 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
 
-        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(
-            ClusterInfoService.class
-        );
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
+        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) internalCluster()
+            .getCurrentClusterManagerNodeInstance(ClusterInfoService.class);
+        internalCluster().getCurrentClusterManagerNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
 
         final String dataNode0Id = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
         final Path dataNode0Path = internalCluster().getInstance(Environment.class, dataNodeName).dataFiles()[0];
@@ -329,7 +328,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     }
 
     private void refreshDiskUsage() {
-        final ClusterInfoService clusterInfoService = internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
+        final ClusterInfoService clusterInfoService = internalCluster().getCurrentClusterManagerNodeInstance(ClusterInfoService.class);
         ((InternalClusterInfoService) clusterInfoService).refresh();
         // if the nodes were all under the low watermark already (but unbalanced) then a change in the disk usage doesn't trigger a reroute
         // even though it's now possible to achieve better balance, so we have to do an explicit reroute. TODO fix this?

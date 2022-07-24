@@ -97,12 +97,12 @@ public class PeerFinderMessagesTests extends OpenSearchTestCase {
                 final long term = in.getTerm();
                 if (randomBoolean()) {
                     return new PeersResponse(
-                        in.getMasterNode(),
+                        in.getClusterManagerNode(),
                         in.getKnownPeers(),
                         randomValueOtherThan(term, OpenSearchTestCase::randomNonNegativeLong)
                     );
                 } else {
-                    if (in.getMasterNode().isPresent()) {
+                    if (in.getClusterManagerNode().isPresent()) {
                         if (randomBoolean()) {
                             return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), in.getKnownPeers(), term);
                         } else {
@@ -112,7 +112,7 @@ public class PeerFinderMessagesTests extends OpenSearchTestCase {
                         if (randomBoolean()) {
                             return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), emptyList(), term);
                         } else {
-                            return new PeersResponse(in.getMasterNode(), modifyDiscoveryNodesList(in.getKnownPeers(), false), term);
+                            return new PeersResponse(in.getClusterManagerNode(), modifyDiscoveryNodesList(in.getKnownPeers(), false), term);
                         }
                     }
                 }

@@ -41,7 +41,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -93,7 +93,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
         this.threadPool = threadPool;
         this.periodicRechecker = new PeriodicRechecker(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
-        if (DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
             clusterService.addListener(this);
         }
         clusterService.getClusterSettings()
@@ -356,7 +356,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) {
+        if (event.localNodeClusterManager()) {
             if (shouldReassignPersistentTasks(event)) {
                 // We want to avoid a periodic check duplicating this work
                 periodicRechecker.cancel();
@@ -381,7 +381,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn("failed to reassign persistent tasks", e);
-                if (e instanceof NotMasterException == false) {
+                if (e instanceof NotClusterManagerException == false) {
                     // There must be a task that's worth rechecking because there was one
                     // that caused this method to be called and the method failed to assign it,
                     // but only do this if the node is still the master
@@ -409,7 +409,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             return false;
         }
 
-        boolean masterChanged = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+        boolean masterChanged = event.previousState().nodes().isLocalNodeElectedClusterManager() == false;
 
         if (persistentTasksChanged(event)
             || event.nodesChanged()
@@ -518,7 +518,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
         @Override
         public void runInternal() {
-            if (clusterService.localNode().isMasterNode()) {
+            if (clusterService.localNode().isClusterManagerNode()) {
                 final ClusterState state = clusterService.state();
                 logger.trace("periodic persistent task assignment check running for cluster state {}", state.getVersion());
                 if (isAnyTaskUnassigned(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {

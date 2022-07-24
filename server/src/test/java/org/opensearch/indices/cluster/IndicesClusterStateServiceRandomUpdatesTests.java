@@ -47,7 +47,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -66,6 +66,7 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -369,20 +370,22 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         Supplier<MockIndicesService> indicesServiceSupplier
     ) {
         // randomly remove no_cluster_manager blocks
-        if (randomBoolean() && state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID)) {
+        if (randomBoolean() && state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID)) {
             state = ClusterState.builder(state)
-                .blocks(ClusterBlocks.builder().blocks(state.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
+                .blocks(ClusterBlocks.builder().blocks(state.blocks()).removeGlobalBlock(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID))
                 .build();
         }
 
         // randomly add no_cluster_manager blocks
-        if (rarely() && state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID) == false) {
-            ClusterBlock block = randomBoolean() ? NoMasterBlockService.NO_MASTER_BLOCK_ALL : NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
+        if (rarely() && state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID) == false) {
+            ClusterBlock block = randomBoolean()
+                ? NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL
+                : NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES;
             state = ClusterState.builder(state).blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(block)).build();
         }
 
         // if no_cluster_manager block is in place, make no other cluster state changes
-        if (state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID)) {
+        if (state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID)) {
             return state;
         }
 
@@ -493,7 +496,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 // remove node
                 if (state.nodes().getDataNodes().size() > 3) {
                     DiscoveryNode discoveryNode = randomFrom(state.nodes().getNodes().values().toArray(DiscoveryNode.class));
-                    if (discoveryNode.equals(state.nodes().getMasterNode()) == false) {
+                    if (discoveryNode.equals(state.nodes().getClusterManagerNode()) == false) {
                         state = cluster.removeNodes(state, Collections.singletonList(discoveryNode));
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
@@ -564,6 +567,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             clusterService,
             threadPool,
             SegmentReplicationCheckpointPublisher.EMPTY,
+            SegmentReplicationTargetService.NO_OP,
             recoveryTargetService,
             shardStateAction,
             null,

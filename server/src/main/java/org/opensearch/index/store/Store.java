@@ -1003,7 +1003,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // version is written since 3.1+: we should have already hit IndexFormatTooOld.
                     throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
                 }
-                if (version.onOrAfter(maxVersion)) {
+                // With segment replication enabled, we compute metadata snapshots from the latest in memory infos.
+                // In this case we will have SegmentInfos objects fetched from the primary's reader
+                // where the minSegmentLuceneVersion can be null even though there are segments.
+                // This is because the SegmentInfos object is not read from a commit/IndexInput, which sets
+                // minSegmentLuceneVersion.
+                if (maxVersion == null || version.onOrAfter(maxVersion)) {
                     maxVersion = version;
                 }
                 for (String file : info.files()) {

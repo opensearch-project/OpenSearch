@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -42,8 +41,10 @@ import java.io.IOException;
  * on a node that is no longer cluster-manager.
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link NotClusterManagerException}
  */
-public class NotMasterException extends OpenSearchException {
+@Deprecated
+public class NotMasterException extends NotClusterManagerException {
 
     public NotMasterException(String msg) {
         super(msg);
@@ -53,8 +54,4 @@ public class NotMasterException extends OpenSearchException {
         super(in);
     }
 
-    @Override
-    public Throwable fillInStackTrace() {
-        return this;
-    }
 }

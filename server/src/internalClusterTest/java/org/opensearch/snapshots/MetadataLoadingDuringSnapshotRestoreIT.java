@@ -198,7 +198,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
     }
 
     private CountingMockRepository getCountingMockRepository() {
-        String clusterManager = internalCluster().getMasterName();
+        String clusterManager = internalCluster().getClusterManagerName();
         RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, clusterManager);
         Repository repository = repositoriesService.repository("repository");
         assertThat(repository, instanceOf(CountingMockRepository.class));

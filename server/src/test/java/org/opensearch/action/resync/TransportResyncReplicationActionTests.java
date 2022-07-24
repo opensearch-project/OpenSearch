@@ -38,7 +38,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -116,7 +116,7 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                 ClusterState.builder(clusterService.state())
                     .blocks(
                         ClusterBlocks.builder()
-                            .addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ALL)
+                            .addGlobalBlock(NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL)
                             .addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
                     )
             );

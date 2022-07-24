@@ -181,11 +181,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         for (StoreFileMetadata file : filesToFetch) {
             state.getIndex().addFileDetail(file.name(), file.length(), false);
         }
-        if (filesToFetch.isEmpty()) {
-            getFilesListener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-        } else {
-            source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, store, getFilesListener);
-        }
+        // always send a req even if not fetching files so the primary can clear the copyState for this shard.
+        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, store, getFilesListener);
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
