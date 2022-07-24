@@ -65,7 +65,6 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
      * Upload new segment files created as part of the last refresh to the remote segment store.
      * This method also uploads remote_segments_metadata file which contains metadata of each segment file uploaded.
      * @param didRefresh true if the refresh opened a new reference
-     * @throws IOException in case of I/O error in reading list of local files
      */
     @Override
     public void afterRefresh(boolean didRefresh) {
@@ -85,6 +84,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                             if (uploadStatus) {
                                 remoteDirectory.copyFrom(storeDirectory, lastCommittedLocalSegmentFileName, lastCommittedLocalSegmentFileName, IOContext.DEFAULT);
                                 remoteDirectory.uploadCommitMapping(committedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), commitSegmentInfos.getGeneration());
+                                deleteStaleCommits();
                             }
                         } else {
                             logger.info("Latest commit point {} is present in remote store", lastCommittedLocalSegmentFileName);
@@ -144,6 +144,14 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
     private String getChecksumOfLocalFile(String file) throws IOException {
         try (IndexInput indexInput = storeDirectory.openInput(file, IOContext.DEFAULT)) {
             return Long.toString(CodecUtil.retrieveChecksum(indexInput));
+        }
+    }
+
+    private void deleteStaleCommits() {
+        try {
+            remoteDirectory.deleteStaleCommits(5);
+        } catch(IOException e) {
+            logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit");
         }
     }
 }
