@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.indices.recovery;
+package org.opensearch.indices.replication.common;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
@@ -45,11 +45,11 @@ import java.util.Map;
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 /**
- * Tracks recovery requests
+ * Tracks replication requests
  *
  * @opensearch.internal
  */
-public class RecoveryRequestTracker {
+public class ReplicationRequestTracker {
 
     private final Map<Long, ListenableFuture<Void>> ongoingRequests = Collections.synchronizedMap(new HashMap<>());
     private final LocalCheckpointTracker checkpointTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
