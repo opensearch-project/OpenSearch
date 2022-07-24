@@ -787,7 +787,7 @@ public class QueryStringQueryParser extends XQueryParser {
             setAnalyzer(getSearchAnalyzer(currentFieldType));
             return super.getRegexpQuery(field, termStr);
 
-           } catch (RuntimeException e) {
+        } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
             }
