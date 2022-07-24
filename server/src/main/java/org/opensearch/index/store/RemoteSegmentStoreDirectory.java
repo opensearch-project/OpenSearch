@@ -252,7 +252,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     }
 
     private String getExistingRemoteFilename(String localFilename) {
-        return segmentsUploadedToRemoteStore.get(localFilename).uploadedFilename;
+        if(segmentsUploadedToRemoteStore.containsKey(localFilename)) {
+            return segmentsUploadedToRemoteStore.get(localFilename).uploadedFilename;
+        } else {
+            return null;
+        }
     }
 
     private String getNewRemoteSegmentFilename(String localFilename) {
@@ -290,7 +294,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             Set<String> staleSegmentRemoteFilenames = staleSegmentFilesMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet());
             staleSegmentRemoteFilenames.stream().filter(file -> !activeSegmentRemoteFilenames.contains(file)).forEach(file -> {
                 try {
-                    remoteDataDirectory.deleteFile(getExistingRemoteFilename(file));
+                    remoteDataDirectory.deleteFile(file);
                     if(!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
                         segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
                     }
