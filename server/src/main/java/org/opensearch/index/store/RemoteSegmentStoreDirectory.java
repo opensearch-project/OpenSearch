@@ -18,7 +18,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.opensearch.common.UUIDs;
-import org.opensearch.index.shard.RemoteStoreRefreshListener;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -286,24 +285,24 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         for(String commitFile: latestNCommitFiles) {
             readMappingFile(commitFile, activeSegmentFilesMetadataMap);
         }
-
+        Set<String> activeSegmentRemoteFilenames = activeSegmentFilesMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet());
         for(String commitFile: sortedMappingFileList.subList(0, sortedMappingFileList.size() - lastNCommitsToKeep)) {
             Map<String, UploadedSegmentMetadata> staleSegmentFilesMetadataMap = new HashMap<>();
             readMappingFile(commitFile, staleSegmentFilesMetadataMap);
-            Set<String> activeSegmentRemoteFilenames = activeSegmentFilesMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet());
             Set<String> staleSegmentRemoteFilenames = staleSegmentFilesMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet());
             staleSegmentRemoteFilenames.stream().filter(file -> !activeSegmentRemoteFilenames.contains(file)).forEach(file -> {
                 try {
+                    logger.info("Deleting stale segment file {} from remote segment store", file);
                     remoteDataDirectory.deleteFile(file);
                     if(!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
                         segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
                     }
-                    remoteMetadataDirectory.deleteFile(commitFile);
-                    remoteMetadataDirectory.deleteFile(REFRESH_MAPPING_PREFIX + commitFile.substring(COMMIT_MAPPING_PREFIX.length()));
                 } catch (IOException e) {
                     logger.info("Exception while deleting segment files related to commit file {}. Deletion will be re-tried", commitFile);
                 }
             });
+            remoteMetadataDirectory.deleteFile(commitFile);
+            remoteMetadataDirectory.deleteFile(REFRESH_MAPPING_PREFIX + commitFile.substring(COMMIT_MAPPING_PREFIX.length()));
         }
     }
 }

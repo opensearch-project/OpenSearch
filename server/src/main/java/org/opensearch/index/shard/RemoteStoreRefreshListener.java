@@ -87,7 +87,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                                 deleteStaleCommits();
                             }
                         } else {
-                            logger.info("Latest commit point {} is present in remote store", lastCommittedLocalSegmentFileName);
+                            logger.debug("Latest commit point {} is present in remote store", lastCommittedLocalSegmentFileName);
                         }
                         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                             SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
