@@ -1078,6 +1078,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (getReaderContext(contextId.getSearchContextIdForNode().getSearchContextId()) != null) {
                     try (ReaderContext context = removeReaderContext(contextId.getSearchContextIdForNode().getSearchContextId().getId())) {
                         PitReaderContext pitReaderContext = (PitReaderContext) context;
+                        if (context == null) {
+                            DeletePitInfo deletePitInfo = new DeletePitInfo(true, contextId.getPitId());
+                            deleteResults.add(deletePitInfo);
+                            continue;
+                        }
                         String pitId = pitReaderContext.getPitId();
                         boolean success = context != null;
                         DeletePitInfo deletePitInfo = new DeletePitInfo(success, pitId);
