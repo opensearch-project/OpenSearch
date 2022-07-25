@@ -173,7 +173,10 @@ public abstract class Engine implements Closeable {
      * Return the latest active SegmentInfos from the engine.
      * @return {@link SegmentInfos}
      */
-    protected abstract SegmentInfos getLatestSegmentInfos();
+    protected SegmentInfos getLatestSegmentInfos() {
+        // Default Implementation.
+        return null;
+    };
 
     public MergeStats getMergeStats() {
         return new MergeStats();

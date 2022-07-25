@@ -222,20 +222,7 @@ public class NRTReplicationEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshotFromTranslogFile(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange)
         throws IOException {
-        return new Translog.Snapshot() {
-            @Override
-            public int totalOperations() {
-                return 0;
-            }
-
-            @Override
-            public Translog.Operation next() {
-                return null;
-            }
-
-            @Override
-            public void close() {}
-        };
+        return getTranslog().newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     @Override
