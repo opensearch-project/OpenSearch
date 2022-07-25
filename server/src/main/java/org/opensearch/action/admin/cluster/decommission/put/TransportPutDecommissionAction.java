@@ -84,7 +84,6 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
                 (delegatedListener, response) -> delegatedListener.onResponse(new PutDecommissionResponse(response.isAcknowledged()))
             )
         );
-        decommissionService.failDecommissionedNodes(state);
     }
 
     @Override

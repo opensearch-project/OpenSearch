@@ -13,17 +13,22 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
+import org.opensearch.cluster.ClusterStateTaskConfig;
+import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.metadata.DecommissionedAttributeMetadata;
 import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.threadpool.ThreadPool;
@@ -38,16 +43,18 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
     private static final Logger logger = LogManager.getLogger(DecommissionService.class);
 
     private final ClusterService clusterService;
-
+    private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final ThreadPool threadPool;
 
     @Inject
     public DecommissionService(
         ClusterService clusterService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        AllocationService allocationService
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
     }
 
     /**
@@ -86,11 +93,11 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
         clusterService.submitStateUpdateTask(
             // TODO - put request.name instead of zone
             "put_decommission [" + request.getName() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
+            new ClusterStateUpdateTask(Priority.URGENT) {
+//                @Override
+//                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+//                    return new ClusterStateUpdateResponse(acknowledged);
+//                }
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -144,14 +151,18 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
                 @Override
                 public void onFailure(String source, Exception e) {
                     logger.warn(() -> new ParameterizedMessage("failed to decommission attribute [{}]", request.getName()), e);
-                    super.onFailure(source, e);
+                    listener.onFailure(e);
                 }
 
                 @Override
-                public boolean mustAck(DiscoveryNode discoveryNode) {
-                    // master must acknowledge the metadata change
-                    return discoveryNode.isMasterNode();
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    failDecommissionedNodes(newState);
                 }
+//                @Override
+//                public boolean mustAck(DiscoveryNode discoveryNode) {
+//                    // master must acknowledge the metadata change
+//                    return discoveryNode.isMasterNode();
+//                }
             }
         );
     }
@@ -182,4 +193,28 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
 //        final ActionListener<ClusterStateUpdateResponse> listener
 //    )
 
+    public void failDecommissionedNodes(ClusterState updatedState) {
+        DiscoveryNode[] discoveryNodes = updatedState.nodes().getNodes().values().toArray(DiscoveryNode.class);
+        DecommissionedAttributesMetadata decommissionedAttributes = updatedState.metadata().custom(DecommissionedAttributesMetadata.TYPE);
+        DecommissionedAttributeMetadata metadata = decommissionedAttributes.decommissionedAttribute("awareness");
+        assert metadata != null : "No nodes to decommission";
+        DecommissionedAttribute decommissionedAttribute = metadata.decommissionedAttribute();
+        for (DiscoveryNode discoveryNode : discoveryNodes) {
+            for (String zone : decommissionedAttribute.values()) {
+                if (zone.equals(discoveryNode.getAttributes().get(decommissionedAttribute.key()))) {
+                    removeDecommissionedNodes(discoveryNode);
+                }
+            }
+        }
+    }
+
+    private void removeDecommissionedNodes(DiscoveryNode discoveryNode) {
+        clusterService.submitStateUpdateTask(
+            "node-decommissioned",
+            new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, "node is decommissioned"),
+            ClusterStateTaskConfig.build(Priority.IMMEDIATE),
+            nodeRemovalExecutor,
+            nodeRemovalExecutor
+        );
+    }
 }
