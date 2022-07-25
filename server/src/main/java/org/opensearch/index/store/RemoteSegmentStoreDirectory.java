@@ -95,11 +95,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     }
 
     private void readMappingFile(String mappingFilename, Map<String, UploadedSegmentMetadata> segmentMetadataMap) throws IOException {
-        IndexInput indexInput = remoteMetadataDirectory.openInput(mappingFilename, IOContext.DEFAULT);
-        Map<String, String> segmentMapping = indexInput.readMapOfStrings();
-        segmentMapping.entrySet().stream().filter(entry -> !segmentMetadataMap.containsKey(entry.getKey())).forEach(entry -> {
-            segmentMetadataMap.put(entry.getKey(), UploadedSegmentMetadata.fromString(entry.getValue()));
-        });
+        try (IndexInput indexInput = remoteMetadataDirectory.openInput(mappingFilename, IOContext.DEFAULT)) {
+            Map<String, String> segmentMapping = indexInput.readMapOfStrings();
+            segmentMapping.entrySet().stream().filter(entry -> !segmentMetadataMap.containsKey(entry.getKey())).forEach(entry -> {
+                segmentMetadataMap.put(entry.getKey(), UploadedSegmentMetadata.fromString(entry.getValue()));
+            });
+        }
     }
 
     static class UploadedSegmentMetadata {

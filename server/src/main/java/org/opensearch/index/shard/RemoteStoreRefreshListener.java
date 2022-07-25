@@ -151,7 +151,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
         try {
             remoteDirectory.deleteStaleCommits(5);
         } catch(IOException e) {
-            logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit");
+            logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
         }
     }
 }
