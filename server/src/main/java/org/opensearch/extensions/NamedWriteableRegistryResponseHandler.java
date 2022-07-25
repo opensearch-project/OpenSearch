@@ -10,6 +10,7 @@ package org.opensearch.extensions;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,7 +57,7 @@ public class NamedWriteableRegistryResponseHandler implements TransportResponseH
     * @return A map of the given DiscoveryNode and its inner named writeable registry map
     */
     public Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> getExtensionRegistry() {
-        return this.extensionRegistry;
+        return Collections.unmodifiableMap(this.extensionRegistry);
     }
 
     /**
@@ -118,25 +119,8 @@ public class NamedWriteableRegistryResponseHandler implements TransportResponseH
                 }
 
                 // Add name and callback method reference to inner reader map,
-                ExtensionReader newReader = (en, cc, context) -> parseNamedWriteable(en, cc, context);
-
-                // Validate that name has not yet been associated with a callback method
-                ExtensionReader oldReader = readers.put(name, newReader);
-                if (oldReader != null && oldReader.getClass() != null) {
-                    throw new IllegalArgumentException(
-                        "NamedWriteable ["
-                            + currentCategory.getName()
-                            + "]["
-                            + name
-                            + "]"
-                            + " is already registered for ["
-                            + oldReader.getClass().getName()
-                            + "],"
-                            + " cannot register ["
-                            + newReader.getClass().getName()
-                            + "]"
-                    );
-                }
+                ExtensionReader callBack = (en, cc, context) -> parseNamedWriteable(en, cc, context);
+                readers.put(name, callBack);
             }
 
             // Handle last category and reader entry

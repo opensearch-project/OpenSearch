@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -48,6 +49,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistryResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.network.NetworkService;
@@ -437,6 +439,55 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             extensionsOrchestrator.getNamedWriteables();
             mockLogAppender.assertAllExpectationsMatched();
         }
+    }
+
+    public void testNamedWriteableRegistryResponseHandler() throws Exception {
+        Path extensionDir = createTempDir();
+        List<String> extensionsYmlLines = Arrays.asList(
+            "extensions:",
+            "   - name: firstExtension",
+            "     uniqueId: uniqueid1",
+            "     hostName: 'myIndependentPluginHost1'",
+            "     hostAddress: '127.0.0.0'",
+            "     port: '9300'",
+            "     version: '0.0.7'",
+            "     description: Fake description 1",
+            "     opensearchVersion: '3.0.0'",
+            "     javaVersion: '14'",
+            "     className: fakeClass1",
+            "     customFolderName: fakeFolder1",
+            "     hasNativeController: false"
+        );
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        extensionsOrchestrator.setTransportService(transportService);
+
+        DiscoveryNode extensionNode = extensionsOrchestrator.extensionsList.get(0);
+        String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY;
+
+        // Create response to pass to response handler
+        Map<String, Class> responseRegistry = new HashMap<>();
+        responseRegistry.put(Example.NAME, Example.class);
+        NamedWriteableRegistryResponse response = new NamedWriteableRegistryResponse(responseRegistry);
+
+        NamedWriteableRegistryResponseHandler responseHandler = new NamedWriteableRegistryResponseHandler(
+            extensionNode,
+            transportService,
+            requestType
+        );
+        responseHandler.handleResponse(response);
+
+        // Ensure that response entries have been processed correctly into their respective maps
+        Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionsRegistry = responseHandler.getExtensionRegistry();
+        assertEquals(extensionsRegistry.size(), 1);
+
+        Map<Class, Map<String, ExtensionReader>> categoryMap = extensionsRegistry.get(extensionNode);
+        assertEquals(categoryMap.size(), 1);
+
+        Map<String, ExtensionReader> readerMap = categoryMap.get(Example.class);
+        assertEquals(readerMap.size(), 1);
     }
 
     public void testGetExtensionReader() throws IOException {
