@@ -70,7 +70,6 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
-import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
