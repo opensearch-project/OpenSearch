@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Restore remote store transport handler. */
+/** Restore Snapshot transport handler. */
 package org.opensearch.action.admin.cluster.remotestore.restore;
