@@ -564,7 +564,7 @@ public class QueryStringQueryParser extends XQueryParser {
             if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
-            setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+            setAnalyzer(getSearchAnalyzer(currentFieldType));
             Query query = null;
             if (currentFieldType.getTextSearchInfo().isTokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
@@ -786,7 +786,6 @@ public class QueryStringQueryParser extends XQueryParser {
             }
             setAnalyzer(getSearchAnalyzer(currentFieldType));
             return super.getRegexpQuery(field, termStr);
-
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
