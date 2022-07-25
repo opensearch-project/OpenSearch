@@ -228,22 +228,34 @@ public class MasterService extends AbstractLifecycleComponent {
         return clusterStateSupplier.get();
     }
 
-    private static boolean isMasterUpdateThread() {
+    private static boolean isClusterManagerUpdateThread() {
         return Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME);
     }
 
-    public static boolean assertMasterUpdateThread() {
-        assert isMasterUpdateThread() : "not called from the cluster-manager service thread";
+    public static boolean assertClusterManagerUpdateThread() {
+        assert isClusterManagerUpdateThread() : "not called from the cluster-manager service thread";
         return true;
     }
 
-    public static boolean assertNotMasterUpdateThread(String reason) {
-        assert isMasterUpdateThread() == false : "Expected current thread ["
+    public static boolean assertNotClusterManagerUpdateThread(String reason) {
+        assert isClusterManagerUpdateThread() == false : "Expected current thread ["
             + Thread.currentThread()
-            + "] to not be the cluster-maanger service thread. Reason: ["
+            + "] to not be the cluster-manager service thread. Reason: ["
             + reason
             + "]";
         return true;
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #assertClusterManagerUpdateThread()} */
+    @Deprecated
+    public static boolean assertMasterUpdateThread() {
+        return assertClusterManagerUpdateThread();
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #assertNotClusterManagerUpdateThread(String)} */
+    @Deprecated
+    public static boolean assertNotMasterUpdateThread(String reason) {
+        return assertNotClusterManagerUpdateThread(reason);
     }
 
     private void runTasks(TaskInputs taskInputs) {
@@ -314,7 +326,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final PlainActionFuture<Void> fut = new PlainActionFuture<Void>() {
             @Override
             protected boolean blockingAllowed() {
-                return isMasterUpdateThread() || super.blockingAllowed();
+                return isClusterManagerUpdateThread() || super.blockingAllowed();
             }
         };
         clusterStatePublisher.publish(clusterChangedEvent, fut, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
