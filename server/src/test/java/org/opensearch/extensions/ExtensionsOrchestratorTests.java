@@ -488,6 +488,9 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         Map<String, ExtensionReader> readerMap = categoryMap.get(Example.class);
         assertEquals(readerMap.size(), 1);
+
+        ExtensionReader callback = readerMap.get(Example.NAME);
+        assertNotNull(callback);
     }
 
     public void testGetExtensionReader() throws IOException {
