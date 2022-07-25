@@ -11,6 +11,8 @@ package org.opensearch.search;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
@@ -23,12 +25,16 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
@@ -283,4 +289,45 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
             thread.join();
         }
     }
+
+    public void testtConcurrentDeletes() throws InterruptedException, ExecutionException {
+        CreatePitResponse pitResponse = createPitOnIndex("index");
+        ensureGreen();
+        int concurrentRuns = randomIntBetween(20, 50);
+        List<String> pitIds = new ArrayList<>();
+        pitIds.add(pitResponse.getId());
+        DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
+        AtomicInteger numDeleteAcknowledged = new AtomicInteger();
+        TestThreadPool testThreadPool = null;
+        try {
+            testThreadPool = new TestThreadPool(DeletePitMultiNodeTests.class.getName());
+            List<Runnable> operationThreads = new ArrayList<>();
+            CountDownLatch countDownLatch = new CountDownLatch(concurrentRuns);
+            for (int i = 0; i < concurrentRuns; i++) {
+                Runnable thread = () -> {
+                    logger.info("Triggering pit delete --->");
+                    LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<DeletePitResponse>() {
+                        @Override
+                        public void onResponse(DeletePitResponse deletePitResponse) {
+                            if (deletePitResponse.getDeletePitResults().get(0).isSuccessful()) {
+                                numDeleteAcknowledged.incrementAndGet();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {}
+                    }, countDownLatch);
+                    client().execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
+                };
+                operationThreads.add(thread);
+            }
+            TestThreadPool finalTestThreadPool = testThreadPool;
+            operationThreads.forEach(runnable -> finalTestThreadPool.executor("generic").execute(runnable));
+            countDownLatch.await();
+            assertEquals(concurrentRuns, numDeleteAcknowledged.get());
+        } finally {
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
 }
