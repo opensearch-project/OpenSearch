@@ -6,14 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.management.decommission;
+package org.opensearch.action.admin.cluster.decommission.put;
 
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 

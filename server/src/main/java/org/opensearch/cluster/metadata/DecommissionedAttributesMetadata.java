@@ -12,7 +12,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.NamedDiff;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionedAttribute;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
@@ -53,12 +53,12 @@ public class DecommissionedAttributesMetadata extends AbstractNamedDiffable<Cust
      * Creates a new instance that has the given attribute name moved to the given {@code values}.
      *
      * @param name                    attribute name
-     * @param decommissionAttribute new decommissioned attribute metadata
+     * @param decommissionedAttribute new decommissioned attribute metadata
      * @return new instance with updated attribute values
      */
     public DecommissionedAttributesMetadata withUpdatedAttributeValues(
         String name,
-        DecommissionAttribute decommissionAttribute
+        DecommissionedAttribute decommissionedAttribute
     ) {
         int indexOfAttribute = -1;
         for (int i = 0; i < decommissionedAttributes.size(); i++) {
@@ -73,7 +73,7 @@ public class DecommissionedAttributesMetadata extends AbstractNamedDiffable<Cust
         final List<DecommissionedAttributeMetadata> updatedDecommissionedAttributes = new ArrayList<>(decommissionedAttributes);
         updatedDecommissionedAttributes.set(
             indexOfAttribute,
-            new DecommissionedAttributeMetadata(decommissionedAttributes.get(indexOfAttribute), decommissionAttribute));
+            new DecommissionedAttributeMetadata(decommissionedAttributes.get(indexOfAttribute), decommissionedAttribute));
         return new DecommissionedAttributesMetadata(updatedDecommissionedAttributes);
     }
 

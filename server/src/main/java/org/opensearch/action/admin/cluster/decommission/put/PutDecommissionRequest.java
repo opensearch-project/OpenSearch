@@ -6,14 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.management.decommission;
+package org.opensearch.action.admin.cluster.decommission.put;
 
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionedAttribute;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -33,21 +32,21 @@ import java.util.Map;
 public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionRequest> {
 
     private String name;
-    private DecommissionAttribute decommissionAttribute;
+    private DecommissionedAttribute decommissionedAttribute;
     // TODO - What all request params needed? dry_run, timeout, master_timeout, retry_failed?
 
     public PutDecommissionRequest() {
     }
 
-    public PutDecommissionRequest(String name, DecommissionAttribute decommissionAttribute) {
+    public PutDecommissionRequest(String name, DecommissionedAttribute decommissionedAttribute) {
         this.name = name;
-        this.decommissionAttribute = decommissionAttribute;
+        this.decommissionedAttribute = decommissionedAttribute;
     }
 
     public PutDecommissionRequest(StreamInput in) throws IOException {
         super(in);
         name = in.readString();
-        decommissionAttribute = new DecommissionAttribute(in);
+        decommissionedAttribute = new DecommissionedAttribute(in);
     }
 
     /**
@@ -71,11 +70,11 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
     /**
      * Sets decommission attribute for decommission request
      *
-     * @param decommissionAttribute values that needs to be decommissioned
+     * @param decommissionedAttribute values that needs to be decommissioned
      * @return the current object
      */
-    public PutDecommissionRequest setDecommissionAttribute(DecommissionAttribute decommissionAttribute) {
-        this.decommissionAttribute = decommissionAttribute;
+    public PutDecommissionRequest setDecommissionAttribute(DecommissionedAttribute decommissionedAttribute) {
+        this.decommissionedAttribute = decommissionedAttribute;
         return this;
     }
 
@@ -117,7 +116,7 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
                             }
                         }
                     } else throw new OpenSearchParseException("failed to parse attribute [{}], unknown type", fieldName);
-                    decommissionAttribute = new DecommissionAttribute(fieldName, values);
+                    decommissionedAttribute = new DecommissionedAttribute(fieldName, values);
                 }
             }
             return this;
@@ -129,8 +128,8 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
     /**
      * @return Returns the decommission attribute values
      */
-    public DecommissionAttribute getDecommissionAttribute() {
-        return this.decommissionAttribute;
+    public DecommissionedAttribute getDecommissionAttribute() {
+        return this.decommissionedAttribute;
     }
 
     @SuppressWarnings("unchecked")
@@ -155,14 +154,14 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
-        decommissionAttribute.writeTo(out);
+        decommissionedAttribute.writeTo(out);
     }
 
     @Override
     public String toString() {
         return "PutDecommissionRequest{" +
             "name='" + name + '\'' +
-            ", decommissionAttribute=" + decommissionAttribute +
+            ", decommissionedAttribute=" + decommissionedAttribute +
             '}';
     }
 }

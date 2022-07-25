@@ -37,12 +37,15 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.get.GetDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.get.GetDecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.get.GetDecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionRequest;
-import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionRequestBuilder;
-import org.opensearch.action.admin.cluster.management.decommission.PutDecommissionResponse;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
@@ -791,15 +794,30 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Decommission a node
      */
-    ActionFuture<PutDecommissionResponse> decommission(PutDecommissionRequest request);
+    ActionFuture<PutDecommissionResponse> putDecommission(PutDecommissionRequest request);
 
     /**
      * Decommission a node
      */
-    void decommission(PutDecommissionRequest request, ActionListener<PutDecommissionResponse> listener);
+    void putDecommission(PutDecommissionRequest request, ActionListener<PutDecommissionResponse> listener);
 
     /**
      * Decommission a node
      */
-    PutDecommissionRequestBuilder prepareDecommission();
+    PutDecommissionRequestBuilder preparePutDecommission();
+
+    /**
+     * Get Decommissioned attribute
+     */
+    ActionFuture<GetDecommissionResponse> getDecommission(GetDecommissionRequest request);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    void getDecommission(GetDecommissionRequest request, ActionListener<GetDecommissionResponse> listener);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    GetDecommissionRequestBuilder prepareGetDecommission();
 }

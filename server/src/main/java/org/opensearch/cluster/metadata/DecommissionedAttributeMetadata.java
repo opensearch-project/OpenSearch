@@ -8,7 +8,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionedAttribute;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -20,25 +20,25 @@ import java.util.Objects;
 public class DecommissionedAttributeMetadata implements Writeable {
 
     private final String name;
-    private final DecommissionAttribute decommissionAttribute;
+    private final DecommissionedAttribute decommissionedAttribute;
 
-    public DecommissionedAttributeMetadata(DecommissionedAttributeMetadata metadata, DecommissionAttribute decommissionAttribute) {
-        this(metadata.name, decommissionAttribute);
+    public DecommissionedAttributeMetadata(DecommissionedAttributeMetadata metadata, DecommissionedAttribute decommissionedAttribute) {
+        this(metadata.name, decommissionedAttribute);
     }
 
     /**
      * Constructs new decommissioned attribute metadata
      *
      * @param name                  attribute name
-     * @param decommissionAttribute attribute value
+     * @param decommissionedAttribute attribute value
      */
-    public DecommissionedAttributeMetadata(String name, DecommissionAttribute decommissionAttribute) {
+    public DecommissionedAttributeMetadata(String name, DecommissionedAttribute decommissionedAttribute) {
         this.name = name;
-        this.decommissionAttribute = decommissionAttribute;
+        this.decommissionedAttribute = decommissionedAttribute;
     }
 
     public DecommissionedAttributeMetadata(String name, String key, List<String> values) {
-        this(name, new DecommissionAttribute(key, values));
+        this(name, new DecommissionedAttribute(key, values));
     }
 
     /**
@@ -55,13 +55,13 @@ public class DecommissionedAttributeMetadata implements Writeable {
      *
      * @return attribute value
      */
-    public DecommissionAttribute decommissionedAttribute() {
-        return this.decommissionAttribute;
+    public DecommissionedAttribute decommissionedAttribute() {
+        return this.decommissionedAttribute;
     }
 
     public DecommissionedAttributeMetadata(StreamInput in) throws IOException {
         name = in.readString();
-        decommissionAttribute = new DecommissionAttribute(in);
+        decommissionedAttribute = new DecommissionedAttribute(in);
     }
 
     /**
@@ -72,11 +72,11 @@ public class DecommissionedAttributeMetadata implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        decommissionAttribute.writeTo(out);
+        decommissionedAttribute.writeTo(out);
     }
 
     /**
-     * Checks if this instance is equal to the other instance in name other than {@link #decommissionAttribute}.
+     * Checks if this instance is equal to the other instance in name other than {@link #decommissionedAttribute}.
      *
      * @param other other decommissioned attribute metadata
      * @return {@code true} if both instances equal in all fields but the values fields
@@ -93,12 +93,12 @@ public class DecommissionedAttributeMetadata implements Writeable {
         DecommissionedAttributeMetadata that = (DecommissionedAttributeMetadata) o;
 
         if (!name.equals(that.name)) return false;
-        return decommissionAttribute.equals(that.decommissionAttribute);
+        return decommissionedAttribute.equals(that.decommissionedAttribute);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, decommissionAttribute);
+        return Objects.hash(name, decommissionedAttribute);
     }
 
     @Override

@@ -10,7 +10,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.get.GetDecommissionRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
@@ -21,40 +21,32 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.rest.RestRequest.Method.PUT;
+import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
- * Transport action to decommission nodes
+ * Returns decommissioned attribute information
  *
  * @opensearch.api
  */
-public class RestPutDecommissionAction extends BaseRestHandler {
+public class RestGetDecommissionAction extends BaseRestHandler {
 
     // TODO - Use debug logs
     private static final Logger logger = LogManager.getLogger(RestPutDecommissionAction.class);
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(PUT, "_cluster/management/decommission"));
+        return singletonList(new Route(GET, "_cluster/management/decommission"));
     }
 
     @Override
     public String getName() {
-        return "put_decommission_action";
+        return "get_decommission_action";
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutDecommissionRequest putDecommissionRequest = createRequest(request);
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         return channel -> client.admin()
             .cluster()
-            .putDecommission(putDecommissionRequest, new RestToXContentListener<>(channel));
-    }
-
-    public static PutDecommissionRequest createRequest(RestRequest request) throws IOException {
-        // TODO - add params
-        PutDecommissionRequest putDecommissionRequest = Requests.putDecommissionRequest();
-        request.applyContentParser(p -> putDecommissionRequest.source(p.mapOrdered()));
-        return putDecommissionRequest;
+            .getDecommission(Requests.getDecommissionRequest(), new RestToXContentListener<>(channel));
     }
 }

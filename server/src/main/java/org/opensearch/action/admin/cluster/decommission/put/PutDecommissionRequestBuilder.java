@@ -6,12 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.management.decommission;
+package org.opensearch.action.admin.cluster.decommission.put;
 
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionedAttribute;
 
 /**
  * Builder for a decommission request
@@ -37,11 +36,11 @@ public class PutDecommissionRequestBuilder extends AcknowledgedRequestBuilder<
     }
 
     /**
-     * @param decommissionAttribute decommission attribute
+     * @param decommissionedAttribute decommission attribute
      * @return current object
      */
-    public PutDecommissionRequestBuilder setDecommissionedAttribute(DecommissionAttribute decommissionAttribute) {
-        request.setDecommissionAttribute(decommissionAttribute);
+    public PutDecommissionRequestBuilder setDecommissionedAttribute(DecommissionedAttribute decommissionedAttribute) {
+        request.setDecommissionAttribute(decommissionedAttribute);
         return this;
     }
 }

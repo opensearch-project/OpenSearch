@@ -16,12 +16,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public final class DecommissionAttribute implements Writeable {
+public final class DecommissionedAttribute implements Writeable {
     private final String key;
     private final List<String> values;
 
-    public DecommissionAttribute(DecommissionAttribute decommissionAttribute, List<String> values) {
-        this(decommissionAttribute.key, values);
+    public DecommissionedAttribute(DecommissionedAttribute decommissionedAttribute, List<String> values) {
+        this(decommissionedAttribute.key, values);
     }
 
     /**
@@ -30,7 +30,7 @@ public final class DecommissionAttribute implements Writeable {
      * @param key    attribute name
      * @param values attribute values
      */
-    public DecommissionAttribute(String key, List<String> values) {
+    public DecommissionedAttribute(String key, List<String> values) {
         this.key = key;
         this.values = values;
     }
@@ -53,7 +53,7 @@ public final class DecommissionAttribute implements Writeable {
         return this.values;
     }
 
-    public DecommissionAttribute(StreamInput in) throws IOException {
+    public DecommissionedAttribute(StreamInput in) throws IOException {
         key = in.readString();
         values = in.readStringList();
     }
@@ -75,7 +75,7 @@ public final class DecommissionAttribute implements Writeable {
      * @param other other decommission attribute key values
      * @return {@code true} if both instances equal in key fields but the values fields
      */
-    public boolean equalsIgnoreValues(DecommissionAttribute other) {
+    public boolean equalsIgnoreValues(DecommissionedAttribute other) {
         return key.equals(other.key);
     }
 
@@ -84,7 +84,7 @@ public final class DecommissionAttribute implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        DecommissionAttribute that = (DecommissionAttribute) o;
+        DecommissionedAttribute that = (DecommissionedAttribute) o;
 
         if (!key.equals(that.key)) return false;
         return values.equals(that.values);
@@ -97,6 +97,6 @@ public final class DecommissionAttribute implements Writeable {
 
     @Override
     public String toString() {
-        return "DecommissionAttribute{" + key + "}{" + values().toString() + "}";
+        return "DecommissionedAttribute{" + key + "}{" + values().toString() + "}";
     }
 }

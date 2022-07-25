@@ -6,10 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.management.decommission;
+package org.opensearch.action.admin.cluster.decommission.put;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Transport endpoint for adding exclusions to voting config
@@ -18,7 +17,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
  */
 public final class PutDecommissionAction extends ActionType<PutDecommissionResponse> {
     public static final PutDecommissionAction INSTANCE = new PutDecommissionAction();
-    public static final String NAME = "cluster:admin/management/decommission";
+    public static final String NAME = "cluster:admin/management/decommission/put";
 
     private PutDecommissionAction() {
         super(NAME, PutDecommissionResponse::new);
