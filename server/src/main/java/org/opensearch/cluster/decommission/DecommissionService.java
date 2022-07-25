@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionRequest;
-import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -157,6 +156,7 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     failDecommissionedNodes(newState);
+                    listener.onResponse(new ClusterStateUpdateResponse(true));
                 }
 //                @Override
 //                public boolean mustAck(DiscoveryNode discoveryNode) {
