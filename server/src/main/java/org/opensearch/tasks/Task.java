@@ -45,9 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Phaser;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Current task information
@@ -77,7 +75,12 @@ public class Task {
 
     private final Map<Long, List<ThreadResourceInfo>> resourceStats;
 
-    private final Phaser resourceTrackingThreadsBarrier = new Phaser(1);
+    private final List<TaskResourceTrackingListener> resourceTrackingListeners;
+
+    // Keeps track of the number of active resource tracking threads for this task. It is initialized to 1 to track
+    // the task's own/self thread. When this value becomes 0, all threads have been marked inactive and the resource
+    // tracking can be stopped for this task.
+    private final AtomicInteger numActiveResourceTrackingThreads = new AtomicInteger(1);
 
     /**
      * The task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
@@ -90,7 +93,18 @@ public class Task {
     private final long startTimeNanos;
 
     public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
-        this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), headers, new ConcurrentHashMap<>());
+        this(
+            id,
+            type,
+            action,
+            description,
+            parentTask,
+            System.currentTimeMillis(),
+            System.nanoTime(),
+            headers,
+            new ConcurrentHashMap<>(),
+            Collections.synchronizedList(new ArrayList<>())
+        );
     }
 
     public Task(
@@ -102,7 +116,8 @@ public class Task {
         long startTime,
         long startTimeNanos,
         Map<String, String> headers,
-        ConcurrentHashMap<Long, List<ThreadResourceInfo>> resourceStats
+        ConcurrentHashMap<Long, List<ThreadResourceInfo>> resourceStats,
+        List<TaskResourceTrackingListener> resourceTrackingListeners
     ) {
         this.id = id;
         this.type = type;
@@ -113,6 +128,7 @@ public class Task {
         this.startTimeNanos = startTimeNanos;
         this.headers = headers;
         this.resourceStats = resourceStats;
+        this.resourceTrackingListeners = resourceTrackingListeners;
     }
 
     /**
@@ -293,7 +309,8 @@ public class Task {
             }
         }
         threadResourceInfoList.add(new ThreadResourceInfo(threadId, statsType, resourceUsageMetrics));
-        resourceTrackingThreadsBarrier.register();
+        incrementResourceTrackingThreads();
+        resourceTrackingListeners.forEach(listener -> listener.onTaskExecutionStartedOnThread(this, threadId));
     }
 
     /**
@@ -311,6 +328,7 @@ public class Task {
                 // the active entry present in the list is updated
                 if (threadResourceInfo.getStatsType() == statsType && threadResourceInfo.isActive()) {
                     threadResourceInfo.recordResourceUsageMetrics(resourceUsageMetrics);
+                    resourceTrackingListeners.forEach(listener -> listener.onTaskResourceStatsUpdated(this));
                     return;
                 }
             }
@@ -333,7 +351,8 @@ public class Task {
                 if (threadResourceInfo.getStatsType() == statsType && threadResourceInfo.isActive()) {
                     threadResourceInfo.setActive(false);
                     threadResourceInfo.recordResourceUsageMetrics(resourceUsageMetrics);
-                    resourceTrackingThreadsBarrier.arriveAndDeregister();
+                    decrementResourceTrackingThreads();
+                    resourceTrackingListeners.forEach(listener -> listener.onTaskExecutionFinishedOnThread(this, threadId));
                     return;
                 }
             }
@@ -386,15 +405,34 @@ public class Task {
     }
 
     /**
-     * Awaits for stopThreadResourceTracking to be called for all threads of the current task.
-     * @throws InterruptedException if thread interrupted while waiting
-     * @throws TimeoutException if timed out while waiting
+     * Registers a TaskResourceTrackingListener callback listener on this task.
      */
-    public void awaitResourceTrackingThreadsCompletion() throws InterruptedException, TimeoutException {
-        resourceTrackingThreadsBarrier.awaitAdvanceInterruptibly(
-            resourceTrackingThreadsBarrier.arriveAndDeregister(),
-            10L,
-            TimeUnit.SECONDS
-        );
+    public void addTaskResourceTrackingListener(TaskResourceTrackingListener listener) {
+        resourceTrackingListeners.add(listener);
+    }
+
+    /**
+     * Increments the number of active resource tracking threads.
+     *
+     * @return the number of active resource tracking threads.
+     */
+    public int incrementResourceTrackingThreads() {
+        return numActiveResourceTrackingThreads.incrementAndGet();
+    }
+
+    /**
+     * Decrements the number of active resource tracking threads.
+     * When this value becomes zero, the onTaskResourceTrackingCompleted method is called on all registered listeners.
+     *
+     * @return the number of active resource tracking threads.
+     */
+    public int decrementResourceTrackingThreads() {
+        int count = numActiveResourceTrackingThreads.decrementAndGet();
+
+        if (count == 0) {
+            resourceTrackingListeners.forEach(listener -> listener.onTaskResourceTrackingCompleted(this));
+        }
+
+        return count;
     }
 }

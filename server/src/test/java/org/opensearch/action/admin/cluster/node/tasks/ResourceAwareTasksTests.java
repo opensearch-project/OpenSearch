@@ -28,6 +28,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskResourceTrackingListener;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.test.tasks.MockTaskManagerListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -41,10 +42,9 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -177,12 +177,20 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                     );
                     threadId.set(Thread.currentThread().getId());
 
+                    // operationStartValidator will be called just before the task execution.
                     if (taskTestContext.operationStartValidator != null) {
-                        try {
-                            taskTestContext.operationStartValidator.accept(threadId.get());
-                        } catch (AssertionError error) {
-                            throw new RuntimeException(error);
-                        }
+                        taskTestContext.operationStartValidator.accept(task, threadId.get());
+                    }
+
+                    // operationFinishedValidator will be called just after all task threads are marked inactive and
+                    // the task is unregistered.
+                    if (taskTestContext.operationFinishedValidator != null) {
+                        task.addTaskResourceTrackingListener(new TaskResourceTrackingListener() {
+                            @Override
+                            public void onTaskResourceTrackingCompleted(Task task) {
+                                taskTestContext.operationFinishedValidator.accept(task, threadId.get());
+                            }
+                        });
                     }
 
                     Object[] allocation1 = new Object[1000000]; // 4MB
@@ -211,14 +219,6 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                 result.get();
             } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e.getCause());
-            } finally {
-                if (taskTestContext.operationFinishedValidator != null) {
-                    try {
-                        // Wait for threads to be marked inactive before performing validation checks.
-                        task.awaitResourceTrackingThreadsCompletion();
-                    } catch (InterruptedException | TimeoutException ignored) {}
-                    taskTestContext.operationFinishedValidator.accept(threadId.get());
-                }
             }
 
             return new NodeResponse(clusterService.localNode());
@@ -255,8 +255,8 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
     private static class TaskTestContext {
         private Task mainTask;
         private CountDownLatch requestCompleteLatch;
-        private Consumer<Long> operationStartValidator;
-        private Consumer<Long> operationFinishedValidator;
+        private BiConsumer<Task, Long> operationStartValidator;
+        private BiConsumer<Task, Long> operationFinishedValidator;
         private long memoryConsumptionWhenExecutionStarts;
     }
 
@@ -269,9 +269,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
         Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
-        taskTestContext.operationStartValidator = threadId -> {
-            Task task = resourceTasks.values().stream().findAny().get();
-
+        taskTestContext.operationStartValidator = (task, threadId) -> {
             // One thread is currently working on task but not finished
             assertEquals(1, resourceTasks.size());
             assertEquals(1, task.getResourceStats().size());
@@ -281,11 +279,9 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
             assertEquals(0, task.getTotalResourceStats().getMemoryInBytes());
         };
 
-        taskTestContext.operationFinishedValidator = threadId -> {
-            Task task = resourceTasks.values().stream().findAny().get();
-
+        taskTestContext.operationFinishedValidator = (task, threadId) -> {
             // Thread has finished working on the task's runnable
-            assertEquals(1, resourceTasks.size());
+            assertEquals(0, resourceTasks.size());
             assertEquals(1, task.getResourceStats().size());
             assertEquals(1, task.getResourceStats().get(threadId).size());
             assertFalse(task.getResourceStats().get(threadId).get(0).isActive());
@@ -317,7 +313,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         // Waiting for whole request to complete and return successfully till client
         taskTestContext.requestCompleteLatch.await();
 
-        assertTasksRequestFinishedSuccessfully(resourceTasks.size(), responseReference.get(), throwableReference.get());
+        assertTasksRequestFinishedSuccessfully(responseReference.get(), throwableReference.get());
     }
 
     public void testTaskResourceTrackingDuringTaskCancellation() throws Exception {
@@ -329,9 +325,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
         Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
-        taskTestContext.operationStartValidator = threadId -> {
-            Task task = resourceTasks.values().stream().findAny().get();
-
+        taskTestContext.operationStartValidator = (task, threadId) -> {
             // One thread is currently working on task but not finished
             assertEquals(1, resourceTasks.size());
             assertEquals(1, task.getResourceStats().size());
@@ -341,11 +335,9 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
             assertEquals(0, task.getTotalResourceStats().getMemoryInBytes());
         };
 
-        taskTestContext.operationFinishedValidator = threadId -> {
-            Task task = resourceTasks.values().stream().findAny().get();
-
+        taskTestContext.operationFinishedValidator = (task, threadId) -> {
             // Thread has finished working on the task's runnable
-            assertEquals(1, resourceTasks.size());
+            assertEquals(0, resourceTasks.size());
             assertEquals(1, task.getResourceStats().size());
             assertEquals(1, task.getResourceStats().get(threadId).size());
             assertFalse(task.getResourceStats().get(threadId).get(0).isActive());
@@ -402,9 +394,9 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
         Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
-        taskTestContext.operationStartValidator = threadId -> { assertEquals(0, resourceTasks.size()); };
+        taskTestContext.operationStartValidator = (task, threadId) -> { assertEquals(0, resourceTasks.size()); };
 
-        taskTestContext.operationFinishedValidator = threadId -> { assertEquals(0, resourceTasks.size()); };
+        taskTestContext.operationFinishedValidator = (task, threadId) -> { assertEquals(0, resourceTasks.size()); };
 
         startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
             @Override
@@ -423,7 +415,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         // Waiting for whole request to complete and return successfully till client
         taskTestContext.requestCompleteLatch.await();
 
-        assertTasksRequestFinishedSuccessfully(resourceTasks.size(), responseReference.get(), throwableReference.get());
+        assertTasksRequestFinishedSuccessfully(responseReference.get(), throwableReference.get());
     }
 
     public void testTaskResourceTrackingDisabledWhileTaskInProgress() throws Exception {
@@ -435,8 +427,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
         Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
-        taskTestContext.operationStartValidator = threadId -> {
-            Task task = resourceTasks.values().stream().findAny().get();
+        taskTestContext.operationStartValidator = (task, threadId) -> {
             // One thread is currently working on task but not finished
             assertEquals(1, resourceTasks.size());
             assertEquals(1, task.getResourceStats().size());
@@ -448,10 +439,9 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
             testNodes[0].taskResourceTrackingService.setTaskResourceTrackingEnabled(false);
         };
 
-        taskTestContext.operationFinishedValidator = threadId -> {
-            Task task = resourceTasks.values().stream().findAny().get();
+        taskTestContext.operationFinishedValidator = (task, threadId) -> {
             // Thread has finished working on the task's runnable
-            assertEquals(1, resourceTasks.size());
+            assertEquals(0, resourceTasks.size());
             assertEquals(1, task.getResourceStats().size());
             assertEquals(1, task.getResourceStats().get(threadId).size());
             assertFalse(task.getResourceStats().get(threadId).get(0).isActive());
@@ -483,7 +473,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         // Waiting for whole request to complete and return successfully till client
         taskTestContext.requestCompleteLatch.await();
 
-        assertTasksRequestFinishedSuccessfully(resourceTasks.size(), responseReference.get(), throwableReference.get());
+        assertTasksRequestFinishedSuccessfully(responseReference.get(), throwableReference.get());
     }
 
     public void testTaskResourceTrackingEnabledWhileTaskInProgress() throws Exception {
@@ -495,13 +485,13 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
         Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
-        taskTestContext.operationStartValidator = threadId -> {
+        taskTestContext.operationStartValidator = (task, threadId) -> {
             assertEquals(0, resourceTasks.size());
 
             testNodes[0].taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
         };
 
-        taskTestContext.operationFinishedValidator = threadId -> { assertEquals(0, resourceTasks.size()); };
+        taskTestContext.operationFinishedValidator = (task, threadId) -> { assertEquals(0, resourceTasks.size()); };
 
         startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
             @Override
@@ -520,7 +510,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         // Waiting for whole request to complete and return successfully till client
         taskTestContext.requestCompleteLatch.await();
 
-        assertTasksRequestFinishedSuccessfully(resourceTasks.size(), responseReference.get(), throwableReference.get());
+        assertTasksRequestFinishedSuccessfully(responseReference.get(), throwableReference.get());
     }
 
     public void testOnDemandRefreshWhileFetchingTasks() throws InterruptedException {
@@ -533,7 +523,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
         Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
-        taskTestContext.operationStartValidator = threadId -> {
+        taskTestContext.operationStartValidator = (task, threadId) -> {
             ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
                 testNodes[0].transportListTasksAction,
                 new ListTasksRequest().setActions("internal:resourceAction*").setDetailed(true)
@@ -547,6 +537,8 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
             assertTrue(taskInfo.getResourceStats().getResourceUsageInfo().get("total").getMemoryInBytes() > 0);
         };
 
+        taskTestContext.operationFinishedValidator = (task, threadId) -> { assertEquals(0, resourceTasks.size()); };
+
         startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
             @Override
             public void onResponse(NodesResponse listTasksResponse) {
@@ -564,7 +556,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         // Waiting for whole request to complete and return successfully till client
         taskTestContext.requestCompleteLatch.await();
 
-        assertTasksRequestFinishedSuccessfully(resourceTasks.size(), responseReference.get(), throwableReference.get());
+        assertTasksRequestFinishedSuccessfully(responseReference.get(), throwableReference.get());
     }
 
     public void testTaskIdPersistsInThreadContext() throws InterruptedException {
@@ -638,8 +630,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         return throwable;
     }
 
-    private void assertTasksRequestFinishedSuccessfully(int activeResourceTasks, NodesResponse nodesResponse, Throwable throwable) {
-        assertEquals(0, activeResourceTasks);
+    private void assertTasksRequestFinishedSuccessfully(NodesResponse nodesResponse, Throwable throwable) {
         assertNull(throwable);
         assertNotNull(nodesResponse);
         assertEquals(0, nodesResponse.failureCount());

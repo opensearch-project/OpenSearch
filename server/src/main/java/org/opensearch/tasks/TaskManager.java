@@ -85,7 +85,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_
  *
  * @opensearch.internal
  */
-public class TaskManager implements ClusterStateApplier {
+public class TaskManager implements ClusterStateApplier, TaskResourceTrackingListener {
 
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
@@ -153,6 +153,7 @@ public class TaskManager implements ClusterStateApplier {
             }
         }
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+        task.addTaskResourceTrackingListener(this);
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
@@ -212,9 +213,8 @@ public class TaskManager implements ClusterStateApplier {
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
 
-        if (taskResourceTrackingService.get() != null && task.supportsResourceTracking()) {
-            taskResourceTrackingService.get().stopTracking(task);
-        }
+        // Decrement the task's self-thread as a part of unregistration.
+        task.decrementResourceTrackingThreads();
 
         if (task instanceof CancellableTask) {
             CancellableTaskHolder holder = cancellableTasks.remove(task.getId());
@@ -698,6 +698,14 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             assert false : "TaskCancellationService is not initialized";
             throw new IllegalStateException("TaskCancellationService is not initialized");
+        }
+    }
+
+    @Override
+    public void onTaskResourceTrackingCompleted(Task task) {
+        // Stop tracking the task once the last thread has been marked inactive.
+        if (taskResourceTrackingService.get() != null && task.supportsResourceTracking()) {
+            taskResourceTrackingService.get().stopTracking(task);
         }
     }
 }
