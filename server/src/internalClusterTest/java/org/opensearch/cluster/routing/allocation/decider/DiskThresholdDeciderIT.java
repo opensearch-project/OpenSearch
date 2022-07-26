@@ -59,6 +59,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.monitor.fs.FsService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
@@ -173,6 +174,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
                 .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+                .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false)
                 .build()
         );
         final long minShardSize = createReasonableSizedShards(indexName);
