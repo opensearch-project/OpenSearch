@@ -151,14 +151,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster() && refreshAndRescheduleRunnable.get() == null) {
+        if (event.localNodeClusterManager() && refreshAndRescheduleRunnable.get() == null) {
             logger.trace("elected as cluster-manager, scheduling cluster info update tasks");
             executeRefresh(event.state(), "became cluster-manager");
 
             final RefreshAndRescheduleRunnable newRunnable = new RefreshAndRescheduleRunnable();
             refreshAndRescheduleRunnable.set(newRunnable);
             threadPool.scheduleUnlessShuttingDown(updateFrequency, REFRESH_EXECUTOR, newRunnable);
-        } else if (event.localNodeMaster() == false) {
+        } else if (event.localNodeClusterManager() == false) {
             refreshAndRescheduleRunnable.set(null);
             return;
         }

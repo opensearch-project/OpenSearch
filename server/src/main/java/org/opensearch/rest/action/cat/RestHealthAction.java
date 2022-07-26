@@ -119,7 +119,7 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell(health.getStatus().name().toLowerCase(Locale.ROOT));
         t.addCell(health.getNumberOfNodes());
         t.addCell(health.getNumberOfDataNodes());
-        t.addCell(health.hasDiscoveredMaster());
+        t.addCell(health.hasDiscoveredClusterManager());
         t.addCell(health.getActiveShards());
         t.addCell(health.getActivePrimaryShards());
         t.addCell(health.getRelocatingShards());

@@ -2680,7 +2680,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             ReplicationTracker gcpTracker = (ReplicationTracker) initialEngine.config().getGlobalCheckpointSupplier();
-            gcpTracker.updateFromMaster(
+            gcpTracker.updateFromClusterManager(
                 1L,
                 new HashSet<>(Collections.singletonList(primary.allocationId().getId())),
                 new IndexShardRoutingTable.Builder(shardId).addShard(primary).build()
@@ -2695,7 +2695,7 @@ public class InternalEngineTests extends EngineTestCase {
                 );
                 countDownLatch.await();
             }
-            gcpTracker.updateFromMaster(
+            gcpTracker.updateFromClusterManager(
                 2L,
                 new HashSet<>(Collections.singletonList(primary.allocationId().getId())),
                 new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(initializingReplica).build()
@@ -2703,7 +2703,7 @@ public class InternalEngineTests extends EngineTestCase {
             gcpTracker.initiateTracking(initializingReplica.allocationId().getId());
             gcpTracker.markAllocationIdAsInSync(initializingReplica.allocationId().getId(), replicaLocalCheckpoint);
             final ShardRouting replica = initializingReplica.moveToStarted();
-            gcpTracker.updateFromMaster(
+            gcpTracker.updateFromClusterManager(
                 3L,
                 new HashSet<>(Arrays.asList(primary.allocationId().getId(), replica.allocationId().getId())),
                 new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica).build()

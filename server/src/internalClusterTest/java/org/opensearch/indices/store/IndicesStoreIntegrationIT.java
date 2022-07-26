@@ -80,7 +80,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
 import static org.opensearch.test.NodeRoles.nonDataNode;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -111,8 +111,8 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
 
     public void testIndexCleanup() throws Exception {
         internalCluster().startNode(nonDataNode());
-        final String node_1 = internalCluster().startNode(nonMasterNode());
-        final String node_2 = internalCluster().startNode(nonMasterNode());
+        final String node_1 = internalCluster().startNode(nonClusterManagerNode());
+        final String node_2 = internalCluster().startNode(nonClusterManagerNode());
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(
             prepareCreate("test").setSettings(
@@ -133,7 +133,7 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
         assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
 
         logger.info("--> starting node server3");
-        final String node_3 = internalCluster().startNode(nonMasterNode());
+        final String node_3 = internalCluster().startNode(nonClusterManagerNode());
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin()
             .cluster()
@@ -459,7 +459,7 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
     public void testShardActiveElseWhere() throws Exception {
         List<String> nodes = internalCluster().startNodes(2);
 
-        final String clusterManagerNode = internalCluster().getMasterName();
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
         final String nonClusterManagerNode = nodes.get(0).equals(clusterManagerNode) ? nodes.get(1) : nodes.get(0);
 
         final String clusterManagerId = internalCluster().clusterService(clusterManagerNode).localNode().getId();

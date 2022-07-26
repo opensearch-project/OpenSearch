@@ -125,7 +125,7 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
                 .mappings(request.mappings())
                 .aliases(request.aliases())
                 .create(request.create())
-                .masterTimeout(request.clusterManagerNodeTimeout())
+                .clusterManagerTimeout(request.clusterManagerNodeTimeout())
                 .version(request.version()),
 
             new MetadataIndexTemplateService.PutListener() {

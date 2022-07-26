@@ -284,8 +284,14 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         return clusterStateHealth.getNumberOfDataNodes();
     }
 
+    public boolean hasDiscoveredClusterManager() {
+        return clusterStateHealth.hasDiscoveredClusterManager();
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #hasDiscoveredClusterManager()} */
+    @Deprecated
     public boolean hasDiscoveredMaster() {
-        return clusterStateHealth.hasDiscoveredMaster();
+        return hasDiscoveredClusterManager();
     }
 
     public int getNumberOfPendingTasks() {
@@ -385,8 +391,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         builder.field(TIMED_OUT, isTimedOut());
         builder.field(NUMBER_OF_NODES, getNumberOfNodes());
         builder.field(NUMBER_OF_DATA_NODES, getNumberOfDataNodes());
-        builder.field(DISCOVERED_MASTER, hasDiscoveredMaster());  // the field will be removed in a future major version
-        builder.field(DISCOVERED_CLUSTER_MANAGER, hasDiscoveredMaster());
+        builder.field(DISCOVERED_MASTER, hasDiscoveredClusterManager());  // the field will be removed in a future major version
+        builder.field(DISCOVERED_CLUSTER_MANAGER, hasDiscoveredClusterManager());
         builder.field(ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
         builder.field(ACTIVE_SHARDS, getActiveShards());
         builder.field(RELOCATING_SHARDS, getRelocatingShards());

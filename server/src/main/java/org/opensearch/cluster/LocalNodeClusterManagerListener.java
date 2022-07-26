@@ -51,8 +51,8 @@ public interface LocalNodeClusterManagerListener extends ClusterStateListener {
 
     @Override
     default void clusterChanged(ClusterChangedEvent event) {
-        final boolean wasClusterManager = event.previousState().nodes().isLocalNodeElectedMaster();
-        final boolean isClusterManager = event.localNodeMaster();
+        final boolean wasClusterManager = event.previousState().nodes().isLocalNodeElectedClusterManager();
+        final boolean isClusterManager = event.localNodeClusterManager();
         if (wasClusterManager == false && isClusterManager) {
             onMaster();
         } else if (wasClusterManager && isClusterManager == false) {
