@@ -557,7 +557,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
 
-            final int pendingTaskCount = leader.masterService.getFakeMasterServicePendingTaskCount();
+            final int pendingTaskCount = leader.clusterManagerService.getFakeMasterServicePendingTaskCount();
             runFor((pendingTaskCount + 1) * DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "draining task queue");
 
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
@@ -1026,7 +1026,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private final DiscoveryNode localNode;
             final MockPersistedState persistedState;
             final Settings nodeSettings;
-            private AckedFakeThreadPoolMasterService masterService;
+            private AckedFakeThreadPoolMasterService clusterManagerService;
             private DisruptableClusterApplierService clusterApplierService;
             private ClusterService clusterService;
             TransportService transportService;
@@ -1106,7 +1106,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     null,
                     emptySet()
                 );
-                masterService = new AckedFakeThreadPoolMasterService(
+                clusterManagerService = new AckedFakeThreadPoolMasterService(
                     localNode.getId(),
                     "test",
                     threadPool,
@@ -1120,7 +1120,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     deterministicTaskQueue,
                     threadPool
                 );
-                clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
+                clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
                 );
@@ -1135,7 +1135,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     transportService,
                     writableRegistry(),
                     allocationService,
-                    masterService,
+                    clusterManagerService,
                     this::getPersistedState,
                     Cluster.this::provideSeedHosts,
                     clusterApplierService,
@@ -1145,7 +1145,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getElectionStrategy(),
                     nodeHealthService
                 );
-                masterService.setClusterStatePublisher(coordinator);
+                clusterManagerService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,
                     allocationService,
@@ -1334,11 +1334,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                 onNode(() -> {
                     logger.trace("[{}] submitUpdateTask: enqueueing [{}]", localNode.getId(), source);
                     final long submittedTerm = coordinator.getCurrentTerm();
-                    masterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+                    clusterManagerService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             assertThat(currentState.term(), greaterThanOrEqualTo(submittedTerm));
-                            masterService.nextAckCollector = ackCollector;
+                            clusterManagerService.nextAckCollector = ackCollector;
                             return clusterStateUpdate.apply(currentState);
                         }
 
