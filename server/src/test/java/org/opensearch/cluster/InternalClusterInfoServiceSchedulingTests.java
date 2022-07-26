@@ -49,7 +49,7 @@ import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.FakeThreadPoolMasterService;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
@@ -89,7 +89,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             }
         };
 
-        final MasterService clusterManagerService = new FakeThreadPoolMasterService(
+        final ClusterManagerService clusterManagerService = new FakeThreadPoolMasterService(
             "test",
             "clusterManagerService",
             threadPool,

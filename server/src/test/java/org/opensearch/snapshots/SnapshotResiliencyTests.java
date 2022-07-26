@@ -143,9 +143,9 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.FakeThreadPoolMasterService;
-import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -1645,7 +1645,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
             private final DiscoveryNode node;
 
-            private final MasterService clusterManagerService;
+            private final ClusterManagerService clusterManagerService;
 
             private final AllocationService allocationService;
 
