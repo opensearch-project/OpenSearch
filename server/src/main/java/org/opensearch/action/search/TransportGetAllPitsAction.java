@@ -25,39 +25,39 @@ import java.util.List;
  * Transport action to get all active PIT contexts across all nodes
  */
 public class TransportGetAllPitsAction extends TransportNodesAction<
-        GetAllPitNodesRequest,
-        GetAllPitNodesResponse,
-        GetAllPitNodeRequest,
-        GetAllPitNodeResponse> {
+    GetAllPitNodesRequest,
+    GetAllPitNodesResponse,
+    GetAllPitNodeRequest,
+    GetAllPitNodeResponse> {
     private final SearchService searchService;
 
     @Inject
     public TransportGetAllPitsAction(
-            ThreadPool threadPool,
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            SearchService searchService
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SearchService searchService
     ) {
         super(
-                GetAllPitsAction.NAME,
-                threadPool,
-                clusterService,
-                transportService,
-                actionFilters,
-                GetAllPitNodesRequest::new,
-                GetAllPitNodeRequest::new,
-                ThreadPool.Names.SAME,
-                GetAllPitNodeResponse.class
+            GetAllPitsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            GetAllPitNodesRequest::new,
+            GetAllPitNodeRequest::new,
+            ThreadPool.Names.SAME,
+            GetAllPitNodeResponse.class
         );
         this.searchService = searchService;
     }
 
     @Override
     protected GetAllPitNodesResponse newResponse(
-            GetAllPitNodesRequest request,
-            List<GetAllPitNodeResponse> getAllPitNodeRespons,
-            List<FailedNodeException> failures
+        GetAllPitNodesRequest request,
+        List<GetAllPitNodeResponse> getAllPitNodeRespons,
+        List<FailedNodeException> failures
     ) {
         return new GetAllPitNodesResponse(clusterService.getClusterName(), getAllPitNodeRespons, failures);
     }
@@ -73,13 +73,13 @@ public class TransportGetAllPitsAction extends TransportNodesAction<
     }
 
     /**
-     * This node specific operation retrieves all active PIT IDs in a node
+     * This retrieves all active PITs in the node
      */
     @Override
     protected GetAllPitNodeResponse nodeOperation(GetAllPitNodeRequest request) {
         GetAllPitNodeResponse nodeResponse = new GetAllPitNodeResponse(
-                transportService.getLocalNode(),
-                searchService.getAllPITReaderContexts()
+            transportService.getLocalNode(),
+            searchService.getAllPITReaderContexts()
         );
         return nodeResponse;
     }

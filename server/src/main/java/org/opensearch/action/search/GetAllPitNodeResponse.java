@@ -26,6 +26,9 @@ import java.util.List;
  */
 public class GetAllPitNodeResponse extends BaseNodeResponse implements ToXContentFragment {
 
+    /**
+     * List of active PITs in the associated node
+     */
     private List<ListPitInfo> pitsInfo;
 
     @Inject
@@ -57,10 +60,12 @@ public class GetAllPitNodeResponse extends BaseNodeResponse implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("node", this.getNode().getName());
         builder.startArray("pitsInfo");
         for (ListPitInfo pit : pitsInfo) {
             pit.toXContent(builder, params);
         }
+
         builder.endArray();
         builder.endObject();
         return builder;

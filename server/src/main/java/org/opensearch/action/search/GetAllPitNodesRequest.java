@@ -20,6 +20,7 @@ import java.io.IOException;
  * Request to get all active PIT IDs from all nodes of cluster
  */
 public class GetAllPitNodesRequest extends BaseNodesRequest<GetAllPitNodesRequest> {
+
     @Inject
     public GetAllPitNodesRequest(DiscoveryNode... concreteNodes) {
         super(concreteNodes);

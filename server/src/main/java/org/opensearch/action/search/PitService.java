@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -18,11 +19,18 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,11 +46,13 @@ public class PitService {
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
+    private final TransportService transportService;
 
     @Inject
-    public PitService(ClusterService clusterService, SearchTransportService searchTransportService) {
+    public PitService(ClusterService clusterService, SearchTransportService searchTransportService, TransportService transportService) {
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
+        this.transportService = transportService;
     }
 
     /**
@@ -129,5 +139,45 @@ public class PitService {
                 listener.onFailure(e);
             }
         }, size);
+    }
+
+    /**
+     * Get all active point in time contexts
+     */
+    public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
+        final List<DiscoveryNode> nodes = new LinkedList<>();
+        for (ObjectCursor<DiscoveryNode> cursor : clusterService.state().nodes().getDataNodes().values()) {
+            DiscoveryNode node = cursor.value;
+            nodes.add(node);
+        }
+        DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
+        nodes.toArray(disNodesArr);
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            GetAllPitsAction.NAME,
+            new GetAllPitNodesRequest(disNodesArr),
+            new TransportResponseHandler<GetAllPitNodesResponse>() {
+
+                @Override
+                public void handleResponse(GetAllPitNodesResponse response) {
+                    getAllPitsListener.onResponse(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    getAllPitsListener.onFailure(exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public GetAllPitNodesResponse read(StreamInput in) throws IOException {
+                    return new GetAllPitNodesResponse(in);
+                }
+            }
+        );
     }
 }

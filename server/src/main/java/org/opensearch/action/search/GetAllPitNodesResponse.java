@@ -28,6 +28,10 @@ import java.util.stream.Collectors;
  * This class transforms active PIT objects from all nodes to unique PIT objects
  */
 public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeResponse> implements ToXContentObject {
+
+    /**
+     * List of unique PITs across all nodes
+     */
     List<ListPitInfo> pitsInfo = new ArrayList<>();
 
     @Inject
@@ -36,16 +40,16 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     }
 
     public GetAllPitNodesResponse(
-            ClusterName clusterName,
-            List<GetAllPitNodeResponse> getAllPitNodeResponse,
-            List<FailedNodeException> failures
+        ClusterName clusterName,
+        List<GetAllPitNodeResponse> getAllPitNodeResponse,
+        List<FailedNodeException> failures
     ) {
         super(clusterName, getAllPitNodeResponse, failures);
         Set<String> uniquePitIds = new HashSet<>();
         pitsInfo.addAll(
-                getAllPitNodeResponse.stream()
-                        .flatMap(p -> p.getPitsInfo().stream().filter(t -> uniquePitIds.add(t.getPitId())))
-                        .collect(Collectors.toList())
+            getAllPitNodeResponse.stream()
+                .flatMap(p -> p.getPitsInfo().stream().filter(t -> uniquePitIds.add(t.getPitId())))
+                .collect(Collectors.toList())
         );
     }
 
