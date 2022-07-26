@@ -107,6 +107,10 @@ public class MasterService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    static final String CLUSTER_MANAGER_UPDATE_THREAD_NAME = "clusterManagerService#updateTask";
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #CLUSTER_MANAGER_UPDATE_THREAD_NAME} */
+    @Deprecated
     static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
     ClusterStatePublisher clusterStatePublisher;
@@ -156,8 +160,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
         return OpenSearchExecutors.newSinglePrioritizing(
-            nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
-            daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
+            nodeName + "/" + CLUSTER_MANAGER_UPDATE_THREAD_NAME,
+            daemonThreadFactory(nodeName, CLUSTER_MANAGER_UPDATE_THREAD_NAME),
             threadPool.getThreadContext(),
             threadPool.scheduler()
         );
@@ -229,7 +233,8 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private static boolean isClusterManagerUpdateThread() {
-        return Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME);
+        return Thread.currentThread().getName().contains(CLUSTER_MANAGER_UPDATE_THREAD_NAME)
+            || Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME);
     }
 
     public static boolean assertClusterManagerUpdateThread() {
