@@ -10,6 +10,7 @@ package org.opensearch.extensions;
 
 import java.net.UnknownHostException;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.io.stream.StreamInput;
 
 /**
  * Reference to a method that transports a parse request to an extension. By convention, this method takes
@@ -33,13 +34,13 @@ import org.opensearch.cluster.node.DiscoveryNode;
 public interface ExtensionReader {
 
     /**
-     * Transports category class, and byte array (context), to the extension identified by the Discovery Node
+     * Transports category class, and StreamInput (context), to the extension identified by the Discovery Node
      *
      * @param extensionNode Discovery Node identifying the Extension
      * @param categoryClass Super class that the reader extends
-     * @param context Byte array that contains the StreamInput data
+     * @param context StreamInput to convert into a byte array to transport
      * @throws UnknownHostException if the extension node host IP address could not be determined
      */
-    void parse(DiscoveryNode extensionNode, Class categoryClass, byte[] context) throws UnknownHostException;
+    void parse(DiscoveryNode extensionNode, Class categoryClass, StreamInput context) throws UnknownHostException;
 
 }

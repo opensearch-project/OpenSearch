@@ -61,14 +61,14 @@ public class NamedWriteableRegistryResponseHandler implements TransportResponseH
     }
 
     /**
-     * Transports a byte array and associated category class to the given extension, identified by its discovery node
+     * Transports a StreamInput, converted into a byte array, and associated category class to the given extension, identified by its discovery node
      *
      * @param extensionNode Discovery Node identifying the extension associated with the category class and name
      * @param categoryClass Class that the Writeable object extends
-     * @param context Byte array generated from a {@link StreamInput} object to transport to the extension
+     * @param context StreamInput object to convert into a byte array and transport to the extension
      * @throws UnknownHostException if connection to the extension node failed
      */
-    public void parseNamedWriteable(DiscoveryNode extensionNode, Class categoryClass, byte[] context) throws UnknownHostException {
+    public void parseNamedWriteable(DiscoveryNode extensionNode, Class categoryClass, StreamInput context) throws UnknownHostException {
         NamedWriteableRegistryParseResponseHandler namedWriteableRegistryParseResponseHandler =
             new NamedWriteableRegistryParseResponseHandler();
         try {

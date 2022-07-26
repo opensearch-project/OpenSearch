@@ -25,15 +25,18 @@ public class NamedWriteableRegistryParseRequest extends TransportRequest {
 
     /**
      * @param categoryClassName String representing the fully qualified class name used to generate the corresponding class object at runtime
-     * @param context Byte array generated from a {@link StreamInput} instance
+     * @param context StreamInput object to convert into a byte array and transport to the extension
      * @throws IllegalArgumentException if the fully qualified class name is invalid and the class object cannot be generated at runtime
      */
-    public NamedWriteableRegistryParseRequest(String categoryClassName, byte[] context) {
+    public NamedWriteableRegistryParseRequest(String categoryClassName, StreamInput context) {
         try {
+            byte[] streamInputBytes = context.readAllBytes();
             this.categoryClass = Class.forName(categoryClassName);
-            this.context = Arrays.copyOf(context, context.length);
+            this.context = Arrays.copyOf(streamInputBytes, streamInputBytes.length);
         } catch (ClassNotFoundException e) {
             throw new IllegalArgumentException("Category class definition not found", e);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Invalid context", e);
         }
     }
 

@@ -19,7 +19,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.mock;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -47,6 +49,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.NamedWriteableRegistryResponse;
@@ -556,7 +559,11 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
         DiscoveryNode extensionNode = extensionsOrchestrator.extensionsList.get(0);
         Class categoryClass = Example.class;
+        
+        // convert context into an input stream then stream input for mock
         byte[] context = new byte[0];
+        InputStream inputStream = new ByteArrayInputStream(context);
+        StreamInput in = new InputStreamStreamInput(inputStream);
 
         try (
             MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
@@ -578,7 +585,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 transportService,
                 requestType
             );
-            responseHandler.parseNamedWriteable(extensionNode, categoryClass, context);
+            responseHandler.parseNamedWriteable(extensionNode, categoryClass, in);
             mockLogAppender.assertAllExpectationsMatched();
         }
     }
