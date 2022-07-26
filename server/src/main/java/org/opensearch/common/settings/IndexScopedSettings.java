@@ -193,6 +193,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
