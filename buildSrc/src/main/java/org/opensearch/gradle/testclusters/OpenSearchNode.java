@@ -175,6 +175,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Config legacyESConfig;
     private Config currentConfig;
 
+    private String zone;
+
     OpenSearchNode(
         String path,
         String name,
@@ -183,7 +185,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         File workingDirBase,
-        Jdk bwcJdk
+        Jdk bwcJdk,
+        String zone
     ) {
         this.path = path;
         this.name = name;
@@ -205,6 +208,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         opensearchConfig = Config.getOpenSearchConfig(workingDir);
         legacyESConfig = Config.getLegacyESConfig(workingDir);
         currentConfig = opensearchConfig;
+        this.zone = zone;
     }
 
     /*
@@ -1239,6 +1243,9 @@ public class OpenSearchNode implements TestClusterConfiguration {
         baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
         baseConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
         baseConfig.put("node.attr.testattr", "test");
+        if (this.project.findProperty("numZones") != null) {
+            baseConfig.put("node.attr.availabilityzone", zone);
+        }
         baseConfig.put("node.portsfile", "true");
         baseConfig.put("http.port", httpPort);
         if (getVersion().onOrAfter(Version.fromString("6.7.0"))) {
