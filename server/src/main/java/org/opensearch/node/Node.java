@@ -827,7 +827,7 @@ public class Node implements Closeable {
                 transportService,
                 namedWriteableRegistry,
                 networkService,
-                clusterService.getMasterService(),
+                clusterService.getClusterManagerService(),
                 clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(),
                 pluginsService.filterPlugins(DiscoveryPlugin.class),
@@ -1082,7 +1082,7 @@ public class Node implements Closeable {
 
         injector.getInstance(GatewayService.class).start();
         Discovery discovery = injector.getInstance(Discovery.class);
-        clusterService.getMasterService().setClusterStatePublisher(discovery::publish);
+        clusterService.getClusterManagerService().setClusterStatePublisher(discovery::publish);
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);

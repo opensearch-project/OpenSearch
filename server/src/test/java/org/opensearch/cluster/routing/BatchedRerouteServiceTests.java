@@ -223,7 +223,7 @@ public class BatchedRerouteServiceTests extends OpenSearchTestCase {
                 }
             }));
             if (rarely()) {
-                clusterService.getMasterService()
+                clusterService.getClusterManagerService()
                     .setClusterStatePublisher(
                         randomBoolean()
                             ? ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService())

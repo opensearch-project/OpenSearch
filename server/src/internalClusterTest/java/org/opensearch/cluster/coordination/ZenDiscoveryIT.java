@@ -170,7 +170,9 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
         ensureGreen(); // ensures that all events are processed (in particular state recovery fully completed)
         assertBusy(
             () -> assertThat(
-                internalCluster().clusterService(internalCluster().getClusterManagerName()).getMasterService().numberOfPendingTasks(),
+                internalCluster().clusterService(internalCluster().getClusterManagerName())
+                    .getClusterManagerService()
+                    .numberOfPendingTasks(),
                 equalTo(0)
             )
         ); // see https://github.com/elastic/elasticsearch/issues/24388

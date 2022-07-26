@@ -316,9 +316,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ClusterHealthResponse response = clusterHealth(
             request,
             clusterState,
-            clusterService.getMasterService().numberOfPendingTasks(),
+            clusterService.getClusterManagerService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(),
-            clusterService.getMasterService().getMaxTaskWaitTime()
+            clusterService.getClusterManagerService().getMaxTaskWaitTime()
         );
         return prepareResponse(request, response, clusterState, indexNameExpressionResolver) == waitCount;
     }
@@ -338,9 +338,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ClusterHealthResponse response = clusterHealth(
             request,
             clusterState,
-            clusterService.getMasterService().numberOfPendingTasks(),
+            clusterService.getClusterManagerService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(),
-            clusterService.getMasterService().getMaxTaskWaitTime()
+            clusterService.getClusterManagerService().getMaxTaskWaitTime()
         );
         int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
         boolean valid = (readyCounter == waitFor);

@@ -164,8 +164,9 @@ public class ClusterServiceUtils {
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
-        clusterService.getMasterService().setClusterStatePublisher(createClusterStatePublisher(clusterService.getClusterApplierService()));
-        clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
+        clusterService.getClusterManagerService()
+            .setClusterStatePublisher(createClusterStatePublisher(clusterService.getClusterApplierService()));
+        clusterService.getClusterManagerService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
         clusterService.start();
         return clusterService;
     }
