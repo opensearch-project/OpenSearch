@@ -112,7 +112,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
             final ClusterState second = other.getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));
             assertThat(second.nodes().getSize(), equalTo(1));
-            assertThat(first.nodes().getMasterNodeId(), not(equalTo(second.nodes().getMasterNodeId())));
+            assertThat(first.nodes().getClusterManagerNodeId(), not(equalTo(second.nodes().getClusterManagerNodeId())));
             assertThat(first.metadata().clusterUUID(), not(equalTo(second.metadata().clusterUUID())));
         }
     }

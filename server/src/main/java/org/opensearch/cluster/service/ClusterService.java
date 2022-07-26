@@ -40,6 +40,7 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
+import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
@@ -214,8 +215,17 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * Add a listener for on/off local node cluster-manager events
      */
-    public void addLocalNodeMasterListener(LocalNodeClusterManagerListener listener) {
-        clusterApplierService.addLocalNodeMasterListener(listener);
+    public void addLocalNodeClusterManagerListener(LocalNodeClusterManagerListener listener) {
+        clusterApplierService.addLocalNodeClusterManagerListener(listener);
+    }
+
+    /**
+     * Add a listener for on/off local node cluster-manager events
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #addLocalNodeClusterManagerListener}
+     */
+    @Deprecated
+    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
+        addLocalNodeClusterManagerListener(listener);
     }
 
     public MasterService getMasterService() {
@@ -240,11 +250,17 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterApplierService;
     }
 
-    public static boolean assertClusterOrMasterStateThread() {
+    public static boolean assertClusterOrClusterManagerStateThread() {
         assert Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
             || Thread.currentThread().getName().contains(MasterService.MASTER_UPDATE_THREAD_NAME)
             : "not called from the master/cluster state update thread";
         return true;
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #assertClusterOrClusterManagerStateThread} */
+    @Deprecated
+    public static boolean assertClusterOrMasterStateThread() {
+        return assertClusterOrClusterManagerStateThread();
     }
 
     public ClusterName getClusterName() {

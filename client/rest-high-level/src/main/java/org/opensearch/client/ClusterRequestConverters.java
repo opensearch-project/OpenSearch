@@ -105,7 +105,7 @@ final class ClusterRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
-        params.withClusterManagerTimeout(putComponentTemplateRequest.masterNodeTimeout());
+        params.withClusterManagerTimeout(putComponentTemplateRequest.clusterManagerNodeTimeout());
         if (putComponentTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
         }
@@ -124,7 +124,7 @@ final class ClusterRequestConverters {
         final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         final RequestConverters.Params params = new RequestConverters.Params();
         params.withLocal(getComponentTemplatesRequest.isLocal());
-        params.withClusterManagerTimeout(getComponentTemplatesRequest.getMasterNodeTimeout());
+        params.withClusterManagerTimeout(getComponentTemplatesRequest.getClusterManagerNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }
@@ -136,7 +136,7 @@ final class ClusterRequestConverters {
         final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         final RequestConverters.Params params = new RequestConverters.Params();
         params.withLocal(componentTemplatesRequest.isLocal());
-        params.withClusterManagerTimeout(componentTemplatesRequest.getMasterNodeTimeout());
+        params.withClusterManagerTimeout(componentTemplatesRequest.getClusterManagerNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }
@@ -146,7 +146,7 @@ final class ClusterRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_component_template").addPathPart(name).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
-        params.withClusterManagerTimeout(deleteComponentTemplateRequest.masterNodeTimeout());
+        params.withClusterManagerTimeout(deleteComponentTemplateRequest.clusterManagerNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }

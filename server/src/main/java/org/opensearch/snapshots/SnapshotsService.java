@@ -235,7 +235,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             actionFilters,
             indexNameExpressionResolver
         );
-        if (DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
             clusterService.addLowPriorityApplier(this);
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
@@ -1120,7 +1120,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
 
                         @Override
-                        public void onNoLongerMaster(String source) {
+                        public void onNoLongerClusterManager(String source) {
                             // We are not longer a cluster-manager - we shouldn't try to do any cleanup
                             // The new cluster-manager will take care of it
                             logger.warn(
@@ -1181,7 +1181,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             userCreateSnapshotListener.onFailure(ExceptionsHelper.useOrSuppress(e, this.e));
         }
 
-        public void onNoLongerMaster() {
+        public void onNoLongerClusterManager() {
             userCreateSnapshotListener.onFailure(e);
         }
     }
@@ -1305,11 +1305,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         try {
-            if (event.localNodeMaster()) {
+            if (event.localNodeClusterManager()) {
                 // We don't remove old cluster-manager when cluster-manager flips anymore. So, we need to check for change in
                 // cluster-manager
                 SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                final boolean newClusterManager = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+                final boolean newClusterManager = event.previousState().nodes().isLocalNodeElectedClusterManager() == false;
                 processExternalChanges(
                     newClusterManager || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)
@@ -2091,12 +2091,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public void onNoLongerMaster(String source) {
+            public void onNoLongerClusterManager(String source) {
                 failure.addSuppressed(new SnapshotException(snapshot, "no longer cluster-manager"));
                 failSnapshotCompletionListeners(snapshot, failure);
                 failAllListenersOnMasterFailOver(new NotClusterManagerException(source));
                 if (listener != null) {
-                    listener.onNoLongerMaster();
+                    listener.onNoLongerClusterManager();
                 }
             }
 

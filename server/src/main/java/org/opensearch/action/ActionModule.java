@@ -653,6 +653,7 @@ public class ActionModule extends AbstractModule {
         // point in time actions
         actions.register(CreatePitAction.INSTANCE, TransportCreatePitAction.class);
         actions.register(GetAllPitsAction.INSTANCE, TransportGetAllPitsAction.class);
+        actions.register(DeletePitAction.INSTANCE, TransportDeletePitAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }

@@ -175,7 +175,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
                     .add(otherNode2)
                     .add(otherDataNode)
                     .localNodeId(localNode.getId())
-                    .masterNodeId(localNode.getId())
+                    .clusterManagerNodeId(localNode.getId())
             )
                 .metadata(
                     Metadata.builder()

@@ -172,7 +172,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             .get()
             .getSnapshotInfo()
             .snapshotId();
-        final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
         final RepositoryData modifiedRepositoryData = repositoryData.withVersions(

@@ -153,7 +153,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("_node", buildNewFakeTransportAddress(), Version.CURRENT))
             .localNodeId("_node")
-            .masterNodeId("_node")
+            .clusterManagerNodeId("_node")
             .build();
 
         boolean unassigned = randomBoolean();
@@ -536,7 +536,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         builder = ClusterState.builder(clusterState);
         nodes = DiscoveryNodes.builder(clusterState.nodes());
         nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "a_new_cluster_manager_node"));
-        nodes.masterNodeId("a_new_cluster_manager_node");
+        nodes.clusterManagerNodeId("a_new_cluster_manager_node");
         ClusterState nonMasterClusterState = builder.nodes(nodes).build();
         event = new ClusterChangedEvent("test", nonMasterClusterState, clusterState);
         service.clusterChanged(event);
@@ -554,7 +554,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
             .localNodeId("_node_1")
-            .masterNodeId("_node_1")
+            .clusterManagerNodeId("_node_1")
             .add(new DiscoveryNode("_node_2", buildNewFakeTransportAddress(), Version.CURRENT));
 
         String unassignedId = addTask(tasks, "unassign", "_node_2");
@@ -579,7 +579,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
             .localNodeId("_node_1")
-            .masterNodeId("_node_1")
+            .clusterManagerNodeId("_node_1")
             .add(new DiscoveryNode("_node_2", buildNewFakeTransportAddress(), Version.CURRENT));
 
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
@@ -902,7 +902,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
         nodes.localNodeId("this_node");
-        nodes.masterNodeId("this_node");
+        nodes.clusterManagerNodeId("this_node");
 
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routingTable.build()).build();
     }

@@ -97,9 +97,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case HYBRIDFS:
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
+                final Set<String> mmapExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
                 if (primaryDirectory instanceof MMapDirectory) {
                     MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
-                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
+                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions), mmapExtensions);
                 } else {
                     return primaryDirectory;
                 }
@@ -142,10 +143,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
      */
     static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
+        private final Set<String> mmapExtensions;
 
-        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
+        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, Set<String> mmapExtensions) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
+            this.mmapExtensions = mmapExtensions;
         }
 
         @Override
@@ -164,41 +167,14 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
         }
 
+        boolean useDelegate(String name) {
+            final String extension = FileSwitchDirectory.getExtension(name);
+            return mmapExtensions.contains(extension);
+        }
+
         @Override
         public void close() throws IOException {
             IOUtils.close(super::close, delegate);
-        }
-
-        boolean useDelegate(String name) {
-            String extension = FileSwitchDirectory.getExtension(name);
-            switch (extension) {
-                // Norms, doc values and term dictionaries are typically performance-sensitive and hot in the page
-                // cache, so we use mmap, which provides better performance.
-                case "nvd":
-                case "dvd":
-                case "tim":
-                    // We want to open the terms index and KD-tree index off-heap to save memory, but this only performs
-                    // well if using mmap.
-                case "tip":
-                    // dim files only apply up to lucene 8.x indices. It can be removed once we are in lucene 10
-                case "dim":
-                case "kdd":
-                case "kdi":
-                    // Compound files are tricky because they store all the information for the segment. Benchmarks
-                    // suggested that not mapping them hurts performance.
-                case "cfs":
-                    // MMapDirectory has special logic to read long[] arrays in little-endian order that helps speed
-                    // up the decoding of postings. The same logic applies to positions (.pos) of offsets (.pay) but we
-                    // are not mmaping them as queries that leverage positions are more costly and the decoding of postings
-                    // tends to be less a bottleneck.
-                case "doc":
-                    return true;
-                // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
-                // or are large and have a random access pattern and mmap leads to page cache trashing
-                // (e.g. stored fields and term vectors).
-                default:
-                    return false;
-            }
         }
 
         MMapDirectory getDelegate() {
