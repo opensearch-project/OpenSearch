@@ -559,7 +559,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
         DiscoveryNode extensionNode = extensionsOrchestrator.extensionsList.get(0);
         Class categoryClass = Example.class;
-        
+
         // convert context into an input stream then stream input for mock
         byte[] context = new byte[0];
         InputStream inputStream = new ByteArrayInputStream(context);
