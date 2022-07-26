@@ -15,6 +15,7 @@ import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -36,6 +37,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -197,6 +199,56 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             replicaShard.translogStats().estimatedNumberOfOperations()
         );
         assertSegmentStats(REPLICA_COUNT);
+    }
+
+    public void testDeleteOperations() throws Exception {
+        final String nodeA = internalCluster().startNode();
+        final String nodeB = internalCluster().startNode();
+
+        createIndex(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        final int initialDocCount = scaledRandomIntBetween(0, 200);
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(initialDocCount);
+            waitForDocs(initialDocCount, indexer);
+            refresh(INDEX_NAME);
+            waitForReplicaUpdate();
+
+            // wait a short amount of time to give replication a chance to complete.
+            assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+            assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+
+            final int additionalDocCount = scaledRandomIntBetween(0, 200);
+            final int expectedHitCount = initialDocCount + additionalDocCount;
+            indexer.start(additionalDocCount);
+            waitForDocs(expectedHitCount, indexer);
+            waitForReplicaUpdate();
+
+            assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+            assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+
+            ensureGreen(INDEX_NAME);
+
+            Set<String> ids = indexer.getIds();
+            String id = ids.toArray()[0].toString();
+            client(nodeA).prepareDelete(INDEX_NAME, id).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+            refresh(INDEX_NAME);
+            waitForReplicaUpdate();
+
+            assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount - 1);
+            assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount - 1);
+        }
     }
 
     private void assertSegmentStats(int numberOfReplicas) throws IOException {

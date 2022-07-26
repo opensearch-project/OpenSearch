@@ -1191,6 +1191,59 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         /**
+         * Returns a diff between the two snapshots that can be used for getting list of files to copy over to a replica for segment replication. The given snapshot is treated as the
+         * target and this snapshot as the source.
+         *
+         * Similar to @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot)
+         */
+        public RecoveryDiff getFilesRecoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
+            final List<StoreFileMetadata> identical = new ArrayList<>();
+            final List<StoreFileMetadata> different = new ArrayList<>();
+            final List<StoreFileMetadata> missing = new ArrayList<>();
+            final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
+            final List<StoreFileMetadata> perCommitStoreFiles = new ArrayList<>();
+
+            for (StoreFileMetadata meta : this) {
+                final String segmentId = IndexFileNames.parseSegmentName(meta.name());
+                final String extension = IndexFileNames.getExtension(meta.name());
+                if (IndexFileNames.SEGMENTS.equals(segmentId)
+                    || DEL_FILE_EXTENSION.equals(extension)
+                    || LIV_FILE_EXTENSION.equals(extension)) {
+                    // only treat del files as per-commit files fnm files are generational but only for upgradable DV
+                    perCommitStoreFiles.add(meta);
+                } else {
+                    perSegment.computeIfAbsent(segmentId, k -> new ArrayList<>()).add(meta);
+                }
+            }
+            final ArrayList<StoreFileMetadata> identicalFiles = new ArrayList<>();
+            for (List<StoreFileMetadata> segmentFiles : Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles))) {
+                identicalFiles.clear();
+                boolean consistent = true;
+                for (StoreFileMetadata meta : segmentFiles) {
+                    StoreFileMetadata storeFileMetadata = recoveryTargetSnapshot.get(meta.name());
+                    if (storeFileMetadata == null) {
+                        consistent = false;
+                        missing.add(meta);
+                    } else if (storeFileMetadata.isSame(meta) == false) {
+                        consistent = false;
+                        different.add(meta);
+                    } else {
+                        identicalFiles.add(meta);
+                    }
+                }
+                if (consistent) {
+                    identical.addAll(identicalFiles);
+                }
+            }
+            RecoveryDiff recoveryDiff = new RecoveryDiff(
+                Collections.unmodifiableList(identical),
+                Collections.unmodifiableList(different),
+                Collections.unmodifiableList(missing)
+            );
+            return recoveryDiff;
+        }
+
+        /**
          * Returns the number of files in this snapshot
          */
         public int size() {
