@@ -719,10 +719,13 @@ public class QueryStringQueryParser extends XQueryParser {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
             MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
-            if (currentFieldType != null) {
-                setAnalyzer(getSearchAnalyzer(currentFieldType));
+            if (currentFieldType == null) {
+                return newUnmappedFieldQuery(field);
             }
-
+            if (forceAnalyzer != null && (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
+                setAnalyzer(forceAnalyzer);
+                return super.getWildcardQuery(currentFieldType.name(), termStr);
+            }
             if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
                 throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
             }
@@ -736,6 +739,7 @@ public class QueryStringQueryParser extends XQueryParser {
             setAnalyzer(oldAnalyzer);
         }
     }
+
 
     private Analyzer getSearchAnalyzer(MappedFieldType currentFieldType) {
         if (forceAnalyzer == null) {
