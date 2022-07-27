@@ -10,7 +10,6 @@ package org.opensearch.extensions;
 
 import java.net.UnknownHostException;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.StreamInput;
 
 /**
  * Reference to a method that transports a parse request to an extension. By convention, this method takes

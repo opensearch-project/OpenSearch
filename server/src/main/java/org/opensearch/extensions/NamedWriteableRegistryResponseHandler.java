@@ -76,7 +76,7 @@ public class NamedWriteableRegistryResponseHandler implements TransportResponseH
             transportService.sendRequest(
                 extensionNode,
                 requestType,
-                new NamedWriteableRegistryParseRequest(categoryClass.getName(), context),
+                new NamedWriteableRegistryParseRequest(categoryClass, context),
                 namedWriteableRegistryParseResponseHandler
             );
         } catch (Exception e) {
