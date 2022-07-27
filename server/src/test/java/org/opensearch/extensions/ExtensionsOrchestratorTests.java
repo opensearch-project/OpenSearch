@@ -246,7 +246,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
     
 /**
- *  TODO: Fix test to mock an extension response on extensions_initialize
+ *  TODO: Change test to mock node connection to extension
  * 
     public void testExtensionsInitialize() throws Exception {
         Path extensionDir = createTempDir();
