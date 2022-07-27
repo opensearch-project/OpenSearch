@@ -83,7 +83,7 @@ dependencies {
   api 'net.minidev:json-smart:2.4.8'
   api 'org.apache.zookeeper:zookeeper:3.8.0'
   api "io.netty:netty-all:${versions.netty}"
-  implementation 'com.fasterxml.woodstox:woodstox-core:6.2.8'
+  implementation 'com.fasterxml.woodstox:woodstox-core:6.3.0'
   implementation 'org.codehaus.woodstox:stax2-api:4.2.1'
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')
