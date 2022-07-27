@@ -1868,7 +1868,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * Must decrement the supplied when closing work is done and resources are
      * freed.
      */
-    protected abstract void closeNoLock(String reason, CountDownLatch closedLatch);
+    protected abstract void closeNoLock(String reason, CountDownLatch closedLatch) throws IOException;
 
     /**
      * Flush the engine (committing segments to disk and truncating the

@@ -340,7 +340,7 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
+    protected final void closeNoLock(String reason, CountDownLatch closedLatch) throws IOException {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
@@ -351,6 +351,7 @@ public class NRTReplicationEngine extends Engine {
             } finally {
                 logger.debug("engine closed [{}]", reason);
                 closedLatch.countDown();
+                commitSegmentInfos();
             }
         }
     }

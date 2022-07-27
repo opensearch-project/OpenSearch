@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication.common;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -119,6 +120,13 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
      */
     public synchronized int totalFileCount() {
         return filesDetails.size();
+    }
+
+    /**
+     * Returns true if set of files represent an incoming commit point
+     */
+    public boolean hasIncomingCommitPoint() {
+        return filesDetails.hasIncomingCommitPoint;
     }
 
     /**
@@ -315,6 +323,7 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
     private static final class FilesDetails implements ToXContentFragment, Writeable {
         protected final Map<String, FileMetadata> fileMetadataMap = new HashMap<>();
         protected boolean complete;
+        protected volatile boolean hasIncomingCommitPoint;
 
         public FilesDetails() {}
 
@@ -361,6 +370,10 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
         }
 
         public void addFileDetails(String name, long length, boolean reused) {
+            // if set of files contains a segments file, it represents an incoming commit point
+            if (name.startsWith(IndexFileNames.SEGMENTS)) {
+                this.hasIncomingCommitPoint = true;
+            }
             assert complete == false : "addFileDetail for [" + name + "] when file details are already complete";
             FileMetadata existing = fileMetadataMap.put(name, new FileMetadata(name, length, reused));
             assert existing == null : "file [" + name + "] is already reported";
@@ -391,6 +404,7 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
         public void clear() {
             fileMetadataMap.clear();
             complete = false;
+            hasIncomingCommitPoint = false;
         }
 
         public Collection<FileMetadata> values() {
