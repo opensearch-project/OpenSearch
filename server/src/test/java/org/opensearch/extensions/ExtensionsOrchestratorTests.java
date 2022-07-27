@@ -282,30 +282,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         extensionsOrchestrator.setTransportService(transportService);
-
-        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsOrchestrator.class))) {
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "Connect Transport Exception 1",
-                    "org.opensearch.extensions.ExtensionsOrchestrator",
-                    Level.ERROR,
-                    "ConnectTransportException[[firstExtension][127.0.0.0:9300] connect_timeout[30s]]"
-                )
-            );
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "Connect Transport Exception 2",
-                    "org.opensearch.extensions.ExtensionsOrchestrator",
-                    Level.ERROR,
-                    "ConnectTransportException[[secondExtension][127.0.0.1:9301] connect_exception]; nested: ConnectException[Connection refused];"
-                )
-            );
-
-            extensionsOrchestrator.extensionsInitialize();
-            mockLogAppender.assertAllExpectationsMatched();
-        }
+        extensionsOrchestrator.extensionsInitialize();
     }
 
     public void testHandleExtensionRequest() throws Exception {
