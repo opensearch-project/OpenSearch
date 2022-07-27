@@ -260,10 +260,15 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             return builder;
         }
 
+        /**
+         * Parse the node with the field name as name; using various parse methods for different attributes.
+         */
         @Override
         public T parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Map<String, Object> params = new HashMap<>();
-            return parse(name, node, params, parserContext);
+            final T builder = parse(name, node, new HashMap<>(), parserContext);
+            // parse the common attributes(like doc_values, boosts etc.) and set them in the builder.
+            TypeParsers.parseField(builder, name, node, parserContext);
+            return builder;
         }
     }
 

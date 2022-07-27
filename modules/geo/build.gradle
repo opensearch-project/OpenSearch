@@ -40,6 +40,11 @@ restResources {
     includeCore '_common', 'indices', 'index', 'search'
   }
 }
+
+dependencies {
+  api 'org.apache.commons:commons-collections4:4.4'
+}
+
 artifacts {
   restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
 }
