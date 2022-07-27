@@ -597,23 +597,20 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.search.scroll_total", "default:false;text-align:right;desc:completed scroll contexts");
 
-        table.addCell(
-            "search.pit_current",
-            "sibling:pri;alias:scc,searchPitCurrent;text-align:right;desc:open pit contexts"
-        );
-        table.addCell("pri.search.pit_current", "text-align:right;desc:open pit contexts");
+        table.addCell("search.pit_current", "sibling:pri;alias:scc,searchPitCurrent;default:false;text-align:right;desc:open pit contexts");
+        table.addCell("pri.search.pit_current", "default:false;text-align:right;desc:open pit contexts");
 
         table.addCell(
             "search.pit_time",
-            "sibling:pri;alias:scti,searchPitTime;text-align:right;desc:time pit contexts held open"
+            "sibling:pri;alias:scti,searchPitTime;default:false;text-align:right;desc:time pit contexts held open"
         );
-        table.addCell("pri.search.pit_time", "text-align:right;desc:time pit contexts held open");
+        table.addCell("pri.search.pit_time", "default:false;text-align:right;desc:time pit contexts held open");
 
         table.addCell(
             "search.pit_total",
-            "sibling:pri;alias:scto,searchPitTotal;text-align:right;desc:completed pit contexts"
+            "sibling:pri;alias:scto,searchPitTotal;default:false;text-align:right;desc:completed pit contexts"
         );
-        table.addCell("pri.search.pit_total", "text-align:right;desc:completed pit contexts");
+        table.addCell("pri.search.pit_total", "default:false;text-align:right;desc:completed pit contexts");
 
         table.addCell("segments.count", "sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("pri.segments.count", "default:false;text-align:right;desc:number of segments");

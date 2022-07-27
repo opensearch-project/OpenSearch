@@ -75,23 +75,11 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
-
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        IndexShard indexShard = indexService.getShard(0);
-        IndexShard indexShard1 = indexService.getShard(1);
-        assertEquals(1, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCount());
-        assertEquals(1, indexShard1.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard1.searchStats().getTotal().getPitCount());
+        validatePitStats("index", 1, 0, 0);
+        validatePitStats("index", 1, 0, 1);
         service.doClose(); // this kills the keep-alive reaper we have to reset the node after this test
-
-        indexShard = indexService.getShard(0);
-        indexShard1 = indexService.getShard(1);
-        assertEquals(1, indexShard.searchStats().getTotal().getPitCount());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(1, indexShard1.searchStats().getTotal().getPitCount());
-        assertEquals(0, indexShard1.searchStats().getTotal().getPitCurrent());
+        validatePitStats("index", 0, 1, 0);
+        validatePitStats("index", 0, 1, 1);
     }
 
     public void testCreatePITWithMultipleIndicesSuccess() throws ExecutionException, InterruptedException {
@@ -108,23 +96,11 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         assertEquals(4, response.getSuccessfulShards());
         assertEquals(4, service.getActiveContexts());
 
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        IndexService indexService1 = indicesService.indexServiceSafe(resolveIndex("index1"));
-        IndexShard indexShard = indexService.getShard(0);
-        IndexShard indexShard1 = indexService1.getShard(0);
-        assertEquals(1, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCount());
-        assertEquals(1, indexShard1.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard1.searchStats().getTotal().getPitCount());
+        validatePitStats("index", 1, 0, 0);
+        validatePitStats("index1", 1, 0, 0);
         service.doClose();
-
-        indexShard = indexService.getShard(0);
-        indexShard1 = indexService1.getShard(0);
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(1, indexShard.searchStats().getTotal().getPitCount());
-        assertEquals(0, indexShard1.searchStats().getTotal().getPitCurrent());
-        assertEquals(1, indexShard1.searchStats().getTotal().getPitCount());
+        validatePitStats("index", 0, 1, 0);
+        validatePitStats("index1", 0, 1, 0);
     }
 
     public void testCreatePITWithShardReplicasSuccess() throws ExecutionException, InterruptedException {
@@ -146,21 +122,11 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
 
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        IndexShard indexShard = indexService.getShard(0);
-        IndexShard indexShard1 = indexService.getShard(1);
-        assertEquals(1, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCount());
-        assertEquals(1, indexShard1.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard1.searchStats().getTotal().getPitCount());
+        validatePitStats("index", 1, 0, 0);
+        validatePitStats("index", 1, 0, 1);
         service.doClose();
-        indexShard = indexService.getShard(0);
-        indexShard1 = indexService.getShard(1);
-        assertEquals(1, indexShard.searchStats().getTotal().getPitCount());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(1, indexShard1.searchStats().getTotal().getPitCount());
-        assertEquals(0, indexShard1.searchStats().getTotal().getPitCurrent());
+        validatePitStats("index", 0, 1, 0);
+        validatePitStats("index", 0, 1, 1);
     }
 
     public void testCreatePITWithNonExistentIndex() {
@@ -244,14 +210,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
 
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        IndexShard indexShard = indexService.getShard(0);
-        IndexShard indexShard1 = indexService.getShard(1);
-        assertEquals(1, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCount());
-        assertEquals(1, indexShard1.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard1.searchStats().getTotal().getPitCount());
+        validatePitStats("index", 1, 0, 0);
+        validatePitStats("index", 1, 0, 1);
 
         client().admin().indices().prepareClose("index").get();
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
@@ -301,15 +261,9 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 )
         );
         final int maxPitContexts = SearchService.MAX_OPEN_PIT_CONTEXT.get(Settings.EMPTY);
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        IndexShard indexShard = indexService.getShard(0);
-        assertEquals(maxPitContexts, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCount());
+        validatePitStats("index", maxPitContexts, 0, 0);
         service.doClose();
-        indexShard = indexService.getShard(0);
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(maxPitContexts, indexShard.searchStats().getTotal().getPitCount());
+        validatePitStats("index", 0, maxPitContexts, 0);
     }
 
     public void testOpenPitContextsConcurrently() throws Exception {
@@ -355,15 +309,9 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
             thread.join();
         }
         assertThat(service.getActiveContexts(), equalTo(maxPitContexts));
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        IndexShard indexShard = indexService.getShard(0);
-        assertEquals(maxPitContexts, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCount());
+        validatePitStats("index", maxPitContexts, 0, 0);
         service.doClose();
-        indexShard = indexService.getShard(0);
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(maxPitContexts, indexShard.searchStats().getTotal().getPitCount());
+        validatePitStats("index", 0, maxPitContexts, 0);
     }
 
     /**
@@ -531,19 +479,11 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                     .getTotalHits().value,
                 Matchers.equalTo(0L)
             );
-            IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-            IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
-            IndexShard indexShard = indexService.getShard(0);
-            assertEquals(1, indexShard.searchStats().getTotal().getPitCurrent());
-            assertEquals(0, indexShard.searchStats().getTotal().getPitCount());
+            validatePitStats("test", 1, 0, 0);
         } finally {
             service.doClose();
             assertEquals(0, service.getActiveContexts());
-            IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-            IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
-            IndexShard indexShard = indexService.getShard(0);
-            assertEquals(0, indexShard.searchStats().getTotal().getPitCurrent());
-            assertEquals(1, indexShard.searchStats().getTotal().getPitCount());
+            validatePitStats("test", 0, 1, 0);
         }
     }
 
@@ -583,21 +523,20 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        IndexShard indexShard = indexService.getShard(0);
-        IndexShard indexShard1 = indexService.getShard(1);
-        assertEquals(1, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCount());
-        assertEquals(1, indexShard1.searchStats().getTotal().getPitCurrent());
-        assertEquals(0, indexShard1.searchStats().getTotal().getPitCount());
+        validatePitStats("index", 1, 0, 0);
+        validatePitStats("index", 1, 0, 1);
         service.doClose();
         assertEquals(0, service.getActiveContexts());
-        indexShard = indexService.getShard(0);
-        indexShard1 = indexService.getShard(1);
-        assertEquals(1, indexShard.searchStats().getTotal().getPitCount());
-        assertEquals(0, indexShard.searchStats().getTotal().getPitCurrent());
-        assertEquals(1, indexShard1.searchStats().getTotal().getPitCount());
-        assertEquals(0, indexShard1.searchStats().getTotal().getPitCurrent());
+        validatePitStats("index", 0, 1, 0);
+        validatePitStats("index", 0, 1, 1);
+    }
+
+    public void validatePitStats(String index, long expectedPitCurrent, long expectedPitCount, int shardId) throws ExecutionException,
+        InterruptedException {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex(index));
+        IndexShard indexShard = indexService.getShard(shardId);
+        assertEquals(expectedPitCurrent, indexShard.searchStats().getTotal().getPitCurrent());
+        assertEquals(expectedPitCount, indexShard.searchStats().getTotal().getPitCount());
     }
 }

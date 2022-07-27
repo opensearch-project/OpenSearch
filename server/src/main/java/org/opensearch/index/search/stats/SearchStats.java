@@ -164,7 +164,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             pitCount += stats.pitCount;
             pitTimeInMillis += stats.pitTimeInMillis;
-            // need consider the count of the pit's current scroll
             pitCurrent += stats.pitCurrent;
         }
 

@@ -310,12 +310,9 @@ public class RestNodesAction extends AbstractCatAction {
         );
         table.addCell("search.scroll_total", "alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
 
-        table.addCell("search.pit_current", "alias:scc,searchPitCurrent;text-align:right;desc:open pit contexts");
-        table.addCell(
-            "search.pit_time",
-            "alias:scti,searchPitTime;text-align:right;desc:time pit contexts held open"
-        );
-        table.addCell("search.pit_total", "alias:scto,searchPitTotal;text-align:right;desc:completed pit contexts");
+        table.addCell("search.pit_current", "alias:scc,searchPitCurrent;default:false;text-align:right;desc:open pit contexts");
+        table.addCell("search.pit_time", "alias:scti,searchPitTime;default:false;text-align:right;desc:time pit contexts held open");
+        table.addCell("search.pit_total", "alias:scto,searchPitTotal;default:false;text-align:right;desc:completed pit contexts");
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
