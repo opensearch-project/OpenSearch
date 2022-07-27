@@ -106,7 +106,8 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.bwcJdk = bwcJdk;
 
         // Always add the first node
-        addNode(clusterName + "-0", "zone-1");
+        String zone = hasZoneProperty() ? "zone-1" : "";
+        addNode(clusterName + "-0", zone);
         // configure the cluster name eagerly so all nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
@@ -141,10 +142,21 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
         int currentZone = 1;
         for (int i = nodes.size(); i < numberOfNodes; i++) {
-            currentZone = (currentZone >= zoneCount) ? 1 : (currentZone + 1);
-            String zoneName = "zone-" + currentZone;
+            currentZone = getZoneNumber(currentZone);
+            String zoneName = currentZone > 0 ? "zone-" + currentZone : "";
             addNode(clusterName + "-" + i, zoneName);
         }
+    }
+
+    private boolean hasZoneProperty() {
+        return this.project.findProperty("numZones") != null;
+    }
+
+    private int getZoneNumber(int currentZone) {
+        if (!hasZoneProperty()) {
+            return -1;
+        }
+        return currentZone >= zoneCount ? 1 : (currentZone + 1);
     }
 
     private void addNode(String nodeName, String zoneName) {

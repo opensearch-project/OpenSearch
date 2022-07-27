@@ -32,6 +32,7 @@
 package org.opensearch.gradle.testclusters;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.StringUtils;
 import org.opensearch.gradle.Architecture;
 import org.opensearch.gradle.DistributionDownloadPlugin;
 import org.opensearch.gradle.OpenSearchDistribution;
@@ -1243,7 +1244,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
         baseConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
         baseConfig.put("node.attr.testattr", "test");
-        if (this.project.findProperty("numZones") != null) {
+        if (StringUtils.isNotBlank(zone)) {
             baseConfig.put("node.attr.availabilityzone", zone);
         }
         baseConfig.put("node.portsfile", "true");
