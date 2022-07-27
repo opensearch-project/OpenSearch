@@ -93,14 +93,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 
-public class ClusterManagerServiceTests extends OpenSearchTestCase {
+public class MasterServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
     private static long relativeTimeInMillis;
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new TestThreadPool(ClusterManagerServiceTests.class.getName()) {
+        threadPool = new TestThreadPool(MasterServiceTests.class.getName()) {
             @Override
             public long relativeTimeInMillis() {
                 return relativeTimeInMillis;
@@ -125,13 +125,13 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder()
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterManagerServiceTests.class.getSimpleName())
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
                 .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
-        final ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterManagerServiceTests.class.getSimpleName()))
+        final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(localNode)
@@ -790,7 +790,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             try (
                 ClusterManagerService clusterManagerService = new ClusterManagerService(
                     Settings.builder()
-                        .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterManagerServiceTests.class.getSimpleName())
+                        .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
                         .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                         .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -805,9 +805,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
                     emptySet(),
                     Version.CURRENT
                 );
-                final ClusterState initialClusterState = ClusterState.builder(
-                    new ClusterName(ClusterManagerServiceTests.class.getSimpleName())
-                )
+                final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
                     .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
                     .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                     .build();
@@ -975,7 +973,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         try (
             ClusterManagerService clusterManagerService = new ClusterManagerService(
                 Settings.builder()
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterManagerServiceTests.class.getSimpleName())
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
                     .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                     .build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -983,7 +981,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             )
         ) {
 
-            final ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterManagerServiceTests.class.getSimpleName()))
+            final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).localNodeId(node1.getId()).masterNodeId(node1.getId()))
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                 .build();

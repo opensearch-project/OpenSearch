@@ -45,7 +45,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.FakeThreadPoolMasterService;
 import org.opensearch.cluster.service.ClusterManagerService;
-import org.opensearch.cluster.service.ClusterManagerServiceTests;
+import org.opensearch.cluster.service.MasterServiceTests;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -514,7 +514,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         );
 
         assertTrue(
-            ClusterManagerServiceTests.discoveryState(clusterManagerService)
+            MasterServiceTests.discoveryState(clusterManagerService)
                 .getVotingConfigExclusions()
                 .stream()
                 .anyMatch(
@@ -746,7 +746,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             throw new RuntimeException(e);
         }
 
-        assertTrue(ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster());
+        assertTrue(MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster());
         for (DiscoveryNode successfulNode : successfulNodes) {
             assertTrue(successfulNode + " joined cluster", clusterStateHasNode(successfulNode));
             assertFalse(successfulNode + " voted for cluster-manager", coordinator.missingJoinVoteFrom(successfulNode));
@@ -776,10 +776,10 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     private boolean isLocalNodeElectedMaster() {
-        return ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster();
+        return MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster();
     }
 
     private boolean clusterStateHasNode(DiscoveryNode node) {
-        return node.equals(ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
+        return node.equals(MasterServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
     }
 }

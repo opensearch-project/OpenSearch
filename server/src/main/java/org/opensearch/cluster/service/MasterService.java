@@ -87,7 +87,9 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
  * Main Master Node Service
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link ClusterManagerService}.
  */
+@Deprecated
 public class MasterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(MasterService.class);
 

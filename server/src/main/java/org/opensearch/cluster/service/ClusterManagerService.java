@@ -12,6 +12,11 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
+/**
+ * Main Cluster Manager Node Service
+ *
+ * @opensearch.internal
+ */
 public class ClusterManagerService extends MasterService {
     public ClusterManagerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         super(settings, clusterSettings, threadPool);
