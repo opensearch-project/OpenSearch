@@ -119,7 +119,7 @@ public class NamedWriteableRegistryResponseHandler implements TransportResponseH
                 }
 
                 // Add name and callback method reference to inner reader map,
-                ExtensionReader callBack = (en, cc, context) -> parseNamedWriteable(en, cc, context);
+                ExtensionReader callBack = (en, cc, context) -> parseNamedWriteable(en, cc, (StreamInput) context);
                 readers.put(name, callBack);
             }
 

@@ -38,9 +38,9 @@ public interface ExtensionReader {
      *
      * @param extensionNode Discovery Node identifying the Extension
      * @param categoryClass Super class that the reader extends
-     * @param context StreamInput to convert into a byte array to transport
+     * @param context Some context to transport
      * @throws UnknownHostException if the extension node host IP address could not be determined
      */
-    void parse(DiscoveryNode extensionNode, Class categoryClass, StreamInput context) throws UnknownHostException;
+    void parse(DiscoveryNode extensionNode, Class categoryClass, Object context) throws UnknownHostException;
 
 }
