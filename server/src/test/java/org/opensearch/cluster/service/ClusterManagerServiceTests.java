@@ -328,11 +328,11 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
 
     @TestLogging(value = "org.opensearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
     public void testClusterStateUpdateLogging() throws Exception {
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ClusterManagerService.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(MasterService.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 start",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "executing cluster state update for [test1]"
                 )
@@ -340,7 +340,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 computation",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [1s] to compute cluster state update for [test1]"
                 )
@@ -348,7 +348,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 notification",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [0s] to notify listeners on unchanged cluster state for [test1]"
                 )
@@ -357,7 +357,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 start",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "executing cluster state update for [test2]"
                 )
@@ -365,7 +365,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 failure",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.TRACE,
                     "failed to execute cluster state update (on version: [*], uuid: [*]) for [test2]*"
                 )
@@ -373,7 +373,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 computation",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [2s] to compute cluster state update for [test2]"
                 )
@@ -381,7 +381,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 notification",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [0s] to notify listeners on unchanged cluster state for [test2]"
                 )
@@ -390,7 +390,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3 start",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "executing cluster state update for [test3]"
                 )
@@ -398,7 +398,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3 computation",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [3s] to compute cluster state update for [test3]"
                 )
@@ -406,7 +406,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3 notification",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [test3]"
                 )
@@ -415,7 +415,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test4",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.DEBUG,
                     "executing cluster state update for [test4]"
                 )
@@ -737,11 +737,11 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
 
     @TestLogging(value = "org.opensearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ClusterManagerService.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(MasterService.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "test1 shouldn't log because it was fast enough",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.WARN,
                     "*took*test1*"
                 )
@@ -749,7 +749,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.WARN,
                     "*took [*], which is over [10s], to compute cluster state update for [test2]"
                 )
@@ -757,7 +757,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.WARN,
                     "*took [*], which is over [10s], to compute cluster state update for [test3]"
                 )
@@ -765,7 +765,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test4",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.WARN,
                     "*took [*], which is over [10s], to compute cluster state update for [test4]"
                 )
@@ -773,7 +773,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "test5 should not log despite publishing slowly",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.WARN,
                     "*took*test5*"
                 )
@@ -781,7 +781,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test6 should log due to slow and failing publication",
-                    ClusterManagerService.class.getCanonicalName(),
+                    MasterService.class.getCanonicalName(),
                     Level.WARN,
                     "took [*] and then failed to publish updated cluster state (version: *, uuid: *) for [test6]:*"
                 )
