@@ -48,6 +48,7 @@ import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
@@ -61,7 +62,7 @@ import static junit.framework.TestCase.fail;
 
 public class ClusterServiceUtils {
 
-    public static ClusterManagerService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
+    public static ClusterManagerService createClusterManagerService(ThreadPool threadPool, ClusterState initialClusterState) {
         ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_cluster_manager_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -77,12 +78,24 @@ public class ClusterServiceUtils {
         return clusterManagerService;
     }
 
-    public static ClusterManagerService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
+    public static ClusterManagerService createClusterManagerService(ThreadPool threadPool, DiscoveryNode localNode) {
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).clusterManagerNodeId(localNode.getId()))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
-        return createMasterService(threadPool, initialClusterState);
+        return createClusterManagerService(threadPool, initialClusterState);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #createClusterManagerService(ThreadPool, ClusterState)} */
+    @Deprecated
+    public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
+        return createClusterManagerService(threadPool, initialClusterState);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #createClusterManagerService(ThreadPool, DiscoveryNode)} */
+    @Deprecated
+    public static MasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
+        return createClusterManagerService(threadPool, localNode);
     }
 
     public static void setState(ClusterApplierService executor, ClusterState clusterState) {
