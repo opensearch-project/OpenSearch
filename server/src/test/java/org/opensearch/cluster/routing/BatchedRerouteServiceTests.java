@@ -237,7 +237,10 @@ public class BatchedRerouteServiceTests extends OpenSearchTestCase {
                 clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
                     ClusterState state = clusterService.state();
                     return ClusterState.builder(state)
-                        .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId()))
+                        .nodes(
+                            DiscoveryNodes.builder(state.nodes())
+                                .clusterManagerNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId())
+                        )
                         .build();
                 }, (source, e) -> {});
             }

@@ -71,7 +71,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
     public void testClusterManagerNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
 
-        String oldClusterManagerNode = internalCluster().getMasterName();
+        String oldClusterManagerNode = internalCluster().getClusterManagerName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
         SingleNodeDisruption clusterManagerNodeDisruption = new IntermittentLongGCDisruption(
             random(),
@@ -105,7 +105,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3, waitTime, false, oldNonClusterManagerNodes.get(0));
 
         // make sure all nodes agree on cluster-manager
-        String newClusterManager = internalCluster().getMasterName();
+        String newClusterManager = internalCluster().getClusterManagerName();
         assertThat(newClusterManager, not(equalTo(oldClusterManagerNode)));
         assertClusterManager(newClusterManager, nodes);
     }
@@ -126,7 +126,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         );
 
         ensureGreen();
-        String isolatedNode = internalCluster().getMasterName();
+        String isolatedNode = internalCluster().getClusterManagerName();
         TwoPartitions partitions = isolateNode(isolatedNode);
         NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
         networkDisruption.startDisrupting();
@@ -171,7 +171,11 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
                 try {
                     assertEquals("unequal versions", state.version(), nodeState.version());
                     assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
-                    assertEquals("different cluster-managers ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
+                    assertEquals(
+                        "different cluster-managers ",
+                        state.nodes().getClusterManagerNodeId(),
+                        nodeState.nodes().getClusterManagerNodeId()
+                    );
                     assertEquals("different meta data version", state.metadata().version(), nodeState.metadata().version());
                     assertEquals("different routing", state.routingTable().toString(), nodeState.routingTable().toString());
                 } catch (AssertionError t) {
@@ -238,7 +242,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         for (String node : partitions.getMajoritySide()) {
             ClusterState nodeState = getNodeClusterState(node);
             boolean success = true;
-            if (nodeState.nodes().getMasterNode() == null) {
+            if (nodeState.nodes().getClusterManagerNode() == null) {
                 success = false;
             }
             if (!nodeState.blocks().global().isEmpty()) {
@@ -292,7 +296,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
             Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1)
-                .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
+                .put("index.routing.allocation.exclude._name", internalCluster().getClusterManagerName())
                 .build()
         );
 

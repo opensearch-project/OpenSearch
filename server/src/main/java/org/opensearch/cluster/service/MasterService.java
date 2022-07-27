@@ -256,7 +256,7 @@ public class MasterService extends AbstractLifecycleComponent {
         logger.debug("executing cluster state update for [{}]", summary);
         final ClusterState previousClusterState = state();
 
-        if (!previousClusterState.nodes().isLocalNodeElectedMaster() && taskInputs.runOnlyWhenClusterManager()) {
+        if (!previousClusterState.nodes().isLocalNodeElectedClusterManager() && taskInputs.runOnlyWhenClusterManager()) {
             logger.debug("failing [{}]: local node is no longer cluster-manager", summary);
             taskInputs.onNoLongerClusterManager();
             return;
@@ -616,9 +616,9 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onNoLongerMaster(String source) {
+        public void onNoLongerClusterManager(String source) {
             try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onNoLongerMaster(source);
+                listener.onNoLongerClusterManager(source);
             } catch (Exception e) {
                 logger.error(
                     () -> new ParameterizedMessage(
@@ -745,7 +745,7 @@ public class MasterService extends AbstractLifecycleComponent {
             this.ackedTaskListener = ackedTaskListener;
             this.clusterStateVersion = clusterStateVersion;
             this.threadPool = threadPool;
-            this.clusterManagerNode = nodes.getMasterNode();
+            this.clusterManagerNode = nodes.getClusterManagerNode();
             int countDown = 0;
             for (DiscoveryNode node : nodes) {
                 // we always wait for at least the cluster-manager node
@@ -823,8 +823,8 @@ public class MasterService extends AbstractLifecycleComponent {
             List<Object> inputs = taskInputs.updateTasks.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
             clusterTasksResult = taskInputs.executor.execute(previousClusterState, inputs);
             if (previousClusterState != clusterTasksResult.resultingState
-                && previousClusterState.nodes().isLocalNodeElectedMaster()
-                && (clusterTasksResult.resultingState.nodes().isLocalNodeElectedMaster() == false)) {
+                && previousClusterState.nodes().isLocalNodeElectedClusterManager()
+                && (clusterTasksResult.resultingState.nodes().isLocalNodeElectedClusterManager() == false)) {
                 throw new AssertionError("update task submitted to ClusterManagerService cannot remove cluster-manager");
             }
         } catch (Exception e) {
@@ -888,11 +888,11 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         boolean runOnlyWhenClusterManager() {
-            return executor.runOnlyOnMaster();
+            return executor.runOnlyOnClusterManager();
         }
 
         void onNoLongerClusterManager() {
-            updateTasks.forEach(task -> task.listener.onNoLongerMaster(task.source()));
+            updateTasks.forEach(task -> task.listener.onNoLongerClusterManager(task.source()));
         }
     }
 

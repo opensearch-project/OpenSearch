@@ -2111,7 +2111,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
     static void setRandomClusterManagerTimeout(TimedRequest request, Map<String, String> expectedParams) {
         setRandomClusterManagerTimeout(
-            s -> request.setMasterTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".masterNodeTimeout")),
+            s -> request.setClusterManagerTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".clusterManagerNodeTimeout")),
             expectedParams
         );
     }
@@ -2128,7 +2128,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
     static void setRandomClusterManagerTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            TimeValue clusterManagerTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
+            TimeValue clusterManagerTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_cluster_manager_timeout");
             setter.accept(clusterManagerTimeout);
             expectedParams.put("cluster_manager_timeout", clusterManagerTimeout.getStringRep());
         } else {

@@ -69,7 +69,9 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
     public void testScheduling() {
         final DiscoveryNode discoveryNode = new DiscoveryNode("test", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNodes noClusterManager = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
-        final DiscoveryNodes localClusterManager = DiscoveryNodes.builder(noClusterManager).masterNodeId(discoveryNode.getId()).build();
+        final DiscoveryNodes localClusterManager = DiscoveryNodes.builder(noClusterManager)
+            .clusterManagerNodeId(discoveryNode.getId())
+            .build();
 
         final Settings.Builder settingsBuilder = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName());
         if (randomBoolean()) {

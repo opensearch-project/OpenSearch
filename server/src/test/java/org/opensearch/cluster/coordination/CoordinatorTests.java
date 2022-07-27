@@ -90,7 +90,7 @@ import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SH
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -170,7 +170,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             final ClusterNode leader = cluster.getAnyLeader();
-            assertTrue(leader.getLocalNode().isMasterNode());
+            assertTrue(leader.getLocalNode().isClusterManagerNode());
         }
     }
 
@@ -1702,7 +1702,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             chosenNode.close();
             cluster.clusterNodes.replaceAll(
-                cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), nonMasterNode()) : cn
+                cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), nonClusterManagerNode()) : cn
             );
             cluster.stabilise();
 
@@ -1729,7 +1729,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             final long expectedTerm = leader.coordinator.getCurrentTerm();
 
-            if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode()).count() == 2) {
+            if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isClusterManagerNode()).count() == 2) {
                 // in the 2-node case, auto-shrinking the voting configuration is required to reduce the voting configuration down to just
                 // the leader, otherwise restarting the other cluster-manager-eligible node triggers an election
                 leader.submitSetAutoShrinkVotingConfiguration(true);

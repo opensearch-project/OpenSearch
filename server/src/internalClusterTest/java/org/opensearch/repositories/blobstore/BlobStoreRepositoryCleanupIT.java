@@ -56,7 +56,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
 
         final int nodeCount = internalCluster().numDataAndMasterNodes();
         logger.info("-->  stopping cluster-manager node");
-        internalCluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentClusterManagerNode();
 
         ensureStableCluster(nodeCount - 1);
 
@@ -92,7 +92,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
 
     private String startBlockedCleanup(String repoName) throws Exception {
         logger.info("-->  starting two cluster-manager nodes and one data node");
-        internalCluster().startMasterOnlyNodes(2);
+        internalCluster().startClusterManagerOnlyNodes(2);
         internalCluster().startDataOnlyNodes(1);
 
         createRepository(repoName, "mock");
@@ -100,7 +100,10 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         logger.info("-->  snapshot");
         client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap").setWaitForCompletion(true).get();
 
-        final RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        final RepositoriesService service = internalCluster().getInstance(
+            RepositoriesService.class,
+            internalCluster().getClusterManagerName()
+        );
         final BlobStoreRepository repository = (BlobStoreRepository) service.repository(repoName);
 
         logger.info("--> creating a garbage data blob");
@@ -117,7 +120,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
             );
         garbageFuture.get();
 
-        final String clusterManagerNode = blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        final String clusterManagerNode = blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
 
         logger.info("--> starting repository cleanup");
         client().admin().cluster().prepareCleanupRepository(repoName).execute();
@@ -146,7 +149,10 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
             assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
         }
 
-        final RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        final RepositoriesService service = internalCluster().getInstance(
+            RepositoriesService.class,
+            internalCluster().getClusterManagerName()
+        );
         final BlobStoreRepository repository = (BlobStoreRepository) service.repository(repoName);
 
         logger.info("--> write two outdated index-N blobs");
