@@ -213,7 +213,7 @@ public class TaskManager implements ClusterStateApplier, TaskResourceTrackingLis
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
 
-        // Decrement the task's self-thread as a part of unregistration.
+        // Decrement the task's self-thread as part of unregistration.
         task.decrementResourceTrackingThreads();
 
         if (task instanceof CancellableTask) {
