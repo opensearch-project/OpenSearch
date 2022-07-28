@@ -83,7 +83,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                             boolean uploadStatus = uploadNewSegments(committedLocalFiles);
                             if (uploadStatus) {
                                 remoteDirectory.copyFrom(storeDirectory, lastCommittedLocalSegmentFileName, lastCommittedLocalSegmentFileName, IOContext.DEFAULT);
-                                remoteDirectory.uploadCommitMapping(committedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), commitSegmentInfos.getGeneration());
+                                remoteDirectory.uploadCommitMetadata(committedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), commitSegmentInfos.getGeneration());
                                 deleteStaleCommits();
                             }
                         } else {
@@ -94,7 +94,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                             Collection<String> refreshedLocalFiles = segmentInfos.files(true);
                             boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                             if (uploadStatus) {
-                                remoteDirectory.uploadRefreshMapping(refreshedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), segmentInfos.getGeneration());
+                                remoteDirectory.uploadRefreshMetadata(refreshedLocalFiles, storeDirectory, indexShard.getOperationPrimaryTerm(), segmentInfos.getGeneration());
                             }
                         } catch (EngineException e) {
                             logger.warn("Exception while reading SegmentInfosSnapshot", e);
@@ -128,7 +128,7 @@ public class RemoteStoreRefreshListener implements ReferenceManager.RefreshListe
                 try {
                     remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
                 } catch (NoSuchFileException e) {
-                    logger.info("The file {} does not exist anymore. It can happen in case of temp files", file);
+                    logger.info("The file {} does not exist anymore.", file);
                 } catch (IOException e) {
                     uploadSuccess.set(false);
                     // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
