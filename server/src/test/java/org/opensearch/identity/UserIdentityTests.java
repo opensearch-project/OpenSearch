@@ -11,7 +11,6 @@
 
 package org.opensearch.identity;
 
-import org.junit.Test;
 import org.opensearch.identity.UserIdentity.AnonymousUser;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -20,7 +19,6 @@ import static org.hamcrest.core.IsNot.not;
 
 public class UserIdentityTests {
 
-    @Test
     public void testGetIds() {
         final String idOfSally = "Sally";
         final UserIdentity sally = new UserIdentity(idOfSally);
@@ -28,7 +26,6 @@ public class UserIdentityTests {
         assertThat(sally.getId(), equalTo(idOfSally));
     }
 
-    @Test
     public void testUserVsAnonymous() {
         final UserIdentity sally = new UserIdentity("Sally");
 
@@ -36,7 +33,6 @@ public class UserIdentityTests {
         assertThat(UserIdentity.ANONYMOUS, not(equalTo(sally)));
     }
 
-    @Test
     public void testEquality() {
         final UserIdentity sally = new UserIdentity("Sally");
         final UserIdentity bob = new UserIdentity("Bob");
@@ -44,12 +40,10 @@ public class UserIdentityTests {
         assertThat(sally, not(equalTo(bob)));
     }
 
-    @Test
     public void testAnonymousGetId() {
         assertThat(UserIdentity.ANONYMOUS.getId(), equalTo(AnonymousUser.ID));
     }
 
-    @Test
     public void testAnonymousEquality() {
         final Identity blankIdentity = new Identity() {
             @Override
