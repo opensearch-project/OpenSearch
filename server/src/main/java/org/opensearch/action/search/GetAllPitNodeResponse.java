@@ -11,7 +11,6 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentFragment;
@@ -29,13 +28,7 @@ public class GetAllPitNodeResponse extends BaseNodeResponse implements ToXConten
     /**
      * List of active PITs in the associated node
      */
-    private List<ListPitInfo> pitsInfo;
-
-    @Inject
-    public GetAllPitNodeResponse(StreamInput in, List<ListPitInfo> pitsInfo) throws IOException {
-        super(in);
-        this.pitsInfo = pitsInfo;
-    }
+    private final List<ListPitInfo> pitsInfo;
 
     public GetAllPitNodeResponse(DiscoveryNode node, List<ListPitInfo> pitsInfo) {
         super(node);

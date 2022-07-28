@@ -150,8 +150,7 @@ public class PitService {
             DiscoveryNode node = cursor.value;
             nodes.add(node);
         }
-        DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
-        nodes.toArray(disNodesArr);
+        DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
         transportService.sendRequest(
             transportService.getLocalNode(),
             GetAllPitsAction.NAME,

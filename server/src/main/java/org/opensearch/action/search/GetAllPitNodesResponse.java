@@ -19,6 +19,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,7 +33,7 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     /**
      * List of unique PITs across all nodes
      */
-    List<ListPitInfo> pitsInfo = new ArrayList<>();
+    private final List<ListPitInfo> pitsInfo = new ArrayList<>();
 
     @Inject
     public GetAllPitNodesResponse(StreamInput in) throws IOException {
@@ -76,6 +77,6 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     }
 
     public List<ListPitInfo> getPITIDs() {
-        return new ArrayList<>(pitsInfo);
+        return Collections.unmodifiableList(pitsInfo);
     }
 }

@@ -64,7 +64,7 @@ public class TransportGetAllPitsAction extends TransportNodesAction<
 
     @Override
     protected GetAllPitNodeRequest newNodeRequest(GetAllPitNodesRequest request) {
-        return new GetAllPitNodeRequest(request);
+        return new GetAllPitNodeRequest();
     }
 
     @Override
