@@ -140,23 +140,22 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             );
         }
 
-        int currentZone = 1;
-        for (int i = nodes.size(); i < numberOfNodes; i++) {
-            currentZone = getZoneNumber(currentZone);
-            String zoneName = currentZone > 0 ? "zone-" + currentZone : "";
-            addNode(clusterName + "-" + i, zoneName);
+        if (hasZoneProperty()) {
+            int currentZone;
+            for (int i = nodes.size(); i < numberOfNodes; i++) {
+                currentZone = i % zoneCount + 1;
+                String zoneName = "zone-" + currentZone;
+                addNode(clusterName + "-" + i, zoneName);
+            }
+        } else {
+            for (int i = nodes.size(); i < numberOfNodes; i++) {
+                addNode(clusterName + "-" + i, "" );
+            }
         }
     }
 
     private boolean hasZoneProperty() {
         return this.project.findProperty("numZones") != null;
-    }
-
-    private int getZoneNumber(int currentZone) {
-        if (!hasZoneProperty()) {
-            return -1;
-        }
-        return currentZone >= zoneCount ? 1 : (currentZone + 1);
     }
 
     private void addNode(String nodeName, String zoneName) {
