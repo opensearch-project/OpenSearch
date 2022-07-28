@@ -117,7 +117,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet()
                 .getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID));
         });
 
         assertRequestBuilderThrows(
@@ -288,7 +288,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
 
         assertBusy(() -> {
             ClusterState state = clientToClusterManagerlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID));
         });
 
         GetResponse getResponse = clientToClusterManagerlessNode.prepareGet("test1", "1").get();
@@ -387,7 +387,7 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             for (String node : nodesWithShards) {
                 ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
-                assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
+                assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID));
             }
         });
 
