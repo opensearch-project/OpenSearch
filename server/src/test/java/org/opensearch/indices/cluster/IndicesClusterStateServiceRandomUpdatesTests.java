@@ -368,22 +368,26 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         Supplier<MockIndicesService> indicesServiceSupplier
     ) {
         // randomly remove no_cluster_manager blocks
-        if (randomBoolean() && state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID)) {
+        if (randomBoolean() && state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID)) {
             state = ClusterState.builder(state)
-                .blocks(ClusterBlocks.builder().blocks(state.blocks()).removeGlobalBlock(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID))
+                .blocks(
+                    ClusterBlocks.builder()
+                        .blocks(state.blocks())
+                        .removeGlobalBlock(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID)
+                )
                 .build();
         }
 
         // randomly add no_cluster_manager blocks
-        if (rarely() && state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID) == false) {
+        if (rarely() && state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID) == false) {
             ClusterBlock block = randomBoolean()
-                ? NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL
-                : NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES;
+                ? NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL
+                : NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES;
             state = ClusterState.builder(state).blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(block)).build();
         }
 
         // if no_cluster_manager block is in place, make no other cluster state changes
-        if (state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID)) {
+        if (state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID)) {
             return state;
         }
 

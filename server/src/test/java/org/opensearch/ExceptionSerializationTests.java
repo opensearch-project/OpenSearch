@@ -515,9 +515,11 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testClusterBlockException() throws IOException {
-        ClusterBlockException ex = serialize(new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES)));
+        ClusterBlockException ex = serialize(
+            new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES))
+        );
         assertEquals("blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];", ex.getMessage());
-        assertTrue(ex.blocks().contains(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES));
+        assertTrue(ex.blocks().contains(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES));
         assertEquals(1, ex.blocks().size());
     }
 
