@@ -331,4 +331,24 @@ public class LocalCheckpointTrackerTests extends OpenSearchTestCase {
         final long seqNo = randomNonNegativeLong();
         assertThat(tracker.hasProcessed(seqNo), equalTo(seqNo <= localCheckpoint || seqNos.contains(seqNo)));
     }
+
+    public void testFastForwardProcessedSeqNo() {
+        // base case with no persistent checkpoint update
+        long seqNo1;
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        seqNo1 = tracker.generateSeqNo();
+        assertThat(seqNo1, equalTo(0L));
+        tracker.fastForwardProcessedSeqNo(seqNo1);
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(seqNo1));
+
+        // idempotent case
+        tracker.fastForwardProcessedSeqNo(seqNo1);
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(0L));
+        assertThat(tracker.hasProcessed(0L), equalTo(true));
+
+        tracker.fastForwardProcessedSeqNo(-1);
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(0L));
+        assertThat(tracker.hasProcessed(0L), equalTo(true));
+    }
+
 }
