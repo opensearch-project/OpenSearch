@@ -77,15 +77,26 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     }
 
     @Override
-    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
+    protected final void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        doMasterOperation(request, concreteIndices, state, listener);
+        doClusterManagerOperation(request, concreteIndices, state, listener);
     }
 
-    protected abstract void doMasterOperation(
+    protected void doClusterManagerOperation(
         Request request,
         String[] concreteIndices,
         ClusterState state,
         ActionListener<Response> listener
-    );
+    ) {
+        doMasterOperation(request, concreteIndices, state, listener);
+    }
+
+    /**
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #doClusterManagerOperation(ClusterInfoRequest, String[], ClusterState, ActionListener)}
+     */
+    @Deprecated
+    protected void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener) {
+        throw new UnsupportedOperationException("Must be overridden");
+    }
+
 }

@@ -54,7 +54,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
     public void testClusterManagerFailoverDuringCleanup() throws Exception {
         startBlockedCleanup("test-repo");
 
-        final int nodeCount = internalCluster().numDataAndMasterNodes();
+        final int nodeCount = internalCluster().numDataAndClusterManagerNodes();
         logger.info("-->  stopping cluster-manager node");
         internalCluster().stopCurrentClusterManagerNode();
 
