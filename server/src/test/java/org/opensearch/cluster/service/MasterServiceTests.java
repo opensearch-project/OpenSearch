@@ -92,6 +92,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 
 public class MasterServiceTests extends OpenSearchTestCase {
 
@@ -1096,6 +1097,18 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 latch.await();
             }
         }
+    }
+
+    public void testDeprecatedMasterServiceUpdateTaskThreadName() {
+        Thread.currentThread().setName(MasterService.MASTER_UPDATE_THREAD_NAME);
+        assertThat(MasterService.assertClusterManagerUpdateThread(), is(Boolean.TRUE));
+        assertThrows(AssertionError.class, () -> MasterService.assertNotClusterManagerUpdateThread("test"));
+        Thread.currentThread().setName(MasterService.CLUSTER_MANAGER_UPDATE_THREAD_NAME);
+        assertThat(MasterService.assertClusterManagerUpdateThread(), is(Boolean.TRUE));
+        assertThrows(AssertionError.class, () -> MasterService.assertNotClusterManagerUpdateThread("test"));
+        Thread.currentThread().setName("test not cluster manager update thread");
+        assertThat(MasterService.assertNotClusterManagerUpdateThread("test"), is(Boolean.TRUE));
+        assertThrows(AssertionError.class, () -> MasterService.assertClusterManagerUpdateThread());
     }
 
     /**
