@@ -244,50 +244,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         expectThrows(IOException.class, () -> new ExtensionsOrchestrator(settings, extensionDir));
     }
-    
-/**
- *  TODO: Change test to mock node connection to extension
- * 
-    public void testExtensionsInitialize() throws Exception {
-        Path extensionDir = createTempDir();
 
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false",
-            "   - name: secondExtension",
-            "     uniqueId: 'uniqueid2'",
-            "     hostName: 'myIndependentPluginHost2'",
-            "     hostAddress: '127.0.0.1'",
-            "     port: '9301'",
-            "     version: '3.14.16'",
-            "     description: Fake description 2",
-            "     opensearchVersion: '2.0.0'",
-            "     javaVersion: '17'",
-            "     className: fakeClass2",
-            "     customFolderName: fakeFolder2",
-            "     hasNativeController: true"
-        );
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-
-        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
-
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        extensionsOrchestrator.setTransportService(transportService);
-        extensionsOrchestrator.extensionsInitialize();
-    }
-    */
+    // TODO: Add extensionsInitialize test and mock node connection to extension
 
     public void testHandleExtensionRequest() throws Exception {
 
