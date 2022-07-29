@@ -221,13 +221,13 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         logger.trace(
                             "stopped being cluster-manager while waiting for events with priority [{}]. retrying.",
                             request.waitForEvents()
                         );
-                        // TransportClusterManagerNodeAction implements the retry logic, which is triggered by passing a
-                        // NotClusterManagerException
+                        // TransportClusterManagerNodeAction implements the retry logic,
+                        // which is triggered by passing a NotClusterManagerException
                         listener.onFailure(new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
                     }
 

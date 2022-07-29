@@ -86,7 +86,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     public void testDisruptionAfterFinalization() throws Exception {
         final String idxName = "test";
-        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startClusterManagerOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
 
@@ -94,7 +94,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         createRepository("test-repo", "fs");
 
-        final String clusterManagerNode1 = internalCluster().getMasterName();
+        final String clusterManagerNode1 = internalCluster().getClusterManagerName();
 
         NetworkDisruption networkDisruption = isolateClusterManagerDisruption(NetworkDisruption.UNRESPONSIVE);
         internalCluster().setDisruptionScheme(networkDisruption);
@@ -168,7 +168,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     public void testDisruptionAfterShardFinalization() throws Exception {
         final String idxName = "test";
-        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startClusterManagerOnlyNodes(1);
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
         createIndex(idxName);
@@ -177,7 +177,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
 
-        final String clusterManagerNode = internalCluster().getMasterName();
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
 
         blockAllDataNodes(repoName);
 
@@ -212,7 +212,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         index(idxName, "type", JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
         logger.info("--> run a snapshot that fails to finalize but succeeds on the data node");
-        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = client(clusterManagerNode).admin()
             .cluster()
             .prepareCreateSnapshot(repoName, "snapshot-2")
@@ -236,7 +236,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testClusterManagerFailOverDuringShardSnapshots() throws Exception {
-        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startClusterManagerOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
         final String repoName = "test-repo";
@@ -249,7 +249,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNode);
 
         logger.info("--> create snapshot via cluster-manager node client");
-        final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient()
+        final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().clusterManagerClient()
             .admin()
             .cluster()
             .prepareCreateSnapshot(repoName, "test-snap")

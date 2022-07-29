@@ -330,7 +330,7 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .localNodeId("node1")
-            .masterNodeId("node1")
+            .clusterManagerNodeId("node1")
             .build();
 
         String taskName = "test/task";
@@ -358,7 +358,7 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .localNodeId("node1")
-            .masterNodeId("node1")
+            .clusterManagerNodeId("node1")
             .build();
 
         String taskName = "test/task";

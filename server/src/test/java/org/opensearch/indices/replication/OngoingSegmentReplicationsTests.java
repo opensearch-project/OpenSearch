@@ -37,6 +37,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
@@ -126,7 +127,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 logger.error("Unexpected failure", e);
-                Assert.fail();
+                Assert.fail("Unexpected failure from startSegmentCopy listener: " + e);
             }
         });
     }
@@ -227,5 +228,48 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         };
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
         assertThrows(OpenSearchException.class, () -> { replications.prepareForReplication(request, segmentSegmentFileChunkWriter); });
+    }
+
+    public void testStartReplicationWithNoFilesToFetch() throws IOException {
+        // create a replications object and request a checkpoint.
+        OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(
+            1L,
+            replica.routingEntry().allocationId().getId(),
+            replicaDiscoveryNode,
+            testCheckpoint
+        );
+        // mock the FileChunkWriter so we can assert its ever called.
+        final FileChunkWriter segmentSegmentFileChunkWriter = mock(FileChunkWriter.class);
+        // Prepare for replication step - and ensure copyState is added to cache.
+        final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+        assertTrue(replications.isInCopyStateMap(request.getCheckpoint()));
+        assertEquals(1, replications.size());
+        assertEquals(1, copyState.refCount());
+
+        getSegmentFilesRequest = new GetSegmentFilesRequest(
+            1L,
+            replica.routingEntry().allocationId().getId(),
+            replicaDiscoveryNode,
+            Collections.emptyList(),
+            testCheckpoint
+        );
+
+        // invoke startSegmentCopy and assert our fileChunkWriter is never invoked.
+        replications.startSegmentCopy(getSegmentFilesRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(GetSegmentFilesResponse getSegmentFilesResponse) {
+                assertEquals(Collections.emptyList(), getSegmentFilesResponse.files);
+                assertEquals(0, copyState.refCount());
+                assertFalse(replications.isInCopyStateMap(request.getCheckpoint()));
+                verifyNoInteractions(segmentSegmentFileChunkWriter);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Unexpected failure", e);
+                Assert.fail();
+            }
+        });
     }
 }

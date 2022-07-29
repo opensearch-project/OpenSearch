@@ -321,7 +321,7 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
-            checkWarningHeaders(response.getWarningHeaders(), executionContext.masterVersion());
+            checkWarningHeaders(response.getWarningHeaders(), executionContext.clusterManagerVersion());
         } catch (ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (!Strings.hasLength(catchParam)) {

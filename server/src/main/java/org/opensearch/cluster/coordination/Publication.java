@@ -78,7 +78,10 @@ public abstract class Publication {
         startTime = currentTimeSupplier.getAsLong();
         applyCommitRequest = Optional.empty();
         publicationTargets = new ArrayList<>(publishRequest.getAcceptedState().getNodes().getNodes().size());
-        publishRequest.getAcceptedState().getNodes().mastersFirstStream().forEach(n -> publicationTargets.add(new PublicationTarget(n)));
+        publishRequest.getAcceptedState()
+            .getNodes()
+            .clusterManagersFirstStream()
+            .forEach(n -> publicationTargets.add(new PublicationTarget(n)));
     }
 
     public void start(Set<DiscoveryNode> faultyNodes) {

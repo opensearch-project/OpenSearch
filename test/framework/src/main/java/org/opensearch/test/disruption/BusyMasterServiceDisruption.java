@@ -31,7 +31,6 @@
 
 package org.opensearch.test.disruption;
 
-import org.apache.logging.log4j.core.util.Throwables;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
@@ -40,20 +39,20 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.InternalTestCluster;
 
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class BlockClusterManagerServiceOnClusterManager extends SingleNodeDisruption {
+public class BusyMasterServiceDisruption extends SingleNodeDisruption {
+    private final AtomicBoolean active = new AtomicBoolean();
+    private final Priority priority;
 
-    AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
-
-    public BlockClusterManagerServiceOnClusterManager(Random random) {
+    public BusyMasterServiceDisruption(Random random, Priority priority) {
         super(random);
+        this.priority = priority;
     }
 
     @Override
     public void startDisrupting() {
-        disruptedNode = cluster.getMasterName();
+        disruptedNode = cluster.getClusterManagerName();
         final String disruptionNodeCopy = disruptedNode;
         if (disruptionNodeCopy == null) {
             return;
@@ -62,26 +61,17 @@ public class BlockClusterManagerServiceOnClusterManager extends SingleNodeDisrup
         if (clusterService == null) {
             return;
         }
-        logger.info("blocking cluster-manager service on node [{}]", disruptionNodeCopy);
-        boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
-        assert success : "startDisrupting called without waiting on stopDisrupting to complete";
-        final CountDownLatch started = new CountDownLatch(1);
-        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask() {
-            @Override
-            public Priority priority() {
-                return Priority.IMMEDIATE;
-            }
+        logger.info("making cluster-manager service busy on node [{}] at priority [{}]", disruptionNodeCopy, priority);
+        active.set(true);
+        submitTask(clusterService);
+    }
 
+    private void submitTask(ClusterService clusterService) {
+        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(priority) {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                started.countDown();
-                CountDownLatch latch = disruptionLatch.get();
-                if (latch != null) {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        Throwables.rethrow(e);
-                    }
+            public ClusterState execute(ClusterState currentState) {
+                if (active.get()) {
+                    submitTask(clusterService);
                 }
                 return currentState;
             }
@@ -91,18 +81,11 @@ public class BlockClusterManagerServiceOnClusterManager extends SingleNodeDisrup
                 logger.error("unexpected error during disruption", e);
             }
         });
-        try {
-            started.await();
-        } catch (InterruptedException e) {}
     }
 
     @Override
     public void stopDisrupting() {
-        CountDownLatch latch = disruptionLatch.get();
-        if (latch != null) {
-            latch.countDown();
-        }
-
+        active.set(false);
     }
 
     @Override

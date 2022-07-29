@@ -41,7 +41,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
-import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
@@ -121,7 +121,7 @@ public class DiscoveryModule {
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
-        ClusterManagerService clusterManagerService,
+        MasterService masterService,
         ClusterApplier clusterApplier,
         ClusterSettings clusterSettings,
         List<DiscoveryPlugin> plugins,
@@ -197,7 +197,7 @@ public class DiscoveryModule {
                 transportService,
                 namedWriteableRegistry,
                 allocationService,
-                clusterManagerService,
+                masterService,
                 gatewayMetaState::getPersistedState,
                 seedHostsProvider,
                 clusterApplier,

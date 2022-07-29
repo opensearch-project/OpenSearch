@@ -165,7 +165,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         protected void doStart(ClusterState clusterState) {
             try {
                 final DiscoveryNodes nodes = clusterState.nodes();
-                if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
+                if (nodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
@@ -204,11 +204,11 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
                     }
                 } else {
-                    if (nodes.getMasterNode() == null) {
+                    if (nodes.getClusterManagerNode() == null) {
                         logger.debug("no known cluster-manager node, scheduling a retry");
                         retryOnMasterChange(clusterState, null);
                     } else {
-                        DiscoveryNode clusterManagerNode = nodes.getMasterNode();
+                        DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
                         final String actionName = getClusterManagerActionName(clusterManagerNode);
                         transportService.sendRequest(
                             clusterManagerNode,
@@ -225,7 +225,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                                             "connection exception while trying to forward request with action name [{}] to "
                                                 + "master node [{}], scheduling a retry. Error: [{}]",
                                             actionName,
-                                            nodes.getMasterNode(),
+                                            nodes.getClusterManagerNode(),
                                             exp.getDetailedMessage()
                                         );
                                         retryOnMasterChange(clusterState, cause);

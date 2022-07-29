@@ -54,7 +54,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
+import org.opensearch.cluster.service.FakeThreadPoolMasterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
@@ -139,7 +139,7 @@ import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHEC
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
-import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_ID;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID;
 import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -311,7 +311,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     nodeHealthService
                 );
                 clusterNodes.add(clusterNode);
-                if (clusterNode.getLocalNode().isMasterNode()) {
+                if (clusterNode.getLocalNode().isClusterManagerNode()) {
                     clusterManagerEligibleNodeIds.add(clusterNode.getId());
                 }
             }
@@ -557,7 +557,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
 
-            final int pendingTaskCount = leader.clusterManagerService.getFakeMasterServicePendingTaskCount();
+            final int pendingTaskCount = leader.masterService.getFakeMasterServicePendingTaskCount();
             runFor((pendingTaskCount + 1) * DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "draining task queue");
 
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
@@ -567,7 +567,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             assertTrue(leaderId + " exists in its last-applied state", leader.getLastAppliedClusterState().getNodes().nodeExists(leaderId));
             assertThat(
                 leaderId + " has no NO_CLUSTER_MANAGER_BLOCK",
-                leader.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID),
+                leader.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_CLUSTER_MANAGER_BLOCK_ID),
                 equalTo(false)
             );
             assertThat(
@@ -617,12 +617,12 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     assertTrue(nodeId + " has been bootstrapped", clusterNode.coordinator.isInitialConfigurationSet());
                     assertThat(
                         nodeId + " has correct cluster-manager",
-                        clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
+                        clusterNode.getLastAppliedClusterState().nodes().getClusterManagerNode(),
                         equalTo(leader.getLocalNode())
                     );
                     assertThat(
                         nodeId + " has no NO_CLUSTER_MANAGER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID),
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_CLUSTER_MANAGER_BLOCK_ID),
                         equalTo(false)
                     );
                     assertThat(
@@ -634,12 +634,12 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(
                         nodeId + " has no cluster-manager",
-                        clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
+                        clusterNode.getLastAppliedClusterState().nodes().getClusterManagerNode(),
                         nullValue()
                     );
                     assertThat(
                         nodeId + " has NO_CLUSTER_MANAGER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID),
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_CLUSTER_MANAGER_BLOCK_ID),
                         equalTo(true)
                     );
                     assertFalse(
@@ -784,7 +784,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         ClusterNode getAnyBootstrappableNode() {
             return randomFrom(
                 clusterNodes.stream()
-                    .filter(n -> n.getLocalNode().isMasterNode())
+                    .filter(n -> n.getLocalNode().isClusterManagerNode())
                     .filter(n -> initialConfiguration.getNodeIds().contains(n.getLocalNode().getId()))
                     .collect(Collectors.toList())
             );
@@ -899,7 +899,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                         final long persistedCurrentTerm;
 
                         if ( // node is cluster-manager-ineligible either before or after the restart ...
-                        (oldState.getLastAcceptedState().nodes().getLocalNode().isMasterNode() && newLocalNode.isMasterNode()) == false
+                        (oldState.getLastAcceptedState().nodes().getLocalNode().isClusterManagerNode()
+                            && newLocalNode.isClusterManagerNode()) == false
                             // ... and it's accepted some non-initial state so we can roll back ...
                             && (oldState.getLastAcceptedState().term() > 0L || oldState.getLastAcceptedState().version() > 0L)
                             // ... and we're feeling lucky ...
@@ -1025,7 +1026,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private final DiscoveryNode localNode;
             final MockPersistedState persistedState;
             final Settings nodeSettings;
-            private AckedFakeThreadPoolClusterManagerService clusterManagerService;
+            private AckedFakeThreadPoolMasterService masterService;
             private DisruptableClusterApplierService clusterApplierService;
             private ClusterService clusterService;
             TransportService transportService;
@@ -1105,7 +1106,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     null,
                     emptySet()
                 );
-                clusterManagerService = new AckedFakeThreadPoolClusterManagerService(
+                masterService = new AckedFakeThreadPoolMasterService(
                     localNode.getId(),
                     "test",
                     threadPool,
@@ -1119,7 +1120,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     deterministicTaskQueue,
                     threadPool
                 );
-                clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
+                clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
                 );
@@ -1134,7 +1135,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     transportService,
                     writableRegistry(),
                     allocationService,
-                    clusterManagerService,
+                    masterService,
                     this::getPersistedState,
                     Cluster.this::provideSeedHosts,
                     clusterApplierService,
@@ -1144,7 +1145,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getElectionStrategy(),
                     nodeHealthService
                 );
-                clusterManagerService.setClusterStatePublisher(coordinator);
+                masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,
                     allocationService,
@@ -1194,7 +1195,9 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     address.getAddress(),
                     address,
                     Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(nodeSettings) ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(),
+                    localNode.isClusterManagerNode() && DiscoveryNode.isClusterManagerNode(nodeSettings)
+                        ? DiscoveryNodeRole.BUILT_IN_ROLES
+                        : emptySet(),
                     Version.CURRENT
                 );
                 return new ClusterNode(
@@ -1291,7 +1294,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         // in this case, we know for sure that event was not processed by the system and will not change history
                         // remove event to help avoid bloated history and state space explosion in linearizability checker
                         history.remove(eventId);
@@ -1331,11 +1334,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                 onNode(() -> {
                     logger.trace("[{}] submitUpdateTask: enqueueing [{}]", localNode.getId(), source);
                     final long submittedTerm = coordinator.getCurrentTerm();
-                    clusterManagerService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+                    masterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             assertThat(currentState.term(), greaterThanOrEqualTo(submittedTerm));
-                            clusterManagerService.nextAckCollector = ackCollector;
+                            masterService.nextAckCollector = ackCollector;
                             return clusterStateUpdate.apply(currentState);
                         }
 
@@ -1346,9 +1349,9 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                         }
 
                         @Override
-                        public void onNoLongerMaster(String source) {
+                        public void onNoLongerClusterManager(String source) {
                             logger.trace("no longer cluster-manager: [{}]", source);
-                            taskListener.onNoLongerMaster(source);
+                            taskListener.onNoLongerClusterManager(source);
                         }
 
                         @Override
@@ -1427,7 +1430,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             }
 
             private boolean isNotUsefullyBootstrapped() {
-                return getLocalNode().isMasterNode() == false || coordinator.isInitialConfigurationSet() == false;
+                return getLocalNode().isClusterManagerNode() == false || coordinator.isInitialConfigurationSet() == false;
             }
 
             void allowClusterStateApplicationFailure() {
@@ -1510,11 +1513,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         }
     }
 
-    static class AckedFakeThreadPoolClusterManagerService extends FakeThreadPoolClusterManagerService {
+    static class AckedFakeThreadPoolMasterService extends FakeThreadPoolMasterService {
 
         AckCollector nextAckCollector = new AckCollector();
 
-        AckedFakeThreadPoolClusterManagerService(
+        AckedFakeThreadPoolMasterService(
             String nodeName,
             String serviceName,
             ThreadPool threadPool,
