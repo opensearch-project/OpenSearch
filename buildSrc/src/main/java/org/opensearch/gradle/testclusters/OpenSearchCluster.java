@@ -149,7 +149,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             }
         } else {
             for (int i = nodes.size(); i < numberOfNodes; i++) {
-                addNode(clusterName + "-" + i, "" );
+                addNode(clusterName + "-" + i, "");
             }
         }
     }
