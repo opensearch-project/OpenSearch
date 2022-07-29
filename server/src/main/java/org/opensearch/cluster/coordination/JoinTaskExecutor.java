@@ -285,7 +285,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
             .blocks(
-                ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID)
+                ClusterBlocks.builder()
+                    .blocks(currentState.blocks())
+                    .removeGlobalBlock(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID)
             )
             .build();
         logger.trace("becomeClusterManagerAndTrimConflictingNodes: {}", tmpState.nodes());

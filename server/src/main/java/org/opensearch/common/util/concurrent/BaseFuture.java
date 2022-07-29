@@ -109,7 +109,7 @@ public abstract class BaseFuture<V> implements Future<V> {
         return Transports.assertNotTransportThread(BLOCKING_OP_REASON)
             && ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON)
             && ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON)
-            && MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
+            && MasterService.assertNotClusterManagerUpdateThread(BLOCKING_OP_REASON);
     }
 
     @Override

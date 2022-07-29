@@ -478,7 +478,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             "foo",
             new OpenSearchException(
                 "bar",
-                new OpenSearchException("baz", new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES)))
+                new OpenSearchException(
+                    "baz",
+                    new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES))
+                )
             )
         );
         e.addHeader("foo_0", "0");
@@ -1032,7 +1035,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         int type = randomIntBetween(0, 5);
         switch (type) {
             case 0:
-                actual = new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES));
+                actual = new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES));
                 expected = new OpenSearchException(
                     "OpenSearch exception [type=cluster_block_exception, "
                         + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"

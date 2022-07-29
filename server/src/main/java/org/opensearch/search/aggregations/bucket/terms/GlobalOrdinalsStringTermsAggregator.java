@@ -43,7 +43,6 @@ import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.LongHash;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -297,7 +296,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
 
         private LongUnaryOperator mapping;
-        private IntArray segmentDocCounts;
+        private LongArray segmentDocCounts;
 
         LowCardinality(
             String name,
@@ -332,7 +331,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 metadata
             );
             assert factories == null || factories.countAggregators() == 0;
-            this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
+            this.segmentDocCounts = context.bigArrays().newLongArray(1, true);
         }
 
         @Override
@@ -356,7 +355,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             return;
                         }
                         int ord = singleValues.ordValue();
-                        segmentDocCounts.increment(ord + 1, 1);
+                        long docCount = docCountProvider.getDocCount(doc);
+                        segmentDocCounts.increment(ord + 1, docCount);
                     }
                 });
             }
@@ -369,7 +369,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         return;
                     }
                     for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_ORDS; segmentOrd = segmentOrds.nextOrd()) {
-                        segmentDocCounts.increment(segmentOrd + 1, 1);
+                        long docCount = docCountProvider.getDocCount(doc);
+                        segmentDocCounts.increment(segmentOrd + 1, docCount);
                     }
                 }
             });
@@ -392,7 +393,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             for (long i = 1; i < segmentDocCounts.size(); i++) {
                 // We use set(...) here, because we need to reset the slow to 0.
                 // segmentDocCounts get reused over the segments and otherwise counts would be too high.
-                int inc = segmentDocCounts.set(i, 0);
+                long inc = segmentDocCounts.set(i, 0);
                 if (inc == 0) {
                     continue;
                 }

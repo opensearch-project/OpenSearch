@@ -396,9 +396,9 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
     private ClusterBlock randomGlobalBlock() {
         switch (randomInt(2)) {
             case 0:
-                return NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL;
+                return NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL;
             case 1:
-                return NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES;
+                return NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES;
             default:
                 return GatewayService.STATE_NOT_RECOVERED_BLOCK;
         }

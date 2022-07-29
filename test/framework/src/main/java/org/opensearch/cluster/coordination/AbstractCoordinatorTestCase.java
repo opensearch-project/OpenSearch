@@ -139,7 +139,7 @@ import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHEC
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
-import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_MASTER_BLOCK_ID;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID;
 import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -567,7 +567,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             assertTrue(leaderId + " exists in its last-applied state", leader.getLastAppliedClusterState().getNodes().nodeExists(leaderId));
             assertThat(
                 leaderId + " has no NO_CLUSTER_MANAGER_BLOCK",
-                leader.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID),
+                leader.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_CLUSTER_MANAGER_BLOCK_ID),
                 equalTo(false)
             );
             assertThat(
@@ -622,7 +622,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     );
                     assertThat(
                         nodeId + " has no NO_CLUSTER_MANAGER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID),
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_CLUSTER_MANAGER_BLOCK_ID),
                         equalTo(false)
                     );
                     assertThat(
@@ -639,7 +639,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     );
                     assertThat(
                         nodeId + " has NO_CLUSTER_MANAGER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID),
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_CLUSTER_MANAGER_BLOCK_ID),
                         equalTo(true)
                     );
                     assertFalse(

@@ -220,7 +220,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         );
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID));
         });
 
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
@@ -338,7 +338,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet()
                 .getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID));
         });
 
         logger.info("--> try to unsafely bootstrap 1st cluster-manager-eligible node, while node lock is held");
@@ -394,7 +394,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet()
                 .getState();
-            assertFalse(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
+            assertFalse(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID));
             assertTrue(
                 state.metadata().persistentSettings().getAsBoolean(UnsafeBootstrapClusterManagerCommand.UNSAFE_BOOTSTRAP.getKey(), false)
             );
@@ -508,7 +508,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         );
 
         ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_MASTER_BLOCK_ID));
+        assertTrue(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID));
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node));
     }
