@@ -84,6 +84,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     private TransportService transportService;
     private ClusterService clusterService;
     private MockNioTransport transport;
+    private Path extensionDir;
+    private List<String> extensionsYmlLines;
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
     private final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -119,19 +121,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             Collections.emptySet()
         );
         clusterService = createClusterService(threadPool);
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        transportService.close();
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-    }
-
-    public void testExtensionsDiscovery() throws Exception {
-        Path extensionDir = createTempDir();
-
-        List<String> extensionsYmlLines = Arrays.asList(
+        extensionDir = createTempDir();
+        extensionsYmlLines = Arrays.asList(
             "extensions:",
             "   - name: firstExtension",
             "     uniqueId: uniqueid1",
@@ -158,6 +149,16 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             "     customFolderName: fakeFolder2",
             "     hasNativeController: true"
         );
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        transportService.close();
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
+
+    public void testExtensionsDiscovery() throws Exception {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
@@ -222,8 +223,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testNoExtensionsFile() throws Exception {
-        Path extensionDir = createTempDir();
-
         Settings settings = Settings.builder().build();
 
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsOrchestrator.class))) {
@@ -244,8 +243,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testEmptyExtensionsFile() throws Exception {
-        Path extensionDir = createTempDir();
-
         List<String> extensionsYmlLines = Arrays.asList();
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
@@ -255,35 +252,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testExtensionsInitialize() throws Exception {
-        Path extensionDir = createTempDir();
-
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false",
-            "   - name: secondExtension",
-            "     uniqueId: 'uniqueid2'",
-            "     hostName: 'myIndependentPluginHost2'",
-            "     hostAddress: '127.0.0.1'",
-            "     port: '9301'",
-            "     version: '3.14.16'",
-            "     description: Fake description 2",
-            "     opensearchVersion: '2.0.0'",
-            "     javaVersion: '17'",
-            "     className: fakeClass2",
-            "     customFolderName: fakeFolder2",
-            "     hasNativeController: true"
-        );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
@@ -319,8 +287,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     public void testHandleExtensionRequest() throws Exception {
 
-        Path extensionDir = createTempDir();
-
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.setTransportService(transportService);
@@ -342,7 +308,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testRegisterHandler() throws Exception {
-        Path extensionDir = createTempDir();
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
@@ -402,22 +367,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testGetNamedWriteables() throws Exception {
-        Path extensionDir = createTempDir();
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false"
-        );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         transportService.start();
@@ -445,22 +394,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testNamedWriteableRegistryResponseHandler() throws Exception {
-        Path extensionDir = createTempDir();
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false"
-        );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         transportService.start();
@@ -497,34 +430,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testGetExtensionReader() throws IOException {
-        Path extensionDir = createTempDir();
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false",
-            "   - name: secondExtension",
-            "     uniqueId: 'uniqueid2'",
-            "     hostName: 'myIndependentPluginHost2'",
-            "     hostAddress: '127.0.0.1'",
-            "     port: '9301'",
-            "     version: '3.14.16'",
-            "     description: Fake description 2",
-            "     opensearchVersion: '2.0.0'",
-            "     javaVersion: '17'",
-            "     className: fakeClass2",
-            "     customFolderName: fakeFolder2",
-            "     hasNativeController: true"
-        );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
         ExtensionsOrchestrator extensionsOrchestrator = spy(new ExtensionsOrchestrator(settings, extensionDir));
 
@@ -534,22 +439,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testParseNamedWriteables() throws Exception {
-        Path extensionDir = createTempDir();
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false"
-        );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         transportService.start();
@@ -591,36 +480,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testOnIndexModule() throws Exception {
-
-        Path extensionDir = createTempDir();
-
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false",
-            "   - name: secondExtension",
-            "     uniqueId: 'uniqueid2'",
-            "     hostName: 'myIndependentPluginHost2'",
-            "     hostAddress: '127.0.0.1'",
-            "     port: '9301'",
-            "     version: '3.14.16'",
-            "     description: Fake description 2",
-            "     opensearchVersion: '2.0.0'",
-            "     javaVersion: '17'",
-            "     className: fakeClass2",
-            "     customFolderName: fakeFolder2",
-            "     hasNativeController: true"
-        );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
