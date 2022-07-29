@@ -130,6 +130,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     }
 
     /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)} */
+    @Deprecated
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         clusterManagerOperation(task, request, state, listener);
     }
