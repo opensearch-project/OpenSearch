@@ -55,9 +55,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Supplier;
 
-public class SystemdPlugin extends Plugin implements ClusterPlugin {
+public class SystemdModule extends Plugin implements ClusterPlugin {
 
-    private static final Logger logger = LogManager.getLogger(SystemdPlugin.class);
+    private static final Logger logger = LogManager.getLogger(SystemdModule.class);
 
     private final boolean enabled;
 
@@ -66,11 +66,11 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     }
 
     @SuppressWarnings("unused")
-    public SystemdPlugin() {
+    public SystemdModule() {
         this(System.getenv("OPENSEARCH_SD_NOTIFY"));
     }
 
-    SystemdPlugin(final String esSDNotify) {
+    SystemdModule(final String esSDNotify) {
         logger.trace("OPENSEARCH_SD_NOTIFY is set to [{}]", esSDNotify);
         if (esSDNotify == null) {
             enabled = false;

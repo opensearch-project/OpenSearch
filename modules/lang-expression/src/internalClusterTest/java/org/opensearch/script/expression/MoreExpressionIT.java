@@ -78,7 +78,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ExpressionPlugin.class);
+        return Collections.singleton(ExpressionModule.class);
     }
 
     private SearchRequestBuilder buildRequest(String script, Object... params) {

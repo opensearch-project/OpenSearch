@@ -78,7 +78,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(PercolatorPlugin.class, CustomScriptPlugin.class);
+        return Arrays.asList(PercolatorModule.class, CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

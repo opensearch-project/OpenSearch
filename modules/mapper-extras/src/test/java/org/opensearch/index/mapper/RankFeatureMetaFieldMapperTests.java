@@ -57,7 +57,7 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperExtrasPlugin.class);
+        return pluginList(MapperExtrasModule.class);
     }
 
     public void testBasics() throws Exception {

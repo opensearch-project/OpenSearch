@@ -46,7 +46,7 @@ apply plugin: 'opensearch.internal-cluster-test'
  */
 opensearchplugin {
   description 'Netty 4 based transport implementation'
-  classname 'org.opensearch.transport.Netty4Plugin'
+  classname 'org.opensearch.transport.Netty4Module'
   hasClientJar = true
 }
 

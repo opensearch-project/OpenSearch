@@ -56,12 +56,12 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContent
 
 public class EvalQueryQualityTests extends OpenSearchTestCase {
 
-    private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalPlugin().getNamedWriteables());
+    private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalModule().getNamedWriteables());
 
     @SuppressWarnings("resource")
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new RankEvalPlugin().getNamedXContent());
+        return new NamedXContentRegistry(new RankEvalModule().getNamedXContent());
     }
 
     public static EvalQueryQuality randomEvalQueryQuality() {

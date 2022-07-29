@@ -95,7 +95,7 @@ import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.opensearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.opensearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.opensearch.indices.TermsLookup;
-import org.opensearch.join.ParentJoinPlugin;
+import org.opensearch.join.ParentJoinModule;
 import org.opensearch.join.query.HasChildQueryBuilder;
 import org.opensearch.join.query.HasParentQueryBuilder;
 import org.opensearch.plugins.Plugin;
@@ -145,7 +145,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, PercolatorPlugin.class, FoolMeScriptPlugin.class, ParentJoinPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, PercolatorModule.class, FoolMeScriptPlugin.class, ParentJoinModule.class);
     }
 
     @Override

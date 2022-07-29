@@ -47,7 +47,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
+public class URLRepositoryModule extends Plugin implements RepositoryPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {

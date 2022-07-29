@@ -47,21 +47,21 @@ import java.util.List;
 
 public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEvalRequest> {
 
-    private static RankEvalPlugin rankEvalPlugin = new RankEvalPlugin();
+    private static RankEvalModule rankEvalModule = new RankEvalModule();
 
     @AfterClass
     public static void releasePluginResources() throws IOException {
-        rankEvalPlugin.close();
+        rankEvalModule.close();
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(rankEvalPlugin.getNamedXContent());
+        return new NamedXContentRegistry(rankEvalModule.getNamedXContent());
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(rankEvalPlugin.getNamedWriteables());
+        return new NamedWriteableRegistry(rankEvalModule.getNamedWriteables());
     }
 
     @Override

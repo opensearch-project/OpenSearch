@@ -52,7 +52,7 @@ public class RemoveDuplicatesFilterFactoryTests extends OpenSearchTokenStreamTes
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put("index.analysis.filter.removedups.type", "remove_duplicates")
             .build();
-        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModule());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("removedups");
         assertThat(tokenFilter, instanceOf(RemoveDuplicatesTokenFilterFactory.class));
 
