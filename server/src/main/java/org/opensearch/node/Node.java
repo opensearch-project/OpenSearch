@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
@@ -643,6 +644,10 @@ public class Node implements Closeable {
             final AliasValidator aliasValidator = new AliasValidator();
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
+            final AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(
+                settings,
+                clusterService.getClusterSettings()
+            );
             final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
                 settings,
                 clusterService,
@@ -655,7 +660,8 @@ public class Node implements Closeable {
                 threadPool,
                 xContentRegistry,
                 systemIndices,
-                forbidPrivateIndexSettings
+                forbidPrivateIndexSettings,
+                awarenessReplicaBalance
             );
             pluginsService.filterPlugins(Plugin.class)
                 .forEach(
@@ -912,6 +918,7 @@ public class Node implements Closeable {
                 b.bind(IndicesService.class).toInstance(indicesService);
                 b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
+                b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                 b.bind(SearchService.class).toInstance(searchService);
                 b.bind(SearchTransportService.class).toInstance(searchTransportService);

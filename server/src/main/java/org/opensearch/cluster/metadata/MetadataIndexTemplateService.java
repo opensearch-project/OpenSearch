@@ -1471,7 +1471,11 @@ public class MetadataIndexTemplateService {
                     validationErrors.add(t.getMessage());
                 }
             }
-            List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(settings, true);
+            List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(
+                settings,
+                true,
+                Optional.empty()
+            );
             validationErrors.addAll(indexSettingsValidation);
         }
 
