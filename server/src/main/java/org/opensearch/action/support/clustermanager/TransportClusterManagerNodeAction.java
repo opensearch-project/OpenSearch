@@ -118,7 +118,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected abstract Response read(StreamInput in) throws IOException;
 
     /**
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)}
      */
     @Deprecated
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
@@ -127,6 +127,11 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
     protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         masterOperation(request, state, listener);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)} */
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        clusterManagerOperation(task, request, state, listener);
     }
 
     /**
