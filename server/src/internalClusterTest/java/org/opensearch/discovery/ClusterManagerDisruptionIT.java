@@ -234,7 +234,11 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
-        assertNoClusterManager(isolatedNode, NoClusterManagerBlockService.NO_MASTER_BLOCK_METADATA_WRITES, TimeValue.timeValueSeconds(30));
+        assertNoClusterManager(
+            isolatedNode,
+            NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES,
+            TimeValue.timeValueSeconds(30)
+        );
 
         logger.info("wait until elected cluster-manager has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
         ensureStableCluster(2, nonIsolatedNode);
@@ -280,7 +284,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
-        assertNoClusterManager(isolatedNode, NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
+        assertNoClusterManager(isolatedNode, NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
