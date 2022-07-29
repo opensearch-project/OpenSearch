@@ -319,7 +319,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         nodes = state.nodes();
         nodesBuilder = DiscoveryNodes.builder(nodes).clusterManagerNodeId(null);
         state = ClusterState.builder(state)
-            .blocks(ClusterBlocks.builder().addGlobalBlock(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES))
             .nodes(nodesBuilder)
             .build();
         setState(timedClusterApplierService, state);
