@@ -208,6 +208,7 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
         }
     }
 
+    // TODO -Zone Removal
     private void removeDecommissionedNodes(DiscoveryNode discoveryNode) {
         clusterService.submitStateUpdateTask(
             "node-decommissioned",
