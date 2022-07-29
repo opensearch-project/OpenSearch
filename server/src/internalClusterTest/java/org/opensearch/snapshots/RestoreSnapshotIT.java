@@ -59,6 +59,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
@@ -70,14 +78,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertIndexTemplateExists;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertIndexTemplateMissing;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -972,5 +972,55 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .get()
         );
         assertThat(restoreError.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
+    }
+
+    public void testRestoreBalancedReplica() {
+        try {
+            createRepository("test-repo", "fs");
+            createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
+            createIndex(".system-index", Settings.builder().put("index.number_of_replicas", 0).build());
+            ensureGreen();
+            clusterAdmin().prepareCreateSnapshot("test-repo", "snapshot-0")
+                .setIndices("test-index", ".system-index")
+                .setWaitForCompletion(true)
+                .get();
+            manageReplicaBalanceSetting(true);
+
+            final IllegalArgumentException restoreError = expectThrows(
+                IllegalArgumentException.class,
+                () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                    .setRenamePattern("test-index")
+                    .setRenameReplacement("new-index")
+                    .setIndices("test-index")
+                    .get()
+            );
+            assertThat(
+                restoreError.getMessage(),
+                containsString("expected total copies needs to be a multiple of total awareness attributes [2]")
+            );
+
+            RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                .setRenamePattern(".system-index")
+                .setRenameReplacement(".system-index-restore-1")
+                .setWaitForCompletion(true)
+                .setIndices(".system-index")
+                .execute()
+                .actionGet();
+
+            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+            restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                .setRenamePattern("test-index")
+                .setRenameReplacement("new-index")
+                .setIndexSettings(Settings.builder().put("index.number_of_replicas", 1).build())
+                .setWaitForCompletion(true)
+                .setIndices("test-index")
+                .execute()
+                .actionGet();
+
+            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        } finally {
+            manageReplicaBalanceSetting(false);
+        }
     }
 }
