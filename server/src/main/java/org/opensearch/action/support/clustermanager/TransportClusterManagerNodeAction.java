@@ -117,13 +117,30 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
     protected abstract Response read(StreamInput in) throws IOException;
 
-    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
+    /**
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)}
+     */
+    @Deprecated
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        throw new UnsupportedOperationException("Must be overridden");
+    }
+
+    protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        masterOperation(request, state, listener);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)} */
+    @Deprecated
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        clusterManagerOperation(task, request, state, listener);
+    }
 
     /**
      * Override this operation if access to the task parameter is needed
      */
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        masterOperation(request, state, listener);
+    protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
+        throws Exception {
+        clusterManagerOperation(request, state, listener);
     }
 
     protected boolean localExecute(Request request) {
@@ -201,7 +218,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             }
                         });
                         threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
+                            .execute(ActionRunnable.wrap(delegate, l -> clusterManagerOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getClusterManagerNode() == null) {
@@ -304,4 +321,5 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected String getMasterActionName(DiscoveryNode node) {
         return getClusterManagerActionName(node);
     }
+
 }

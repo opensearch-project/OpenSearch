@@ -100,7 +100,7 @@ public class TransportPendingClusterTasksAction extends TransportClusterManagerN
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         PendingClusterTasksRequest request,
         ClusterState state,
         ActionListener<PendingClusterTasksResponse> listener

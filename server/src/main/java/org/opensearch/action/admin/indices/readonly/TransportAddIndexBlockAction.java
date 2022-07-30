@@ -123,13 +123,13 @@ public class TransportAddIndexBlockAction extends TransportClusterManagerNodeAct
     }
 
     @Override
-    protected void masterOperation(AddIndexBlockRequest request, ClusterState state, ActionListener<AddIndexBlockResponse> listener)
+    protected void clusterManagerOperation(AddIndexBlockRequest request, ClusterState state, ActionListener<AddIndexBlockResponse> listener)
         throws Exception {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final Task task,
         final AddIndexBlockRequest request,
         final ClusterState state,

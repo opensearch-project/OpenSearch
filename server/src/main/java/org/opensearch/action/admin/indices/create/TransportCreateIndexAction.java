@@ -95,7 +95,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final CreateIndexRequest request,
         final ClusterState state,
         final ActionListener<CreateIndexResponse> listener

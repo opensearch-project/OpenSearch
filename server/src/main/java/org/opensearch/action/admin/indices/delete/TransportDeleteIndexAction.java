@@ -115,7 +115,7 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteIndexRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
