@@ -23,7 +23,7 @@ public interface TranslogFactory {
     Translog newTranslog(
         final TranslogConfig config,
         final String translogUUID,
-        TranslogDeletionPolicy deletionPolicy,
+        final TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer

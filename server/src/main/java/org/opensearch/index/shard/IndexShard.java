@@ -1435,6 +1435,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return true if checkpoint should be processed
      */
     public final boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
+        assert replicationTracker.isPrimaryMode();
         if (state().equals(IndexShardState.STARTED) == false) {
             logger.trace(() -> new ParameterizedMessage("Ignoring new replication checkpoint - shard is not started {}", state()));
             return false;

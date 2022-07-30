@@ -8,21 +8,38 @@
 
 package org.opensearch.index.translog;
 
-import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
     private final Repository repository;
+    private final ThreadPool threadPool;
 
-    public RemoteBlobStoreInternalTranslogFactory(Repository repository) {
+    public RemoteBlobStoreInternalTranslogFactory(
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        ClusterService clusterService,
+        ThreadPool threadPool
+    ) {
+        Repository repository;
+        try {
+            repository = repositoriesServiceSupplier.get().repository(clusterService.state().metadata().clusterUUID());
+        } catch (RepositoryMissingException ex) {
+            throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
+        }
         this.repository = repository;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -37,8 +54,10 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobPath blobPath = new BlobPath();
-        blobPath = blobPath.add(config.getShardId().getIndexName()).add(String.valueOf(config.getShardId().getId()));
-        BlobContainer blobContainer = ((BlobStoreRepository) repository).blobStore().blobContainer(blobPath);
+        blobPath = blobPath.add(config.getShardId().getIndexName())
+            .add(String.valueOf(config.getShardId().getId()))
+            .add(String.valueOf(primaryTermSupplier.getAsLong()));
+        BlobStore blobStore = ((BlobStoreRepository) repository).blobStore();
         return new RemoteFsTranslog(
             config,
             translogUUID,
@@ -46,7 +65,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            blobContainer
+            blobStore,
+            threadPool
         );
     }
 }

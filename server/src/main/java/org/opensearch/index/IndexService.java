@@ -560,8 +560,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 retentionLeaseSyncer,
                 circuitBreakerService,
                 this.indexSettings.isSegRepEnabled() && this.indexSettings.isRemoteStoreEnabled()
-                    ? new RemoteBlobStoreInternalTranslogFactory(
-                        repositoriesServiceSupplier.get().repository(clusterService.state().metadata().clusterUUID()))
+                    ? new RemoteBlobStoreInternalTranslogFactory(repositoriesServiceSupplier, clusterService, threadPool)
                     : new InternalTranslogFactory(),
                 this.indexSettings.isSegRepEnabled() && routing.primary() ? checkpointPublisher : null,
                 remoteStore
