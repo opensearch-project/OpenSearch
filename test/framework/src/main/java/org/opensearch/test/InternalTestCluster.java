@@ -2348,7 +2348,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public int numDataAndMasterNodes() {
+    public int numDataAndClusterManagerNodes() {
         return filterNodes(nodes, DATA_NODE_PREDICATE.or(CLUSTER_MANAGER_NODE_PREDICATE)).size();
     }
 

@@ -113,7 +113,7 @@ public class TransportSimulateTemplateAction extends TransportClusterManagerNode
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         SimulateTemplateAction.Request request,
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener

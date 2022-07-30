@@ -124,7 +124,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ClusterUpdateSettingsRequest request,
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
