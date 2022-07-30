@@ -45,4 +45,5 @@ dependencies {
   api 'net.minidev:json-smart:2.4.8'
   api "org.mockito:mockito-core:${versions.mockito}"
   api "com.google.protobuf:protobuf-java:3.21.2"
+  api "org.eclipse.jetty.websocket:websocket-client:9.4.48.v20220622"
 }
