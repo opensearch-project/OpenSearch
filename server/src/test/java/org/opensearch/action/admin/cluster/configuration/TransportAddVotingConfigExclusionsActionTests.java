@@ -692,7 +692,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
 
         @Override
         public void onNewClusterState(ClusterState state) {
-            clusterService.getMasterService().submitStateUpdateTask("reconfiguration", new ClusterStateUpdateTask() {
+            clusterService.getClusterManagerService().submitStateUpdateTask("reconfiguration", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assertThat(currentState, sameInstance(state));
