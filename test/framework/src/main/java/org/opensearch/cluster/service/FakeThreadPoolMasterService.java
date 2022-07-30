@@ -55,7 +55,7 @@ import java.util.function.Consumer;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomInt;
 
-public class FakeThreadPoolMasterService extends MasterService {
+public class FakeThreadPoolMasterService extends ClusterManagerService {
     private static final Logger logger = LogManager.getLogger(FakeThreadPoolMasterService.class);
 
     private final String name;
