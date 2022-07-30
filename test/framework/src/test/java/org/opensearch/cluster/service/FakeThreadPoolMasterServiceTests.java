@@ -84,21 +84,21 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
         doAnswer(invocationOnMock -> runnableTasks.add((Runnable) invocationOnMock.getArguments()[0])).when(executorService).execute(any());
         when(mockThreadPool.generic()).thenReturn(executorService);
 
-        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService(
+        FakeThreadPoolMasterService clusterManagerService = new FakeThreadPoolMasterService(
             "test_node",
             "test",
             mockThreadPool,
             runnableTasks::add
         );
-        masterService.setClusterStateSupplier(lastClusterStateRef::get);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+        clusterManagerService.setClusterStateSupplier(lastClusterStateRef::get);
+        clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             lastClusterStateRef.set(event.state());
             publishingCallback.set(publishListener);
         });
-        masterService.start();
+        clusterManagerService.start();
 
         AtomicBoolean firstTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
+        clusterManagerService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -138,7 +138,7 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
         assertThat(runnableTasks.size(), equalTo(0));
 
         AtomicBoolean secondTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
+        clusterManagerService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)

@@ -67,7 +67,7 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
     }
 
     private void submitTask(ClusterService clusterService) {
-        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(priority) {
+        clusterService.getClusterManagerService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(priority) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (active.get()) {
