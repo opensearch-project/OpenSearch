@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * a unique suffix is added to the uploaded segment file. This class keeps track of filename of segments stored
  * in remote segment store vs filename in local filesystem and provides the consistent Directory interface so that
  * caller will be accessing segment files in the same way as {@code FSDirectory}. Apart from storing actual segment files,
- * remote segment store also keeps track of refresh and commit checkpoints in a separate path which is handled by
+ * remote segment store also keeps track of refresh checkpoints as metadata in a separate path which is handled by
  * another instance of {@code RemoteDirectory}.
  * @opensearch.internal
  */
@@ -45,6 +45,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * For example, _0.cfe in local filesystem will be uploaded to remote segment store as _0.cfe__gX7bNIIBrs0AUNsR2yEG
      */
     public static final String SEGMENT_NAME_UUID_SEPARATOR = "__";
+
+    public static final MetadataFilenameUtils.MetadataFilenameComparator METADATA_FILENAME_COMPARATOR =
+        new MetadataFilenameUtils.MetadataFilenameComparator();
 
     /**
      * remoteDataDirectory is used to store segment files at path: cluster_UUID/index_UUID/shardId/segments/data
@@ -57,9 +60,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     /**
      * To prevent explosion of refresh metadata files, we replace refresh files for the given primary term and generation
-     * This is achieved by uploading refresh metadata file with the same suffix as last commit metadata file.
+     * This is achieved by uploading refresh metadata file with the same UUID suffix.
      */
-    private String refreshMetadataFileUniqueSuffix;
+    private String metadataFileUniqueSuffix;
+
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
      * This map acts as a cache layer for uploaded segment filenames which helps avoid calling listAll() each time.
@@ -84,19 +88,16 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * @throws IOException if there were any failures in reading the metadata file
      */
     public void init() throws IOException {
-        this.refreshMetadataFileUniqueSuffix = UUIDs.base64UUID();
+        this.metadataFileUniqueSuffix = UUIDs.base64UUID();
         this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(readLatestMetadataFile());
     }
 
     /**
-     * Read latest metadata file to get the list of segments uploaded to the remote segment store.
-     * We upload a separate metadata file per commit, commit_metadata__PrimaryTerm__Generation__UUID
-     * We also keep a metadata file per refresh, but it is not unique per refresh. Refresh metadata file is unique for a given commit.
-     * The format of refresh metadata filename is: refresh_metadata__PrimaryTerm__Generation__LastCommitUUID
-     * Commit metadata files keep track of all the segments of the given shard that are part of the commit.
-     * Refresh metadata files keep track of segments that were created since the last commit.
-     * In order to get the list of segment files uploaded to the remote segment store, we need to read the latest commit metadata file
-     * and corresponding refresh metadata file.
+     * Read the latest metadata file to get the list of segments uploaded to the remote segment store.
+     * We upload a metadata file per refresh, but it is not unique per refresh. Refresh metadata file is unique for a given commit.
+     * The format of refresh metadata filename is: refresh_metadata__PrimaryTerm__Generation__UUID
+     * Refresh metadata files keep track of active segments for the shard at the time of refresh.
+     * In order to get the list of segment files uploaded to the remote segment store, we need to read the latest metadata file.
      * Each metadata file contains a map where
      *      Key is - Segment local filename and
      *      Value is - local filename::uploaded filename::checksum
@@ -105,33 +106,17 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      */
     private Map<String, UploadedSegmentMetadata> readLatestMetadataFile() throws IOException {
         Map<String, UploadedSegmentMetadata> segmentMetadataMap = new HashMap<>();
-        Collection<String> commitMetadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.COMMIT_METADATA_PREFIX);
-        MetadataFilenameUtils.MetadataFilenameComparator metadataFilenameComparator =
-            new MetadataFilenameUtils.MetadataFilenameComparator();
-        Optional<String> latestCommitMetadataFile = commitMetadataFiles.stream().max(metadataFilenameComparator);
 
-        if (latestCommitMetadataFile.isPresent()) {
-            logger.info("Reading latest commit Metadata file {}", latestCommitMetadataFile.get());
-            segmentMetadataMap = readMetadataFile(latestCommitMetadataFile.get());
+        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
+        Optional<String> latestMetadataFile = metadataFiles.stream().max(METADATA_FILENAME_COMPARATOR);
+
+        if (latestMetadataFile.isPresent()) {
+            logger.info("Reading latest Metadata file {}", latestMetadataFile.get());
+            segmentMetadataMap = readMetadataFile(latestMetadataFile.get());
         } else {
-            logger.info("No commit metadata file found");
+            logger.info("No metadata file found");
         }
 
-        Collection<String> refreshMetadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.REFRESH_METADATA_PREFIX);
-        Optional<String> latestRefreshMetadataFile = refreshMetadataFiles.stream()
-            .filter(
-                file -> latestCommitMetadataFile.map(
-                    s -> metadataFilenameComparator.comparePrimaryTermGeneration(file, s) == 0
-                        && MetadataFilenameUtils.getUuid(file).equals(MetadataFilenameUtils.getUuid(s))
-                ).orElse(true)
-            )
-            .max(metadataFilenameComparator);
-
-        if (latestRefreshMetadataFile.isPresent()) {
-            logger.info("Reading latest refresh metadata file {}", latestRefreshMetadataFile.get());
-            segmentMetadataMap.putAll(readMetadataFile(latestRefreshMetadataFile.get()));
-            this.refreshMetadataFileUniqueSuffix = MetadataFilenameUtils.getUuid(latestRefreshMetadataFile.get());
-        }
         return segmentMetadataMap;
     }
 
@@ -176,8 +161,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      */
     static class MetadataFilenameUtils {
         public static final String SEPARATOR = "__";
-        public static final String COMMIT_METADATA_PREFIX = "commit_metadata";
-        public static final String REFRESH_METADATA_PREFIX = "refresh_metadata";
+        public static final String METADATA_PREFIX = "metadata";
 
         /**
          * Comparator to sort the metadata filenames. The order of sorting is: Primary Term, Generation, UUID
@@ -186,58 +170,53 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         static class MetadataFilenameComparator implements Comparator<String> {
             @Override
             public int compare(String first, String second) {
-                if (!first.split(SEPARATOR)[0].equals(second.split(SEPARATOR)[0])) {
-                    return first.split(SEPARATOR)[0].compareTo(second.split(SEPARATOR)[0]);
+                String[] firstTokens = first.split(SEPARATOR);
+                String[] secondTokens = second.split(SEPARATOR);
+                if (!firstTokens[0].equals(secondTokens[0])) {
+                    return firstTokens[0].compareTo(secondTokens[0]);
                 }
-                int fixedSuffixComparison = comparePrimaryTermGeneration(first, second);
-                if (fixedSuffixComparison == 0) {
-                    return getUuid(first).compareTo(getUuid(second));
-                } else {
-                    return fixedSuffixComparison;
-                }
-            }
-
-            public int comparePrimaryTermGeneration(String first, String second) {
-                long firstPrimaryTerm = getPrimaryTerm(first);
-                long secondPrimaryTerm = getPrimaryTerm(second);
+                long firstPrimaryTerm = getPrimaryTerm(firstTokens);
+                long secondPrimaryTerm = getPrimaryTerm(secondTokens);
                 if (firstPrimaryTerm != secondPrimaryTerm) {
                     return firstPrimaryTerm > secondPrimaryTerm ? 1 : -1;
                 } else {
-                    long firstGeneration = getGeneration(first);
-                    long secondGeneration = getGeneration(second);
+                    long firstGeneration = getGeneration(firstTokens);
+                    long secondGeneration = getGeneration(secondTokens);
                     if (firstGeneration != secondGeneration) {
                         return firstGeneration > secondGeneration ? 1 : -1;
                     } else {
-                        return 0;
+                        return getUuid(firstTokens).compareTo(getUuid(secondTokens));
                     }
                 }
             }
         }
 
-        public static String getMetadataFilename(String prefix, long primaryTerm, long generation) {
-            return getMetadataFilename(prefix, primaryTerm, generation, UUIDs.base64UUID());
+        public static String getMetadataFilename(long primaryTerm, long generation, String uuid) {
+            return String.join(
+                SEPARATOR,
+                METADATA_PREFIX,
+                Long.toString(primaryTerm),
+                Long.toString(generation, Character.MAX_RADIX),
+                uuid
+            );
         }
 
-        public static String getMetadataFilename(String prefix, long primaryTerm, long generation, String uuid) {
-            return String.join(SEPARATOR, prefix, Long.toString(primaryTerm), Long.toString(generation, Character.MAX_RADIX), uuid);
+        public static long getPrimaryTerm(String[] filenameTokens) {
+            return Long.parseLong(filenameTokens[1]);
         }
 
-        public static long getPrimaryTerm(String filename) {
-            return Long.parseLong(filename.split(SEPARATOR)[1]);
+        public static long getGeneration(String[] filenameTokens) {
+            return Long.parseLong(filenameTokens[2], Character.MAX_RADIX);
         }
 
-        public static long getGeneration(String filename) {
-            return Long.parseLong(filename.split(SEPARATOR)[2], Character.MAX_RADIX);
-        }
-
-        public static String getUuid(String filename) {
-            return filename.split(SEPARATOR)[3];
+        public static String getUuid(String[] filenameTokens) {
+            return filenameTokens[3];
         }
     }
 
     /**
      * Returns list of all the segment files uploaded to remote segment store till the last refresh checkpoint.
-     * Any segment file that is uploaded without corresponding refresh/commit file will not be visible as part of listAll().
+     * Any segment file that is uploaded without corresponding metadata file will not be visible as part of listAll().
      * We chose not to return cache entries for listAll as cache can have entries for stale segments as well.
      * Even if we plan to delete stale segments from remote segment store, it will be a periodic operation.
      * @return segment filenames stored in remote segment store
@@ -314,8 +293,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         String remoteFilename = getNewRemoteSegmentFilename(dest);
         remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
         String checksum = getChecksumOfLocalFile(from, src);
-        UploadedSegmentMetadata metadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
-        segmentsUploadedToRemoteStore.put(src, metadata);
+        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
+        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
     }
 
     /**
@@ -332,55 +311,30 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     }
 
     /**
-     * Upload commit metadata file
-     * @param committedFiles segment files that are part of the latest segments_N file
+     * Upload metadata file
+     * @param segmentFiles segment files that are part of the shard at the time of the latest refresh
      * @param storeDirectory instance of local directory to temporarily create metadata file before upload
      * @param primaryTerm primary term to be used in the name of metadata file
      * @param generation commit generation
      * @throws IOException in case of I/O error while uploading the metadata file
      */
-    public void uploadCommitMetadata(Collection<String> committedFiles, Directory storeDirectory, long primaryTerm, long generation)
+    public void uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
         throws IOException {
-        String commitFilename = MetadataFilenameUtils.getMetadataFilename(
-            MetadataFilenameUtils.COMMIT_METADATA_PREFIX,
-            primaryTerm,
-            generation
-        );
-        uploadMetadataFile(committedFiles, storeDirectory, commitFilename);
-        this.refreshMetadataFileUniqueSuffix = MetadataFilenameUtils.getUuid(commitFilename);
-    }
-
-    /**
-     * Upload commit metadata file
-     * @param refreshedFiles segment files that are created since last commit and part of the latest refresh
-     * @param storeDirectory instance of local directory to temporarily create metadata file before upload
-     * @param primaryTerm primary term to be used in the name of metadata file
-     * @param generation commit generation
-     * @throws IOException in case of I/O error while uploading the metadata file
-     */
-    public void uploadRefreshMetadata(Collection<String> refreshedFiles, Directory storeDirectory, long primaryTerm, long generation)
-        throws IOException {
-        String refreshFilename = MetadataFilenameUtils.getMetadataFilename(
-            MetadataFilenameUtils.REFRESH_METADATA_PREFIX,
-            primaryTerm,
-            generation,
-            this.refreshMetadataFileUniqueSuffix
-        );
-        uploadMetadataFile(refreshedFiles, storeDirectory, refreshFilename);
-    }
-
-    private void uploadMetadataFile(Collection<String> files, Directory storeDirectory, String filename) throws IOException {
-        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
-        indexOutput.writeMapOfStrings(
-            segmentsUploadedToRemoteStore.entrySet()
-                .stream()
-                .filter(entry -> files.contains(entry.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toString()))
-        );
+        String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.metadataFileUniqueSuffix);
+        IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
+        Map<String, String> uploadedSegments = new HashMap<>();
+        for (String file : segmentFiles) {
+            if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
+            } else {
+                throw new NoSuchFileException(file);
+            }
+        }
+        indexOutput.writeMapOfStrings(uploadedSegments);
         indexOutput.close();
-        storeDirectory.sync(Collections.singleton(filename));
-        remoteMetadataDirectory.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT);
-        storeDirectory.deleteFile(filename);
+        storeDirectory.sync(Collections.singleton(metadataFilename));
+        remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+        storeDirectory.deleteFile(metadataFilename);
     }
 
     private String getChecksumOfLocalFile(Directory directory, String file) throws IOException {
