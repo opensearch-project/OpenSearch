@@ -740,7 +740,6 @@ public class QueryStringQueryParser extends XQueryParser {
         }
     }
 
-
     private Analyzer getSearchAnalyzer(MappedFieldType currentFieldType) {
         if (forceAnalyzer == null) {
             return queryBuilder.context.getSearchAnalyzer(currentFieldType);
