@@ -331,7 +331,7 @@ public final class RandomObjects {
         int type = randomIntBetween(random, 0, 3);
         switch (type) {
             case 0:
-                actualException = new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES));
+                actualException = new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES));
                 expectedException = new OpenSearchException(
                     "OpenSearch exception [type=cluster_block_exception, "
                         + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"

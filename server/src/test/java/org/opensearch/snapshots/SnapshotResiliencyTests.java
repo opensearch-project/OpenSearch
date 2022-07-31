@@ -141,11 +141,12 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.FakeThreadPoolMasterService;
-import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -1645,7 +1646,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
             private final DiscoveryNode node;
 
-            private final MasterService masterService;
+            private final ClusterManagerService clusterManagerService;
 
             private final AllocationService allocationService;
 
@@ -1665,13 +1666,18 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable));
-                masterService = new FakeThreadPoolMasterService(node.getName(), "test", threadPool, deterministicTaskQueue::scheduleNow);
+                clusterManagerService = new FakeThreadPoolMasterService(
+                    node.getName(),
+                    "test",
+                    threadPool,
+                    deterministicTaskQueue::scheduleNow
+                );
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
                     settings,
                     clusterSettings,
-                    masterService,
+                    clusterManagerService,
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
@@ -1895,7 +1901,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     threadPool,
                     namedXContentRegistry,
                     systemIndices,
-                    false
+                    false,
+                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
                 );
                 actions.put(
                     CreateIndexAction.INSTANCE,
@@ -2208,7 +2215,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     transportService,
                     namedWriteableRegistry,
                     allocationService,
-                    masterService,
+                    clusterManagerService,
                     () -> persistedState,
                     hostsResolver -> nodes.values()
                         .stream()
@@ -2222,7 +2229,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ElectionStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info")
                 );
-                masterService.setClusterStatePublisher(coordinator);
+                clusterManagerService.setClusterStatePublisher(coordinator);
                 coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();

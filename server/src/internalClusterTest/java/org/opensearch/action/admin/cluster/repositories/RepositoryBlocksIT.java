@@ -97,7 +97,7 @@ public class RepositoryBlocksIT extends OpenSearchIntegTestCase {
                 .prepareVerifyRepository("test-repo-blocks")
                 .execute()
                 .actionGet();
-            assertThat(response.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
+            assertThat(response.getNodes().size(), equalTo(cluster().numDataAndClusterManagerNodes()));
         } finally {
             setClusterReadOnly(false);
         }

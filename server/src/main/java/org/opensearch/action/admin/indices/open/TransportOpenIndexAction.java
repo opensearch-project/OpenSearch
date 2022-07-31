@@ -114,7 +114,7 @@ public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final OpenIndexRequest request,
         final ClusterState state,
         final ActionListener<OpenIndexResponse> listener

@@ -229,7 +229,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             listener.onResponse(new Response()); // default implementation, overridden in specific tests
         }
 
@@ -252,7 +252,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (clusterManagerOperationFailure) {
                     listener.onFailure(exception);
                 } else {
@@ -511,7 +511,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+                throws Exception {
                 // The other node has become cluster-manager, simulate failures of this node while publishing cluster state through
                 // ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
