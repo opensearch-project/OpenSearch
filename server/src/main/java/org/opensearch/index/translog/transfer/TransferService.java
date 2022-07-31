@@ -9,12 +9,12 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.index.translog.FileInfo;
 
-import java.io.File;
 import java.io.IOException;
 
 public interface TransferService {
 
-    void uploadFile(final File file, RemotePathProvider remotePathProvider, ActionListener<Void> listener) throws IOException;
+    void uploadFile(final FileInfo fileInfo, RemotePathProvider remotePathProvider, ActionListener<Void> listener) throws IOException;
 
 }

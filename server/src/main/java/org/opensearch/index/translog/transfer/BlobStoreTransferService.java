@@ -15,14 +15,12 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.index.translog.FileInfo;
+import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.File;
-import java.io.FileInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.zip.CRC32;
-import java.util.zip.CheckedInputStream;
 
 /**
  * Service that handles remote transfer of translog related operations
@@ -42,25 +40,27 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadFile(final File file, RemotePathProvider remotePathProvider, ActionListener<Void> listener) throws IOException {
-        try (InputStream stream = new FileInputStream(file)) {
-            BlobPath blobPath = blobPath(remotePathProvider);
-            logger.trace(() -> new ParameterizedMessage("Writing [{}] to {} atomically", file.getName(), blobPath));
-            try (CheckedInputStream streamInput = new CheckedInputStream(stream, new CRC32())) {
-                FileInfo fileInfo = new FileInfo(file.getName(), file.toPath(), file.length(), streamInput.getChecksum().getValue());
-                threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(ActionRunnable.wrap(listener, l -> {
-                    try {
-                        blobStore.blobContainer(blobPath).writeBlobAtomic(file.getName(), streamInput, file.length(), true);
-                        fileTransferListener.onSuccess(fileInfo);
-                        l.onResponse(null);
-                    } catch (Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("Failed to upload some blobs"), e);
-                        fileTransferListener.onFailure(fileInfo, e);
-                        l.onFailure(e);
-                    }
-                }));
+    public void uploadFile(final FileInfo fileInfo, RemotePathProvider remotePathProvider, ActionListener<Void> listener)
+        throws IOException {
+        BlobPath blobPath = blobPath(remotePathProvider);
+        threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(ActionRunnable.wrap(listener, l -> {
+            try {
+                blobStore.blobContainer(blobPath)
+                    .writeBlobAtomic(
+                        fileInfo.getName(),
+                        new ByteArrayInputStream(fileInfo.getContent()),
+                        fileInfo.getContentLength(),
+                        true
+                    );
+                fileTransferListener.onSuccess(fileInfo);
+                l.onResponse(null);
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("Failed to upload some blobs"), e);
+                fileTransferListener.onFailure(fileInfo, e);
+                l.onFailure(e);
             }
-        }
+        }));
+
     }
 
     private BlobPath blobPath(RemotePathProvider remotePathProvider) {

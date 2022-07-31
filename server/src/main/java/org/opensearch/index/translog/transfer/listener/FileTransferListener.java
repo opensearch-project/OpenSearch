@@ -6,7 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.translog.transfer;
+package org.opensearch.index.translog.transfer.listener;
+
+import org.opensearch.index.translog.FileInfo;
 
 public interface FileTransferListener {
 

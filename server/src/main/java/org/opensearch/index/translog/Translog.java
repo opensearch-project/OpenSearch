@@ -690,7 +690,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         return TRANSLOG_FILE_PREFIX + generation + TRANSLOG_FILE_SUFFIX;
     }
 
-    static String getCommitCheckpointFileName(long generation) {
+    public static String getCommitCheckpointFileName(long generation) {
         return TRANSLOG_FILE_PREFIX + generation + CHECKPOINT_SUFFIX;
     }
 
