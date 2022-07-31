@@ -30,44 +30,41 @@
  * GitHub history for details.
  */
 
-package org.opensearch.plugin.repository.url;
+package org.opensearch.percolator;
 
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.env.Environment;
-import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.RepositoryPlugin;
-import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.url.URLRepository;
+import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.fetch.FetchSubPhase;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class URLRepositoryModule extends Plugin implements RepositoryPlugin {
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+
+public class PercolatorModulePlugin extends Plugin implements MapperPlugin, SearchPlugin {
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(PercolateQueryBuilder.NAME, PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+        return Arrays.asList(new PercolatorMatchedSlotSubFetchPhase(), new PercolatorHighlightSubFetchPhase(context.getHighlighters()));
+    }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            URLRepository.ALLOWED_URLS_SETTING,
-            URLRepository.REPOSITORIES_URL_SETTING,
-            URLRepository.SUPPORTED_PROTOCOLS_SETTING
-        );
+        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING);
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(
-        Environment env,
-        NamedXContentRegistry namedXContentRegistry,
-        ClusterService clusterService,
-        RecoverySettings recoverySettings
-    ) {
-        return Collections.singletonMap(
-            URLRepository.TYPE,
-            metadata -> new URLRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings)
-        );
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
     }
+
 }

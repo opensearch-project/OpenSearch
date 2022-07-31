@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class IngestUserAgentModule extends Plugin implements IngestPlugin {
+public class IngestUserAgentModulePlugin extends Plugin implements IngestPlugin {
 
     private final Setting<Long> CACHE_SIZE_SETTING = Setting.longSetting(
         "ingest.user_agent.cache_size",
@@ -85,7 +85,7 @@ public class IngestUserAgentModule extends Plugin implements IngestPlugin {
 
         UserAgentParser defaultParser = new UserAgentParser(
             DEFAULT_PARSER_NAME,
-            IngestUserAgentModule.class.getResourceAsStream("/regexes.yml"),
+            IngestUserAgentModulePlugin.class.getResourceAsStream("/regexes.yml"),
             cache
         );
         userAgentParsers.put(DEFAULT_PARSER_NAME, defaultParser);

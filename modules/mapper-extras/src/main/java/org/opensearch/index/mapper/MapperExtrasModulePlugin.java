@@ -43,7 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MapperExtrasModule extends Plugin implements MapperPlugin, SearchPlugin {
+public class MapperExtrasModulePlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

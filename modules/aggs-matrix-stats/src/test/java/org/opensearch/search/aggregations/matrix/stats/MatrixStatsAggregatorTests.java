@@ -45,7 +45,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.AggregatorTestCase;
-import org.opensearch.search.aggregations.matrix.MatrixAggregationModule;
+import org.opensearch.search.aggregations.matrix.MatrixAggregationModulePlugin;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -128,6 +128,6 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return Collections.singletonList(new MatrixAggregationModule());
+        return Collections.singletonList(new MatrixAggregationModulePlugin());
     }
 }

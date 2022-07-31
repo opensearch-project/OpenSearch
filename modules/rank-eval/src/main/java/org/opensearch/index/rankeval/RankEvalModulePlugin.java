@@ -53,7 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class RankEvalModule extends Plugin implements ActionPlugin {
+public class RankEvalModulePlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

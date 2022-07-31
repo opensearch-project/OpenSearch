@@ -75,7 +75,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
-public class OpenSearchDashboardsModule extends Plugin implements SystemIndexPlugin {
+public class OpenSearchDashboardsModulePlugin extends Plugin implements SystemIndexPlugin {
 
     public static final Setting<List<String>> OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING = Setting.listSetting(
         "opensearch_dashboards.system_indices",

@@ -62,7 +62,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        return Collections.singletonList(new MapperExtrasModule());
+        return Collections.singletonList(new MapperExtrasModulePlugin());
     }
 
     @Override

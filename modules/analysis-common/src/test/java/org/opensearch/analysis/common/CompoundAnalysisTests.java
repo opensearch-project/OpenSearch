@@ -102,8 +102,8 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
     }
 
     private AnalysisModule createAnalysisModule(Settings settings) throws IOException {
-        CommonAnalysisModule commonAnalysisModule = new CommonAnalysisModule();
-        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Arrays.asList(commonAnalysisModule, new AnalysisPlugin() {
+        CommonAnalysisModulePlugin commonAnalysisModulePlugin = new CommonAnalysisModulePlugin();
+        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Arrays.asList(commonAnalysisModulePlugin, new AnalysisPlugin() {
             @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                 return singletonMap("myfilter", MyFilterTokenFilterFactory::new);

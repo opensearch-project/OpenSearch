@@ -34,12 +34,12 @@ package org.opensearch.ingest.geoip;
 
 import com.maxmind.geoip2.model.AbstractResponse;
 import org.opensearch.common.network.InetAddresses;
-import org.opensearch.ingest.geoip.IngestGeoIpModule.GeoIpCache;
+import org.opensearch.ingest.geoip.IngestGeoIpModulePlugin.GeoIpCache;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
 
-public class IngestGeoIpModuleTests extends OpenSearchTestCase {
+public class IngestGeoIpModulePluginTests extends OpenSearchTestCase {
 
     public void testCachesAndEvictsResults() {
         GeoIpCache cache = new GeoIpCache(1);

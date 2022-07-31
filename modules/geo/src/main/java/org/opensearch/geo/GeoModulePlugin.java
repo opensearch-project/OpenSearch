@@ -40,7 +40,7 @@ import org.opensearch.plugins.Plugin;
 import java.util.Collections;
 import java.util.Map;
 
-public class GeoModule extends Plugin implements MapperPlugin {
+public class GeoModulePlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

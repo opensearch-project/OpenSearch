@@ -44,28 +44,28 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
-public class OpenSearchDashboardsModuleTests extends OpenSearchTestCase {
+public class OpenSearchDashboardsModulePluginTests extends OpenSearchTestCase {
 
     public void testOpenSearchDashboardsIndexNames() {
         assertThat(
-            new OpenSearchDashboardsModule().getSettings(),
-            contains(OpenSearchDashboardsModule.OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING)
+            new OpenSearchDashboardsModulePlugin().getSettings(),
+            contains(OpenSearchDashboardsModulePlugin.OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING)
         );
         assertThat(
-            new OpenSearchDashboardsModule().getSystemIndexDescriptors(Settings.EMPTY)
+            new OpenSearchDashboardsModulePlugin().getSystemIndexDescriptors(Settings.EMPTY)
                 .stream()
                 .map(SystemIndexDescriptor::getIndexPattern)
                 .collect(Collectors.toList()),
             contains(".opensearch_dashboards", ".opensearch_dashboards_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")
         );
         final List<String> names = Collections.unmodifiableList(Arrays.asList("." + randomAlphaOfLength(4), "." + randomAlphaOfLength(5)));
-        final List<String> namesFromDescriptors = new OpenSearchDashboardsModule().getSystemIndexDescriptors(
-            Settings.builder().putList(OpenSearchDashboardsModule.OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING.getKey(), names).build()
+        final List<String> namesFromDescriptors = new OpenSearchDashboardsModulePlugin().getSystemIndexDescriptors(
+            Settings.builder().putList(OpenSearchDashboardsModulePlugin.OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING.getKey(), names).build()
         ).stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toList());
         assertThat(namesFromDescriptors, is(names));
 
         assertThat(
-            new OpenSearchDashboardsModule().getSystemIndexDescriptors(Settings.EMPTY)
+            new OpenSearchDashboardsModulePlugin().getSystemIndexDescriptors(Settings.EMPTY)
                 .stream()
                 .anyMatch(systemIndexDescriptor -> systemIndexDescriptor.matchesIndexPattern(".opensearch_dashboards-event-log-7-1")),
             is(false)

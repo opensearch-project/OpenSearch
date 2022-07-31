@@ -58,7 +58,7 @@ public class MultiSearchTemplateIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(MustacheModule.class);
+        return Collections.singleton(MustacheModulePlugin.class);
     }
 
     public void testBasic() throws Exception {

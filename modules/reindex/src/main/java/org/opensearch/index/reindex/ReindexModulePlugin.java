@@ -71,9 +71,9 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
-public class ReindexModule extends Plugin implements ActionPlugin, ExtensiblePlugin {
+public class ReindexModulePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final String NAME = "reindex";
-    private static final Logger logger = LogManager.getLogger(ReindexModule.class);
+    private static final Logger logger = LogManager.getLogger(ReindexModulePlugin.class);
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

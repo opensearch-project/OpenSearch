@@ -30,20 +30,24 @@
  * GitHub history for details.
  */
 
-package org.opensearch.script.expression;
+package org.opensearch.search.aggregations.matrix;
 
-import java.util.Collection;
-
-import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.ScriptPlugin;
-import org.opensearch.script.ScriptContext;
-import org.opensearch.script.ScriptEngine;
+import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.aggregations.matrix.stats.InternalMatrixStats;
+import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
+import org.opensearch.search.aggregations.matrix.stats.MatrixStatsParser;
 
-public class ExpressionModule extends Plugin implements ScriptPlugin {
+import java.util.List;
 
+import static java.util.Collections.singletonList;
+
+public class MatrixAggregationModulePlugin extends Plugin implements SearchPlugin {
     @Override
-    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        return new ExpressionScriptEngine();
+    public List<AggregationSpec> getAggregations() {
+        return singletonList(
+            new AggregationSpec(MatrixStatsAggregationBuilder.NAME, MatrixStatsAggregationBuilder::new, new MatrixStatsParser())
+                .addResultReader(InternalMatrixStats::new)
+        );
     }
 }
