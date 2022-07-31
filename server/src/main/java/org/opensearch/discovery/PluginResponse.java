@@ -37,6 +37,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -46,31 +48,38 @@ import java.util.Objects;
  */
 public class PluginResponse extends TransportResponse {
     private String name;
+    private List<String> api;
 
-    public PluginResponse(String name) {
+    public PluginResponse(String name, List<String> api) {
         this.name = name;
+        this.api = new ArrayList<>(api);
     }
 
     public PluginResponse(StreamInput in) throws IOException {
         name = in.readString();
+        api = in.readStringList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeStringCollection(api);
     }
 
     /**
      * @return the node that is currently leading, according to the responding node.
      */
-
     public String getName() {
         return this.name;
     }
 
+    public List<String> getApi() {
+        return new ArrayList<>(api);
+    }
+
     @Override
     public String toString() {
-        return "PluginResponse{" + "name" + name + "}";
+        return "PluginResponse {" + "name=" + name + ", api=" + api + "}";
     }
 
     @Override
@@ -78,11 +87,12 @@ public class PluginResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PluginResponse that = (PluginResponse) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(name, that.name) && Objects.equals(api, that.api);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(api, name);
     }
+
 }
