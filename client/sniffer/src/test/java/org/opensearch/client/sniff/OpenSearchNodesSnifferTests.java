@@ -287,7 +287,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
             Collections.shuffle(roles, getRandom());
             generator.writeArrayFieldStart("roles");
             for (String role : roles) {
-                if ("cluster_manager".equals(role) && node.getRoles().isMasterEligible()) {
+                if ("cluster_manager".equals(role) && node.getRoles().isClusterManagerEligible()) {
                     generator.writeString("cluster_manager");
                 }
                 if ("data".equals(role) && node.getRoles().isData()) {

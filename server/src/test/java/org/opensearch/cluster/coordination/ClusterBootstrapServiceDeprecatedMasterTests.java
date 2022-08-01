@@ -56,7 +56,7 @@ import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIA
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
 import static org.opensearch.common.settings.Settings.builder;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -298,7 +298,7 @@ public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTest
         final Settings.Builder settings = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
             .put(NODE_NAME_SETTING.getKey(), localNode.getName())
-            .put(nonMasterNode());
+            .put(nonClusterManagerNode());
 
         assertThat(
             expectThrows(

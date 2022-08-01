@@ -453,7 +453,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         final DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(localNode)
             .localNodeId(localNode.getId())
-            .masterNodeId(localNode.getId())
+            .clusterManagerNodeId(localNode.getId())
             .build();
 
         {
@@ -498,7 +498,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         }
 
         {
-            leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).masterNodeId(null).build());
+            leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).clusterManagerNodeId(null).build());
 
             final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);

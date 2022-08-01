@@ -57,6 +57,7 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Strings;
@@ -617,7 +618,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 testThreadPool,
                 null,
                 systemIndices,
-                false
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -754,7 +756,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 testThreadPool,
                 null,
                 systemIndices,
-                false
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -931,7 +934,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             testThreadPool,
             null,
             new SystemIndices(emptyMap()),
-            false
+            false,
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
         );
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
             clusterService,

@@ -98,7 +98,7 @@ public class UnsafeBootstrapClusterManagerCommand extends OpenSearchNodeCommand 
     protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
         terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.roles setting");
-        Boolean clusterManager = DiscoveryNode.isMasterNode(settings);
+        Boolean clusterManager = DiscoveryNode.isClusterManagerNode(settings);
         if (clusterManager == false) {
             throw new OpenSearchException(NOT_CLUSTER_MANAGER_NODE_MSG);
         }

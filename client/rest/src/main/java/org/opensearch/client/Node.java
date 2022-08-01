@@ -212,8 +212,17 @@ public class Node {
         /**
          * Returns whether or not the node <strong>could</strong> be elected cluster-manager.
          */
-        public boolean isMasterEligible() {
+        public boolean isClusterManagerEligible() {
             return roles.contains("master") || roles.contains("cluster_manager");
+        }
+
+        /**
+         * Returns whether or not the node <strong>could</strong> be elected cluster-manager.
+         * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerEligible()}
+         */
+        @Deprecated
+        public boolean isMasterEligible() {
+            return isClusterManagerEligible();
         }
 
         /**

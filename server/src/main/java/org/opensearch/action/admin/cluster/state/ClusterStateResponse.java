@@ -134,7 +134,7 @@ public class ClusterStateResponse extends ActionResponse {
         }
         DiscoveryNodes nodes = clusterState.getNodes();
         if (nodes != null) {
-            return nodes.getMasterNodeId();
+            return nodes.getClusterManagerNodeId();
         } else {
             return null;
         }

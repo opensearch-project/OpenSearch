@@ -836,7 +836,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
 
     public void testNoopUpdate() {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        final ClusterService clusterService = internalCluster().getClusterManagerNodeInstance(ClusterService.class);
         assertAcked(
             client().admin()
                 .indices()

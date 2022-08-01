@@ -113,7 +113,7 @@ public class RestClusterManagerAction extends AbstractCatAction {
         DiscoveryNodes nodes = state.getState().nodes();
 
         table.startRow();
-        DiscoveryNode clusterManager = nodes.get(nodes.getMasterNodeId());
+        DiscoveryNode clusterManager = nodes.get(nodes.getClusterManagerNodeId());
         if (clusterManager == null) {
             table.addCell("-");
             table.addCell("-");

@@ -117,13 +117,30 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
     protected abstract Response read(StreamInput in) throws IOException;
 
-    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
+    /**
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)}
+     */
+    @Deprecated
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        throw new UnsupportedOperationException("Must be overridden");
+    }
+
+    protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        masterOperation(request, state, listener);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)} */
+    @Deprecated
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        clusterManagerOperation(task, request, state, listener);
+    }
 
     /**
      * Override this operation if access to the task parameter is needed
      */
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        masterOperation(request, state, listener);
+    protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
+        throws Exception {
+        clusterManagerOperation(request, state, listener);
     }
 
     protected boolean localExecute(Request request) {
@@ -165,7 +182,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         protected void doStart(ClusterState clusterState) {
             try {
                 final DiscoveryNodes nodes = clusterState.nodes();
-                if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
+                if (nodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
@@ -201,14 +218,14 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             }
                         });
                         threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
+                            .execute(ActionRunnable.wrap(delegate, l -> clusterManagerOperation(task, request, clusterState, l)));
                     }
                 } else {
-                    if (nodes.getMasterNode() == null) {
+                    if (nodes.getClusterManagerNode() == null) {
                         logger.debug("no known cluster-manager node, scheduling a retry");
                         retryOnMasterChange(clusterState, null);
                     } else {
-                        DiscoveryNode clusterManagerNode = nodes.getMasterNode();
+                        DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
                         final String actionName = getClusterManagerActionName(clusterManagerNode);
                         transportService.sendRequest(
                             clusterManagerNode,
@@ -225,7 +242,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                                             "connection exception while trying to forward request with action name [{}] to "
                                                 + "master node [{}], scheduling a retry. Error: [{}]",
                                             actionName,
-                                            nodes.getMasterNode(),
+                                            nodes.getClusterManagerNode(),
                                             exp.getDetailedMessage()
                                         );
                                         retryOnMasterChange(clusterState, cause);
@@ -304,4 +321,5 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected String getMasterActionName(DiscoveryNode node) {
         return getClusterManagerActionName(node);
     }
+
 }

@@ -39,12 +39,12 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
-import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -182,7 +182,7 @@ public class ShardStateAction {
         final ActionListener<Void> listener
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
-        DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = currentState.nodes().getClusterManagerNode();
         Predicate<ClusterState> changePredicate = ClusterManagerNodeChangePredicate.build(currentState);
         if (clusterManagerNode == null) {
             logger.warn("no cluster-manager known for action [{}] for shard entry [{}]", actionName, request);
@@ -385,7 +385,7 @@ public class ShardStateAction {
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         logger.error("{} no longer cluster-manager while failing shard [{}]", request.shardId, request);
                         try {
                             channel.sendResponse(new NotClusterManagerException(source));
