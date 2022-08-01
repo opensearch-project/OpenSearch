@@ -60,7 +60,9 @@ configurations {
 dependencies {
   api "org.apache.hadoop:hadoop-client-api:${versions.hadoop3}"
   runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop3}"
-  api "org.apache.hadoop:hadoop-hdfs:${versions.hadoop3}"
+  api("org.apache.hadoop:hadoop-hdfs:${versions.hadoop3}") {
+    exclude module: 'jetty-server'
+  }
   api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api 'org.apache.avro:avro:1.11.0'
@@ -83,7 +85,6 @@ dependencies {
   api 'net.minidev:json-smart:2.4.8'
   api 'org.apache.zookeeper:zookeeper:3.8.0'
   api "io.netty:netty-all:${versions.netty}"
-  api "org.eclipse.jetty:jetty-server:9.4.48.v20220622"
   implementation 'com.fasterxml.woodstox:woodstox-core:6.3.0'
   implementation 'org.codehaus.woodstox:stax2-api:4.2.1'
 
