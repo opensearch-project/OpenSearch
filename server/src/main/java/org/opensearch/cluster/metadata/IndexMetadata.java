@@ -283,7 +283,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Final
     );
 
-    public static final String SETTING_REMOTE_STORE = "index.remote_store";
+    public static final String SETTING_REMOTE_STORE = "index.remote_store.enabled";
     /**
      * Used to specify if the index data should be persisted in the remote store.
      */
