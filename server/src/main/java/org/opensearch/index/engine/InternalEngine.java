@@ -49,8 +49,8 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -136,6 +136,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -2316,6 +2317,23 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public SegmentInfos getLatestSegmentInfos() {
+        OpenSearchDirectoryReader reader = null;
+        try {
+            reader = internalReaderManager.acquire();
+            return ((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos();
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        } finally {
+            try {
+                internalReaderManager.release(reader);
+            } catch (IOException e) {
+                throw new EngineException(shardId, e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
         stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
@@ -2465,14 +2483,14 @@ public class InternalEngine extends Engine {
             final long maxFullFlushMergeWaitMillis = config().getIndexSettings().getMaxFullFlushMergeWaitTime().millis();
             if (maxFullFlushMergeWaitMillis > 0) {
                 iwc.setMaxFullFlushMergeWaitMillis(maxFullFlushMergeWaitMillis);
-                mergePolicy = new MergeOnFlushMergePolicy(mergePolicy);
-            } else {
-                logger.warn(
-                    "The {} is enabled but {} is set to 0, merge on flush will not be activated",
-                    IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(),
-                    IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME.getKey()
-                );
+                final Optional<UnaryOperator<MergePolicy>> mergeOnFlushPolicy = config().getIndexSettings().getMergeOnFlushPolicy();
+                if (mergeOnFlushPolicy.isPresent()) {
+                    mergePolicy = mergeOnFlushPolicy.get().apply(mergePolicy);
+                }
             }
+        } else {
+            // Disable merge on refresh
+            iwc.setMaxFullFlushMergeWaitMillis(0);
         }
 
         iwc.setMergePolicy(new OpenSearchMergePolicy(mergePolicy));

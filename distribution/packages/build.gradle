@@ -392,7 +392,7 @@ tasks.register('buildRpm', Rpm) {
 }
 
 tasks.register('buildNoJdkRpm', Rpm) {
-  configure(commonRpmConfig(true, 'x64'))
+  configure(commonRpmConfig(false, 'x64'))
 }
 
 Closure dpkgExists = { it -> new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }

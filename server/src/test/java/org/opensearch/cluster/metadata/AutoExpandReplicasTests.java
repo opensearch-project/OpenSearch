@@ -190,7 +190,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 assertThat(postTable.toString(), postTable.getAllAllocationIds(), everyItem(is(in(preTable.getAllAllocationIds()))));
             } else {
                 // fake an election where conflicting nodes are removed and readded
-                state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null).build()).build();
+                state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).clusterManagerNodeId(null).build()).build();
 
                 List<DiscoveryNode> conflictingNodes = randomSubsetOf(2, dataNodes);
                 unchangedNodeIds = dataNodes.stream()
@@ -215,7 +215,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
                 }
 
-                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd);
+                state = cluster.joinNodesAndBecomeClusterManager(state, nodesToAdd);
                 postTable = state.routingTable().index("index").shard(0);
             }
 

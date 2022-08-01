@@ -293,6 +293,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    protected SegmentInfos getLatestSegmentInfos() {
+        return lastCommittedSegmentInfos;
+    }
+
+    @Override
     public String getHistoryUUID() {
         return lastCommittedSegmentInfos.userData.get(Engine.HISTORY_UUID_KEY);
     }

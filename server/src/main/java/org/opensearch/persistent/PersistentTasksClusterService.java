@@ -93,7 +93,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
         this.threadPool = threadPool;
         this.periodicRechecker = new PeriodicRechecker(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
-        if (DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
             clusterService.addListener(this);
         }
         clusterService.getClusterSettings()
@@ -356,7 +356,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) {
+        if (event.localNodeClusterManager()) {
             if (shouldReassignPersistentTasks(event)) {
                 // We want to avoid a periodic check duplicating this work
                 periodicRechecker.cancel();
@@ -409,7 +409,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             return false;
         }
 
-        boolean masterChanged = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+        boolean masterChanged = event.previousState().nodes().isLocalNodeElectedClusterManager() == false;
 
         if (persistentTasksChanged(event)
             || event.nodesChanged()
@@ -518,7 +518,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
         @Override
         public void runInternal() {
-            if (clusterService.localNode().isMasterNode()) {
+            if (clusterService.localNode().isClusterManagerNode()) {
                 final ClusterState state = clusterService.state();
                 logger.trace("periodic persistent task assignment check running for cluster state {}", state.getVersion());
                 if (isAnyTaskUnassigned(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {

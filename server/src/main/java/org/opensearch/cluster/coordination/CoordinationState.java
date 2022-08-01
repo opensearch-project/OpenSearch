@@ -413,7 +413,7 @@ public class CoordinationState {
         }
         if (clusterState.term() == getLastAcceptedTerm() && clusterState.version() <= getLastAcceptedVersion()) {
             if (clusterState.term() == ZEN1_BWC_TERM
-                && clusterState.nodes().getMasterNode().equals(getLastAcceptedState().nodes().getMasterNode()) == false) {
+                && clusterState.nodes().getClusterManagerNode().equals(getLastAcceptedState().nodes().getClusterManagerNode()) == false) {
                 logger.debug(
                     "handling publish request in compatibility mode despite version mismatch (expected: >[{}], actual: [{}])",
                     getLastAcceptedVersion(),
@@ -652,7 +652,7 @@ public class CoordinationState {
         private final Set<Join> joins;
 
         public boolean addVote(DiscoveryNode sourceNode) {
-            return sourceNode.isMasterNode() && nodes.put(sourceNode.getId(), sourceNode) == null;
+            return sourceNode.isClusterManagerNode() && nodes.put(sourceNode.getId(), sourceNode) == null;
         }
 
         public boolean addJoinVote(Join join) {

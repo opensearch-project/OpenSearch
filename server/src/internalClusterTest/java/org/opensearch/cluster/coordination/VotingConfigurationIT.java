@@ -64,12 +64,12 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
     public void testAbdicateAfterVotingConfigExclusionAdded() throws ExecutionException, InterruptedException {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         internalCluster().startNodes(2);
-        final String originalClusterManager = internalCluster().getMasterName();
+        final String originalClusterManager = internalCluster().getClusterManagerName();
 
         logger.info("--> excluding cluster-manager node {}", originalClusterManager);
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalClusterManager)).get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
-        assertNotEquals(originalClusterManager, internalCluster().getMasterName());
+        assertNotEquals(originalClusterManager, internalCluster().getClusterManagerName());
     }
 
     public void testElectsNodeNotInVotingConfiguration() throws Exception {
@@ -105,7 +105,7 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
         final Set<String> votingConfiguration = clusterState.getLastCommittedConfiguration().getNodeIds();
         assertThat(votingConfiguration, hasSize(3));
         assertThat(clusterState.nodes().getSize(), equalTo(4));
-        assertThat(votingConfiguration, hasItem(clusterState.nodes().getMasterNodeId()));
+        assertThat(votingConfiguration, hasItem(clusterState.nodes().getClusterManagerNodeId()));
         for (DiscoveryNode discoveryNode : clusterState.nodes()) {
             if (votingConfiguration.contains(discoveryNode.getId()) == false) {
                 assertThat(excludedNodeName, nullValue());
@@ -134,7 +134,7 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
             }
         }
 
-        internalCluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentClusterManagerNode();
         assertFalse(
             internalCluster().client()
                 .admin()
@@ -155,7 +155,10 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
             .setMetadata(true)
             .get()
             .getState();
-        assertThat(newClusterState.nodes().getMasterNode().getName(), equalTo(excludedNodeName));
-        assertThat(newClusterState.getLastCommittedConfiguration().getNodeIds(), hasItem(newClusterState.nodes().getMasterNodeId()));
+        assertThat(newClusterState.nodes().getClusterManagerNode().getName(), equalTo(excludedNodeName));
+        assertThat(
+            newClusterState.getLastCommittedConfiguration().getNodeIds(),
+            hasItem(newClusterState.nodes().getClusterManagerNodeId())
+        );
     }
 }

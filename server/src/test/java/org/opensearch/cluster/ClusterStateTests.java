@@ -90,15 +90,15 @@ public class ClusterStateTests extends OpenSearchTestCase {
         ClusterState noClusterManager2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState withClusterManager1a = ClusterState.builder(name)
             .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
+            .nodes(DiscoveryNodes.builder(nodes).clusterManagerNodeId(node1.getId()))
             .build();
         ClusterState withClusterManager1b = ClusterState.builder(name)
             .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
+            .nodes(DiscoveryNodes.builder(nodes).clusterManagerNodeId(node1.getId()))
             .build();
         ClusterState withClusterManager2 = ClusterState.builder(name)
             .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node2.getId()))
+            .nodes(DiscoveryNodes.builder(nodes).clusterManagerNodeId(node2.getId()))
             .build();
 
         // states with no cluster-manager should never supersede anything
@@ -871,7 +871,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
             .stateUUID("stateUUID")
             .nodes(
                 DiscoveryNodes.builder()
-                    .masterNodeId("clusterManagerNodeId")
+                    .clusterManagerNodeId("clusterManagerNodeId")
                     .add(new DiscoveryNode("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111), Version.CURRENT))
                     .build()
             )

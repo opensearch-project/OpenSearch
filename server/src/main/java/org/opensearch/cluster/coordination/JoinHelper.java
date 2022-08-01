@@ -46,7 +46,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
@@ -106,7 +106,7 @@ public class JoinHelper {
         Setting.Property.Deprecated
     );
 
-    private final MasterService masterService;
+    private final ClusterManagerService clusterManagerService;
     private final TransportService transportService;
     private volatile JoinTaskExecutor joinTaskExecutor;
 
@@ -122,7 +122,7 @@ public class JoinHelper {
     JoinHelper(
         Settings settings,
         AllocationService allocationService,
-        MasterService masterService,
+        ClusterManagerService clusterManagerService,
         TransportService transportService,
         LongSupplier currentTermSupplier,
         Supplier<ClusterState> currentStateSupplier,
@@ -132,7 +132,7 @@ public class JoinHelper {
         RerouteService rerouteService,
         NodeHealthService nodeHealthService
     ) {
-        this.masterService = masterService;
+        this.clusterManagerService = clusterManagerService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
@@ -156,16 +156,20 @@ public class JoinHelper {
                             + term
                             + "), there is a newer cluster-manager"
                     );
-                } else if (currentState.nodes().getMasterNodeId() == null && joiningTasks.stream().anyMatch(Task::isBecomeMasterTask)) {
-                    assert currentState.term() < term : "there should be at most one become cluster-manager task per election (= by term)";
-                    final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
-                        .term(term)
-                        .build();
-                    final Metadata metadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordinationMetadata).build();
-                    currentState = ClusterState.builder(currentState).metadata(metadata).build();
-                } else if (currentState.nodes().isLocalNodeElectedMaster()) {
-                    assert currentState.term() == term : "term should be stable for the same cluster-manager";
-                }
+                } else if (currentState.nodes().getClusterManagerNodeId() == null
+                    && joiningTasks.stream().anyMatch(Task::isBecomeClusterManagerTask)) {
+                        assert currentState.term() < term
+                            : "there should be at most one become cluster-manager task per election (= by term)";
+                        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
+                            .term(term)
+                            .build();
+                        final Metadata metadata = Metadata.builder(currentState.metadata())
+                            .coordinationMetadata(coordinationMetadata)
+                            .build();
+                        currentState = ClusterState.builder(currentState).metadata(metadata).build();
+                    } else if (currentState.nodes().isLocalNodeElectedClusterManager()) {
+                        assert currentState.term() == term : "term should be stable for the same cluster-manager";
+                    }
                 return super.execute(currentState, joiningTasks);
             }
 
@@ -312,7 +316,7 @@ public class JoinHelper {
     }
 
     public void sendJoinRequest(DiscoveryNode destination, long term, Optional<Join> optionalJoin, Runnable onCompletion) {
-        assert destination.isMasterNode() : "trying to join cluster-manager-ineligible " + destination;
+        assert destination.isClusterManagerNode() : "trying to join cluster-manager-ineligible " + destination;
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
             logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
@@ -363,7 +367,7 @@ public class JoinHelper {
     }
 
     public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
-        assert startJoinRequest.getSourceNode().isMasterNode() : "sending start-join request for cluster-manager-ineligible "
+        assert startJoinRequest.getSourceNode().isClusterManagerNode() : "sending start-join request for cluster-manager-ineligible "
             + startJoinRequest.getSourceNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler<Empty>() {
             @Override
@@ -454,7 +458,7 @@ public class JoinHelper {
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
             final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
             assert joinTaskExecutor != null;
-            masterService.submitStateUpdateTask(
+            clusterManagerService.submitStateUpdateTask(
                 "node-join",
                 task,
                 ClusterStateTaskConfig.build(Priority.URGENT),
@@ -536,10 +540,10 @@ public class JoinHelper {
 
                 final String stateUpdateSource = "elected-as-cluster-manager ([" + pendingAsTasks.size() + "] nodes joined)";
 
-                pendingAsTasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source, e) -> {});
+                pendingAsTasks.put(JoinTaskExecutor.newBecomeClusterManagerTask(), (source, e) -> {});
                 pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {});
                 joinTaskExecutor = joinTaskExecutorGenerator.get();
-                masterService.submitStateUpdateTasks(
+                clusterManagerService.submitStateUpdateTasks(
                     stateUpdateSource,
                     pendingAsTasks,
                     ClusterStateTaskConfig.build(Priority.URGENT),

@@ -34,6 +34,7 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -93,6 +94,8 @@ import org.opensearch.indices.recovery.RecoverySourceHandler;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
@@ -138,14 +141,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
     };
 
-    protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+    protected static final ReplicationListener recoveryListener = new ReplicationListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state) {
+        public void onDone(ReplicationState state) {
 
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
             throw new AssertionError(e);
         }
     };

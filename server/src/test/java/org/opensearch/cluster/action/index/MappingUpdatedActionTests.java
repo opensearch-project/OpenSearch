@@ -130,13 +130,13 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         };
 
         PlainActionFuture<Void> fut1 = new PlainActionFuture<>();
-        mua.updateMappingOnMaster(null, null, fut1);
+        mua.updateMappingOnClusterManager(null, null, fut1);
         assertEquals(1, inFlightListeners.size());
         assertEquals(0, mua.blockedThreads());
 
         PlainActionFuture<Void> fut2 = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
-            mua.updateMappingOnMaster(null, null, fut2); // blocked
+            mua.updateMappingOnClusterManager(null, null, fut2); // blocked
         });
         thread.start();
         assertBusy(() -> assertEquals(1, mua.blockedThreads()));

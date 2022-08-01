@@ -32,6 +32,7 @@
 
 package org.opensearch.indices.cluster;
 
+import org.junit.Before;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -56,10 +57,10 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndex;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices;
 import org.opensearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -73,9 +74,9 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
  * Abstract base class for tests against {@link IndicesClusterStateService}
@@ -253,7 +254,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         public MockIndexShard createShard(
             final ShardRouting shardRouting,
             final PeerRecoveryTargetService recoveryTargetService,
-            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            final RecoveryListener recoveryListener,
             final RepositoriesService repositoriesService,
             final Consumer<IndexShard.ShardFailure> onShardFailure,
             final Consumer<ShardId> globalCheckpointSyncer,

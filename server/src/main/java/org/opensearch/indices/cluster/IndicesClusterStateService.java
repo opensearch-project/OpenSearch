@@ -78,8 +78,9 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
-import org.opensearch.indices.recovery.RecoveryFailedException;
+import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.snapshots.SnapshotShardsService;
@@ -207,14 +208,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     @Override
     protected void doStart() {
         // Doesn't make sense to manage shards on non-master and non-data nodes
-        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isClusterManagerNode(settings)) {
             clusterService.addHighPriorityApplier(this);
         }
     }
 
     @Override
     protected void doStop() {
-        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isClusterManagerNode(settings)) {
             clusterService.removeApplier(this);
         }
     }
@@ -272,7 +273,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return;
         }
 
-        DiscoveryNode clusterManagerNode = state.nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = state.nodes().getClusterManagerNode();
 
         // remove items from cache which are not in our routing table anymore and
         // resend failures that have not executed on cluster-manager yet
@@ -509,7 +510,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
                 if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(
-                        state.nodes().getMasterNode(),
+                        state.nodes().getClusterManagerNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(
                             indexMetadata.getIndex().getName(),
                             indexMetadata.getIndexUUID(),
@@ -556,7 +557,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     reason = "mapping update failed";
                     if (indexService.updateMapping(currentIndexMetadata, newIndexMetadata) && sendRefreshMapping) {
                         nodeMappingRefreshAction.nodeMappingRefresh(
-                            state.nodes().getMasterNode(),
+                            state.nodes().getClusterManagerNode(),
                             new NodeMappingRefreshAction.NodeMappingRefreshRequest(
                                 newIndexMetadata.getIndex().getName(),
                                 newIndexMetadata.getIndexUUID(),
@@ -624,7 +625,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             indicesService.createShard(
                 shardRouting,
                 recoveryTargetService,
-                new RecoveryListener(shardRouting, primaryTerm),
+                new RecoveryListener(shardRouting, primaryTerm, this),
                 repositoriesService,
                 failedShardHandler,
                 globalCheckpointSyncer,
@@ -681,15 +682,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     "{} cluster-manager marked shard as initializing, but shard has state [{}], resending shard started to {}",
                     shardRouting.shardId(),
                     state,
-                    nodes.getMasterNode()
+                    nodes.getClusterManagerNode()
                 );
             }
-            if (nodes.getMasterNode() != null) {
+            if (nodes.getClusterManagerNode() != null) {
                 shardStateAction.shardStarted(
                     shardRouting,
                     primaryTerm,
                     "cluster-manager "
-                        + nodes.getMasterNode()
+                        + nodes.getClusterManagerNode()
                         + " marked shard as initializing, but shard state is ["
                         + state
                         + "], mark shard as started",
@@ -739,37 +740,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return sourceNode;
     }
 
-    private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
-
-        /**
-         * ShardRouting with which the shard was created
-         */
-        private final ShardRouting shardRouting;
-
-        /**
-         * Primary term with which the shard was created
-         */
-        private final long primaryTerm;
-
-        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
-            this.shardRouting = shardRouting;
-            this.primaryTerm = primaryTerm;
-        }
-
-        @Override
-        public void onRecoveryDone(final RecoveryState state) {
-            shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + state.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
-        }
-
-        @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-            handleRecoveryFailure(shardRouting, sendShardFailure, e);
-        }
+    // package-private for testing
+    public synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
+        failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
     }
 
-    // package-private for testing
-    synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
-        failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
+    public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
+        RecoveryState RecState = (RecoveryState) state;
+        shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + RecState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
     }
 
     private void failAndRemoveShard(
@@ -878,7 +856,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * - Updates and persists the new routing value.
          * - Updates the primary term if this shard is a primary.
          * - Updates the allocation ids that are tracked by the shard if it is a primary.
-         *   See {@link ReplicationTracker#updateFromMaster(long, Set, IndexShardRoutingTable)} for details.
+         *   See {@link ReplicationTracker#updateFromClusterManager(long, Set, IndexShardRoutingTable)} for details.
          *
          * @param shardRouting                the new routing entry
          * @param primaryTerm                 the new primary term
@@ -1004,7 +982,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         T createShard(
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
-            PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,
             Consumer<ShardId> globalCheckpointSyncer,

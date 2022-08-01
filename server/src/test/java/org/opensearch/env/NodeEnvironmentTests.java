@@ -66,7 +66,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.test.NodeRoles.nonDataNode;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -473,7 +473,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
     public void testNodeIdNotPersistedAtInitialization() throws IOException {
         NodeEnvironment env = newNodeEnvironment(
             new String[0],
-            nonMasterNode(nonDataNode(Settings.builder().put("node.local_storage", false).build()))
+            nonClusterManagerNode(nonDataNode(Settings.builder().put("node.local_storage", false).build()))
         );
         String nodeID = env.nodeId();
         env.close();
@@ -566,7 +566,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         verifyFailsOnMetadata(noDataNoClusterManagerSettings, indexPath);
 
         // build settings using same path.data as original but without cluster-manager role
-        Settings noClusterManagerSettings = nonMasterNode(settings);
+        Settings noClusterManagerSettings = nonClusterManagerNode(settings);
 
         // test that we can create cluster_manager=false env regardless of data.
         newNodeEnvironment(noClusterManagerSettings).close();

@@ -101,6 +101,7 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.indices.analysis.AnalysisModule;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.recovery.RecoveryState.Stage;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.RecoverySettingsChunkSizePlugin;
@@ -774,7 +775,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
+        Repository repository = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class).repository(REPO_NAME);
         final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
@@ -836,7 +837,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         return client().admin().indices().prepareStats(name).execute().actionGet();
     }
 
-    private void validateIndexRecoveryState(RecoveryState.Index indexState) {
+    private void validateIndexRecoveryState(ReplicationLuceneIndex indexState) {
         assertThat(indexState.time(), greaterThanOrEqualTo(0L));
         assertThat(indexState.recoveredFilesPercent(), greaterThanOrEqualTo(0.0f));
         assertThat(indexState.recoveredFilesPercent(), lessThanOrEqualTo(100.0f));
@@ -1510,7 +1511,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             );
             phase1ReadyBlocked.await();
             internalCluster().restartNode(
-                clusterService().state().nodes().getMasterNode().getName(),
+                clusterService().state().nodes().getClusterManagerNode().getName(),
                 new InternalTestCluster.RestartCallback()
             );
             internalCluster().ensureAtLeastNumDataNodes(3);

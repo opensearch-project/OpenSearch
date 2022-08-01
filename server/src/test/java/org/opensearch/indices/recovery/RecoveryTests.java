@@ -41,6 +41,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
@@ -68,6 +69,8 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -448,20 +451,17 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             IndexShard replica = group.addReplica();
             expectThrows(
                 Exception.class,
-                () -> group.recoverReplica(
-                    replica,
-                    (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new PeerRecoveryTargetService.RecoveryListener() {
-                        @Override
-                        public void onRecoveryDone(RecoveryState state) {
-                            throw new AssertionError("recovery must fail");
-                        }
+                () -> group.recoverReplica(replica, (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new ReplicationListener() {
+                    @Override
+                    public void onDone(ReplicationState state) {
+                        throw new AssertionError("recovery must fail");
+                    }
 
-                        @Override
-                        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-                            assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
-                        }
-                    })
-                )
+                    @Override
+                    public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                        assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
+                    }
+                }))
             );
             expectThrows(AlreadyClosedException.class, () -> replica.refresh("test"));
             group.removeReplica(replica);
