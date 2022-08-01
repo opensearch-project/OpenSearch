@@ -162,7 +162,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
             CreateDataStreamClusterStateUpdateRequest updateRequest = new CreateDataStreamClusterStateUpdateRequest(
                 request.name,

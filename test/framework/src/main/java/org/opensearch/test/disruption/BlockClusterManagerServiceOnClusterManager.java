@@ -43,11 +43,11 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
+public class BlockClusterManagerServiceOnClusterManager extends SingleNodeDisruption {
 
     AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
 
-    public BlockMasterServiceOnMaster(Random random) {
+    public BlockClusterManagerServiceOnClusterManager(Random random) {
         super(random);
     }
 
@@ -66,7 +66,7 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask() {
+        clusterService.getClusterManagerService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask() {
             @Override
             public Priority priority() {
                 return Priority.IMMEDIATE;

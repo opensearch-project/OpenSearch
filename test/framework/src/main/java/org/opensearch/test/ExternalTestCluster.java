@@ -190,7 +190,7 @@ public final class ExternalTestCluster extends TestCluster {
     }
 
     @Override
-    public int numDataAndMasterNodes() {
+    public int numDataAndClusterManagerNodes() {
         return numClusterManagerAndDataNodes;
     }
 

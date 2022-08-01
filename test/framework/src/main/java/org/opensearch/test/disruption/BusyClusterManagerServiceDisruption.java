@@ -41,11 +41,11 @@ import org.opensearch.test.InternalTestCluster;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class BusyMasterServiceDisruption extends SingleNodeDisruption {
+public class BusyClusterManagerServiceDisruption extends SingleNodeDisruption {
     private final AtomicBoolean active = new AtomicBoolean();
     private final Priority priority;
 
-    public BusyMasterServiceDisruption(Random random, Priority priority) {
+    public BusyClusterManagerServiceDisruption(Random random, Priority priority) {
         super(random);
         this.priority = priority;
     }
@@ -67,7 +67,7 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
     }
 
     private void submitTask(ClusterService clusterService) {
-        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(priority) {
+        clusterService.getClusterManagerService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(priority) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (active.get()) {
