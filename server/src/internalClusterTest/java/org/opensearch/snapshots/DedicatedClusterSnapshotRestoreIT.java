@@ -94,7 +94,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.TestCustomMetadata;
-import org.opensearch.test.disruption.BusyMasterServiceDisruption;
+import org.opensearch.test.disruption.BusyClusterManagerServiceDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.transport.MockTransportService;
@@ -1157,7 +1157,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
         logger.info("-->  snapshot");
-        ServiceDisruptionScheme disruption = new BusyMasterServiceDisruption(random(), Priority.HIGH);
+        ServiceDisruptionScheme disruption = new BusyClusterManagerServiceDisruption(random(), Priority.HIGH);
         setDisruptionScheme(disruption);
         client(internalCluster().getClusterManagerName()).admin()
             .cluster()
