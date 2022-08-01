@@ -20,15 +20,16 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
-public class TranslogTransferPackager {
+public class TransferSnapshotProvider implements Supplier<TransferSnapshot> {
 
     private final Snapshot translogTransferSnapshot;
 
-    public TranslogTransferPackager(Path location, List<TranslogReader> readers) throws IOException {
+    public TransferSnapshotProvider(Path location, List<TranslogReader> readers) throws IOException {
         translogTransferSnapshot = new Snapshot(readers.size());
         for (TranslogReader reader : readers) {
             final long generation = reader.getGeneration();
@@ -52,7 +53,7 @@ public class TranslogTransferPackager {
         return fileInfo;
     }
 
-    static class Snapshot {
+    static class Snapshot implements TransferSnapshot {
 
         private final Set<Tuple<FileInfo, FileInfo>> translogCheckpointFileInfoTupleSet;
         private final int size;

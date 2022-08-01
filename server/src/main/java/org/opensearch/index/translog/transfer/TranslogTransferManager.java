@@ -22,7 +22,7 @@ public class TranslogTransferManager {
         this.translogTransferListener = translogTransferListener;
     }
 
-    boolean uploadTranslog(TranslogTransferPackager.Snapshot translogTransferSnapshot) throws IOException {
+    boolean uploadTranslog(TransferSnapshotProvider TransferSnapshotProvider) throws IOException {
         return false;
     }
 }
