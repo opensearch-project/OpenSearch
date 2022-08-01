@@ -41,6 +41,7 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
@@ -74,6 +75,7 @@ import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.plugins.MapperPlugin;
@@ -280,6 +282,9 @@ public class IndicesModule extends AbstractModule {
         bind(RetentionLeaseSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseBackgroundSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseSyncer.class).asEagerSingleton();
+        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
+            bind(SegmentReplicationCheckpointPublisher.class).asEagerSingleton();
+        }
     }
 
     /**

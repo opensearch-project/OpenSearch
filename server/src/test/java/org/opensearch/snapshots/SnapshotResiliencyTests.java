@@ -182,6 +182,7 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
@@ -1871,7 +1872,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         shardStateAction,
                         actionFilters
                     ),
-                    RetentionLeaseSyncer.EMPTY
+                    RetentionLeaseSyncer.EMPTY,
+                    SegmentReplicationCheckpointPublisher.EMPTY
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());
