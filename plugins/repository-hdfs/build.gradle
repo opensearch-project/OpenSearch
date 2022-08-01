@@ -48,7 +48,7 @@ opensearchplugin {
 }
 
 versions << [
-  'hadoop3': '3.3.1'
+  'hadoop3': '3.3.3'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
@@ -60,8 +60,10 @@ configurations {
 dependencies {
   api "org.apache.hadoop:hadoop-client-api:${versions.hadoop3}"
   runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop3}"
-  api "org.apache.hadoop:hadoop-hdfs:${versions.hadoop3}"
-  api 'org.apache.htrace:htrace-core4:4.1.0-incubating'
+  api("org.apache.hadoop:hadoop-hdfs:${versions.hadoop3}") {
+    exclude module: 'jetty-server'
+  }
+  api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api 'org.apache.avro:avro:1.10.2'
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
@@ -430,10 +432,6 @@ thirdPartyAudit {
     'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.PureJavaSnappy',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.SnappyRawCompressor',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.SnappyRawDecompressor',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.UnsafeUtil',
 
     'org.apache.avro.reflect.FieldAccessUnsafe',
     'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
