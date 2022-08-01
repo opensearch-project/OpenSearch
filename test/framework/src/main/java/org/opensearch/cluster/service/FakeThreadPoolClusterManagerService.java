@@ -55,8 +55,8 @@ import java.util.function.Consumer;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomInt;
 
-public class FakeThreadPoolMasterService extends ClusterManagerService {
-    private static final Logger logger = LogManager.getLogger(FakeThreadPoolMasterService.class);
+public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
+    private static final Logger logger = LogManager.getLogger(FakeThreadPoolClusterManagerService.class);
 
     private final String name;
     private final List<Runnable> pendingTasks = new ArrayList<>();
@@ -65,7 +65,7 @@ public class FakeThreadPoolMasterService extends ClusterManagerService {
     private boolean taskInProgress = false;
     private boolean waitForPublish = false;
 
-    public FakeThreadPoolMasterService(
+    public FakeThreadPoolClusterManagerService(
         String nodeName,
         String serviceName,
         ThreadPool threadPool,
@@ -137,7 +137,7 @@ public class FakeThreadPoolMasterService extends ClusterManagerService {
                     if (waitForPublish == false) {
                         taskInProgress = false;
                     }
-                    FakeThreadPoolMasterService.this.scheduleNextTaskIfNecessary();
+                    FakeThreadPoolClusterManagerService.this.scheduleNextTaskIfNecessary();
                 }
             });
         }
