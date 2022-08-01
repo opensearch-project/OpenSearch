@@ -23,11 +23,14 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogException;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.index.translog.WriteOnlyTranslogManager;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -49,18 +52,19 @@ import java.util.stream.Stream;
  *
  * @opensearch.internal
  */
-public class NRTReplicationEngine extends Engine {
+public class NRTReplicationEngine extends Engine implements LifecycleAware {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
     private final NRTReplicationReaderManager readerManager;
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
-    private final Translog translog;
+    private final TranslogManager translogManager;
 
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
         store.incRef();
         NRTReplicationReaderManager readerManager = null;
+        TranslogManager translogManagerRef = null;
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             readerManager = new NRTReplicationReaderManager(OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId));
@@ -71,16 +75,47 @@ public class NRTReplicationEngine extends Engine {
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager = readerManager;
             this.readerManager.addListener(completionStatsCache);
-            this.translog = openTranslog(
-                engineConfig,
-                getTranslogDeletionPolicy(engineConfig),
+            final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
+            final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
+            translogManagerRef = new WriteOnlyTranslogManager(
+                engineConfig.getTranslogConfig(),
+                engineConfig.getPrimaryTermSupplier(),
                 engineConfig.getGlobalCheckpointSupplier(),
-                localCheckpointTracker::markSeqNoAsPersisted
+                getTranslogDeletionPolicy(engineConfig),
+                shardId,
+                readLock,
+                this::getLocalCheckpointTracker,
+                translogUUID,
+                new TranslogEventListener() {
+                    @Override
+                    public void onFailure(String reason, Exception ex) {
+                        failEngine(reason, ex);
+                    }
+
+                    @Override
+                    public void onAfterTranslogSync() {
+                        try {
+                            translogManager.getTranslog().trimUnreferencedReaders();
+                        } catch (IOException ex) {
+                            throw new TranslogException(shardId, "failed to trim unreferenced translog readers", ex);
+                        }
+                    }
+                },
+                this
             );
+            this.translogManager = translogManagerRef;
         } catch (IOException e) {
-            IOUtils.closeWhileHandlingException(store::decRef, readerManager);
+            Translog translog = null;
+            if (translogManagerRef != null) {
+                translog = translogManagerRef.getTranslog();
+            }
+            IOUtils.closeWhileHandlingException(store::decRef, readerManager, translog);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
         }
+    }
+
+    public TranslogManager translogManager() {
+        return translogManager;
     }
 
     public synchronized void updateSegments(final SegmentInfos infos, long seqNo) throws IOException {
@@ -91,7 +126,7 @@ public class NRTReplicationEngine extends Engine {
         // generation. We can still refresh with incoming SegmentInfos that are not part of a commit point.
         if (infos.getGeneration() > lastCommittedSegmentInfos.getGeneration()) {
             this.lastCommittedSegmentInfos = infos;
-            rollTranslogGeneration();
+            translogManager.rollTranslogGeneration();
         }
         localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
     }
@@ -125,7 +160,7 @@ public class NRTReplicationEngine extends Engine {
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            translog.trimOperations(belowTerm, aboveSeqNo);
+            translogManager.getTranslog().trimOperations(belowTerm, aboveSeqNo);
         } catch (Exception e) {
             try {
                 failEngine("translog operations trimming failed", e);
@@ -140,7 +175,7 @@ public class NRTReplicationEngine extends Engine {
     public IndexResult index(Index index) throws IOException {
         ensureOpen();
         IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
-        final Translog.Location location = translog.add(new Translog.Index(index, indexResult));
+        final Translog.Location location = translogManager.getTranslog().add(new Translog.Index(index, indexResult));
         indexResult.setTranslogLocation(location);
         indexResult.setTook(System.nanoTime() - index.startTime());
         indexResult.freeze();
@@ -152,7 +187,7 @@ public class NRTReplicationEngine extends Engine {
     public DeleteResult delete(Delete delete) throws IOException {
         ensureOpen();
         DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
-        final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
+        final Translog.Location location = translogManager.getTranslog().add(new Translog.Delete(delete, deleteResult));
         deleteResult.setTranslogLocation(location);
         deleteResult.setTook(System.nanoTime() - delete.startTime());
         deleteResult.freeze();
@@ -164,7 +199,8 @@ public class NRTReplicationEngine extends Engine {
     public NoOpResult noOp(NoOp noOp) throws IOException {
         ensureOpen();
         NoOpResult noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
-        final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+        final Translog.Location location = translogManager.getTranslog()
+            .add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
         noOpResult.setTranslogLocation(location);
         noOpResult.setTook(System.nanoTime() - noOp.startTime());
         noOpResult.freeze();
@@ -184,22 +220,22 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public boolean isTranslogSyncNeeded() {
-        return translog.syncNeeded();
+        return translogManager.getTranslog().syncNeeded();
     }
 
     @Override
     public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
-        boolean synced = translog.ensureSynced(locations);
+        boolean synced = translogManager.getTranslog().ensureSynced(locations);
         if (synced) {
-            translog.trimUnreferencedReaders();
+            translogManager.getTranslog().trimUnreferencedReaders();
         }
         return synced;
     }
 
     @Override
     public void syncTranslog() throws IOException {
-        translog.sync();
-        translog.trimUnreferencedReaders();
+        translogManager.getTranslog().sync();
+        translogManager.getTranslog().trimUnreferencedReaders();
     }
 
     @Override
@@ -242,12 +278,12 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public TranslogStats getTranslogStats() {
-        return translog.stats();
+        return translogManager.getTranslog().stats();
     }
 
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
-        return translog.getLastWriteLocation();
+        return translogManager.getTranslog().getLastWriteLocation();
     }
 
     @Override
@@ -266,7 +302,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
-        return translog.getLastSyncedGlobalCheckpoint();
+        return translogManager.getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
     @Override
@@ -302,7 +338,7 @@ public class NRTReplicationEngine extends Engine {
     public void trimUnreferencedTranslogFiles() throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            translog.trimUnreferencedReaders();
+            translogManager.getTranslog().trimUnreferencedReaders();
         } catch (Exception e) {
             try {
                 failEngine("translog trimming failed", e);
@@ -315,15 +351,15 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public boolean shouldRollTranslogGeneration() {
-        return translog.shouldRollGeneration();
+        return translogManager.getTranslog().shouldRollGeneration();
     }
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            translog.rollGeneration();
-            translog.trimUnreferencedReaders();
+            translogManager.getTranslog().rollGeneration();
+            translogManager.getTranslog().trimUnreferencedReaders();
         } catch (Exception e) {
             try {
                 failEngine("translog trimming failed", e);
@@ -370,7 +406,7 @@ public class NRTReplicationEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                IOUtils.close(readerManager, translog, store::decRef);
+                IOUtils.close(readerManager, translogManager().getTranslog(), store::decRef);
             } catch (Exception e) {
                 logger.warn("failed to close engine", e);
             } finally {
@@ -421,12 +457,12 @@ public class NRTReplicationEngine extends Engine {
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {}
 
     public Translog getTranslog() {
-        return translog;
+        return translogManager.getTranslog();
     }
 
     @Override
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
-        final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
+        final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getTranslog().getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
     }
@@ -469,21 +505,4 @@ public class NRTReplicationEngine extends Engine {
             persistedSequenceNumberConsumer
         );
     }
-
-    private TranslogDeletionPolicy getTranslogDeletionPolicy(EngineConfig engineConfig) {
-        TranslogDeletionPolicy customTranslogDeletionPolicy = null;
-        if (engineConfig.getCustomTranslogDeletionPolicyFactory() != null) {
-            customTranslogDeletionPolicy = engineConfig.getCustomTranslogDeletionPolicyFactory()
-                .create(engineConfig.getIndexSettings(), engineConfig.retentionLeasesSupplier());
-        }
-        return Objects.requireNonNullElseGet(
-            customTranslogDeletionPolicy,
-            () -> new DefaultTranslogDeletionPolicy(
-                engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
-                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
-                engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
-            )
-        );
-    }
-
 }
