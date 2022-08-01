@@ -148,7 +148,7 @@ public final class ExternalTestCluster extends TestCluster {
                 if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
                     dataNodes++;
                     clusterManagerAndDataNodes++;
-                } else if (DiscoveryNode.isMasterNode(nodeInfo.getSettings())) {
+                } else if (DiscoveryNode.isClusterManagerNode(nodeInfo.getSettings())) {
                     clusterManagerAndDataNodes++;
                 }
             }
@@ -190,7 +190,7 @@ public final class ExternalTestCluster extends TestCluster {
     }
 
     @Override
-    public int numDataAndMasterNodes() {
+    public int numDataAndClusterManagerNodes() {
         return numClusterManagerAndDataNodes;
     }
 

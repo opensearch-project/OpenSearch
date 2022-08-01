@@ -381,7 +381,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
             // end::create-index-request-timeout
             // tag::create-index-request-masterTimeout
-            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::create-index-request-masterTimeout
             // tag::create-index-request-waitForActiveShards
             request.waitForActiveShards(ActiveShardCount.from(2)); // <1>
@@ -526,7 +526,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             // end::put-mapping-request-timeout
 
             // tag::put-mapping-request-masterTimeout
-            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::put-mapping-request-masterTimeout
 
             // tag::put-mapping-execute
@@ -597,7 +597,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             // end::get-mappings-request
 
             // tag::get-mappings-request-masterTimeout
-            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::get-mappings-request-masterTimeout
 
             // tag::get-mappings-request-indicesOptions
@@ -1374,7 +1374,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
             // end::close-index-request-timeout
             // tag::close-index-request-masterTimeout
-            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::close-index-request-masterTimeout
 
             // tag::close-index-request-indicesOptions
@@ -1815,7 +1815,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
         // end::rollover-index-request-timeout
         // tag::rollover-index-request-masterTimeout
-        request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
         // end::rollover-index-request-masterTimeout
         // tag::rollover-index-request-dryRun
         request.dryRun(true); // <1>
@@ -2231,8 +2231,8 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::get-templates-request
 
         // tag::get-templates-request-masterTimeout
-        request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.setMasterNodeTimeout("1m"); // <2>
+        request.setClusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.setClusterManagerNodeTimeout("1m"); // <2>
         // end::get-templates-request-masterTimeout
 
         // tag::get-templates-execute
@@ -2291,8 +2291,8 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::get-index-templates-v2-request
 
         // tag::get-index-templates-v2-request-masterTimeout
-        request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.setMasterNodeTimeout("1m"); // <2>
+        request.setClusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.setClusterManagerNodeTimeout("1m"); // <2>
         // end::get-index-templates-v2-request-masterTimeout
 
         // tag::get-index-templates-v2-execute
@@ -2450,7 +2450,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             // end::put-index-template-v2-request-create
 
             // tag::put-index-template-v2-request-masterTimeout
-            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::put-index-template-v2-request-masterTimeout
 
             request.create(false); // make test happy
@@ -2511,7 +2511,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::delete-index-template-v2-request
 
         // tag::delete-index-template-v2-request-masterTimeout
-        deleteRequest.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        deleteRequest.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
         // end::delete-index-template-v2-request-masterTimeout
 
         // tag::delete-index-template-v2-execute
@@ -2644,8 +2644,8 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
             // tag::templates-exist-request-optionals
             request.setLocal(true); // <1>
-            request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <2>
-            request.setMasterNodeTimeout("1m"); // <3>
+            request.setClusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <2>
+            request.setClusterManagerNodeTimeout("1m"); // <3>
             // end::templates-exist-request-optionals
 
             // tag::templates-exist-execute
@@ -2973,7 +2973,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
             // end::delete-alias-request-timeout
             // tag::delete-alias-request-masterTimeout
-            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::delete-alias-request-masterTimeout
 
             // tag::delete-alias-execute

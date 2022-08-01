@@ -102,7 +102,7 @@ public class TransportDeleteComposableIndexTemplateAction extends TransportClust
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteComposableIndexTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

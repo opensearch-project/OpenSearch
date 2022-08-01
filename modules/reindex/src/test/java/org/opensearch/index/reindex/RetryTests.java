@@ -123,7 +123,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
              */
             NodeInfo clusterManagerNode = null;
             for (NodeInfo candidate : client.admin().cluster().prepareNodesInfo().get().getNodes()) {
-                if (candidate.getNode().isMasterNode()) {
+                if (candidate.getNode().isClusterManagerNode()) {
                     clusterManagerNode = candidate;
                 }
             }
@@ -206,7 +206,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
 
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
+        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().clusterManagerClient());
         // Make sure we use more than one batch so we have to scroll
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 

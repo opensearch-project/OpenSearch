@@ -462,7 +462,7 @@ public class PublicationTests extends OpenSearchTestCase {
 
         List<DiscoveryNode> publicationTargets = new ArrayList<>(publication.pendingPublications.keySet());
         List<DiscoveryNode> sortedPublicationTargets = new ArrayList<>(publicationTargets);
-        Collections.sort(sortedPublicationTargets, Comparator.comparing(n -> n.isMasterNode() == false));
+        Collections.sort(sortedPublicationTargets, Comparator.comparing(n -> n.isClusterManagerNode() == false));
         assertEquals(sortedPublicationTargets, publicationTargets);
     }
 

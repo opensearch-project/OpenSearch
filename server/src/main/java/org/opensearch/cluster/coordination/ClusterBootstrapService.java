@@ -134,7 +134,7 @@ public class ClusterBootstrapService {
                         + "]"
                 );
             }
-            if (DiscoveryNode.isMasterNode(settings) == false) {
+            if (DiscoveryNode.isClusterManagerNode(settings) == false) {
                 throw new IllegalArgumentException(
                     "node with ["
                         + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()
@@ -176,7 +176,7 @@ public class ClusterBootstrapService {
     void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (bootstrappingPermitted.get()
-            && transportService.getLocalNode().isMasterNode()
+            && transportService.getLocalNode().isClusterManagerNode()
             && bootstrapRequirements.isEmpty() == false
             && isBootstrappedSupplier.getAsBoolean() == false
             && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
@@ -219,7 +219,7 @@ public class ClusterBootstrapService {
             return;
         }
 
-        if (transportService.getLocalNode().isMasterNode() == false) {
+        if (transportService.getLocalNode().isClusterManagerNode() == false) {
             return;
         }
 
@@ -257,7 +257,7 @@ public class ClusterBootstrapService {
     }
 
     private void startBootstrap(Set<DiscoveryNode> discoveryNodes, List<String> unsatisfiedRequirements) {
-        assert discoveryNodes.stream().allMatch(DiscoveryNode::isMasterNode) : discoveryNodes;
+        assert discoveryNodes.stream().allMatch(DiscoveryNode::isClusterManagerNode) : discoveryNodes;
         assert discoveryNodes.stream().noneMatch(Coordinator::isZen1Node) : discoveryNodes;
         assert unsatisfiedRequirements.size() < discoveryNodes.size() : discoveryNodes + " smaller than " + unsatisfiedRequirements;
         if (bootstrappingPermitted.compareAndSet(true, false)) {
@@ -277,7 +277,7 @@ public class ClusterBootstrapService {
     }
 
     private void doBootstrap(VotingConfiguration votingConfiguration) {
-        assert transportService.getLocalNode().isMasterNode();
+        assert transportService.getLocalNode().isClusterManagerNode();
 
         try {
             votingConfigurationConsumer.accept(votingConfiguration);

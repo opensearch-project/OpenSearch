@@ -71,6 +71,7 @@ import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -100,6 +101,17 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
             assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : docs + moreDocs));
             shards.assertAllEqual(docs + moreDocs);
+        }
+    }
+
+    public void testWithSegmentReplication_ReplicaUsesPrimaryTranslogUUID() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        try (ReplicationGroup shards = createGroup(2, settings)) {
+            shards.startAll();
+            final String expectedUUID = getTranslog(shards.getPrimary()).getTranslogUUID();
+            assertTrue(
+                shards.getReplicas().stream().allMatch(indexShard -> getTranslog(indexShard).getTranslogUUID().equals(expectedUUID))
+            );
         }
     }
 

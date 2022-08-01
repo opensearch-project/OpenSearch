@@ -1916,7 +1916,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 
         logger.info("--> removing primary shard that is being snapshotted");
-        ClusterState clusterState = internalCluster().clusterService(internalCluster().getMasterName()).state();
+        ClusterState clusterState = internalCluster().clusterService(internalCluster().getClusterManagerName()).state();
         IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
         String nodeWithPrimary = clusterState.nodes().get(indexRoutingTable.shard(0).primaryShard().currentNodeId()).getName();
         assertNotNull("should be at least one node with a primary shard", nodeWithPrimary);
@@ -2368,7 +2368,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "mock", repoPath);
-        final MockRepository repository = (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
+        final MockRepository repository = (MockRepository) internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class)
             .repository(repoName);
         repository.setFailOnIndexLatest(true);
         createFullSnapshot(repoName, "snapshot-1");

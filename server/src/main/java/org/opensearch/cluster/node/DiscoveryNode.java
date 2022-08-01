@@ -74,7 +74,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
-        if (localStorageEnable == false && (isDataNode(settings) || isMasterNode(settings))) {
+        if (localStorageEnable == false && (isDataNode(settings) || isClusterManagerNode(settings))) {
             // TODO: make this a proper setting validation logic, requiring multi-settings validation
             throw new IllegalArgumentException("storage can not be disabled for cluster-manager and data nodes");
         }
@@ -96,8 +96,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
     }
 
-    public static boolean isMasterNode(Settings settings) {
+    public static boolean isClusterManagerNode(Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) || hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode(Settings)} */
+    @Deprecated
+    public static boolean isMasterNode(Settings settings) {
+        return isClusterManagerNode(settings);
     }
 
     /**
@@ -462,8 +468,18 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Can this node become cluster-manager or not.
      */
-    public boolean isMasterNode() {
+    public boolean isClusterManagerNode() {
         return roles.contains(DiscoveryNodeRole.MASTER_ROLE) || roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
+    }
+
+    /**
+     * Can this node become cluster-manager or not.
+     *
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode()}
+     */
+    @Deprecated
+    public boolean isMasterNode() {
+        return isClusterManagerNode();
     }
 
     /**

@@ -135,7 +135,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * to eagerly. As consequence, some of the methods in this class are not allowed to be called while a handoff is in progress,
      * in particular {@link #markAllocationIdAsInSync}.
      *
-     * A notable exception to this is the method {@link #updateFromMaster}, which is still allowed to be called during a relocation handoff.
+     * A notable exception to this is the method {@link #updateFromClusterManager}, which is still allowed to be called during a relocation handoff.
      * The reason for this is that the handoff might fail and can be aborted (using {@link #abortRelocationHandoff}), in which case
      * it is important that the global checkpoint tracker does not miss any state updates that might happened during the handoff attempt.
      * This means, however, that the global checkpoint can still advance after the primary relocation handoff has been initiated, but only
@@ -1176,7 +1176,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
      * @param routingTable                the shard routing table
      */
-    public synchronized void updateFromMaster(
+    public synchronized void updateFromClusterManager(
         final long applyingClusterStateVersion,
         final Set<String> inSyncAllocationIds,
         final IndexShardRoutingTable routingTable
@@ -1237,6 +1237,22 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
         }
         assert invariant();
+    }
+
+    /**
+     * Notifies the tracker of the current allocation IDs in the cluster state.
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the cluster-manager
+     * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
+     * @param routingTable                the shard routing table
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateFromClusterManager(long, Set, IndexShardRoutingTable)}
+     */
+    @Deprecated
+    public synchronized void updateFromMaster(
+        final long applyingClusterStateVersion,
+        final Set<String> inSyncAllocationIds,
+        final IndexShardRoutingTable routingTable
+    ) {
+        updateFromClusterManager(applyingClusterStateVersion, inSyncAllocationIds, routingTable);
     }
 
     /**
@@ -1558,7 +1574,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
         });
         final IndexShardRoutingTable lastAppliedRoutingTable = routingTable;
-        return () -> updateFromMaster(lastAppliedClusterStateVersion, inSyncAllocationIds, lastAppliedRoutingTable);
+        return () -> updateFromClusterManager(lastAppliedClusterStateVersion, inSyncAllocationIds, lastAppliedRoutingTable);
     }
 
     /**

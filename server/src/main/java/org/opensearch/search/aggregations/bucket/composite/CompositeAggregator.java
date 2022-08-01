@@ -196,7 +196,7 @@ final class CompositeAggregator extends BucketsAggregator {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = subAggsForBuckets[slot];
-            int docCount = queue.getDocCount(slot);
+            long docCount = queue.getDocCount(slot);
             buckets[queue.size()] = new InternalComposite.InternalBucket(
                 sourceNames,
                 formats,
@@ -504,7 +504,8 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 try {
-                    if (queue.addIfCompetitive(indexSortPrefix)) {
+                    long docCount = docCountProvider.getDocCount(doc);
+                    if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
                         if (builder != null && lastDoc != doc) {
                             builder.add(doc);
                             lastDoc = doc;

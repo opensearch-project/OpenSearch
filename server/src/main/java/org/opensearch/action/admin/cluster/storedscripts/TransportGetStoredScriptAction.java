@@ -89,8 +89,11 @@ public class TransportGetStoredScriptAction extends TransportClusterManagerNodeR
     }
 
     @Override
-    protected void masterOperation(GetStoredScriptRequest request, ClusterState state, ActionListener<GetStoredScriptResponse> listener)
-        throws Exception {
+    protected void clusterManagerOperation(
+        GetStoredScriptRequest request,
+        ClusterState state,
+        ActionListener<GetStoredScriptResponse> listener
+    ) throws Exception {
         listener.onResponse(new GetStoredScriptResponse(request.id(), scriptService.getStoredScript(state, request)));
     }
 

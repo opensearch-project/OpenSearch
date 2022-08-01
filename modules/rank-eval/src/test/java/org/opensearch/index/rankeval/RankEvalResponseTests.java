@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankEvalResponseTests extends OpenSearchTestCase {
 
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
-        new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES)),
+        new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES)),
         new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
         new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98)),
         new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),
