@@ -73,8 +73,8 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
 
         final DecommissionedAttributeMetadata newDecommissionedAttributeMetadata = new DecommissionedAttributeMetadata(
             request.getName(),
-            request.getDecommissionAttribute().key(),
-            request.getDecommissionAttribute().values()
+            request.getDecommissionAttribute().attributeName(),
+            request.getDecommissionAttribute().attributeValues()
         );
 
         // TODO - add validator on decommission attribute - to check if its a valid attribute
@@ -108,7 +108,7 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
                         // TODO - get attribute details from request
                         logger.info("decommission request for attribute name [{}] and attribute value [{}]", request.getName(), request.getDecommissionAttribute().toString());
                         decommissionedAttributes = new DecommissionedAttributesMetadata(
-                            Collections.singletonList(new DecommissionedAttributeMetadata(request.getName(), request.getDecommissionAttribute().key(), request.getDecommissionAttribute().values()))
+                            Collections.singletonList(new DecommissionedAttributeMetadata(request.getName(), request.getDecommissionAttribute().attributeName(), request.getDecommissionAttribute().attributeValues()))
                         );
                     } else {
                         boolean found = false;
@@ -133,8 +133,8 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
                             decommissionedAttributesMetadata.add(
                                 new DecommissionedAttributeMetadata(
                                     request.getName(),
-                                    request.getDecommissionAttribute().key(),
-                                    request.getDecommissionAttribute().values()
+                                    request.getDecommissionAttribute().attributeName(),
+                                    request.getDecommissionAttribute().attributeValues()
                                 )
                             );
                         } else {
@@ -198,10 +198,10 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
         DecommissionedAttributesMetadata decommissionedAttributes = updatedState.metadata().custom(DecommissionedAttributesMetadata.TYPE);
         DecommissionedAttributeMetadata metadata = decommissionedAttributes.decommissionedAttribute("awareness");
         assert metadata != null : "No nodes to decommission";
-        DecommissionedAttribute decommissionedAttribute = metadata.decommissionedAttribute();
+        DecommissionAttribute decommissionAttribute = metadata.decommissionedAttribute();
         for (DiscoveryNode discoveryNode : discoveryNodes) {
-            for (String zone : decommissionedAttribute.values()) {
-                if (zone.equals(discoveryNode.getAttributes().get(decommissionedAttribute.key()))) {
+            for (String zone : decommissionAttribute.attributeValues()) {
+                if (zone.equals(discoveryNode.getAttributes().get(decommissionAttribute.attributeName()))) {
                     removeDecommissionedNodes(discoveryNode);
                 }
             }

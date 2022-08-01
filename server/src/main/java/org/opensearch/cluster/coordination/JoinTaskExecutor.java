@@ -39,7 +39,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.decommission.DecommissionedAttribute;
 import org.opensearch.cluster.metadata.DecommissionedAttributeMetadata;
 import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -474,8 +473,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         if (decommissionedAttributesMetadata == null) return;
         DecommissionedAttributeMetadata decommissionedAttribute = decommissionedAttributesMetadata.decommissionedAttribute("awareness");
         if(decommissionedAttribute == null) return;
-        for(String decommissionedZone: decommissionedAttribute.decommissionedAttribute().values()){
-            if (node.getAttributes().get(decommissionedAttribute.decommissionedAttribute().key()).equals(decommissionedZone)) {
+        for(String decommissionedZone: decommissionedAttribute.decommissionedAttribute().attributeValues()){
+            if (node.getAttributes().get(decommissionedAttribute.decommissionedAttribute().attributeName()).equals(decommissionedZone)) {
                 throw new NodeDecommissionedException(
                     "node is decommissioned"
                 );

@@ -14,22 +14,18 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
-import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.opensearch.cluster.coordination.NodeDecommissionedException;
 import org.opensearch.cluster.decommission.DecommissionService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -88,8 +84,8 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
 
         boolean currentMasterDecommission = false;
         DiscoveryNode masterNode = clusterService.state().getNodes().getMasterNode();
-        for (String decommissionedZone : request.getDecommissionAttribute().values()) {
-            if (masterNode.getAttributes().get(request.getDecommissionAttribute().key()).equals(decommissionedZone)) {
+        for (String decommissionedZone : request.getDecommissionAttribute().attributeValues()) {
+            if (masterNode.getAttributes().get(request.getDecommissionAttribute().attributeName()).equals(decommissionedZone)) {
                 currentMasterDecommission = true;
             }
         }

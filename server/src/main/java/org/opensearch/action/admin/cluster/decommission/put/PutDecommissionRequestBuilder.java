@@ -10,7 +10,7 @@ package org.opensearch.action.admin.cluster.decommission.put;
 
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.cluster.decommission.DecommissionedAttribute;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
 
 /**
  * Builder for a decommission request
@@ -36,11 +36,11 @@ public class PutDecommissionRequestBuilder extends AcknowledgedRequestBuilder<
     }
 
     /**
-     * @param decommissionedAttribute decommission attribute
+     * @param decommissionAttribute decommission attribute
      * @return current object
      */
-    public PutDecommissionRequestBuilder setDecommissionedAttribute(DecommissionedAttribute decommissionedAttribute) {
-        request.setDecommissionAttribute(decommissionedAttribute);
+    public PutDecommissionRequestBuilder setDecommissionedAttribute(DecommissionAttribute decommissionAttribute) {
+        request.setDecommissionAttribute(decommissionAttribute);
         return this;
     }
 }

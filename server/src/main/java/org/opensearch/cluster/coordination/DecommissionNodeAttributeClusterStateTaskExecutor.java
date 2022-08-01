@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -42,27 +43,19 @@ public class DecommissionNodeAttributeClusterStateTaskExecutor implements
      */
     public static class Task {
 
-        // TODO - can be changed to use the same Decommissioned Attribute POJO
-        private final String decommissionedAwarenessAttribute;
-        private final String decommissionedAwarenessAttributeValue;
+        private final DecommissionAttribute decommissionAttribute;
         private final String reason;
 
         public Task(
-            final String decommissionedAwarenessAttribute,
-            final String decommissionedAwarenessAttributeValue,
+            final DecommissionAttribute decommissionAttribute,
             final String reason
         ) {
-            this.decommissionedAwarenessAttribute = decommissionedAwarenessAttribute;
-            this.decommissionedAwarenessAttributeValue = decommissionedAwarenessAttributeValue;
+            this.decommissionAttribute = decommissionAttribute;
             this.reason = reason;
         }
 
-        public String getDecommissionedAwarenessAttribute() {
-            return decommissionedAwarenessAttribute;
-        }
-
-        public String getDecommissionedAwarenessAttributeValue() {
-            return decommissionedAwarenessAttributeValue;
+        public DecommissionAttribute decommissionAttribute() {
+            return decommissionAttribute;
         }
 
         public String reason() {
@@ -71,9 +64,8 @@ public class DecommissionNodeAttributeClusterStateTaskExecutor implements
 
         @Override
         public String toString() {
-            return "Awareness Attribute Removal Task{" +
-                "awarenessAttribute='" + decommissionedAwarenessAttribute + '\'' +
-                ", awarenessAttributeValue='" + decommissionedAwarenessAttributeValue + '\'' +
+            return "Decommission Node Attribute Task{" +
+                "decommissionAttribute=" + decommissionAttribute +
                 ", reason='" + reason + '\'' +
                 '}';
         }
@@ -113,7 +105,9 @@ public class DecommissionNodeAttributeClusterStateTaskExecutor implements
 
     private boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, Task task) {
         // TODO - Validation for key present
-        return discoveryNode.getAttributes().get(task.getDecommissionedAwarenessAttribute()).equals(task.decommissionedAwarenessAttributeValue);
+        return task.decommissionAttribute().attributeValues().contains(
+            discoveryNode.getAttributes().get(task.decommissionAttribute().attributeName())
+        );
     }
 
     // visible for testing
@@ -141,7 +135,7 @@ public class DecommissionNodeAttributeClusterStateTaskExecutor implements
     }
 
     @Override
-    public void onNoLongerMaster(String source) {
+    public void onNoLongerClusterManager(String source) {
         logger.debug("no longer cluster-manager while processing node removal [{}]", source);
     }
 }

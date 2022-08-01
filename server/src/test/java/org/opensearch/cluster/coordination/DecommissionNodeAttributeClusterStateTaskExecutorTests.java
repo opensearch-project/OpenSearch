@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,7 +38,7 @@ import static org.mockito.Mockito.when;
 
 public class DecommissionNodeAttributeClusterStateTaskExecutorTests extends OpenSearchTestCase {
 
-    public void testRemoveNodesForDecommissionedAttribute() throws Exception{
+    public void testRemoveNodesForDecommissionedAttribute() throws Exception {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.disassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class))).thenAnswer(
             im -> im.getArguments()[0]
@@ -45,13 +47,13 @@ public class DecommissionNodeAttributeClusterStateTaskExecutorTests extends Open
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
 
         logger.info("--> adding five nodes on same zone_1");
-        clusterState = addNodes(clusterState, allocationService, "zone_1", "node1", "node2", "node3", "node4", "node5");
+        clusterState = addNodes(clusterState, "zone_1", "node1", "node2", "node3", "node4", "node5");
 
         logger.info("--> adding five nodes on same zone_2");
-        clusterState = addNodes(clusterState, allocationService, "zone_2", "node6", "node7", "node8", "node9", "node10");
+        clusterState = addNodes(clusterState, "zone_2", "node6", "node7", "node8", "node9", "node10");
 
         logger.info("--> adding five nodes on same zone_3");
-        clusterState = addNodes(clusterState, allocationService, "zone_3", "node11", "node12", "node13", "node14", "node15");
+        clusterState = addNodes(clusterState, "zone_3", "node11", "node12", "node13", "node14", "node15");
 
         final DecommissionNodeAttributeClusterStateTaskExecutor executor = new DecommissionNodeAttributeClusterStateTaskExecutor(allocationService, logger) {
             @Override
@@ -63,23 +65,42 @@ public class DecommissionNodeAttributeClusterStateTaskExecutorTests extends Open
 
         final List<DecommissionNodeAttributeClusterStateTaskExecutor.Task> tasks = new ArrayList<>();
         tasks.add(new DecommissionNodeAttributeClusterStateTaskExecutor.Task(
-            "zone",
-            "zone_3",
-            "decommissioned")
+            new DecommissionAttribute("zone", Collections.singletonList("zone_3")),
+            "unit test zone decommission executor")
         );
 
         final ClusterStateTaskExecutor.ClusterTasksResult<DecommissionNodeAttributeClusterStateTaskExecutor.Task> result = executor.execute(
             clusterState,
             tasks
         );
-        verify(allocationService).disassociateDeadNodes(eq(remainingNodesClusterState.get()), eq(true), any(String.class));
+
+        ClusterState expectedClusterState = remainingNodesClusterState.get();
+        ClusterState actualClusterState = result.resultingState;
+
+        // Assert cluster state is updated and is successful
+        verify(allocationService).disassociateDeadNodes(eq(expectedClusterState), eq(true), any(String.class));
+        assertEquals(actualClusterState, expectedClusterState);
+        assertTrue(result.executionResults.get(tasks.get(0)).isSuccess());
+
+        // Verify only 10 nodes present in the cluster after decommissioning
+        assertEquals(actualClusterState.nodes().getNodes().size(), 10);
+
+        // Verify no nodes has attribute (zone, zone_3)
+        Iterator<DiscoveryNode> currDiscoveryNodeIterator = actualClusterState.nodes().getNodes().valuesIt();
+        while (currDiscoveryNodeIterator.hasNext()) {
+            final DiscoveryNode node = currDiscoveryNodeIterator.next();
+            assertNotEquals(node.getAttributes().get("zone"), "zone_3");
+        }
     }
 
-    private ClusterState addNodes(ClusterState clusterState, AllocationService allocationService, String zone, String... nodeIds) {
+    // Test when attribute value is not presrnt in any node
+    // Test when attribute name is not present in any node
+
+    private ClusterState addNodes(ClusterState clusterState, String zone, String... nodeIds) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
         org.opensearch.common.collect.List.of(nodeIds).forEach(nodeId -> nodeBuilder.add(newNode(nodeId, singletonMap("zone", zone))));
         clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
-        return allocationService.reroute(clusterState, "reroute");
+        return clusterState;
     }
 
     private DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {

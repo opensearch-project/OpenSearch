@@ -12,7 +12,7 @@ import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.cluster.decommission.DecommissionedAttribute;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -32,21 +32,21 @@ import java.util.Map;
 public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionRequest> {
 
     private String name;
-    private DecommissionedAttribute decommissionedAttribute;
+    private DecommissionAttribute decommissionAttribute;
     // TODO - What all request params needed? dry_run, timeout, master_timeout, retry_failed?
 
     public PutDecommissionRequest() {
     }
 
-    public PutDecommissionRequest(String name, DecommissionedAttribute decommissionedAttribute) {
+    public PutDecommissionRequest(String name, DecommissionAttribute decommissionAttribute) {
         this.name = name;
-        this.decommissionedAttribute = decommissionedAttribute;
+        this.decommissionAttribute = decommissionAttribute;
     }
 
     public PutDecommissionRequest(StreamInput in) throws IOException {
         super(in);
         name = in.readString();
-        decommissionedAttribute = new DecommissionedAttribute(in);
+        decommissionAttribute = new DecommissionAttribute(in);
     }
 
     /**
@@ -70,11 +70,11 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
     /**
      * Sets decommission attribute for decommission request
      *
-     * @param decommissionedAttribute values that needs to be decommissioned
+     * @param decommissionAttribute values that needs to be decommissioned
      * @return the current object
      */
-    public PutDecommissionRequest setDecommissionAttribute(DecommissionedAttribute decommissionedAttribute) {
-        this.decommissionedAttribute = decommissionedAttribute;
+    public PutDecommissionRequest setDecommissionAttribute(DecommissionAttribute decommissionAttribute) {
+        this.decommissionAttribute = decommissionAttribute;
         return this;
     }
 
@@ -116,7 +116,7 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
                             }
                         }
                     } else throw new OpenSearchParseException("failed to parse attribute [{}], unknown type", fieldName);
-                    decommissionedAttribute = new DecommissionedAttribute(fieldName, values);
+                    decommissionAttribute = new DecommissionAttribute(fieldName, values);
                 }
             }
             return this;
@@ -128,8 +128,8 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
     /**
      * @return Returns the decommission attribute values
      */
-    public DecommissionedAttribute getDecommissionAttribute() {
-        return this.decommissionedAttribute;
+    public DecommissionAttribute getDecommissionAttribute() {
+        return this.decommissionAttribute;
     }
 
     @SuppressWarnings("unchecked")
@@ -137,7 +137,7 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             setName(entry.getKey());
             if (!(entry.getValue() instanceof Map)) {
-                throw new OpenSearchParseException("key [decommissionedAttribute] must be an object");
+                throw new OpenSearchParseException("key [decommissionAttribute] must be an object");
             }
             setDecommissionAttribute((Map<String, Object>) entry.getValue());
         }
@@ -154,14 +154,14 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
-        decommissionedAttribute.writeTo(out);
+        decommissionAttribute.writeTo(out);
     }
 
     @Override
     public String toString() {
         return "PutDecommissionRequest{" +
             "name='" + name + '\'' +
-            ", decommissionedAttribute=" + decommissionedAttribute +
+            ", decommissionAttribute=" + decommissionAttribute +
             '}';
     }
 }
