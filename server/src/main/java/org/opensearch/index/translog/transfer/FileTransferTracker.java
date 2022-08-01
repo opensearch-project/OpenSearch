@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class FileTransferTracker implements FileTransferListener {
 
-    private final Map<FileInfo, TransferState> fileTransferTracker;
+    private final Map<String, TransferState> fileTransferTracker;
 
     public FileTransferTracker() {
         this.fileTransferTracker = new ConcurrentHashMap<>();
@@ -26,7 +26,7 @@ public class FileTransferTracker implements FileTransferListener {
     @Override
     public void onSuccess(FileInfo fileInfo) {
         TransferState targetState = TransferState.SUCCESS;
-        fileTransferTracker.compute(fileInfo, (k, v) -> {
+        fileTransferTracker.compute(fileInfo.getName(), (k, v) -> {
             if (v == null || v.validateNextState(targetState)) {
                 return targetState;
             }
@@ -37,7 +37,7 @@ public class FileTransferTracker implements FileTransferListener {
     @Override
     public void onFailure(FileInfo fileInfo, Exception e) {
         TransferState targetState = TransferState.FAILED;
-        fileTransferTracker.compute(fileInfo, (k, v) -> {
+        fileTransferTracker.compute(fileInfo.getName(), (k, v) -> {
             if (v == null || v.validateNextState(targetState)) {
                 return targetState;
             }
