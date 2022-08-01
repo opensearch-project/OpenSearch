@@ -33,6 +33,7 @@
 package org.opensearch.indices;
 
 import org.opensearch.Version;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
@@ -98,6 +99,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         NestedPathFieldMapper.NAME,
         VersionFieldMapper.NAME,
         SeqNoFieldMapper.NAME,
+        DocCountFieldMapper.NAME,
         FieldNamesFieldMapper.NAME };
 
     public void testBuiltinMappers() {
