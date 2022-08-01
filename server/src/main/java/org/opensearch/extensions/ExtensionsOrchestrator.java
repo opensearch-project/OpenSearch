@@ -303,6 +303,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 logger.error(e.toString());
             }
         }
+
+        // TODO : Invoke during the consolidation of named writeables within Node.java and return extension entries these
+        // (https://github.com/opensearch-project/OpenSearch/issues/4067)
     }
 
     /**
