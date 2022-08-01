@@ -32,7 +32,10 @@ public class GetAllPitNodeResponse extends BaseNodeResponse implements ToXConten
 
     public GetAllPitNodeResponse(DiscoveryNode node, List<ListPitInfo> pitsInfo) {
         super(node);
-        this.pitsInfo = pitsInfo;
+        if (pitsInfo == null) {
+            throw new IllegalArgumentException("Pits info cannot be null");
+        }
+        this.pitsInfo = Collections.unmodifiableList(pitsInfo);
     }
 
     public GetAllPitNodeResponse(StreamInput in) throws IOException {

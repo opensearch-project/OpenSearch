@@ -33,7 +33,7 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     /**
      * List of unique PITs across all nodes
      */
-    private final List<ListPitInfo> pitsInfo = new ArrayList<>();
+    private final Set<ListPitInfo> pitsInfo = new HashSet<>();
 
     @Inject
     public GetAllPitNodesResponse(StreamInput in) throws IOException {
@@ -77,6 +77,6 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     }
 
     public List<ListPitInfo> getPITIDs() {
-        return Collections.unmodifiableList(pitsInfo);
+        return Collections.unmodifiableList(new ArrayList<>(pitsInfo));
     }
 }

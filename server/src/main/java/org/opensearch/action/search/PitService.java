@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -145,7 +144,7 @@ public class PitService {
      * Get all active point in time contexts
      */
     public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
-        final List<DiscoveryNode> nodes = new LinkedList<>();
+        final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : clusterService.state().nodes().getDataNodes().values()) {
             DiscoveryNode node = cursor.value;
             nodes.add(node);
