@@ -126,10 +126,6 @@ import org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilters;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
-import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.global.InternalGlobal;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -629,22 +625,6 @@ public class SearchModule {
             builder
         );
         registerAggregation(
-            new AggregationSpec(
-                GeoHashGridAggregationBuilder.NAME,
-                GeoHashGridAggregationBuilder::new,
-                GeoHashGridAggregationBuilder.PARSER
-            ).addResultReader(InternalGeoHashGrid::new).setAggregatorRegistrar(GeoHashGridAggregationBuilder::registerAggregators),
-            builder
-        );
-        registerAggregation(
-            new AggregationSpec(
-                GeoTileGridAggregationBuilder.NAME,
-                GeoTileGridAggregationBuilder::new,
-                GeoTileGridAggregationBuilder.PARSER
-            ).addResultReader(InternalGeoTileGrid::new).setAggregatorRegistrar(GeoTileGridAggregationBuilder::registerAggregators),
-            builder
-        );
-        registerAggregation(
             new AggregationSpec(NestedAggregationBuilder.NAME, NestedAggregationBuilder::new, NestedAggregationBuilder::parse)
                 .addResultReader(InternalNested::new),
             builder
@@ -681,7 +661,7 @@ public class SearchModule {
         registerAggregation(
             new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder.PARSER)
                 .addResultReader(InternalComposite::new)
-                .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators),
+                .setAggregatorRegistrar(reg -> CompositeAggregationBuilder.registerAggregators(reg, plugins)),
             builder
         );
         registerAggregation(

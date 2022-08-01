@@ -48,8 +48,6 @@ import org.opensearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatr
 import org.opensearch.search.aggregations.bucket.composite.InternalCompositeTests;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.opensearch.search.aggregations.bucket.filter.InternalFiltersTests;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridTests;
 import org.opensearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.opensearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
@@ -157,8 +155,6 @@ public class AggregationsTests extends OpenSearchTestCase {
         aggsTests.add(new InternalGlobalTests());
         aggsTests.add(new InternalFilterTests());
         aggsTests.add(new InternalSamplerTests());
-        aggsTests.add(new GeoHashGridTests());
-        aggsTests.add(new GeoTileGridTests());
         aggsTests.add(new InternalRangeTests());
         aggsTests.add(new InternalDateRangeTests());
         aggsTests.add(new InternalGeoDistanceTests());

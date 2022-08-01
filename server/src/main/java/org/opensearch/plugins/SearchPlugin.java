@@ -55,6 +55,9 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.opensearch.search.aggregations.bucket.composite.CompositeAggregationParsingFunction;
+import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.pipeline.MovAvgModel;
@@ -169,6 +172,15 @@ public interface SearchPlugin {
      * @return A list of the new registrar functions
      */
     default List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
+        return emptyList();
+    }
+
+    /**
+     * Allows plugins to register new Aggregation in the {@link CompositeAggregation}.
+     *
+     * @return A {@link List} of {@link CompositeAggregationSpec}
+     */
+    default List<CompositeAggregationSpec> getCompositeAggregations() {
         return emptyList();
     }
 
@@ -529,6 +541,76 @@ public interface SearchPlugin {
         public AggregationSpec setAggregatorRegistrar(Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar) {
             this.aggregatorRegistrar = aggregatorRegistrar;
             return this;
+        }
+    }
+
+    /**
+     * Specification for including an aggregation as a part of Composite Aggregation.
+     */
+    class CompositeAggregationSpec {
+        private final Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar;
+        private final Class<?> valueSourceBuilderClass;
+        @Deprecated
+        /** This is added for backward compatibility, you don't need to set it, as we use aggregationType instead of
+         * byte code
+         */
+        private Byte byteCode;
+        private final CompositeAggregationParsingFunction parsingFunction;
+        private final String aggregationType;
+        private final Writeable.Reader<? extends CompositeValuesSourceBuilder<?>> reader;
+
+        /**
+         * Specification for registering an aggregation in Composite Aggregation
+         *
+         * @param aggregatorRegistrar function to register the
+         * {@link org.opensearch.search.aggregations.support.ValuesSource} to aggregator mappings for Composite
+         *                            aggregation
+         * @param valueSourceBuilderClass ValueSourceBuilder class name which is building the aggregation
+         * @param byteCode byte code which is used in serialisation and de-serialisation to indentify which
+         *                 aggregation builder to use
+         * @param reader Typically, a reference to a constructor that takes a {@link StreamInput}, which is
+         *               registered with the aggregation
+         * @param parsingFunction a reference function which will be used to parse the Aggregation input.
+         * @param aggregationType a {@link String} defined in the AggregationBuilder as type.
+         */
+        public CompositeAggregationSpec(
+            final Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar,
+            final Class<? extends CompositeValuesSourceBuilder<?>> valueSourceBuilderClass,
+            final Byte byteCode,
+            final Writeable.Reader<? extends CompositeValuesSourceBuilder<?>> reader,
+            final CompositeAggregationParsingFunction parsingFunction,
+            final String aggregationType
+        ) {
+            this.aggregatorRegistrar = aggregatorRegistrar;
+            this.valueSourceBuilderClass = valueSourceBuilderClass;
+            this.byteCode = byteCode;
+            this.parsingFunction = parsingFunction;
+            this.aggregationType = aggregationType;
+            this.reader = reader;
+        }
+
+        public Consumer<ValuesSourceRegistry.Builder> getAggregatorRegistrar() {
+            return aggregatorRegistrar;
+        }
+
+        public Class<?> getValueSourceBuilderClass() {
+            return valueSourceBuilderClass;
+        }
+
+        public Byte getByteCode() {
+            return byteCode;
+        }
+
+        public CompositeAggregationParsingFunction getParsingFunction() {
+            return parsingFunction;
+        }
+
+        public String getAggregationType() {
+            return aggregationType;
+        }
+
+        public Writeable.Reader<? extends CompositeValuesSourceBuilder<?>> getReader() {
+            return reader;
         }
     }
 
