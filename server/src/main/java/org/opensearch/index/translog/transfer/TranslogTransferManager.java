@@ -8,12 +8,9 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.index.translog.TranslogReader;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 
 import java.io.IOException;
-import java.nio.file.Path;
-import java.util.List;
 
 public class TranslogTransferManager {
 
@@ -25,8 +22,7 @@ public class TranslogTransferManager {
         this.translogTransferListener = translogTransferListener;
     }
 
-    boolean uploadTranslog(Path path, List<TranslogReader> translogReader) throws IOException {
-        TranslogUploadSnapshot translogUploadSnapshot = new TranslogUploadSnapshot(path, translogReader);
+    boolean uploadTranslog(TranslogTransferPackager.Snapshot translogTransferSnapshot) throws IOException {
         return false;
     }
 }
