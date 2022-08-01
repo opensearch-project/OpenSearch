@@ -84,6 +84,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // recover a new engine from the nrtEngine's xlog.
             nrtEngine.syncTranslog();
             try (InternalEngine engine = new InternalEngine(nrtEngine.config())) {
+                TranslogHandler translogHandler = createTranslogHandler(nrtEngine.config().getIndexSettings(), engine);
                 engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                 assertEquals(getDocIds(engine, true), docs);
             }
