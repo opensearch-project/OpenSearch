@@ -34,7 +34,9 @@ package org.opensearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.xcontent.ToXContent;
@@ -47,7 +49,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -80,9 +81,7 @@ public class Task {
 
     private final Map<Long, List<ThreadResourceInfo>> resourceStats;
 
-    private final List<TaskResourceTrackingListener> resourceTrackingListeners;
-
-    private final AtomicBoolean isResourceTrackingCompleted = new AtomicBoolean(false);
+    private final List<NotifyOnceListener<Task>> resourceTrackingCompletionListeners;
 
     /**
      * Keeps track of the number of active resource tracking threads for this task. It is initialized to 1 to track
@@ -112,7 +111,7 @@ public class Task {
             System.nanoTime(),
             headers,
             new ConcurrentHashMap<>(),
-            Collections.synchronizedList(new ArrayList<>())
+            new ArrayList<>()
         );
     }
 
@@ -126,7 +125,7 @@ public class Task {
         long startTimeNanos,
         Map<String, String> headers,
         ConcurrentHashMap<Long, List<ThreadResourceInfo>> resourceStats,
-        List<TaskResourceTrackingListener> resourceTrackingListeners
+        List<NotifyOnceListener<Task>> resourceTrackingCompletionListeners
     ) {
         this.id = id;
         this.type = type;
@@ -137,7 +136,7 @@ public class Task {
         this.startTimeNanos = startTimeNanos;
         this.headers = headers;
         this.resourceStats = resourceStats;
-        this.resourceTrackingListeners = resourceTrackingListeners;
+        this.resourceTrackingCompletionListeners = resourceTrackingCompletionListeners;
     }
 
     /**
@@ -319,13 +318,6 @@ public class Task {
         }
         threadResourceInfoList.add(new ThreadResourceInfo(threadId, statsType, resourceUsageMetrics));
         incrementResourceTrackingThreads();
-        resourceTrackingListeners.forEach(listener -> {
-            try {
-                listener.onTaskExecutionStartedOnThread(this, threadId);
-            } catch (Exception e) {
-                logger.warn("failure in listener during handling of onTaskExecutionStartedOnThread", e);
-            }
-        });
     }
 
     /**
@@ -343,13 +335,6 @@ public class Task {
                 // the active entry present in the list is updated
                 if (threadResourceInfo.getStatsType() == statsType && threadResourceInfo.isActive()) {
                     threadResourceInfo.recordResourceUsageMetrics(resourceUsageMetrics);
-                    resourceTrackingListeners.forEach(listener -> {
-                        try {
-                            listener.onTaskResourceStatsUpdated(this);
-                        } catch (Exception e) {
-                            logger.warn("failure in listener during handling of onTaskResourceStatsUpdated", e);
-                        }
-                    });
                     return;
                 }
             }
@@ -373,14 +358,6 @@ public class Task {
                     threadResourceInfo.setActive(false);
                     threadResourceInfo.recordResourceUsageMetrics(resourceUsageMetrics);
                     decrementResourceTrackingThreads();
-                    resourceTrackingListeners.forEach(listener -> {
-                        try {
-                            listener.onTaskExecutionFinishedOnThread(this, threadId);
-                        } catch (Exception e) {
-                            logger.warn("failure in listener during handling of onTaskExecutionFinishedOnThread", e);
-                        }
-                    });
-
                     return;
                 }
             }
@@ -433,10 +410,10 @@ public class Task {
     }
 
     /**
-     * Registers a TaskResourceTrackingListener callback listener on this task.
+     * Registers a task resource tracking completion listener on this task.
      */
-    public void addTaskResourceTrackingListener(TaskResourceTrackingListener listener) {
-        resourceTrackingListeners.add(listener);
+    public void addResourceTrackingCompletionListener(NotifyOnceListener<Task> listener) {
+        resourceTrackingCompletionListeners.add(listener);
     }
 
     /**
@@ -466,14 +443,20 @@ public class Task {
     public int decrementResourceTrackingThreads() {
         int count = numActiveResourceTrackingThreads.decrementAndGet();
 
-        if (count == 0 && isResourceTrackingCompleted.compareAndSet(false, true)) {
-            resourceTrackingListeners.forEach(listener -> {
+        if (count == 0) {
+            List<Exception> listenerExceptions = new ArrayList<>();
+            resourceTrackingCompletionListeners.forEach(listener -> {
                 try {
-                    listener.onTaskResourceTrackingCompleted(this);
-                } catch (Exception e) {
-                    logger.warn("failure in listener during handling of onTaskResourceTrackingCompleted", e);
+                    listener.onResponse(this);
+                } catch (Exception e1) {
+                    try {
+                        listener.onFailure(e1);
+                    } catch (Exception e2) {
+                        listenerExceptions.add(e2);
+                    }
                 }
             });
+            ExceptionsHelper.maybeThrowRuntimeAndSuppress(listenerExceptions);
         }
 
         return count;

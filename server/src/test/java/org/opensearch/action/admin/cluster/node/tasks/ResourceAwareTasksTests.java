@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.node.tasks;
 import com.sun.management.ThreadMXBean;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -28,7 +29,6 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.tasks.TaskResourceTrackingListener;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.test.tasks.MockTaskManagerListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -185,10 +185,15 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                     // operationFinishedValidator will be called just after all task threads are marked inactive and
                     // the task is unregistered.
                     if (taskTestContext.operationFinishedValidator != null) {
-                        task.addTaskResourceTrackingListener(new TaskResourceTrackingListener() {
+                        task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
                             @Override
-                            public void onTaskResourceTrackingCompleted(Task task) {
+                            protected void innerOnResponse(Task task) {
                                 taskTestContext.operationFinishedValidator.accept(task, threadId.get());
+                            }
+
+                            @Override
+                            protected void innerOnFailure(Exception e) {
+                                ExceptionsHelper.reThrowIfNotNull(e);
                             }
                         });
                     }

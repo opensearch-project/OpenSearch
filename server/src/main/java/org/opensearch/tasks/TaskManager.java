@@ -44,6 +44,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -85,7 +86,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_
  *
  * @opensearch.internal
  */
-public class TaskManager implements ClusterStateApplier, TaskResourceTrackingListener {
+public class TaskManager implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
@@ -153,11 +154,27 @@ public class TaskManager implements ClusterStateApplier, TaskResourceTrackingLis
             }
         }
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
-        task.addTaskResourceTrackingListener(this);
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+        }
+
+        if (task.supportsResourceTracking()) {
+            task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
+                @Override
+                protected void innerOnResponse(Task task) {
+                    // Stop tracking the task once the last thread has been marked inactive.
+                    if (taskResourceTrackingService.get() != null && task.supportsResourceTracking()) {
+                        taskResourceTrackingService.get().stopTracking(task);
+                    }
+                }
+
+                @Override
+                protected void innerOnFailure(Exception e) {
+                    ExceptionsHelper.reThrowIfNotNull(e);
+                }
+            });
         }
 
         if (task instanceof CancellableTask) {
@@ -698,14 +715,6 @@ public class TaskManager implements ClusterStateApplier, TaskResourceTrackingLis
         } else {
             assert false : "TaskCancellationService is not initialized";
             throw new IllegalStateException("TaskCancellationService is not initialized");
-        }
-    }
-
-    @Override
-    public void onTaskResourceTrackingCompleted(Task task) {
-        // Stop tracking the task once the last thread has been marked inactive.
-        if (taskResourceTrackingService.get() != null && task.supportsResourceTracking()) {
-            taskResourceTrackingService.get().stopTracking(task);
         }
     }
 }
