@@ -248,7 +248,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
     /**
      * Waits until the replica is caught up to the latest primary segments gen.
-     * @throws Exception
+     * @throws Exception ""
      */
     private void waitForReplicaUpdate() throws Exception {
         // wait until the replica has the latest segment generation.
