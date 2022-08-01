@@ -19,7 +19,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.IdsQueryBuilder;
@@ -88,10 +87,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
         node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
-        ImmutableOpenMap.Builder<String, DiscoveryNode> discoveryNodeMap = ImmutableOpenMap.builder();
-        discoveryNodeMap.put(node1.getId(), node1);
-        discoveryNodeMap.put(node2.getId(), node2);
-        discoveryNodeMap.put(node3.getId(), node3);
         pitId = getPitId();
         namedWriteableRegistry = new NamedWriteableRegistry(
             Arrays.asList(
