@@ -379,26 +379,42 @@ The Distribution Download plugin downloads the latest version of OpenSearch by d
 
 ### Creating fat-JAR of a module
 
-A fat-JAR (or an uber-JAR ) is the JAR, which contains classes from all the libraries, on which your project depends and, of course, the classes of current project.
+A fat-JAR (or an uber-JAR) is the JAR, which contains classes from all the libraries, on which your project depends and, of course, the classes of current project.
 
 There might be cases where the developer would like to add some custom logic to the code of a module (or multiple modules) and generate a fat-JAR that can be directly used by the dependency management tool. For example in [#3665](https://github.com/opensearch-project/OpenSearch/pull/3665) the developer wanted to provide a tentative patch as a fat-JAR to a consumer for changes made in the high level rest client. 
 
 To do so you will be using [Gradle Shadow plugin](https://imperceptiblethoughts.com/shadow/).
-Go to the `build.gradle` file of the module for which you want to create the fat-JAR.
+Add the following to the `build.gradle` file of the module for which you want to create the fat-JAR, e.g. `client/rest-high-level/build.gradle`:
 
-Add the shadow plugin:
 ```
 apply plugin: 'com.github.johnrengelman.shadow'
 ```
-After applying the plugin you should see a new gradle command `shadowJar`. Run the command using:
-```
-../../gradlew shadowJar
-```
-Note: `gradlew` is at the root of OpenSearch project directory. You will have to change the path according to the module you are trying to build the shadowJar for.
 
-This will generate a fat-JAR in the `build/distributions` folder of the module. The default name of the fat-JAR will be `opensearch-[MODULE NAME]-[VERSION].jar`. You can inspect that it contains all the requirements using a decompiler.
+Run the `shadowJar` command using:
+```
+./gradlew :client:rest-high-level:shadowJar
+```
 
-You can further customize your fat-JAR by customising the plugin, details for this can be found in the Shadow plugin [documentation](https://imperceptiblethoughts.com/shadow/).
+This will generate a fat-JAR in the `build/distributions` folder of the module, e.g. .`/client/rest-high-level/build/distributions/opensearch-rest-high-level-client-1.4.0-SNAPSHOT.jar`.
+
+You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://imperceptiblethoughts.com/shadow/).
+
+
+To use the generated JAR, install the JAR locally, 
+e.g. 
+```
+mvn install:install-file -Dfile=src/main/resources/opensearch-rest-high-level-client-1.4.0-SNAPSHOT.jar -DgroupId=org.opensearch.client -DartifactId=opensearch-rest-high-level-client -Dversion=1.4.0-SNAPSHOT -Dpackaging=jar -DgeneratePom=true
+```
+
+Refer the installed JAR as any other maven artifact, e.g.
+
+```
+<dependency>
+    <groupId>org.opensearch.client</groupId>
+    <artifactId>opensearch-rest-high-level-client</artifactId>
+    <version>1.4.0-SNAPSHOT</version>
+</dependency>
+```
 
 ## Misc
 
