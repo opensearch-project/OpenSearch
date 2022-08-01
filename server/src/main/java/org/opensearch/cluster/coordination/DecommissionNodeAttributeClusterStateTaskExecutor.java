@@ -23,8 +23,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class AwarenessNodesDecommissionClusterStateTaskExecutor implements
-    ClusterStateTaskExecutor<AwarenessNodesDecommissionClusterStateTaskExecutor.Task>,
+/**
+ * Decommissions and shuts down nodes having a given attribute and updates the cluster state
+ *
+ * @opensearch.internal
+ */
+public class DecommissionNodeAttributeClusterStateTaskExecutor implements
+    ClusterStateTaskExecutor<DecommissionNodeAttributeClusterStateTaskExecutor.Task>,
     ClusterStateTaskListener {
 
     private final AllocationService allocationService;
@@ -37,6 +42,7 @@ public class AwarenessNodesDecommissionClusterStateTaskExecutor implements
      */
     public static class Task {
 
+        // TODO - can be changed to use the same Decommissioned Attribute POJO
         private final String decommissionedAwarenessAttribute;
         private final String decommissionedAwarenessAttributeValue;
         private final String reason;
@@ -73,7 +79,7 @@ public class AwarenessNodesDecommissionClusterStateTaskExecutor implements
         }
     }
 
-    public AwarenessNodesDecommissionClusterStateTaskExecutor(final AllocationService allocationService, final Logger logger) {
+    public DecommissionNodeAttributeClusterStateTaskExecutor(final AllocationService allocationService, final Logger logger) {
         this.allocationService = allocationService;
         this.logger = logger;
     }
@@ -94,7 +100,7 @@ public class AwarenessNodesDecommissionClusterStateTaskExecutor implements
         }
         if (nodesToBeRemoved.size()<=0) {
             // no nodes to remove, keep the current cluster state
-            return ClusterTasksResult.<AwarenessNodesDecommissionClusterStateTaskExecutor.Task>builder().successes(tasks).build(currentState);
+            return ClusterTasksResult.<DecommissionNodeAttributeClusterStateTaskExecutor.Task>builder().successes(tasks).build(currentState);
         }
         for(DiscoveryNode nodeToBeRemoved: nodesToBeRemoved) {
             remainingNodesBuilder.remove(nodeToBeRemoved);
@@ -117,15 +123,15 @@ public class AwarenessNodesDecommissionClusterStateTaskExecutor implements
         return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
     }
 
-    protected ClusterTasksResult<AwarenessNodesDecommissionClusterStateTaskExecutor.Task> getTaskClusterTasksResult(
+    protected ClusterTasksResult<DecommissionNodeAttributeClusterStateTaskExecutor.Task> getTaskClusterTasksResult(
         ClusterState currentState,
-        List<AwarenessNodesDecommissionClusterStateTaskExecutor.Task> tasks,
+        List<DecommissionNodeAttributeClusterStateTaskExecutor.Task> tasks,
         ClusterState remainingNodesClusterState
     ) {
         ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
         final ClusterTasksResult.Builder<
-            AwarenessNodesDecommissionClusterStateTaskExecutor.Task
-            > resultBuilder = ClusterTasksResult.<AwarenessNodesDecommissionClusterStateTaskExecutor.Task>builder().successes(tasks);
+            DecommissionNodeAttributeClusterStateTaskExecutor.Task
+            > resultBuilder = ClusterTasksResult.<DecommissionNodeAttributeClusterStateTaskExecutor.Task>builder().successes(tasks);
         return resultBuilder.build(allocationService.disassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks)));
     }
 
