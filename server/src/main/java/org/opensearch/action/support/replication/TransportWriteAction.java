@@ -172,9 +172,14 @@ public abstract class TransportWriteAction<
         return 0;
     }
 
-    /** Syncs operation result to the translog or throws a shard not available failure */
-    protected static Location syncOperationResultOrThrow(final Engine.Result operationResult, final Location currentLocation)
-        throws Exception {
+    /**
+     * Syncs operation result to the translog or throws a shard not available failure
+     */
+    protected static Location syncOperationResultOrThrow(
+        final Engine.Result operationResult,
+        final Location currentLocation,
+        final IndexShard replica
+    ) throws Exception {
         final Location location;
         if (operationResult.getFailure() != null) {
             // check if any transient write operation failures should be bubbled up
@@ -182,7 +187,14 @@ public abstract class TransportWriteAction<
             assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
             throw failure;
         } else {
-            location = locationToSync(currentLocation, operationResult.getTranslogLocation());
+            // When remote store is enabled, the noop replication is responsible for validating primary term against the
+            // replicas, so we can mostly skip calling locationToSync method
+            // TODO - performOnReplica can be overridden directly to handle remoteStoreEnabled use case.
+            if (!replica.indexSettings().isRemoteStoreEnabled()) {
+                location = locationToSync(currentLocation, operationResult.getTranslogLocation());
+            } else {
+                return null;
+            }
         }
         return location;
     }

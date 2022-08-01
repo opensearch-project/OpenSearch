@@ -68,6 +68,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -539,8 +540,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
             final Translog.Location location = performOnReplica(request, replica);
-            return new WriteReplicaResult<>(request, location, null, replica, logger);
+            return createReplicaResult(request, replica, location);
         });
+    }
+
+    private ReplicaResult createReplicaResult(BulkShardRequest request, IndexShard replica, Translog.Location location) {
+        IndexSettings indexSettings = replica.indexSettings();
+        if (indexSettings != null && indexSettings.isRemoteStoreEnabled()) {
+            // When remote store is enabled, the replication becomes noop. Flush tlog, Roll tlog generation are not needed.
+            // There is no need to sync as well the translog on replicas.
+            new ReplicaResult();
+        }
+        return new WriteReplicaResult<>(request, location, null, replica, logger);
     }
 
     @Override
@@ -579,7 +590,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";
-            location = syncOperationResultOrThrow(operationResult, location);
+            location = syncOperationResultOrThrow(operationResult, location, replica);
         }
         return location;
     }

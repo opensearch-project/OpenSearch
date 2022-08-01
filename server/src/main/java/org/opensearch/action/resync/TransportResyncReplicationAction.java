@@ -194,7 +194,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                     "Mappings are not available on the replica yet, triggered update: " + operationResult.getRequiredMappingUpdate()
                 );
             }
-            location = syncOperationResultOrThrow(operationResult, location);
+            location = syncOperationResultOrThrow(operationResult, location, replica);
         }
         if (request.getTrimAboveSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             replica.trimOperationOfPreviousPrimaryTerms(request.getTrimAboveSeqNo());

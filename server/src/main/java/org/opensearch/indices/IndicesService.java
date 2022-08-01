@@ -770,6 +770,8 @@ public class IndicesService extends AbstractLifecycleComponent
             .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
             .collect(Collectors.toList());
         if (engineFactories.isEmpty()) {
+            // Since remote store will work on top of segment replication, NRTReplicationEngineFactory will be the
+            // engineFactory abstraction for remote store as well.
             if (idxSettings.isSegRepEnabled()) {
                 return new NRTReplicationEngineFactory();
             }

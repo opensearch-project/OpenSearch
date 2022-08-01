@@ -8,6 +8,9 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * Engine Factory implementation used with Segment Replication that wires up replica shards with an ${@link NRTReplicationEngine}
  * and primary with an ${@link InternalEngine}
@@ -15,11 +18,22 @@ package org.opensearch.index.engine;
  * @opensearch.internal
  */
 public class NRTReplicationEngineFactory implements EngineFactory {
+
+    private static final Logger logger = LogManager.getLogger(NRTReplicationEngineFactory.class);
+
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
+        Engine engine;
         if (config.isReadOnlyReplica()) {
-            return new NRTReplicationEngine(config);
+            if (config.getIndexSettings().isRemoteStoreEnabled()) {
+                engine = new NRTNoOpReplicationEngine(config);
+            } else {
+                engine = new NRTReplicationEngine(config);
+            }
+        } else {
+            engine = new InternalEngine(config);
         }
-        return new InternalEngine(config);
+        logger.info("EngineUsed={}", engine.getClass().getName());
+        return engine;
     }
 }
