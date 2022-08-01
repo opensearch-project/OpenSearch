@@ -8,17 +8,8 @@
 
 package org.opensearch.extensions;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,8 +43,18 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The main class for Plugin Extensibility
@@ -67,6 +68,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
+    public static final String REQUEST_EXTENSION_REGISTER_API = "internal:discovery/registerapi";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
 
@@ -79,6 +81,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
+        REQUEST_EXTENSION_REGISTER_API,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -87,6 +90,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     private final Path extensionsPath;
     final List<DiscoveryExtension> extensionsList;
     List<DiscoveryExtension> extensionsInitializedList;
+    Map<String, DiscoveryExtension> extensionIdMap;
+    Map<String, List<String>> extensionApiMap;
     TransportService transportService;
     ClusterService clusterService;
 
@@ -96,6 +101,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.transportService = null;
         this.extensionsList = new ArrayList<DiscoveryExtension>();
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
+        this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
+        this.extensionApiMap = new HashMap<String, List<String>>();
         this.clusterService = null;
 
         /*
@@ -115,6 +122,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     private void registerRequestHandler() {
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_REGISTER_API,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            RegisterApiRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleRegisterApiRequest(request)))
+        );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
             ThreadPool.Names.GENERIC,
@@ -164,30 +179,30 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
             for (Extension extension : extensions) {
                 try {
-                    extensionsList.add(
-                        new DiscoveryExtension(
+                    DiscoveryExtension de = new DiscoveryExtension(
+                        extension.getName(),
+                        extension.getUniqueId(),
+                        // placeholder for ephemeral id, will change with POC discovery
+                        extension.getUniqueId(),
+                        extension.getHostName(),
+                        extension.getHostAddress(),
+                        new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
+                        new HashMap<String, String>(),
+                        Version.fromString(extension.getOpensearchVersion()),
+                        new PluginInfo(
                             extension.getName(),
-                            extension.getUniqueId(),
-                            // placeholder for ephemeral id, will change with POC discovery
-                            extension.getUniqueId(),
-                            extension.getHostName(),
-                            extension.getHostAddress(),
-                            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                            new HashMap<String, String>(),
+                            extension.getDescription(),
+                            extension.getVersion(),
                             Version.fromString(extension.getOpensearchVersion()),
-                            new PluginInfo(
-                                extension.getName(),
-                                extension.getDescription(),
-                                extension.getVersion(),
-                                Version.fromString(extension.getOpensearchVersion()),
-                                extension.getJavaVersion(),
-                                extension.getClassName(),
-                                new ArrayList<String>(),
-                                Boolean.parseBoolean(extension.hasNativeController())
-                            )
+                            extension.getJavaVersion(),
+                            extension.getClassName(),
+                            new ArrayList<String>(),
+                            Boolean.parseBoolean(extension.hasNativeController())
                         )
                     );
-                    logger.info("Loaded extension: " + extension);
+                    extensionsList.add(de);
+                    extensionIdMap.put(extension.getUniqueId(), de);
+                    logger.info("Loaded extension: " + extension + " with id " + extension.getUniqueId());
                 } catch (IllegalArgumentException e) {
                     logger.error(e.toString());
                 }
@@ -220,6 +235,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 for (DiscoveryExtension extension : extensionsList) {
                     if (extension.getName().equals(response.getName())) {
                         extensionsInitializedList.add(extension);
+                        logger.info("Initialized extension: " + extension.getName());
                         break;
                     }
                 }
@@ -227,7 +243,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("Plugin request failed"), exp);
+                logger.debug(new ParameterizedMessage("Extension initialization failed"), exp);
             }
 
             @Override
@@ -248,23 +264,29 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
+    TransportResponse handleRegisterApiRequest(RegisterApiRequest apiRequest) throws Exception {
+        extensionApiMap.put(apiRequest.getNodeId(), apiRequest.getApi());
+        // TODO put more REST handler stuff here
+        logger.info(
+            "Here is where we will actually register REST handlers for node "
+                + apiRequest.getNodeId()
+                + " to handle API "
+                + apiRequest.getApi()
+        );
+        return new RegisterApiResponse("Registered node " + apiRequest.getNodeId() + " to handle API " + apiRequest.getApi());
+    }
+
     TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
-        // Read enum
-        if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
-            ClusterStateResponse clusterStateResponse = new ClusterStateResponse(
-                clusterService.getClusterName(),
-                clusterService.state(),
-                false
-            );
-            return clusterStateResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_LOCAL_NODE) {
-            LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
-            return localNodeResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS) {
-            ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
-            return clusterSettingsResponse;
+        switch (extensionRequest.getRequestType()) {
+            case REQUEST_EXTENSION_CLUSTER_STATE:
+                return new ClusterStateResponse(clusterService.getClusterName(), clusterService.state(), false);
+            case REQUEST_EXTENSION_LOCAL_NODE:
+                return new LocalNodeResponse(clusterService);
+            case REQUEST_EXTENSION_CLUSTER_SETTINGS:
+                return new ClusterSettingsResponse(clusterService);
+            default:
+                throw new Exception("Handler not present for the provided request");
         }
-        throw new Exception("Handler not present for the provided request");
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
