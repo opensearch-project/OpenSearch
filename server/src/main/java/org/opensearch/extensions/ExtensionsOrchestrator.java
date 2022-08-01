@@ -293,7 +293,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public void getNamedWriteables() {
 
         // Retrieve named writeable registry entries from each extension
-        for (DiscoveryNode extensionNode : extensionsList) {
+        for (DiscoveryNode extensionNode : extensionsInitializedList) {
             try {
                 Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionRegistry = getNamedWriteables(extensionNode);
                 if (extensionRegistry.isEmpty() == false) {
@@ -351,7 +351,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         DiscoveryNode extension = null;
 
         // The specific extension that the reader is associated with is not known, must iterate through all of them
-        for (DiscoveryNode extensionNode : extensionsList) {
+        for (DiscoveryNode extensionNode : extensionsInitializedList) {
             reader = getExtensionReader(extensionNode, categoryClass, name);
             if (reader != null) {
                 extension = extensionNode;
