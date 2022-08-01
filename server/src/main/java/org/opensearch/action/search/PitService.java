@@ -29,6 +29,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,9 @@ public class PitService {
         Map<String, List<PitSearchContextIdForNode>> nodeToContextsMap,
         ActionListener<DeletePitResponse> listener
     ) {
+        if (nodeToContextsMap.size() == 0) {
+            listener.onResponse(new DeletePitResponse(Collections.emptyList()));
+        }
         final Set<String> clusters = nodeToContextsMap.values()
             .stream()
             .flatMap(Collection::stream)
