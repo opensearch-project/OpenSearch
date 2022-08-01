@@ -311,7 +311,7 @@ public enum MissingValues {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return values.docValueCount();
             }
 
@@ -346,7 +346,7 @@ public enum MissingValues {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return values.docValueCount();
             }
 
