@@ -13,10 +13,10 @@ import static java.util.Collections.emptySet;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 import java.io.IOException;
@@ -245,7 +245,72 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         expectThrows(IOException.class, () -> new ExtensionsOrchestrator(settings, extensionDir));
     }
 
-    // TODO: Add extensionsInitialize test and mock node connection to extension
+    public void testExtensionsInitialize() throws Exception {
+        Path extensionDir = createTempDir();
+
+        List<String> extensionsYmlLines = Arrays.asList(
+            "extensions:",
+            "   - name: firstExtension",
+            "     uniqueId: uniqueid1",
+            "     hostName: 'myIndependentPluginHost1'",
+            "     hostAddress: '127.0.0.0'",
+            "     port: '9300'",
+            "     version: '0.0.7'",
+            "     description: Fake description 1",
+            "     opensearchVersion: '3.0.0'",
+            "     javaVersion: '14'",
+            "     className: fakeClass1",
+            "     customFolderName: fakeFolder1",
+            "     hasNativeController: false",
+            "   - name: secondExtension",
+            "     uniqueId: 'uniqueid2'",
+            "     hostName: 'myIndependentPluginHost2'",
+            "     hostAddress: '127.0.0.1'",
+            "     port: '9301'",
+            "     version: '3.14.16'",
+            "     description: Fake description 2",
+            "     opensearchVersion: '2.0.0'",
+            "     javaVersion: '17'",
+            "     className: fakeClass2",
+            "     customFolderName: fakeFolder2",
+            "     hasNativeController: true"
+        );
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        extensionsOrchestrator.setTransportService(transportService);
+
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsOrchestrator.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Connect Transport Exception 1",
+                    "org.opensearch.extensions.ExtensionsOrchestrator",
+                    Level.ERROR,
+                    "ConnectTransportException[[firstExtension][127.0.0.0:9300] connect_timeout[30s]]"
+                )
+            );
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Connect Transport Exception 2",
+                    "org.opensearch.extensions.ExtensionsOrchestrator",
+                    Level.ERROR,
+                    "ConnectTransportException[[secondExtension][127.0.0.1:9301] connect_exception]; nested: ConnectException[Connection refused];"
+                )
+            );
+
+            extensionsOrchestrator.extensionsInitialize();
+
+            // Test needs to be changed to mock the connection between the local node and an extension. Assert statment is commented out for
+            // now.
+            // Link to issue: https://github.com/opensearch-project/OpenSearch/issues/4045
+            // mockLogAppender.assertAllExpectationsMatched();
+        }
+    }
 
     public void testHandleExtensionRequest() throws Exception {
 
