@@ -33,6 +33,7 @@ import static java.util.Collections.singletonMap;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -93,8 +94,60 @@ public class DecommissionNodeAttributeClusterStateTaskExecutorTests extends Open
         }
     }
 
-    // Test when attribute value is not presrnt in any node
-    // Test when attribute name is not present in any node
+    public void testSameClusterStateAfterExecutionForUnknownAttributeNameAndValue() throws Exception{
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.disassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class))).thenAnswer(
+            im -> im.getArguments()[0]
+        );
+        final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
+
+        logger.info("--> adding five nodes on same zone_1");
+        clusterState = addNodes(clusterState, "zone_1", "node1", "node2", "node3", "node4", "node5");
+
+        logger.info("--> adding five nodes on same zone_2");
+        clusterState = addNodes(clusterState, "zone_2", "node6", "node7", "node8", "node9", "node10");
+
+        logger.info("--> adding five nodes on same zone_3");
+        clusterState = addNodes(clusterState, "zone_3", "node11", "node12", "node13", "node14", "node15");
+
+        final DecommissionNodeAttributeClusterStateTaskExecutor executor = new DecommissionNodeAttributeClusterStateTaskExecutor(allocationService, logger) {
+            @Override
+            protected ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
+                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
+                return remainingNodesClusterState.get();
+            }
+        };
+
+        final List<DecommissionNodeAttributeClusterStateTaskExecutor.Task> tasks = new ArrayList<>();
+        // Task 1 with unknown attribute name
+        tasks.add(new DecommissionNodeAttributeClusterStateTaskExecutor.Task(
+            new DecommissionAttribute("unknown_zone_name", Collections.singletonList("unknown_zone_value")),
+            "unit test zone decommission executor")
+        );
+        // Task 2 with unknown attribute value
+        tasks.add(new DecommissionNodeAttributeClusterStateTaskExecutor.Task(
+            new DecommissionAttribute("zone", Collections.singletonList("unknown_zone_value")),
+            "unit test zone decommission executor")
+        );
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<DecommissionNodeAttributeClusterStateTaskExecutor.Task> result = executor.execute(
+            clusterState,
+            tasks
+        );
+
+        ClusterState expectedClusterState = remainingNodesClusterState.get();
+        ClusterState actualClusterState = result.resultingState;
+
+        // assert that disassociate dead node tasks is never executed
+        verify(allocationService, never()).disassociateDeadNodes(eq(expectedClusterState), eq(true), any(String.class));
+
+        // assert that cluster state remains same
+        assertEquals(clusterState, actualClusterState);
+
+        // Verify all 15 nodes present in the cluster after decommissioning unknown attribute name
+        assertEquals(actualClusterState.nodes().getNodes().size(), 15);
+    }
 
     private ClusterState addNodes(ClusterState clusterState, String zone, String... nodeIds) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
@@ -113,7 +166,7 @@ public class DecommissionNodeAttributeClusterStateTaskExecutorTests extends Open
         );
     }
 
-    private static Set<DiscoveryNodeRole> CLUSTER_MANAGER_DATA_ROLES = Collections.unmodifiableSet(
+    final private static Set<DiscoveryNodeRole> CLUSTER_MANAGER_DATA_ROLES = Collections.unmodifiableSet(
         new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
     );
 }

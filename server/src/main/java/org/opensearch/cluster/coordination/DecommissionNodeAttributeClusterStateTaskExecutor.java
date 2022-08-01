@@ -104,10 +104,8 @@ public class DecommissionNodeAttributeClusterStateTaskExecutor implements
     }
 
     private boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, Task task) {
-        // TODO - Validation for key present
-        return task.decommissionAttribute().attributeValues().contains(
-            discoveryNode.getAttributes().get(task.decommissionAttribute().attributeName())
-        );
+        String discoveryNodeAttributeValue = discoveryNode.getAttributes().get(task.decommissionAttribute().attributeName());
+        return discoveryNodeAttributeValue != null && task.decommissionAttribute().attributeValues().contains(discoveryNodeAttributeValue);
     }
 
     // visible for testing
