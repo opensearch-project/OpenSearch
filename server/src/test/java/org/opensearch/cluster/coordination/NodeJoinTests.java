@@ -43,7 +43,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.service.FakeThreadPoolMasterService;
+import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.MasterServiceTests;
 import org.opensearch.common.Randomness;
@@ -144,7 +144,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             random()
         );
         final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
-        FakeThreadPoolMasterService fakeClusterManagerService = new FakeThreadPoolMasterService(
+        FakeThreadPoolClusterManagerService fakeClusterManagerService = new FakeThreadPoolClusterManagerService(
             "test_node",
             "test",
             fakeThreadPool,

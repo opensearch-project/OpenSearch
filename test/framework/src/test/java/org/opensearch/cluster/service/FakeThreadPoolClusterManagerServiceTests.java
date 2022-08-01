@@ -61,7 +61,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
+public class FakeThreadPoolClusterManagerServiceTests extends OpenSearchTestCase {
 
     public void testFakeClusterManagerService() {
         List<Runnable> runnableTasks = new ArrayList<>();
@@ -84,7 +84,7 @@ public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
         doAnswer(invocationOnMock -> runnableTasks.add((Runnable) invocationOnMock.getArguments()[0])).when(executorService).execute(any());
         when(mockThreadPool.generic()).thenReturn(executorService);
 
-        FakeThreadPoolMasterService clusterManagerService = new FakeThreadPoolMasterService(
+        FakeThreadPoolClusterManagerService clusterManagerService = new FakeThreadPoolClusterManagerService(
             "test_node",
             "test",
             mockThreadPool,
