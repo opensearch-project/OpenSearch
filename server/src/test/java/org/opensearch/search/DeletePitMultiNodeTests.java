@@ -181,7 +181,6 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
                     DeletePitResponse deletePITResponse = execute.get();
                     for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
                         assertTrue(pitIds.contains(deletePitInfo.getPitId()));
-                        assertFalse(deletePitInfo.isSuccessful());
                     }
                 } catch (Exception e) {
                     throw new AssertionError(e);
@@ -218,7 +217,6 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
                     DeletePitResponse deletePITResponse = execute.get();
                     for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
                         assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
-                        assertFalse(deletePitInfo.isSuccessful());
                     }
                 } catch (Exception e) {
                     assertTrue(e.getMessage().contains("Node not connected"));
