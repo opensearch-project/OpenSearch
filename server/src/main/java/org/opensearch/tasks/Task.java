@@ -34,7 +34,9 @@ package org.opensearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.xcontent.ToXContent;
@@ -47,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Current task information
@@ -78,6 +81,15 @@ public class Task {
 
     private final Map<Long, List<ThreadResourceInfo>> resourceStats;
 
+    private final List<NotifyOnceListener<Task>> resourceTrackingCompletionListeners;
+
+    /**
+     * Keeps track of the number of active resource tracking threads for this task. It is initialized to 1 to track
+     * the task's own/self thread. When this value becomes 0, all threads have been marked inactive and the resource
+     * tracking can be stopped for this task.
+     */
+    private final AtomicInteger numActiveResourceTrackingThreads = new AtomicInteger(1);
+
     /**
      * The task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
      */
@@ -89,7 +101,18 @@ public class Task {
     private final long startTimeNanos;
 
     public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
-        this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), headers, new ConcurrentHashMap<>());
+        this(
+            id,
+            type,
+            action,
+            description,
+            parentTask,
+            System.currentTimeMillis(),
+            System.nanoTime(),
+            headers,
+            new ConcurrentHashMap<>(),
+            new ArrayList<>()
+        );
     }
 
     public Task(
@@ -101,7 +124,8 @@ public class Task {
         long startTime,
         long startTimeNanos,
         Map<String, String> headers,
-        ConcurrentHashMap<Long, List<ThreadResourceInfo>> resourceStats
+        ConcurrentHashMap<Long, List<ThreadResourceInfo>> resourceStats,
+        List<NotifyOnceListener<Task>> resourceTrackingCompletionListeners
     ) {
         this.id = id;
         this.type = type;
@@ -112,6 +136,7 @@ public class Task {
         this.startTimeNanos = startTimeNanos;
         this.headers = headers;
         this.resourceStats = resourceStats;
+        this.resourceTrackingCompletionListeners = resourceTrackingCompletionListeners;
     }
 
     /**
@@ -291,7 +316,8 @@ public class Task {
                 );
             }
         }
-        threadResourceInfoList.add(new ThreadResourceInfo(statsType, resourceUsageMetrics));
+        threadResourceInfoList.add(new ThreadResourceInfo(threadId, statsType, resourceUsageMetrics));
+        incrementResourceTrackingThreads();
     }
 
     /**
@@ -331,11 +357,23 @@ public class Task {
                 if (threadResourceInfo.getStatsType() == statsType && threadResourceInfo.isActive()) {
                     threadResourceInfo.setActive(false);
                     threadResourceInfo.recordResourceUsageMetrics(resourceUsageMetrics);
+                    decrementResourceTrackingThreads();
                     return;
                 }
             }
         }
         throw new IllegalStateException("cannot update final values if active thread resource entry is not present");
+    }
+
+    /**
+     * Individual tasks can override this if they want to support task resource tracking. We just need to make sure that
+     * the ThreadPool on which the task runs on have runnable wrapper similar to
+     * {@link org.opensearch.common.util.concurrent.OpenSearchExecutors#newAutoQueueFixed}
+     *
+     * @return true if resource tracking is supported by the task
+     */
+    public boolean supportsResourceTracking() {
+        return false;
     }
 
     /**
@@ -369,5 +407,64 @@ public class Task {
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }
+    }
+
+    /**
+     * Registers a task resource tracking completion listener on this task if resource tracking is still active.
+     * Returns true on successful subscription, false otherwise.
+     */
+    public boolean addResourceTrackingCompletionListener(NotifyOnceListener<Task> listener) {
+        if (numActiveResourceTrackingThreads.get() > 0) {
+            resourceTrackingCompletionListeners.add(listener);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Increments the number of active resource tracking threads.
+     *
+     * @return the number of active resource tracking threads.
+     */
+    public int incrementResourceTrackingThreads() {
+        return numActiveResourceTrackingThreads.incrementAndGet();
+    }
+
+    /**
+     * Decrements the number of active resource tracking threads.
+     * This method is called when threads finish execution, and also when the task is unregistered (to mark the task's
+     * own thread as complete). When the active thread count becomes zero, the onTaskResourceTrackingCompleted method
+     * is called exactly once on all registered listeners.
+     *
+     * Since a task is unregistered after the message is processed, it implies that the threads responsible to produce
+     * the response must have started prior to it (i.e. startThreadResourceTracking called before unregister).
+     * This ensures that the number of active threads doesn't drop to zero pre-maturely.
+     *
+     * Rarely, some threads may even start execution after the task is unregistered. As resource stats are piggy-backed
+     * with the response, any thread usage info captured after the task is unregistered may be irrelevant.
+     *
+     * @return the number of active resource tracking threads.
+     */
+    public int decrementResourceTrackingThreads() {
+        int count = numActiveResourceTrackingThreads.decrementAndGet();
+
+        if (count == 0) {
+            List<Exception> listenerExceptions = new ArrayList<>();
+            resourceTrackingCompletionListeners.forEach(listener -> {
+                try {
+                    listener.onResponse(this);
+                } catch (Exception e1) {
+                    try {
+                        listener.onFailure(e1);
+                    } catch (Exception e2) {
+                        listenerExceptions.add(e2);
+                    }
+                }
+            });
+            ExceptionsHelper.maybeThrowRuntimeAndSuppress(listenerExceptions);
+        }
+
+        return count;
     }
 }

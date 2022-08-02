@@ -52,6 +52,11 @@ public class SearchShardTask extends CancellableTask {
     }
 
     @Override
+    public boolean supportsResourceTracking() {
+        return true;
+    }
+
+    @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return false;
     }

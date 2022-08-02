@@ -48,6 +48,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A builder for executors that automatically adjust the queue length as needed, depending on
@@ -63,6 +64,7 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
     private final Setting<Integer> maxQueueSizeSetting;
     private final Setting<TimeValue> targetedResponseTimeSetting;
     private final Setting<Integer> frameSizeSetting;
+    private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
     AutoQueueAdjustingExecutorBuilder(
         final Settings settings,
@@ -72,6 +74,19 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
         final int minQueueSize,
         final int maxQueueSize,
         final int frameSize
+    ) {
+        this(settings, name, size, initialQueueSize, minQueueSize, maxQueueSize, frameSize, null);
+    }
+
+    AutoQueueAdjustingExecutorBuilder(
+        final Settings settings,
+        final String name,
+        final int size,
+        final int initialQueueSize,
+        final int minQueueSize,
+        final int maxQueueSize,
+        final int frameSize,
+        final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener
     ) {
         super(name);
         final String prefix = "thread_pool." + name;
@@ -186,6 +201,7 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
             Setting.Property.Deprecated,
             Setting.Property.Deprecated
         );
+        this.runnableTaskListener = runnableTaskListener;
     }
 
     @Override
@@ -232,7 +248,8 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
             frameSize,
             targetedResponseTime,
             threadFactory,
-            threadContext
+            threadContext,
+            runnableTaskListener
         );
         // TODO: in a subsequent change we hope to extend ThreadPool.Info to be more specific for the thread pool type
         final ThreadPool.Info info = new ThreadPool.Info(
