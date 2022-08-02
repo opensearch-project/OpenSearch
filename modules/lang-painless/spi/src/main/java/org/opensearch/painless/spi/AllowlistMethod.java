@@ -32,12 +32,7 @@
 
 package org.opensearch.painless.spi;
 
-import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Method represents the equivalent of a Java method available as an allowlisted class method
@@ -58,7 +53,14 @@ public class AllowlistMethod extends WhitelistMethod {
      * augmentedCanonicalClassName; augmentedCanonicalClassName will be {@code null} unless the method
      * is augmented as described in the class documentation.
      */
-    public AllowlistMethod(String origin, String augmentedCanonicalClassName, String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters, List<Object> painlessAnnotations) {
+    public AllowlistMethod(
+        String origin,
+        String augmentedCanonicalClassName,
+        String methodName,
+        String returnCanonicalTypeName,
+        List<String> canonicalTypeNameParameters,
+        List<Object> painlessAnnotations
+    ) {
         super(origin, augmentedCanonicalClassName, methodName, returnCanonicalTypeName, canonicalTypeNameParameters, painlessAnnotations);
     }
 }

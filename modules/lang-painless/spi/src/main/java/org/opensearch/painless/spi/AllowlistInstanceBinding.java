@@ -32,12 +32,7 @@
 
 package org.opensearch.painless.spi;
 
-import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * An instance binding represents a method call that stores state. Each instance binding must provide
@@ -48,7 +43,14 @@ public class AllowlistInstanceBinding extends WhitelistInstanceBinding {
     /**
      * Standard constructor. All values must be not {@code null}.
      */
-    public AllowlistInstanceBinding(String origin, Object targetInstance, String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters, List<Object> painlessAnnotations) {
+    public AllowlistInstanceBinding(
+        String origin,
+        Object targetInstance,
+        String methodName,
+        String returnCanonicalTypeName,
+        List<String> canonicalTypeNameParameters,
+        List<Object> painlessAnnotations
+    ) {
         super(origin, targetInstance, methodName, returnCanonicalTypeName, canonicalTypeNameParameters, painlessAnnotations);
     }
 }

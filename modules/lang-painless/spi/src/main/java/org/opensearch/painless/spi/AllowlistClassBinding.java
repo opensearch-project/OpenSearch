@@ -32,12 +32,7 @@
 
 package org.opensearch.painless.spi;
 
-import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * A class binding represents a method call that stores state. Each class binding's Java class must
@@ -52,7 +47,14 @@ public class AllowlistClassBinding extends WhitelistClassBinding {
     /**
      * Standard constructor. All values must be not {@code null}.
      */
-    public AllowlistClassBinding(String origin, String targetJavaClassName, String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters, List<Object> painlessAnnotations) {
+    public AllowlistClassBinding(
+        String origin,
+        String targetJavaClassName,
+        String methodName,
+        String returnCanonicalTypeName,
+        List<String> canonicalTypeNameParameters,
+        List<Object> painlessAnnotations
+    ) {
         super(origin, targetJavaClassName, methodName, returnCanonicalTypeName, canonicalTypeNameParameters, painlessAnnotations);
     }
 }

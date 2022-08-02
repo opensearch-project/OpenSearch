@@ -32,19 +32,14 @@
 
 package org.opensearch.painless.spi;
 
-import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Field represents the equivalent of a Java field available as an allowlisted class field
  * within Painless. Fields for Painless classes may be accessed exactly as fields for Java classes
  * are using the '.' operator on an existing class variable/field.
  */
-public class AllowlistField extends WhitelistField{
+public class AllowlistField extends WhitelistField {
     /**
      * Standard constructor.  All values must be not {@code null}.
      */

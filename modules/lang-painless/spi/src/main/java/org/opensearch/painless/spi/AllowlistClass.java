@@ -32,10 +32,8 @@
 
 package org.opensearch.painless.spi;
 
-import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -57,7 +55,7 @@ import java.util.stream.Collectors;
 public final class AllowlistClass extends WhitelistClass {
 
     /** The {@link List} of allowlisted ({@link WhitelistConstructor}s) available to this class. */
-    public final List<WhitelistConstructor> allowlistConstructors;
+    public final List<AllowlistConstructor> allowlistConstructors;
 
     /** The {@link List} of allowlisted ({@link WhitelistMethod}s) available to this class. */
     public final List<AllowlistMethod> allowlistMethods;
@@ -69,12 +67,19 @@ public final class AllowlistClass extends WhitelistClass {
     public AllowlistClass(
         String origin,
         String javaClassName,
-        List<WhitelistConstructor> allowlistConstructors,
+        List<AllowlistConstructor> allowlistConstructors,
         List<AllowlistMethod> allowlistMethods,
         List<AllowlistField> allowlistFields,
         List<Object> painlessAnnotations
     ) {
-        super(origin, javaClassName, allowlistConstructors, allowlistMethods.stream().map(e -> (WhitelistMethod) e).collect(Collectors.toList()), allowlistFields.stream().map(e -> (WhitelistField) e).collect(Collectors.toList()), painlessAnnotations);
+        super(
+            origin,
+            javaClassName,
+            allowlistConstructors.stream().map(e -> (WhitelistConstructor) e).collect(Collectors.toList()),
+            allowlistMethods.stream().map(e -> (WhitelistMethod) e).collect(Collectors.toList()),
+            allowlistFields.stream().map(e -> (WhitelistField) e).collect(Collectors.toList()),
+            painlessAnnotations
+        );
 
         this.allowlistConstructors = Collections.unmodifiableList(Objects.requireNonNull(allowlistConstructors));
         this.allowlistMethods = Collections.unmodifiableList(Objects.requireNonNull(allowlistMethods));
