@@ -57,7 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class Netty4Plugin extends Plugin implements NetworkPlugin {
+public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
 
     public static final String NETTY_TRANSPORT_NAME = "netty4";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";

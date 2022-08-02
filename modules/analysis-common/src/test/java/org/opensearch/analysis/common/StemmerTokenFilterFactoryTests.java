@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class StemmerTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
-    private static final CommonAnalysisPlugin PLUGIN = new CommonAnalysisPlugin();
+    private static final CommonAnalysisModulePlugin PLUGIN = new CommonAnalysisModulePlugin();
 
     public void testEnglishFilterFactory() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);
