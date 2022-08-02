@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 public class ThreadContextTests extends OpenSearchTestCase {
 
@@ -152,6 +153,15 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertEquals(2, threadContext.getResponseHeaders().get("foo").size());
         assertEquals("bar", threadContext.getResponseHeaders().get("baz").get(0));
         assertEquals(1, threadContext.getResponseHeaders().get("baz").size());
+    }
+
+    public void testStashContextWithPreservedTransients() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient("foo", "bar");
+        threadContext.putTransient(TASK_ID, 1);
+        threadContext.stashContext();
+        assertNull(threadContext.getTransient("foo"));
+        assertEquals(1, (int) threadContext.getTransient(TASK_ID));
     }
 
     public void testStashWithOrigin() {
