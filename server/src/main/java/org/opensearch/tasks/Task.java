@@ -410,10 +410,16 @@ public class Task {
     }
 
     /**
-     * Registers a task resource tracking completion listener on this task.
+     * Registers a task resource tracking completion listener on this task if resource tracking is still active.
+     * Returns true on successful subscription, false otherwise.
      */
-    public void addResourceTrackingCompletionListener(NotifyOnceListener<Task> listener) {
-        resourceTrackingCompletionListeners.add(listener);
+    public boolean addResourceTrackingCompletionListener(NotifyOnceListener<Task> listener) {
+        if (numActiveResourceTrackingThreads.get() > 0) {
+            resourceTrackingCompletionListeners.add(listener);
+            return true;
+        }
+
+        return false;
     }
 
     /**

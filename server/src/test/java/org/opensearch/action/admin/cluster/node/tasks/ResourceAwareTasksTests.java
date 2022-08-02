@@ -185,7 +185,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                     // operationFinishedValidator will be called just after all task threads are marked inactive and
                     // the task is unregistered.
                     if (taskTestContext.operationFinishedValidator != null) {
-                        task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
+                        boolean success = task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
                             @Override
                             protected void innerOnResponse(Task task) {
                                 taskTestContext.operationFinishedValidator.accept(task, threadId.get());
@@ -196,6 +196,10 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                                 ExceptionsHelper.reThrowIfNotNull(e);
                             }
                         });
+
+                        if (success == false) {
+                            fail("failed to register a completion listener as task resource tracking has already completed");
+                        }
                     }
 
                     Object[] allocation1 = new Object[1000000]; // 4MB

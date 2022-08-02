@@ -161,7 +161,7 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         if (task.supportsResourceTracking()) {
-            task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
+            boolean success = task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
                 @Override
                 protected void innerOnResponse(Task task) {
                     // Stop tracking the task once the last thread has been marked inactive.
@@ -175,6 +175,13 @@ public class TaskManager implements ClusterStateApplier {
                     ExceptionsHelper.reThrowIfNotNull(e);
                 }
             });
+
+            if (success == false) {
+                logger.debug(
+                    "failed to register a completion listener as task resource tracking has already completed [taskId={}]",
+                    task.getId()
+                );
+            }
         }
 
         if (task instanceof CancellableTask) {
