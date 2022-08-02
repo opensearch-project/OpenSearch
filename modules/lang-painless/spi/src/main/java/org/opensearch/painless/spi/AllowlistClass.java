@@ -54,51 +54,30 @@ import java.util.stream.Collectors;
  * Classes will automatically extend other allowlisted classes if the Java class they represent is a
  * subclass of other classes including Java interfaces.
  */
-public class WhitelistClass {
-
-    /** Information about where this class was white-listed from. */
-    public final String origin;
-
-    /** The Java class name this class represents. */
-    public final String javaClassName;
+public final class AllowlistClass extends WhitelistClass {
 
     /** The {@link List} of allowlisted ({@link WhitelistConstructor}s) available to this class. */
-    public final List<WhitelistConstructor> whitelistConstructors;
+    public final List<WhitelistConstructor> allowlistConstructors;
 
     /** The {@link List} of allowlisted ({@link WhitelistMethod}s) available to this class. */
-    public final List<WhitelistMethod> whitelistMethods;
+    public final List<AllowlistMethod> allowlistMethods;
 
     /** The {@link List} of allowlisted ({@link WhitelistField}s) available to this class. */
-    public final List<WhitelistField> whitelistFields;
-
-    /** The {@link Map} of annotations for this class. */
-    public final Map<Class<?>, Object> painlessAnnotations;
+    public final List<AllowlistField> allowlistFields;
 
     /** Standard constructor. All values must be not {@code null}. */
-    WhitelistClass(
+    public AllowlistClass(
         String origin,
         String javaClassName,
         List<WhitelistConstructor> allowlistConstructors,
-        List<WhitelistMethod> allowlistMethods,
-        List<WhitelistField> allowlistFields,
+        List<AllowlistMethod> allowlistMethods,
+        List<AllowlistField> allowlistFields,
         List<Object> painlessAnnotations
     ) {
-        this.origin = Objects.requireNonNull(origin);
-        this.javaClassName = Objects.requireNonNull(javaClassName);
+        super(origin, javaClassName, allowlistConstructors, allowlistMethods.stream().map(e -> (WhitelistMethod) e).collect(Collectors.toList()), allowlistFields.stream().map(e -> (WhitelistField) e).collect(Collectors.toList()), painlessAnnotations);
 
-        this.whitelistConstructors = Collections.unmodifiableList(Objects.requireNonNull(allowlistConstructors));
-        this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(allowlistMethods));
-        this.whitelistFields = Collections.unmodifiableList(Objects.requireNonNull(allowlistFields));
-
-        if (painlessAnnotations.isEmpty()) {
-            this.painlessAnnotations = Collections.emptyMap();
-        } else {
-            this.painlessAnnotations = Collections.unmodifiableMap(
-                Objects.requireNonNull(painlessAnnotations)
-                    .stream()
-                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-            );
-        }
+        this.allowlistConstructors = Collections.unmodifiableList(Objects.requireNonNull(allowlistConstructors));
+        this.allowlistMethods = Collections.unmodifiableList(Objects.requireNonNull(allowlistMethods));
+        this.allowlistFields = Collections.unmodifiableList(Objects.requireNonNull(allowlistFields));
     }
 }

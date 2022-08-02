@@ -45,34 +45,11 @@ import java.util.stream.Collectors;
  * constructors for Java classes are using the 'new' keyword. Painless classes may have multiple
  * constructors as long as they comply with arity overloading described for {@link WhitelistClass}.
  */
-public class WhitelistConstructor {
-
-    /** Information about where this constructor was allowlisted from. */
-    public final String origin;
-
+public final class AllowlistConstructor extends WhitelistConstructor {
     /**
-     * A {@link List} of {@link String}s that are the Painless type names for the parameters of the
-     * constructor which can be used to look up the Java constructor through reflection.
+     * Standard constructor. All values must be not {@code null}.
      */
-    public final List<String> canonicalTypeNameParameters;
-
-    /** The {@link Map} of annotations for this constructor. */
-    public final Map<Class<?>, Object> painlessAnnotations;
-
-    /** Standard constructor. All values must be not {@code null}. */
-    WhitelistConstructor(String origin, List<String> canonicalTypeNameParameters, List<Object> painlessAnnotations) {
-        this.origin = Objects.requireNonNull(origin);
-        this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
-
-        if (painlessAnnotations.isEmpty()) {
-            this.painlessAnnotations = Collections.emptyMap();
-        } else {
-            this.painlessAnnotations = Collections.unmodifiableMap(
-                Objects.requireNonNull(painlessAnnotations)
-                    .stream()
-                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-            );
-        }
+    AllowlistConstructor(String origin, List<String> canonicalTypeNameParameters, List<Object> painlessAnnotations) {
+        super(origin, canonicalTypeNameParameters, painlessAnnotations);
     }
 }
