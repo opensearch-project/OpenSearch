@@ -43,11 +43,11 @@ import org.opensearch.index.store.StoreFileMetadata;
 import java.io.IOException;
 
 /**
- * Request for a recovery file chunk
+ * Request containing a file chunk.
  *
  * @opensearch.internal
  */
-public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
+public final class FileChunkRequest extends RecoveryTransportRequest {
     private final boolean lastChunk;
     private final long recoveryId;
     private final ShardId shardId;
@@ -58,7 +58,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
 
     private final int totalTranslogOps;
 
-    public RecoveryFileChunkRequest(StreamInput in) throws IOException {
+    public FileChunkRequest(StreamInput in) throws IOException {
         super(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
@@ -75,7 +75,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
         sourceThrottleTimeInNanos = in.readLong();
     }
 
-    public RecoveryFileChunkRequest(
+    public FileChunkRequest(
         long recoveryId,
         final long requestSeqNo,
         ShardId shardId,

@@ -9,14 +9,25 @@
 package org.opensearch.indices.replication.common;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.RateLimiter;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.recovery.RecoveryTransportRequest;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,7 +75,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         return cancellableThreads;
     }
 
-    public abstract void notifyListener(Exception e, boolean sendShardFailure);
+    public abstract void notifyListener(OpenSearchException e, boolean sendShardFailure);
 
     public ReplicationTarget(String name, IndexShard indexShard, ReplicationLuceneIndex stateIndex, ReplicationListener listener) {
         super(name);
@@ -98,6 +109,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         lastAccessTime = System.nanoTime();
     }
 
+    @Nullable
     public ActionListener<Void> markRequestReceivedAndCreateListener(long requestSeqNo, ActionListener<Void> listener) {
         return requestTracker.markReceivedAndCreateListener(requestSeqNo, listener);
     }
@@ -172,4 +184,86 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         }
     }
 
+    @Nullable
+    public ActionListener<Void> createOrFinishListener(
+        final TransportChannel channel,
+        final String action,
+        final RecoveryTransportRequest request
+    ) {
+        return createOrFinishListener(channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
+    }
+
+    @Nullable
+    public ActionListener<Void> createOrFinishListener(
+        final TransportChannel channel,
+        final String action,
+        final RecoveryTransportRequest request,
+        final CheckedFunction<Void, TransportResponse, Exception> responseFn
+    ) {
+        final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, action, request);
+        final ActionListener<Void> voidListener = ActionListener.map(channelListener, responseFn);
+
+        final long requestSeqNo = request.requestSeqNo();
+        final ActionListener<Void> listener;
+        if (requestSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            listener = markRequestReceivedAndCreateListener(requestSeqNo, voidListener);
+        } else {
+            listener = voidListener;
+        }
+
+        return listener;
+    }
+
+    /**
+     * Handle a FileChunkRequest for a {@link ReplicationTarget}.
+     *
+     * @param request {@link FileChunkRequest} Request containing the file chunk.
+     * @param bytesSinceLastPause {@link AtomicLong} Bytes since the last pause.
+     * @param rateLimiter {@link RateLimiter} Rate limiter.
+     * @param listener {@link ActionListener} listener that completes when the chunk has been written.
+     * @throws IOException When there is an issue pausing the rate limiter.
+     */
+    public void handleFileChunk(
+        final FileChunkRequest request,
+        final ReplicationTarget replicationTarget,
+        final AtomicLong bytesSinceLastPause,
+        final RateLimiter rateLimiter,
+        final ActionListener<Void> listener
+    ) throws IOException {
+
+        if (listener == null) {
+            return;
+        }
+        final ReplicationLuceneIndex indexState = replicationTarget.state().getIndex();
+        if (request.sourceThrottleTimeInNanos() != ReplicationLuceneIndex.UNKNOWN) {
+            indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
+        }
+        if (rateLimiter != null) {
+            long bytes = bytesSinceLastPause.addAndGet(request.content().length());
+            if (bytes > rateLimiter.getMinPauseCheckBytes()) {
+                // Time to pause
+                bytesSinceLastPause.addAndGet(-bytes);
+                long throttleTimeInNanos = rateLimiter.pause(bytes);
+                indexState.addTargetThrottling(throttleTimeInNanos);
+                replicationTarget.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
+            }
+        }
+        writeFileChunk(
+            request.metadata(),
+            request.position(),
+            request.content(),
+            request.lastChunk(),
+            request.totalTranslogOps(),
+            listener
+        );
+    }
+
+    public abstract void writeFileChunk(
+        StoreFileMetadata metadata,
+        long position,
+        BytesReference content,
+        boolean lastChunk,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    );
 }
