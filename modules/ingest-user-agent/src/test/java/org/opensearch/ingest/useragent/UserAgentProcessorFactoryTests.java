@@ -91,7 +91,7 @@ public class UserAgentProcessorFactoryTests extends OpenSearchTestCase {
             }
         }
 
-        userAgentParsers = IngestUserAgentPlugin.createUserAgentParsers(userAgentConfigDir, new UserAgentCache(1000));
+        userAgentParsers = IngestUserAgentModulePlugin.createUserAgentParsers(userAgentConfigDir, new UserAgentCache(1000));
     }
 
     public void testBuildDefaults() throws Exception {

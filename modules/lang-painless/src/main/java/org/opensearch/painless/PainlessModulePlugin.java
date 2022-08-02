@@ -81,7 +81,7 @@ import java.util.function.Supplier;
 /**
  * Registers Painless as a plugin.
  */
-public final class PainlessPlugin extends Plugin implements ScriptPlugin, ExtensiblePlugin, ActionPlugin {
+public final class PainlessModulePlugin extends Plugin implements ScriptPlugin, ExtensiblePlugin, ActionPlugin {
 
     private static final Map<ScriptContext<?>, List<Allowlist>> allowlists;
 

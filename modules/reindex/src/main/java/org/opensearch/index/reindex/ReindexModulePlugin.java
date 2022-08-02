@@ -37,7 +37,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.plugins.ExtensiblePlugin;
-import org.opensearch.plugins.ExtensiblePlugin.ExtensionLoader;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
@@ -62,7 +61,6 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,9 +71,9 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
-public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
+public class ReindexModulePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final String NAME = "reindex";
-    private static final Logger logger = LogManager.getLogger(ReindexPlugin.class);
+    private static final Logger logger = LogManager.getLogger(ReindexModulePlugin.class);
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

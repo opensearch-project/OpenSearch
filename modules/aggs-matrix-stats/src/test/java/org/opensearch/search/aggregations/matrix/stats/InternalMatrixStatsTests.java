@@ -43,7 +43,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.opensearch.search.aggregations.matrix.MatrixAggregationPlugin;
+import org.opensearch.search.aggregations.matrix.MatrixAggregationModulePlugin;
 import org.opensearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.test.InternalAggregationTestCase;
@@ -64,7 +64,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MatrixAggregationPlugin();
+        return new MatrixAggregationModulePlugin();
     }
 
     @Override

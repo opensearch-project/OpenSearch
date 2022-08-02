@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(CommonAnalysisPlugin.class);
+        return Arrays.asList(CommonAnalysisModulePlugin.class);
     }
 
     public void testNgramHighlightingWithBrokenPositions() throws IOException {

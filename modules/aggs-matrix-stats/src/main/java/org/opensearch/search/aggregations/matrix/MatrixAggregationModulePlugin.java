@@ -42,7 +42,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 
-public class MatrixAggregationPlugin extends Plugin implements SearchPlugin {
+public class MatrixAggregationModulePlugin extends Plugin implements SearchPlugin {
     @Override
     public List<AggregationSpec> getAggregations() {
         return singletonList(
