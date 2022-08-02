@@ -47,6 +47,7 @@ import java.util.stream.Collectors;
  *
  * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistConstructor}
  */
+@Deprecated
 public class WhitelistConstructor {
 
     /** Information about where this constructor was allowlisted from. */

@@ -56,6 +56,7 @@ import java.util.stream.Collectors;
  *
  * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistClass}
  */
+@Deprecated
 public class WhitelistClass {
 
     /** Information about where this class was white-listed from. */

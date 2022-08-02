@@ -50,6 +50,7 @@ import java.util.stream.Collectors;
  *
  * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistClassBinding}
  */
+@Deprecated
 public class WhitelistClassBinding {
 
     /** Information about where this constructor was allowlisted from. */

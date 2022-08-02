@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
  *
  * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistMethod}
  */
+@Deprecated
 public class WhitelistMethod {
 
     /** Information about where this method was allowlisted from. */

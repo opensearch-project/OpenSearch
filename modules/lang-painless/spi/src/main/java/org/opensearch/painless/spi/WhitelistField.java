@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
  *
  * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistField}
  */
+@Deprecated
 public class WhitelistField {
 
     /** Information about where this method was allowlisted from. */
