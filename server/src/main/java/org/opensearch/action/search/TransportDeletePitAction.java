@@ -82,10 +82,17 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
     }
 
     /**
-     * Delete all active PIT reader contexts
+     * Delete all active PIT reader contexts leveraging list all PITs
+     *
+     * For Cross cluster PITs :
+     * - mixed cluster PITs ( PIT comprising local and remote ) will be fully deleted. Since there will atleast be
+     * one reader context with PIT ID present in local cluster, 'Get all PITs' will retrieve the PIT ID with which
+     * we can completely delete the PIT contexts in both local and remote cluster.
+     * - fully remote PITs will not be deleted as 'Get all PITs' operates on local cluster only and no PIT info can
+     * be retrieved when it's fully remote.
      */
     private void deleteAllPits(ActionListener<DeletePitResponse> listener) {
-        // Get all PITs and execute delete operation for the PITs
+        // Get all PITs and execute delete operation for the PITs.
         pitService.getAllPits(ActionListener.wrap(getAllPitNodesResponse -> {
             DeletePitRequest deletePitRequest = new DeletePitRequest(
                 getAllPitNodesResponse.getPitInfos().stream().map(r -> r.getPitId()).collect(Collectors.toList())
