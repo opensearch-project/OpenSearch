@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
  * constructor within Painless. Constructors for Painless classes may be accessed exactly as
  * constructors for Java classes are using the 'new' keyword. Painless classes may have multiple
  * constructors as long as they comply with arity overloading described for {@link WhitelistClass}.
+ *
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistConstructor}
  */
 public class WhitelistConstructor {
 

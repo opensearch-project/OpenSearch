@@ -37,7 +37,6 @@ import org.opensearch.painless.spi.annotation.WhitelistAnnotationParser;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Allowlist contains data structures designed to be used to generate an allowlist of Java classes,
@@ -48,27 +47,33 @@ import java.util.stream.Collectors;
  * {@link WhitelistClass} will contain zero-to-many {@link WhitelistConstructor}s, {@link WhitelistMethod}s, and
  * {@link WhitelistField}s which are what will be available with a Painless script.  See each individual
  * allowlist object for more detail.
+ *
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link Allowlist}
  */
+@Deprecated
 public class Whitelist {
 
     static final String[] BASE_ALLOWLIST_FILES = new String[] {
-            "org.opensearch.txt",
-            "java.lang.txt",
-            "java.math.txt",
-            "java.text.txt",
-            "java.time.txt",
-            "java.time.chrono.txt",
-            "java.time.format.txt",
-            "java.time.temporal.txt",
-            "java.time.zone.txt",
-            "java.util.txt",
-            "java.util.function.txt",
-            "java.util.regex.txt",
-            "java.util.stream.txt" };
+        "org.opensearch.txt",
+        "java.lang.txt",
+        "java.math.txt",
+        "java.text.txt",
+        "java.time.txt",
+        "java.time.chrono.txt",
+        "java.time.format.txt",
+        "java.time.temporal.txt",
+        "java.time.zone.txt",
+        "java.util.txt",
+        "java.util.function.txt",
+        "java.util.regex.txt",
+        "java.util.stream.txt" };
 
     public static final List<Whitelist> BASE_WHITELISTS = Collections.singletonList(
         WhitelistLoader.loadFromResourceFiles(Whitelist.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_ALLOWLIST_FILES)
     );
+
+    /** The {@link ClassLoader} used to look up the allowlisted Java classes, constructors, methods, and fields. */
+    public final ClassLoader classLoader;
 
     /** The {@link List} of all the allowlisted Painless classes. */
     public final List<WhitelistClass> whitelistClasses;
@@ -90,6 +95,7 @@ public class Whitelist {
         List<WhitelistClassBinding> whitelistClassBindings,
         List<WhitelistInstanceBinding> whitelistInstanceBindings
     ) {
+        this.classLoader = Objects.requireNonNull(classLoader);
         this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));
         this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistImportedMethods));
         this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistClassBindings));

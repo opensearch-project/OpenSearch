@@ -53,6 +53,8 @@ import java.util.stream.Collectors;
  *
  * Classes will automatically extend other allowlisted classes if the Java class they represent is a
  * subclass of other classes including Java interfaces.
+ *
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistClass}
  */
 public class WhitelistClass {
 

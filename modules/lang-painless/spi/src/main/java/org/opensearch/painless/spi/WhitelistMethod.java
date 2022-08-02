@@ -51,6 +51,8 @@ import java.util.stream.Collectors;
  * Java class as long as the method is static and the first parameter of the method is the Java class
  * represented by the class. Note that the augmented method's parent Java class does not need to be
  * allowlisted.
+ *
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistMethod}
  */
 public class WhitelistMethod {
 

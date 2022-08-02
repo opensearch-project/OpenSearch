@@ -34,24 +34,15 @@ package org.opensearch.painless.spi;
 
 import org.opensearch.painless.spi.annotation.WhitelistAnnotationParser;
 
-import java.io.InputStreamReader;
-import java.io.LineNumberReader;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 
+/**
  * Loads and creates a {@link Whitelist} from one to many text files.
- * 
+ *
  * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistLoader}
  */
 @Deprecated

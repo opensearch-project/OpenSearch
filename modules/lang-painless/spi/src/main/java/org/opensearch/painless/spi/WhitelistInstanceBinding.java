@@ -43,6 +43,8 @@ import java.util.stream.Collectors;
  * An instance binding represents a method call that stores state. Each instance binding must provide
  * exactly one public method name. The canonical type name parameters provided must match those of the
  * method. The method for an instance binding will target the specified Java instance.
+ *
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistInstanceBinding}
  */
 public class WhitelistInstanceBinding {
 

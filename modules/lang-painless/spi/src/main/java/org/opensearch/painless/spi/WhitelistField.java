@@ -43,6 +43,8 @@ import java.util.stream.Collectors;
  * Field represents the equivalent of a Java field available as an allowlisted class field
  * within Painless. Fields for Painless classes may be accessed exactly as fields for Java classes
  * are using the '.' operator on an existing class variable/field.
+ *
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistField}
  */
 public class WhitelistField {
 

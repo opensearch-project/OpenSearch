@@ -47,6 +47,8 @@ import java.util.stream.Collectors;
  * when the binding method is called for the first time at which point state may be stored for the
  * arguments passed into the constructor. The method for a binding class will be called each time
  * the binding method is called and may use the previously stored state.
+ *
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistClassBinding}
  */
 public class WhitelistClassBinding {
 

@@ -55,9 +55,6 @@ public final class Allowlist extends Whitelist {
         AllowlistLoader.loadFromResourceFiles(Allowlist.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_ALLOWLIST_FILES)
     );
 
-    /** The {@link ClassLoader} used to look up the allowlisted Java classes, constructors, methods, and fields. */
-    public final ClassLoader classLoader;
-
     /** The {@link List} of all the allowlisted Painless classes. */
     public final List<AllowlistClass> allowlistClasses;
 
@@ -79,14 +76,13 @@ public final class Allowlist extends Whitelist {
         List<AllowlistInstanceBinding> allowlistInstanceBindings
     ) {
         super(
-                classLoader,
-                allowlistClasses.stream().map(e -> (WhitelistClass) e).collect(Collectors.toList()),
-                allowlistImportedMethods.stream().map(e -> (WhitelistMethod) e).collect(Collectors.toList()),
-                allowlistClassBindings.stream().map(e -> (WhitelistClassBinding) e).collect(Collectors.toList()),
-                allowlistInstanceBindings.stream().map(e -> (WhitelistInstanceBinding) e).collect(Collectors.toList())
+            classLoader,
+            allowlistClasses.stream().map(e -> (WhitelistClass) e).collect(Collectors.toList()),
+            allowlistImportedMethods.stream().map(e -> (WhitelistMethod) e).collect(Collectors.toList()),
+            allowlistClassBindings.stream().map(e -> (WhitelistClassBinding) e).collect(Collectors.toList()),
+            allowlistInstanceBindings.stream().map(e -> (WhitelistInstanceBinding) e).collect(Collectors.toList())
         );
 
-        this.classLoader = Objects.requireNonNull(classLoader);
         this.allowlistClasses = Collections.unmodifiableList(Objects.requireNonNull(allowlistClasses));
         this.allowlistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(allowlistImportedMethods));
         this.allowlistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(allowlistClassBindings));
