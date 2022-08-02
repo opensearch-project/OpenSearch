@@ -68,6 +68,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -199,6 +200,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     );
 
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
+        this(settings, null, customBuilders);
+    }
+
+    public ThreadPool(
+        final Settings settings,
+        final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener,
+        final ExecutorBuilder<?>... customBuilders
+    ) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
@@ -212,11 +221,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
         builders.put(
             Names.SEARCH,
-            new AutoQueueAdjustingExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, 1000, 1000, 2000)
+            new AutoQueueAdjustingExecutorBuilder(
+                settings,
+                Names.SEARCH,
+                searchThreadPoolSize(allocatedProcessors),
+                1000,
+                1000,
+                1000,
+                2000,
+                runnableTaskListener
+            )
         );
         builders.put(
             Names.SEARCH_THROTTLED,
-            new AutoQueueAdjustingExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200)
+            new AutoQueueAdjustingExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200, runnableTaskListener)
         );
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
