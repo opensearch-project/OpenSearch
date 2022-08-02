@@ -164,8 +164,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } catch (Exception e) {
                 logger.warn("Error fetching replication checkpoint {}", replicationCheckpoint);
             }
-            if (replicationCheckpoint == null)
-                replicationCheckpoint = ReplicationCheckpoint.empty(shardId);
+            if (replicationCheckpoint == null) replicationCheckpoint = ReplicationCheckpoint.empty(shardId);
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
                 logger,
@@ -381,7 +380,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
         private final ReplicationCheckpoint replicationCheckpoint;
 
-
         public NodeGatewayStartedShards(StreamInput in) throws IOException {
             super(in);
             allocationId = in.readOptionalString();
@@ -483,10 +481,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public String toString() {
             StringBuilder buf = new StringBuilder();
             buf.append("NodeGatewayStartedShards[").append("allocationId=").append(allocationId).append(",primary=").append(primary);
-            buf.append(",ReplicationCheckpoint=").append(replicationCheckpoint.toString());
             if (storeException != null) {
                 buf.append(",storeException=").append(storeException);
             }
+            buf.append(",ReplicationCheckpoint=").append(replicationCheckpoint.toString());
             buf.append("]");
             return buf.toString();
         }
