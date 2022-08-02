@@ -33,7 +33,7 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     /**
      * List of unique PITs across all nodes
      */
-    private final Set<ListPitInfo> pitsInfo = new HashSet<>();
+    private final Set<ListPitInfo> pitInfos = new HashSet<>();
 
     @Inject
     public GetAllPitNodesResponse(StreamInput in) throws IOException {
@@ -47,7 +47,7 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     ) {
         super(clusterName, getAllPitNodeResponse, failures);
         Set<String> uniquePitIds = new HashSet<>();
-        pitsInfo.addAll(
+        pitInfos.addAll(
             getAllPitNodeResponse.stream()
                 .flatMap(p -> p.getPitsInfo().stream().filter(t -> uniquePitIds.add(t.getPitId())))
                 .collect(Collectors.toList())
@@ -57,8 +57,8 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray("pitsInfo");
-        for (ListPitInfo pit : pitsInfo) {
+        builder.startArray("pitInfos");
+        for (ListPitInfo pit : pitInfos) {
             pit.toXContent(builder, params);
         }
         builder.endArray();
@@ -76,7 +76,7 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
         out.writeList(nodes);
     }
 
-    public List<ListPitInfo> getPITIDs() {
-        return Collections.unmodifiableList(new ArrayList<>(pitsInfo));
+    public List<ListPitInfo> getPitInfos() {
+        return Collections.unmodifiableList(new ArrayList<>(pitInfos));
     }
 }

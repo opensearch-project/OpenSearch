@@ -88,7 +88,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
         // Get all PITs and execute delete operation for the PITs
         pitService.getAllPits(ActionListener.wrap(getAllPitNodesResponse -> {
             DeletePitRequest deletePitRequest = new DeletePitRequest(
-                getAllPitNodesResponse.getPITIDs().stream().map(r -> r.getPitId()).collect(Collectors.toList())
+                getAllPitNodesResponse.getPitInfos().stream().map(r -> r.getPitId()).collect(Collectors.toList())
             );
             deletePits(listener, deletePitRequest);
         }, listener::onFailure));

@@ -349,8 +349,8 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
         ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
         GetAllPitNodesResponse getPitResponse = execute1.get();
-        assertEquals(3, getPitResponse.getPITIDs().size());
-        List<String> resultPitIds = getPitResponse.getPITIDs().stream().map(p -> p.getPitId()).collect(Collectors.toList());
+        assertEquals(3, getPitResponse.getPitInfos().size());
+        List<String> resultPitIds = getPitResponse.getPitInfos().stream().map(p -> p.getPitId()).collect(Collectors.toList());
         // asserting that we get all unique PIT IDs
         Assert.assertTrue(resultPitIds.contains(pitResponse.getId()));
         Assert.assertTrue(resultPitIds.contains(pitResponse1.getId()));
@@ -370,7 +370,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
                 GetAllPitNodesResponse getPitResponse = execute1.get();
                 // we still get a pit id from the data node which is up
-                assertEquals(1, getPitResponse.getPITIDs().size());
+                assertEquals(1, getPitResponse.getPitInfos().size());
                 // failure for node drop
                 assertEquals(1, getPitResponse.failures().size());
                 assertTrue(getPitResponse.failures().get(0).getMessage().contains("Failed node"));

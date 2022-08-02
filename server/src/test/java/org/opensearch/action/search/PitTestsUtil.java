@@ -109,8 +109,8 @@ public class PitTestsUtil {
         GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
         ActionFuture<GetAllPitNodesResponse> execute1 = client.execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
         GetAllPitNodesResponse getPitResponse = execute1.get();
-        Assert.assertTrue(getPitResponse.getPITIDs().get(0).getPitId().contains(id));
-        Assert.assertEquals(getPitResponse.getPITIDs().get(0).getCreationTime(), creationTime);
+        Assert.assertTrue(getPitResponse.getPitInfos().get(0).getPitId().contains(id));
+        Assert.assertEquals(getPitResponse.getPitInfos().get(0).getCreationTime(), creationTime);
     }
 
     public static void assertGetAllPitsEmpty(Client client) throws ExecutionException, InterruptedException {
@@ -128,6 +128,6 @@ public class PitTestsUtil {
         GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
         ActionFuture<GetAllPitNodesResponse> execute1 = client.execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
         GetAllPitNodesResponse getPitResponse = execute1.get();
-        Assert.assertEquals(0, getPitResponse.getPITIDs().size());
+        Assert.assertEquals(0, getPitResponse.getPitInfos().size());
     }
 }
