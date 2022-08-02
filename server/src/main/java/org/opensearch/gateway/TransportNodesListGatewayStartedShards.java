@@ -35,6 +35,7 @@ package org.opensearch.gateway;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
@@ -57,6 +58,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.shard.ShardStateMetadata;
@@ -152,12 +154,18 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         try {
             final ShardId shardId = request.getShardId();
             IndexService indexService = indicesService.indexService(request.getShardId().getIndex());
-            final ReplicationCheckpoint replicationCheckpoint;
-            if (indexService != null) {
-                replicationCheckpoint = indexService.getShard(shardId.getId()).getLatestReplicationCheckpoint();
-            } else {
-                replicationCheckpoint = ReplicationCheckpoint.empty(shardId);
+//            IndexSettings settings = indicesService.indexService(request.getShardId().getIndex()).getIndexSettings();
+            ReplicationCheckpoint replicationCheckpoint = null;
+            try {
+                IndexShard shard = indexService.getShard(shardId.getId());
+                if (shard != null) {
+                    replicationCheckpoint = shard.getLatestReplicationCheckpoint();
+                }
+            } catch (Exception e) {
+                logger.warn("Error fetching replication checkpoint {}", replicationCheckpoint);
             }
+            if (replicationCheckpoint == null)
+                replicationCheckpoint = ReplicationCheckpoint.empty(shardId);
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
                 logger,
@@ -369,18 +377,24 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         private final String allocationId;
         private final boolean primary;
 
-        private final ReplicationCheckpoint replicationCheckpoint;
         private final Exception storeException;
+
+        private final ReplicationCheckpoint replicationCheckpoint;
+
 
         public NodeGatewayStartedShards(StreamInput in) throws IOException {
             super(in);
             allocationId = in.readOptionalString();
             primary = in.readBoolean();
-            replicationCheckpoint = new ReplicationCheckpoint(in);
             if (in.readBoolean()) {
                 storeException = in.readException();
             } else {
                 storeException = null;
+            }
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                replicationCheckpoint = new ReplicationCheckpoint(in);
+            } else {
+                replicationCheckpoint = null;
             }
         }
 
@@ -428,12 +442,14 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             super.writeTo(out);
             out.writeOptionalString(allocationId);
             out.writeBoolean(primary);
-            replicationCheckpoint.writeTo(out);
             if (storeException != null) {
                 out.writeBoolean(true);
                 out.writeException(storeException);
             } else {
                 out.writeBoolean(false);
+            }
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                replicationCheckpoint.writeTo(out);
             }
         }
 

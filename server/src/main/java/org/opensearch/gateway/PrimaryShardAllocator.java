@@ -48,7 +48,6 @@ import org.opensearch.cluster.routing.allocation.NodeAllocationResult.ShardStore
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
@@ -386,29 +385,22 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
         }
 
-        final Comparator<NodeGatewayStartedShards> comparator; // allocation preference
-        Comparator<NodeGatewayStartedShards> matchingAllocationsFirst = Comparator.comparing(
-            (NodeGatewayStartedShards state) -> inSyncAllocationIds.contains(state.allocationId())
-        ).reversed();
-        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
-            if (matchAnyShard) {
-                // prefer shards with matching allocation ids
-                comparator = matchingAllocationsFirst.thenComparing(NO_STORE_EXCEPTION_FIRST_COMPARATOR)
-                    .thenComparing(PRIMARY_FIRST_COMPARATOR)
-                    .thenComparing(HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR);
-            } else {
-                comparator = NO_STORE_EXCEPTION_FIRST_COMPARATOR.thenComparing(PRIMARY_FIRST_COMPARATOR)
-                    .thenComparing(HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR);
-            }
+        Comparator<NodeGatewayStartedShards> comparator; // allocation preference
+        if (matchAnyShard) {
+            // prefer shards with matching allocation ids
+            Comparator<NodeGatewayStartedShards> matchingAllocationsFirst = Comparator.comparing(
+                (NodeGatewayStartedShards state) -> inSyncAllocationIds.contains(state.allocationId())
+            ).reversed();
+            comparator = matchingAllocationsFirst.thenComparing(NO_STORE_EXCEPTION_FIRST_COMPARATOR)
+                .thenComparing(PRIMARY_FIRST_COMPARATOR);
         } else {
-            if (matchAnyShard) {
-                comparator = matchingAllocationsFirst.thenComparing(NO_STORE_EXCEPTION_FIRST_COMPARATOR)
-                    .thenComparing(PRIMARY_FIRST_COMPARATOR);
-            } else {
-                comparator = NO_STORE_EXCEPTION_FIRST_COMPARATOR.thenComparing(PRIMARY_FIRST_COMPARATOR);
-            }
-
+            comparator = NO_STORE_EXCEPTION_FIRST_COMPARATOR.thenComparing(PRIMARY_FIRST_COMPARATOR);
         }
+
+        // If index has segrep enabled, then use replication checkpoint info to order the replicas
+         if (true) {
+            comparator = comparator.thenComparing(HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR);
+         }
 
         nodeShardStates.sort(comparator);
 
