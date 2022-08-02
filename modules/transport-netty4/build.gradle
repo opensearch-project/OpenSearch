@@ -38,6 +38,9 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
+// The transport-netty4 plugin is published to maven
+apply plugin: 'opensearch.publish'
+
 /*
  TODOs:
    * fix permissions such that only netty4 can open sockets etc?
