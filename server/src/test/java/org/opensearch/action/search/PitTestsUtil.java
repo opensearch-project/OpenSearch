@@ -33,8 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.opensearch.test.OpenSearchIntegTestCase.client;
-
 import static org.opensearch.test.OpenSearchTestCase.between;
 import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
 import static org.opensearch.test.OpenSearchTestCase.randomBoolean;

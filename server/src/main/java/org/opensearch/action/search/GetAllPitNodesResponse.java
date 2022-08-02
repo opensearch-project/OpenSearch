@@ -11,7 +11,6 @@ package org.opensearch.action.search;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
@@ -35,7 +34,6 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
      */
     private final Set<ListPitInfo> pitInfos = new HashSet<>();
 
-    @Inject
     public GetAllPitNodesResponse(StreamInput in) throws IOException {
         super(in);
     }
