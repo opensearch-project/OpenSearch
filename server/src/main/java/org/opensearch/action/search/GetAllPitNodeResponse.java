@@ -28,37 +28,37 @@ public class GetAllPitNodeResponse extends BaseNodeResponse implements ToXConten
     /**
      * List of active PITs in the associated node
      */
-    private final List<ListPitInfo> pitsInfo;
+    private final List<ListPitInfo> pitInfos;
 
-    public GetAllPitNodeResponse(DiscoveryNode node, List<ListPitInfo> pitsInfo) {
+    public GetAllPitNodeResponse(DiscoveryNode node, List<ListPitInfo> pitInfos) {
         super(node);
-        if (pitsInfo == null) {
+        if (pitInfos == null) {
             throw new IllegalArgumentException("Pits info cannot be null");
         }
-        this.pitsInfo = Collections.unmodifiableList(pitsInfo);
+        this.pitInfos = Collections.unmodifiableList(pitInfos);
     }
 
     public GetAllPitNodeResponse(StreamInput in) throws IOException {
         super(in);
-        this.pitsInfo = Collections.unmodifiableList(in.readList(ListPitInfo::new));
+        this.pitInfos = Collections.unmodifiableList(in.readList(ListPitInfo::new));
     }
 
-    public List<ListPitInfo> getPitsInfo() {
-        return pitsInfo;
+    public List<ListPitInfo> getPitInfos() {
+        return pitInfos;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(pitsInfo);
+        out.writeList(pitInfos);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("node", this.getNode().getName());
-        builder.startArray("pitsInfo");
-        for (ListPitInfo pit : pitsInfo) {
+        builder.startArray("pitInfos");
+        for (ListPitInfo pit : pitInfos) {
             pit.toXContent(builder, params);
         }
 

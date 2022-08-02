@@ -49,7 +49,7 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
         Set<String> uniquePitIds = new HashSet<>();
         pitInfos.addAll(
             getAllPitNodeResponse.stream()
-                .flatMap(p -> p.getPitsInfo().stream().filter(t -> uniquePitIds.add(t.getPitId())))
+                .flatMap(p -> p.getPitInfos().stream().filter(t -> uniquePitIds.add(t.getPitId())))
                 .collect(Collectors.toList())
         );
     }
