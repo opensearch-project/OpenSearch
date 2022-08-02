@@ -54,7 +54,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
+public class MustacheModulePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {

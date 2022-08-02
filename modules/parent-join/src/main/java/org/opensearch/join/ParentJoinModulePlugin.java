@@ -50,9 +50,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class ParentJoinPlugin extends Plugin implements SearchPlugin, MapperPlugin {
+public class ParentJoinModulePlugin extends Plugin implements SearchPlugin, MapperPlugin {
 
-    public ParentJoinPlugin() {}
+    public ParentJoinModulePlugin() {}
 
     @Override
     public List<QuerySpec<?>> getQueries() {

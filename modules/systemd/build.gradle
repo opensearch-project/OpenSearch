@@ -30,5 +30,5 @@
 
 opensearchplugin {
   description 'Integrates OpenSearch with systemd'
-  classname 'org.opensearch.systemd.SystemdPlugin'
+  classname 'org.opensearch.systemd.SystemdModulePlugin'
 }

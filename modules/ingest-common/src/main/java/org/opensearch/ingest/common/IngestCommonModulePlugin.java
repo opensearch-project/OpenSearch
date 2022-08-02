@@ -60,7 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     static final Setting<TimeValue> WATCHDOG_INTERVAL = Setting.timeSetting(
         "ingest.grok.watchdog.interval",
@@ -73,7 +73,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         Setting.Property.NodeScope
     );
 
-    public IngestCommonPlugin() {}
+    public IngestCommonModulePlugin() {}
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {

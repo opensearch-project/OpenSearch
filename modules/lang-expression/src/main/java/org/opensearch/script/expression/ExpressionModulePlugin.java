@@ -40,7 +40,7 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 
-public class ExpressionPlugin extends Plugin implements ScriptPlugin {
+public class ExpressionModulePlugin extends Plugin implements ScriptPlugin {
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {

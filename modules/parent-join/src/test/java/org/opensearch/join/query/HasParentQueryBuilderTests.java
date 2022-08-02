@@ -50,7 +50,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.WrapperQueryBuilder;
-import org.opensearch.join.ParentJoinPlugin;
+import org.opensearch.join.ParentJoinModulePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
@@ -83,7 +83,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinModulePlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
