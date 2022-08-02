@@ -20,6 +20,7 @@ import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.coordination.DecommissionNodeAttributeClusterStateTaskExecutor;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.metadata.DecommissionedAttributeMetadata;
 import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
@@ -43,6 +44,7 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
 
     private final ClusterService clusterService;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
+    private final DecommissionNodeAttributeClusterStateTaskExecutor decommissionExecutor;
     private final ThreadPool threadPool;
 
     @Inject
@@ -54,6 +56,7 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
+        this.decommissionExecutor = new DecommissionNodeAttributeClusterStateTaskExecutor(allocationService, logger);
     }
 
     /**
@@ -199,19 +202,29 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
         DecommissionedAttributeMetadata metadata = decommissionedAttributes.decommissionedAttribute("awareness");
         assert metadata != null : "No nodes to decommission";
         DecommissionAttribute decommissionAttribute = metadata.decommissionedAttribute();
-        for (DiscoveryNode discoveryNode : discoveryNodes) {
-            for (String zone : decommissionAttribute.attributeValues()) {
-                if (zone.equals(discoveryNode.getAttributes().get(decommissionAttribute.attributeName()))) {
-                    removeDecommissionedNodes(discoveryNode);
-                }
-            }
-        }
+        clusterService.submitStateUpdateTask(
+            "attribute-decommissioned",
+            new DecommissionNodeAttributeClusterStateTaskExecutor.Task(decommissionAttribute, "node is decommissioned"),
+            ClusterStateTaskConfig.build(Priority.IMMEDIATE),
+            decommissionExecutor,
+            decommissionExecutor
+        );
+        logger.info("Zone decommissioned");
+
+
+//        for (DiscoveryNode discoveryNode : discoveryNodes) {
+//            for (String zone : decommissionAttribute.attributeValues()) {
+//                if (zone.equals(discoveryNode.getAttributes().get(decommissionAttribute.attributeName()))) {
+//                    removeDecommissionedNodes(discoveryNode);
+//                }
+//            }
+//        }
     }
 
     // TODO -Zone Removal
     private void removeDecommissionedNodes(DiscoveryNode discoveryNode) {
         clusterService.submitStateUpdateTask(
-            "node-decommissioned",
+            "attribute-decommissioned",
             new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, "node is decommissioned"),
             ClusterStateTaskConfig.build(Priority.IMMEDIATE),
             nodeRemovalExecutor,
