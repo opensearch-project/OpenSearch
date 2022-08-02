@@ -105,7 +105,7 @@ import static org.mockito.Mockito.when;
 public final class BlobStoreTestUtil {
 
     public static void assertRepoConsistency(InternalTestCluster testCluster, String repoName) {
-        final BlobStoreRepository repo = (BlobStoreRepository) testCluster.getCurrentMasterNodeInstance(RepositoriesService.class)
+        final BlobStoreRepository repo = (BlobStoreRepository) testCluster.getCurrentClusterManagerNodeInstance(RepositoriesService.class)
             .repository(repoName);
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
@@ -414,7 +414,9 @@ public final class BlobStoreTestUtil {
         final DiscoveryNode localNode = new DiscoveryNode("", buildNewFakeTransportAddress(), Version.CURRENT);
         final AtomicReference<ClusterState> currentState = new AtomicReference<>(
             ClusterState.builder(initialState)
-                .nodes(DiscoveryNodes.builder().add(localNode).masterNodeId(localNode.getId()).localNodeId(localNode.getId()).build())
+                .nodes(
+                    DiscoveryNodes.builder().add(localNode).clusterManagerNodeId(localNode.getId()).localNodeId(localNode.getId()).build()
+                )
                 .build()
         );
         when(clusterService.state()).then(invocationOnMock -> currentState.get());

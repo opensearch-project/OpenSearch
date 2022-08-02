@@ -515,8 +515,8 @@ public class ClusterClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::get-component-templates-request
 
         // tag::get-component-templates-request-masterTimeout
-        request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.setMasterNodeTimeout("1m"); // <2>
+        request.setClusterManagerNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.setClusterManagerNodeTimeout("1m"); // <2>
         // end::get-component-templates-request-masterTimeout
 
         // tag::get-component-templates-execute
@@ -603,7 +603,7 @@ public class ClusterClientDocumentationIT extends OpenSearchRestHighLevelClientT
             // end::put-component-template-request-create
 
             // tag::put-component-template-request-masterTimeout
-            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::put-component-template-request-masterTimeout
 
             request.create(false); // make test happy
@@ -670,7 +670,7 @@ public class ClusterClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::delete-component-template-request
 
         // tag::delete-component-template-request-masterTimeout
-        deleteRequest.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        deleteRequest.setClusterManagerTimeout(TimeValue.timeValueMinutes(1)); // <1>
         // end::delete-component-template-request-masterTimeout
 
         // tag::delete-component-template-execute

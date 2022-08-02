@@ -34,6 +34,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.eq;
 
 public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
@@ -201,6 +202,40 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         listener.onFailure(new SegmentReplicationState(new ReplicationLuceneIndex()), new OpenSearchException("testing"), true);
         verify(spyShard).failShard(any(), any());
         closeShard(indexShard, false);
+    }
+
+    public void testReplicationOnDone() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+        IndexShard spyShard = spy(indexShard);
+        ReplicationCheckpoint cp = indexShard.getLatestReplicationCheckpoint();
+        ReplicationCheckpoint newCheckpoint = new ReplicationCheckpoint(
+            cp.getShardId(),
+            cp.getPrimaryTerm(),
+            cp.getSegmentsGen(),
+            cp.getSeqNo(),
+            cp.getSegmentInfosVersion() + 1
+        );
+        ReplicationCheckpoint anotherNewCheckpoint = new ReplicationCheckpoint(
+            cp.getShardId(),
+            cp.getPrimaryTerm(),
+            cp.getSegmentsGen(),
+            cp.getSeqNo(),
+            cp.getSegmentInfosVersion() + 2
+        );
+        ArgumentCaptor<SegmentReplicationTargetService.SegmentReplicationListener> captor = ArgumentCaptor.forClass(
+            SegmentReplicationTargetService.SegmentReplicationListener.class
+        );
+        doNothing().when(spy).startReplication(any(), any(), any());
+        spy.onNewCheckpoint(newCheckpoint, spyShard);
+        spy.onNewCheckpoint(anotherNewCheckpoint, spyShard);
+        verify(spy, times(1)).startReplication(eq(newCheckpoint), any(), captor.capture());
+        verify(spy, times(1)).onNewCheckpoint(eq(anotherNewCheckpoint), any());
+        SegmentReplicationTargetService.SegmentReplicationListener listener = captor.getValue();
+        listener.onDone(new SegmentReplicationState(new ReplicationLuceneIndex()));
+        doNothing().when(spy).onNewCheckpoint(any(), any());
+        verify(spy, timeout(0).times(2)).onNewCheckpoint(eq(anotherNewCheckpoint), any());
+        closeShard(indexShard, false);
+
     }
 
     public void testBeforeIndexShardClosed_CancelsOngoingReplications() {

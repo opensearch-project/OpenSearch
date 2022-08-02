@@ -71,7 +71,9 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -87,6 +89,8 @@ public class SearchTransportService {
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
     public static final String CLEAR_SCROLL_CONTEXTS_ACTION_NAME = "indices:data/read/search[clear_scroll_contexts]";
+    public static final String FREE_PIT_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context/pit]";
+    public static final String FREE_ALL_PIT_CONTEXTS_ACTION_NAME = "indices:data/read/search[free_pit_contexts]";
     public static final String DFS_ACTION_NAME = "indices:data/read/search[phase/dfs]";
     public static final String QUERY_ACTION_NAME = "indices:data/read/search[phase/query]";
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
@@ -197,6 +201,30 @@ public class SearchTransportService {
             TransportRequest.Empty.INSTANCE,
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener, (in) -> TransportResponse.Empty.INSTANCE)
+        );
+    }
+
+    public void sendFreePITContexts(
+        Transport.Connection connection,
+        List<PitSearchContextIdForNode> contextIds,
+        ActionListener<DeletePitResponse> listener
+    ) {
+        transportService.sendRequest(
+            connection,
+            FREE_PIT_CONTEXT_ACTION_NAME,
+            new PitFreeContextsRequest(contextIds),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, DeletePitResponse::new)
+        );
+    }
+
+    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
+        transportService.sendRequest(
+            connection,
+            FREE_ALL_PIT_CONTEXTS_ACTION_NAME,
+            TransportRequest.Empty.INSTANCE,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, DeletePitResponse::new)
         );
     }
 
@@ -371,6 +399,43 @@ public class SearchTransportService {
     }
 
     /**
+     * Request to free the PIT context based on id
+     */
+    static class PitFreeContextsRequest extends TransportRequest {
+        private List<PitSearchContextIdForNode> contextIds;
+
+        PitFreeContextsRequest(List<PitSearchContextIdForNode> contextIds) {
+            this.contextIds = new ArrayList<>();
+            this.contextIds.addAll(contextIds);
+        }
+
+        PitFreeContextsRequest(StreamInput in) throws IOException {
+            super(in);
+            int size = in.readVInt();
+            if (size > 0) {
+                this.contextIds = new ArrayList<>();
+                for (int i = 0; i < size; i++) {
+                    PitSearchContextIdForNode contextId = new PitSearchContextIdForNode(in);
+                    contextIds.add(contextId);
+                }
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeVInt(contextIds.size());
+            for (PitSearchContextIdForNode contextId : contextIds) {
+                contextId.writeTo(out);
+            }
+        }
+
+        public List<PitSearchContextIdForNode> getContextIds() {
+            return this.contextIds;
+        }
+    }
+
+    /**
      * A search free context request
      *
      * @opensearch.internal
@@ -454,6 +519,23 @@ public class SearchTransportService {
             }
         );
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);
+
+        transportService.registerRequestHandler(
+            FREE_PIT_CONTEXT_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            PitFreeContextsRequest::new,
+            (request, channel, task) -> { channel.sendResponse(searchService.freeReaderContextsIfFound(request.getContextIds())); }
+        );
+        TransportActionProxy.registerProxyAction(transportService, FREE_PIT_CONTEXT_ACTION_NAME, DeletePitResponse::new);
+
+        transportService.registerRequestHandler(
+            FREE_ALL_PIT_CONTEXTS_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            TransportRequest.Empty::new,
+            (request, channel, task) -> { channel.sendResponse(searchService.freeAllPitContexts()); }
+        );
+        TransportActionProxy.registerProxyAction(transportService, FREE_ALL_PIT_CONTEXTS_ACTION_NAME, DeletePitResponse::new);
+
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,
             ThreadPool.Names.SAME,

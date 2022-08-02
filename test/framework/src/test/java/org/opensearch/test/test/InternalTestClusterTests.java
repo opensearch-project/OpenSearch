@@ -304,13 +304,13 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         );
         try {
             cluster.beforeTest(random());
-            final int originalClusterManagerCount = cluster.numMasterNodes();
+            final int originalClusterManagerCount = cluster.numClusterManagerNodes();
             final Map<String, Path[]> shardNodePaths = new HashMap<>();
             for (String name : cluster.getNodeNames()) {
                 shardNodePaths.put(name, getNodePaths(cluster, name));
             }
             String poorNode = randomValueOtherThanMany(
-                n -> originalClusterManagerCount == 1 && n.equals(cluster.getMasterName()),
+                n -> originalClusterManagerCount == 1 && n.equals(cluster.getClusterManagerName()),
                 () -> randomFrom(cluster.getNodeNames())
             );
             Path dataPath = getNodePaths(cluster, poorNode)[0];
@@ -439,7 +439,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             for (String name : cluster.getNodeNames()) {
                 DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
                 List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
-                if (node.isMasterNode()) {
+                if (node.isClusterManagerNode()) {
                     result.computeIfAbsent(clusterManagerRole, k -> new HashSet<>()).addAll(paths);
                 } else if (node.isDataNode()) {
                     result.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE, k -> new HashSet<>()).addAll(paths);

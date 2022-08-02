@@ -200,7 +200,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        preGetSubLeafCollectors();
+        preGetSubLeafCollectors(ctx);
         final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
         return getLeafCollector(ctx, sub);
     }
@@ -209,7 +209,7 @@ public abstract class AggregatorBase extends Aggregator {
      * Can be overridden by aggregator implementations that like the perform an operation before the leaf collectors
      * of children aggregators are instantiated for the next segment.
      */
-    protected void preGetSubLeafCollectors() throws IOException {}
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {}
 
     /**
      * Can be overridden by aggregator implementation to be called back when the collection phase starts.

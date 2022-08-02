@@ -188,7 +188,7 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
             .add(newNode("node1", clusterManagerEligible ? CLUSTER_MANAGER_DATA_ROLES : dataOnlyRoles))
             .add(newNode("cluster_manager_node", CLUSTER_MANAGER_DATA_ROLES))
             .localNodeId("node1")
-            .masterNodeId(clusterManagerEligible ? "node1" : "cluster_manager_node");
+            .clusterManagerNodeId(clusterManagerEligible ? "node1" : "cluster_manager_node");
     }
 
     private IndexMetadata createIndexMetadata(String name) {

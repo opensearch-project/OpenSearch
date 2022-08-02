@@ -713,7 +713,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             .map(cr -> cr.node)
             .collect(Collectors.toList());
         List<DiscoveryNode> sortedFollowerTargets = new ArrayList<>(followerTargets);
-        Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> n.isMasterNode() == false));
+        Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> n.isClusterManagerNode() == false));
         assertEquals(sortedFollowerTargets, followerTargets);
     }
 

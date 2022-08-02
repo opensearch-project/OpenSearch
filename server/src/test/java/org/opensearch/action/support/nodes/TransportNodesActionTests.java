@@ -226,7 +226,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             discoveryNodes.add(node);
         }
         discoBuilder.localNodeId(randomFrom(discoveryNodes).getId());
-        discoBuilder.masterNodeId(randomFrom(discoveryNodes).getId());
+        discoBuilder.clusterManagerNodeId(randomFrom(discoveryNodes).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(clusterService.getClusterName());
         stateBuilder.nodes(discoBuilder);
         ClusterState clusterState = stateBuilder.build();

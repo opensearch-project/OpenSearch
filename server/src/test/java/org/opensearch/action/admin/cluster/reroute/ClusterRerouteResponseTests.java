@@ -61,7 +61,7 @@ public class ClusterRerouteResponseTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         DiscoveryNode node0 = new DiscoveryNode("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000), Version.CURRENT);
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build();
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).clusterManagerNodeId(node0.getId()).build();
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(
                 Settings.builder()

@@ -47,9 +47,9 @@ import java.util.EnumSet;
  * @opensearch.internal
  */
 public class NoClusterManagerBlockService {
-    public static final int NO_MASTER_BLOCK_ID = 2;
-    public static final ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(
-        NO_MASTER_BLOCK_ID,
+    public static final int NO_CLUSTER_MANAGER_BLOCK_ID = 2;
+    public static final ClusterBlock NO_CLUSTER_MANAGER_BLOCK_WRITES = new ClusterBlock(
+        NO_CLUSTER_MANAGER_BLOCK_ID,
         "no cluster-manager",
         true,
         false,
@@ -57,8 +57,8 @@ public class NoClusterManagerBlockService {
         RestStatus.SERVICE_UNAVAILABLE,
         EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE)
     );
-    public static final ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(
-        NO_MASTER_BLOCK_ID,
+    public static final ClusterBlock NO_CLUSTER_MANAGER_BLOCK_ALL = new ClusterBlock(
+        NO_CLUSTER_MANAGER_BLOCK_ID,
         "no cluster-manager",
         true,
         true,
@@ -66,8 +66,8 @@ public class NoClusterManagerBlockService {
         RestStatus.SERVICE_UNAVAILABLE,
         ClusterBlockLevel.ALL
     );
-    public static final ClusterBlock NO_MASTER_BLOCK_METADATA_WRITES = new ClusterBlock(
-        NO_MASTER_BLOCK_ID,
+    public static final ClusterBlock NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES = new ClusterBlock(
+        NO_CLUSTER_MANAGER_BLOCK_ID,
         "no cluster-manager",
         true,
         false,
@@ -75,6 +75,19 @@ public class NoClusterManagerBlockService {
         RestStatus.SERVICE_UNAVAILABLE,
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE)
     );
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #NO_CLUSTER_MANAGER_BLOCK_ID} */
+    @Deprecated
+    public static final int NO_MASTER_BLOCK_ID = NO_CLUSTER_MANAGER_BLOCK_ID;
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #NO_CLUSTER_MANAGER_BLOCK_WRITES} */
+    @Deprecated
+    public static final ClusterBlock NO_MASTER_BLOCK_WRITES = NO_CLUSTER_MANAGER_BLOCK_WRITES;
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #NO_CLUSTER_MANAGER_BLOCK_ALL} */
+    @Deprecated
+    public static final ClusterBlock NO_MASTER_BLOCK_ALL = NO_CLUSTER_MANAGER_BLOCK_ALL;
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES} */
+    @Deprecated
+    public static final ClusterBlock NO_MASTER_BLOCK_METADATA_WRITES = NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES;
 
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>(
         "cluster.no_master_block",
@@ -98,17 +111,17 @@ public class NoClusterManagerBlockService {
 
     public NoClusterManagerBlockService(Settings settings, ClusterSettings clusterSettings) {
         this.noClusterManagerBlock = NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(NO_CLUSTER_MANAGER_BLOCK_SETTING, this::setNoMasterBlock);
+        clusterSettings.addSettingsUpdateConsumer(NO_CLUSTER_MANAGER_BLOCK_SETTING, this::setNoClusterManagerBlock);
     }
 
     private static ClusterBlock parseNoClusterManagerBlock(String value) {
         switch (value) {
             case "all":
-                return NO_MASTER_BLOCK_ALL;
+                return NO_CLUSTER_MANAGER_BLOCK_ALL;
             case "write":
-                return NO_MASTER_BLOCK_WRITES;
+                return NO_CLUSTER_MANAGER_BLOCK_WRITES;
             case "metadata_write":
-                return NO_MASTER_BLOCK_METADATA_WRITES;
+                return NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES;
             default:
                 throw new IllegalArgumentException(
                     "invalid no-cluster-manager block [" + value + "], must be one of [all, write, metadata_write]"
@@ -116,11 +129,17 @@ public class NoClusterManagerBlockService {
         }
     }
 
+    public ClusterBlock getNoClusterManagerBlock() {
+        return noClusterManagerBlock;
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getNoClusterManagerBlock()} */
+    @Deprecated
     public ClusterBlock getNoMasterBlock() {
         return noClusterManagerBlock;
     }
 
-    private void setNoMasterBlock(ClusterBlock noClusterManagerBlock) {
+    private void setNoClusterManagerBlock(ClusterBlock noClusterManagerBlock) {
         this.noClusterManagerBlock = noClusterManagerBlock;
     }
 }

@@ -496,7 +496,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
 
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalCluster().getInstance(
             ClusterInfoService.class,
-            internalCluster().getMasterName()
+            internalCluster().getClusterManagerName()
         );
         infoService.refresh();
         // kick off a retry and wait until it's done!

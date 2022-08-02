@@ -142,6 +142,14 @@ class SegmentReplicationSourceHandler {
             transfer.start();
 
             sendFileStep.whenComplete(r -> {
+                final String targetAllocationId = request.getTargetAllocationId();
+                RunUnderPrimaryPermit.run(
+                    () -> shard.markAllocationIdAsInSync(targetAllocationId, request.getCheckpoint().getSeqNo()),
+                    shard.shardId() + " marking " + targetAllocationId + " as in sync",
+                    shard,
+                    cancellableThreads,
+                    logger
+                );
                 try {
                     future.onResponse(new GetSegmentFilesResponse(List.of(storeFileMetadata)));
                 } finally {

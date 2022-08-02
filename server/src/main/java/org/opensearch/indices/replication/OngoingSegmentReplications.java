@@ -113,7 +113,11 @@ class OngoingSegmentReplications {
                     removeCopyState(sourceHandler.getCopyState());
                 }
             });
-            handler.sendFiles(request, wrappedListener);
+            if (request.getFilesToFetch().isEmpty()) {
+                wrappedListener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+            } else {
+                handler.sendFiles(request, wrappedListener);
+            }
         } else {
             listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
         }

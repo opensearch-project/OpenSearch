@@ -116,7 +116,7 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                 ClusterState.builder(clusterService.state())
                     .blocks(
                         ClusterBlocks.builder()
-                            .addGlobalBlock(NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL)
+                            .addGlobalBlock(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL)
                             .addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
                     )
             );

@@ -168,11 +168,11 @@ public class NodeRoles {
         return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.INGEST_ROLE));
     }
 
-    public static Settings masterNode() {
-        return masterNode(Settings.EMPTY);
+    public static Settings clusterManagerNode() {
+        return clusterManagerNode(Settings.EMPTY);
     }
 
-    public static Settings masterNode(final Settings settings) {
+    public static Settings clusterManagerNode(final Settings settings) {
         return addRoles(settings, Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
     }
 
@@ -184,12 +184,48 @@ public class NodeRoles {
         return onlyRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 
-    public static Settings nonMasterNode() {
-        return nonMasterNode(Settings.EMPTY);
+    public static Settings nonClusterManagerNode() {
+        return nonClusterManagerNode(Settings.EMPTY);
     }
 
-    public static Settings nonMasterNode(final Settings settings) {
+    public static Settings nonClusterManagerNode(final Settings settings) {
         return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerNode()} */
+    @Deprecated
+    public static Settings masterNode() {
+        return clusterManagerNode();
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerNode(Settings)} */
+    @Deprecated
+    public static Settings masterNode(final Settings settings) {
+        return clusterManagerNode(settings);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOnlyNode()} */
+    @Deprecated
+    public static Settings masterOnlyNode() {
+        return clusterManagerOnlyNode();
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOnlyNode(Settings)} */
+    @Deprecated
+    public static Settings masterOnlyNode(final Settings settings) {
+        return clusterManagerOnlyNode(settings);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #nonClusterManagerNode()} */
+    @Deprecated
+    public static Settings nonMasterNode() {
+        return nonClusterManagerNode();
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #nonClusterManagerNode(Settings)} */
+    @Deprecated
+    public static Settings nonMasterNode(final Settings settings) {
+        return nonClusterManagerNode(settings);
     }
 
     public static Settings remoteClusterClientNode() {
