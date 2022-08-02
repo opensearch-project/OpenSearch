@@ -85,6 +85,7 @@ public class WhitelistClass {
         List<WhitelistField> allowlistFields,
         List<Object> painlessAnnotations
     ) {
+
         this.origin = Objects.requireNonNull(origin);
         this.javaClassName = Objects.requireNonNull(javaClassName);
 
