@@ -41,6 +41,10 @@ public class InternalTranslogManager implements TranslogManager {
     private final TranslogEventListener translogEventListener;
     private static final Logger logger = LogManager.getLogger(InternalTranslogManager.class);
 
+    public AtomicBoolean getPendingTranslogRecovery() {
+        return pendingTranslogRecovery;
+    }
+
     public InternalTranslogManager(
         TranslogConfig translogConfig,
         LongSupplier primaryTermSupplier,
@@ -81,11 +85,11 @@ public class InternalTranslogManager implements TranslogManager {
             translog.rollGeneration();
             translog.trimUnreferencedReaders();
         } catch (AlreadyClosedException e) {
-            translogEventListener.onTragicFailure(e);
+            translogEventListener.onFailure("translog roll generation failed", e);
             throw e;
         } catch (Exception e) {
             try {
-                translogEventListener.onFailure("translog trimming failed", e);
+                translogEventListener.onFailure("translog roll generation failed", e);
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
@@ -204,15 +208,15 @@ public class InternalTranslogManager implements TranslogManager {
             engineLifeCycleAware.ensureOpen();
             translog.trimUnreferencedReaders();
         } catch (AlreadyClosedException e) {
-            translogEventListener.onTragicFailure(e);
+            translogEventListener.onFailure("translog trimming unreferenced translog failed", e);
             throw e;
         } catch (Exception e) {
             try {
-                translogEventListener.onFailure("translog trimming failed", e);
+                translogEventListener.onFailure("translog trimming unreferenced translog failed", e);
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
-            throw new TranslogException(shardId, "failed to trim translog", e);
+            throw new TranslogException(shardId, "failed to trim unreferenced translog translog", e);
         }
     }
 
@@ -237,7 +241,7 @@ public class InternalTranslogManager implements TranslogManager {
             engineLifeCycleAware.ensureOpen();
             translog.trimOperations(belowTerm, aboveSeqNo);
         } catch (AlreadyClosedException e) {
-            translogEventListener.onTragicFailure(e);
+            translogEventListener.onFailure("translog operations trimming failed", e);
             throw e;
         } catch (Exception e) {
             try {
@@ -309,11 +313,14 @@ public class InternalTranslogManager implements TranslogManager {
 
     /**
      * Returns the the translog instance
-     * @param ensureOpen check if the engine is open
      * @return the {@link Translog} instance
      */
     @Override
-    public Translog getTranslog(boolean ensureOpen) {
+    public Translog getTranslog() {
+        return translog;
+    }
+
+    private Translog getTranslog(boolean ensureOpen) {
         if (ensureOpen) {
             this.engineLifeCycleAware.ensureOpen();
         }

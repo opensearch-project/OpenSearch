@@ -100,7 +100,7 @@ import static org.hamcrest.Matchers.arrayContaining;
  */
 public class RefreshListenersTests extends OpenSearchTestCase {
     private RefreshListeners listeners;
-    private Engine engine;
+    private InternalEngine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
     private Store store;
@@ -173,8 +173,8 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             EngineTestCase.tombstoneDocSupplier()
         );
         engine = new InternalEngine(config);
-        engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
-        listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
+        engine.translogManager().recoverFromTranslog((s) -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        listeners.setCurrentRefreshLocationSupplier(engine.translogManager()::getTranslogLastWriteLocation);
     }
 
     @After

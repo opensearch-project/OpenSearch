@@ -51,6 +51,8 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.NoOpTranslogManager;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogStats;
@@ -90,6 +92,7 @@ public class ReadOnlyEngine extends Engine {
     private final SafeCommitInfo safeCommitInfo;
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
+    private final TranslogManager translogManager;
 
     protected volatile TranslogStats translogStats;
 
@@ -142,6 +145,21 @@ public class ReadOnlyEngine extends Engine {
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
 
                 completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+
+                translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
+                    @Override
+                    public void close() {}
+
+                    @Override
+                    public int totalOperations() {
+                        return 0;
+                    }
+
+                    @Override
+                    public Translog.Operation next() {
+                        return null;
+                    }
+                });
 
                 success = true;
             } finally {
@@ -265,6 +283,10 @@ public class ReadOnlyEngine extends Engine {
         return readerManager;
     }
 
+    public TranslogManager translogManager() {
+        return translogManager;
+    }
+
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
@@ -315,16 +337,18 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public boolean isTranslogSyncNeeded() {
-        return false;
+        return translogManager.isTranslogSyncNeeded();
     }
 
     @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
-        return false;
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        return translogManager.ensureTranslogSynced(locations);
     }
 
     @Override
-    public void syncTranslog() {}
+    public void syncTranslog() throws IOException {
+        translogManager.syncTranslog();
+    }
 
     @Override
     public Closeable acquireHistoryRetentionLock() {
@@ -380,12 +404,18 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
-        return new Translog.Location(0, 0, 0);
+        return translogManager.getTranslogLastWriteLocation();
     }
 
     @Override
     public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
+    }
+
+    public long getProcessedLocalCheckpoint() {
+        // the read-only engine does not process checkpoints, so its
+        // processed checkpoint is identical to its persisted one.
+        return getPersistedLocalCheckpoint();
     }
 
     @Override
@@ -463,15 +493,19 @@ public class ReadOnlyEngine extends Engine {
     public void deactivateThrottling() {}
 
     @Override
-    public void trimUnreferencedTranslogFiles() {}
-
-    @Override
-    public boolean shouldRollTranslogGeneration() {
-        return false;
+    public void trimUnreferencedTranslogFiles() {
+        translogManager.trimUnreferencedTranslogFiles();
     }
 
     @Override
-    public void rollTranslogGeneration() {}
+    public boolean shouldRollTranslogGeneration() {
+        return translogManager.shouldRollTranslogGeneration();
+    }
+
+    @Override
+    public void rollTranslogGeneration() {
+        translogManager.rollTranslogGeneration();
+    }
 
     @Override
     public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
@@ -497,10 +531,14 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void skipTranslogRecovery() {}
+    public void skipTranslogRecovery() {
+        translogManager.skipTranslogRecovery();
+    }
 
     @Override
-    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) {}
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) {
+        translogManager.trimOperationsFromTranslog(belowTerm, aboveSeqNo);
+    }
 
     @Override
     public void maybePruneDeletes() {}

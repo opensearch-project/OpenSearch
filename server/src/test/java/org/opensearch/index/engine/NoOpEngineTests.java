@@ -145,7 +145,7 @@ public class NoOpEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    engine.syncTranslog(); // advance persisted local checkpoint
+                    engine.translogManager().syncTranslog(); // advance persisted local checkpoint
                     globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 }
 
@@ -154,7 +154,7 @@ public class NoOpEngineTests extends EngineTestCase {
                         String delId = Integer.toString(i);
                         Engine.DeleteResult result = engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
-                        engine.syncTranslog(); // advance persisted local checkpoint
+                        engine.translogManager().syncTranslog(); // advance persisted local checkpoint
                         globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                         deletions += 1;
                     }
@@ -217,20 +217,24 @@ public class NoOpEngineTests extends EngineTestCase {
                 engine.flush();
             }
             if (randomBoolean()) {
-                engine.rollTranslogGeneration();
+                engine.translogManager().rollTranslogGeneration();
             }
         }
         // prevent translog from trimming so we can test trimUnreferencedFiles in NoOpEngine.
-        final Translog.Snapshot snapshot = engine.getTranslog().newSnapshot();
+        engine.ensureOpen();
+        final Translog.Snapshot snapshot = engine.translogManager().getTranslog().newSnapshot();
         engine.flush(true, true);
         engine.close();
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
-        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(totalTranslogOps));
-        noOpEngine.trimUnreferencedTranslogFiles();
-        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(0));
-        assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
-        assertThat(noOpEngine.getTranslogStats().getTranslogSizeInBytes(), equalTo((long) Translog.DEFAULT_HEADER_SIZE_IN_BYTES));
+        assertThat(noOpEngine.translogManager().getTranslogStats().estimatedNumberOfOperations(), equalTo(totalTranslogOps));
+        noOpEngine.translogManager().trimUnreferencedTranslogFiles();
+        assertThat(noOpEngine.translogManager().getTranslogStats().estimatedNumberOfOperations(), equalTo(0));
+        assertThat(noOpEngine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(0));
+        assertThat(
+            noOpEngine.translogManager().getTranslogStats().getTranslogSizeInBytes(),
+            equalTo((long) Translog.DEFAULT_HEADER_SIZE_IN_BYTES)
+        );
         snapshot.close();
         noOpEngine.close();
     }
