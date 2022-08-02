@@ -174,7 +174,7 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         CleanupRepositoryRequest request,
         ClusterState state,
         ActionListener<CleanupRepositoryResponse> listener

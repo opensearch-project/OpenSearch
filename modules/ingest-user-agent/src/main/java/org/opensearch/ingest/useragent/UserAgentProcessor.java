@@ -313,7 +313,13 @@ public class UserAgentProcessor extends AbstractProcessor {
         ) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
-            String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
+            String regexFilename = readStringProperty(
+                TYPE,
+                processorTag,
+                config,
+                "regex_file",
+                IngestUserAgentModulePlugin.DEFAULT_PARSER_NAME
+            );
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean useECS = readBooleanProperty(TYPE, processorTag, config, "ecs", true);

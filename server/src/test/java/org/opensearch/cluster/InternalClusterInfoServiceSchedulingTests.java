@@ -48,8 +48,8 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.FakeThreadPoolMasterService;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
@@ -89,14 +89,14 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             }
         };
 
-        final MasterService masterService = new FakeThreadPoolMasterService(
+        final ClusterManagerService clusterManagerService = new FakeThreadPoolClusterManagerService(
             "test",
             "clusterManagerService",
             threadPool,
             r -> { fail("cluster-manager service should not run any tasks"); }
         );
 
-        final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
+        final ClusterService clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(settings, clusterService, threadPool, client);
@@ -105,8 +105,8 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
 
         clusterService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
         clusterApplierService.setInitialState(ClusterState.builder(new ClusterName("cluster")).nodes(noClusterManager).build());
-        masterService.setClusterStatePublisher((clusterChangedEvent, publishListener, ackListener) -> fail("should not publish"));
-        masterService.setClusterStateSupplier(clusterApplierService::state);
+        clusterManagerService.setClusterStatePublisher((clusterChangedEvent, publishListener, ackListener) -> fail("should not publish"));
+        clusterManagerService.setClusterStateSupplier(clusterApplierService::state);
         clusterService.start();
 
         final AtomicBoolean becameClusterManager1 = new AtomicBoolean();
@@ -210,7 +210,9 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
                 requestCount++;
                 // ClusterInfoService handles ClusterBlockExceptions quietly, so we invent such an exception to avoid excess logging
                 listener.onFailure(
-                    new ClusterBlockException(org.opensearch.common.collect.Set.of(NoClusterManagerBlockService.NO_MASTER_BLOCK_ALL))
+                    new ClusterBlockException(
+                        org.opensearch.common.collect.Set.of(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL)
+                    )
                 );
             } else {
                 fail("unexpected action: " + action.name());

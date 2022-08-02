@@ -76,16 +76,33 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
             .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
-    @Override
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterInfoRequest, ClusterState, ActionListener)} */
+    @Deprecated
     protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        doMasterOperation(request, concreteIndices, state, listener);
+        clusterManagerOperation(request, state, listener);
     }
 
-    protected abstract void doMasterOperation(
+    @Override
+    protected final void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
+        doClusterManagerOperation(request, concreteIndices, state, listener);
+    }
+
+    protected void doClusterManagerOperation(
         Request request,
         String[] concreteIndices,
         ClusterState state,
         ActionListener<Response> listener
-    );
+    ) {
+        doMasterOperation(request, concreteIndices, state, listener);
+    }
+
+    /**
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #doClusterManagerOperation(ClusterInfoRequest, String[], ClusterState, ActionListener)}
+     */
+    @Deprecated
+    protected void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener) {
+        throw new UnsupportedOperationException("Must be overridden");
+    }
+
 }

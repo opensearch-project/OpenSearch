@@ -37,7 +37,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Randomness;
 import org.opensearch.index.VersionType;
 import org.opensearch.ingest.IngestDocument;
-import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
+import org.opensearch.ingest.geoip.IngestGeoIpModulePlugin.GeoIpCache;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.StreamsUtils;
 import org.junit.AfterClass;
@@ -73,7 +73,7 @@ public class GeoIpProcessorFactoryTests extends OpenSearchTestCase {
         Files.createDirectories(geoIpConfigDir);
         copyDatabaseFiles(geoIpDir);
 
-        databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
+        databaseReaders = IngestGeoIpModulePlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
     }
 
     @AfterClass
@@ -279,7 +279,7 @@ public class GeoIpProcessorFactoryTests extends OpenSearchTestCase {
         // Loading another database reader instances, because otherwise we can't test lazy loading as the
         // database readers used at class level are reused between tests. (we want to keep that otherwise running this
         // test will take roughly 4 times more time)
-        Map<String, DatabaseReaderLazyLoader> databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
+        Map<String, DatabaseReaderLazyLoader> databaseReaders = IngestGeoIpModulePlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders, new GeoIpCache(1000));
         for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {
             assertNull(lazyLoader.databaseReader.get());
@@ -336,7 +336,7 @@ public class GeoIpProcessorFactoryTests extends OpenSearchTestCase {
          * Loading another database reader instances, because otherwise we can't test lazy loading as the database readers used at class
          * level are reused between tests. (we want to keep that otherwise running this test will take roughly 4 times more time).
          */
-        final Map<String, DatabaseReaderLazyLoader> databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
+        final Map<String, DatabaseReaderLazyLoader> databaseReaders = IngestGeoIpModulePlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
         final GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders, new GeoIpCache(1000));
         for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {
             assertNull(lazyLoader.databaseReader.get());
@@ -365,9 +365,9 @@ public class GeoIpProcessorFactoryTests extends OpenSearchTestCase {
             Files.createDirectories(geoIpConfigDir);
         }
         copyDatabaseFiles(geoIpDir);
-        final String databaseFilename = randomFrom(IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES);
+        final String databaseFilename = randomFrom(IngestGeoIpModulePlugin.DEFAULT_DATABASE_FILENAMES);
         Files.delete(geoIpDir.resolve(databaseFilename));
-        final IOException e = expectThrows(IOException.class, () -> IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir));
+        final IOException e = expectThrows(IOException.class, () -> IngestGeoIpModulePlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir));
         assertThat(e, hasToString(containsString("expected database [" + databaseFilename + "] to exist in [" + geoIpDir + "]")));
     }
 
@@ -377,9 +377,9 @@ public class GeoIpProcessorFactoryTests extends OpenSearchTestCase {
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
         copyDatabaseFiles(geoIpDir);
-        final String databaseFilename = randomFrom(IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES);
+        final String databaseFilename = randomFrom(IngestGeoIpModulePlugin.DEFAULT_DATABASE_FILENAMES);
         copyDatabaseFile(geoIpConfigDir, databaseFilename);
-        final IOException e = expectThrows(IOException.class, () -> IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir));
+        final IOException e = expectThrows(IOException.class, () -> IngestGeoIpModulePlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir));
         assertThat(e, hasToString(containsString("expected database [" + databaseFilename + "] to not exist in [" + geoIpConfigDir + "]")));
     }
 
@@ -388,7 +388,7 @@ public class GeoIpProcessorFactoryTests extends OpenSearchTestCase {
     }
 
     private static void copyDatabaseFiles(final Path path) throws IOException {
-        for (final String databaseFilename : IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES) {
+        for (final String databaseFilename : IngestGeoIpModulePlugin.DEFAULT_DATABASE_FILENAMES) {
             copyDatabaseFile(path, databaseFilename);
         }
     }
