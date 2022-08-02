@@ -156,7 +156,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             if (indexService != null) {
                 replicationCheckpoint = indexService.getShard(shardId.getId()).getLatestReplicationCheckpoint();
             } else {
-                replicationCheckpoint = null;
+                replicationCheckpoint = ReplicationCheckpoint.empty(shardId);
             }
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(

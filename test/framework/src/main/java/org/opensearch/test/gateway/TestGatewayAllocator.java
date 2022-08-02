@@ -42,9 +42,7 @@ import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PrimaryShardAllocator;
 import org.opensearch.gateway.ReplicaShardAllocator;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
@@ -54,8 +52,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.opensearch.test.OpenSearchIntegTestCase.internalCluster;
 
 /**
  * A gateway allocator implementation that keeps an in memory list of started shard allocation
@@ -75,6 +71,8 @@ import static org.opensearch.test.OpenSearchIntegTestCase.internalCluster;
 public class TestGatewayAllocator extends GatewayAllocator {
 
     Map<String /* node id */, Map<ShardId, ShardRouting>> knownAllocations = new HashMap<>();
+
+    Map<String, ReplicationCheckpoint> shardIdNodeToReplicationCheckPointMap = new HashMap<>();
     DiscoveryNodes currentNodes = DiscoveryNodes.EMPTY_NODES;
     PrimaryShardAllocator primaryShardAllocator = new PrimaryShardAllocator() {
         @Override
@@ -95,7 +93,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
                             currentNodes.get(routing.currentNodeId()),
                             routing.allocationId().getId(),
                             routing.primary(),
-                            getReplicationCheckpoint(shardId, currentNodes.get(routing.currentNodeId()).getName())
+                            getReplicationCheckpoint(shardId, routing.currentNodeId())
                         )
                     )
                 );
@@ -105,8 +103,10 @@ public class TestGatewayAllocator extends GatewayAllocator {
     };
 
     private ReplicationCheckpoint getReplicationCheckpoint(ShardId shardId, String nodeName) {
-        final IndexService indexService = internalCluster().getInstance(IndicesService.class, nodeName).indexService(shardId.getIndex());
-        return indexService != null ? indexService.getShard(shardId.getId()).getLatestReplicationCheckpoint() : null;
+        return shardIdNodeToReplicationCheckPointMap.getOrDefault(
+            getReplicationCheckPointKey(shardId, nodeName),
+            ReplicationCheckpoint.empty(shardId)
+        );
     }
 
     ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator() {
@@ -165,5 +165,13 @@ public class TestGatewayAllocator extends GatewayAllocator {
      */
     public void addKnownAllocation(ShardRouting shard) {
         knownAllocations.computeIfAbsent(shard.currentNodeId(), id -> new HashMap<>()).put(shard.shardId(), shard);
+    }
+
+    public String getReplicationCheckPointKey(ShardId shardId, String nodeName) {
+        return shardId.toString() + "_" + nodeName;
+    }
+
+    public void addReplicationCheckpoint(ShardId shardId, String nodeName, ReplicationCheckpoint replicationCheckpoint) {
+        shardIdNodeToReplicationCheckPointMap.putIfAbsent(getReplicationCheckPointKey(shardId, nodeName), replicationCheckpoint);
     }
 }
