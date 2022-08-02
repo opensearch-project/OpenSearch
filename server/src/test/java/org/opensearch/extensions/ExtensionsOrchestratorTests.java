@@ -392,7 +392,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             );
 
-            extensionsOrchestrator.getNamedWriteables();
+            DiscoveryNode extensionNode = extensionsOrchestrator.extensionsList.get(0);
+            extensionsOrchestrator.getNamedWriteables(extensionNode);
             mockLogAppender.assertAllExpectationsMatched();
         }
     }
@@ -439,7 +440,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         Exception e = expectThrows(Exception.class, () -> extensionsOrchestrator.getExtensionReader(Example.class, Example.NAME));
         assertEquals(e.getMessage(), "Unknown NamedWriteable [" + Example.class.getName() + "][" + Example.NAME + "]");
-        verify(extensionsOrchestrator, times(2)).getExtensionReader(any(DiscoveryNode.class), any(), anyString());
+        verify(extensionsOrchestrator, times(1)).getExtensionReader(any(), any());
     }
 
     public void testParseNamedWriteables() throws Exception {
