@@ -59,6 +59,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -102,6 +103,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -145,6 +147,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private AwarenessReplicaBalance awarenessReplicaBalance;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -158,7 +161,8 @@ public class MetadataCreateIndexService {
         final ThreadPool threadPool,
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final AwarenessReplicaBalance awarenessReplicaBalance
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -172,6 +176,7 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
+        this.awarenessReplicaBalance = awarenessReplicaBalance;
     }
 
     /**
@@ -1171,7 +1176,7 @@ public class MetadataCreateIndexService {
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
 
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
@@ -1180,10 +1185,30 @@ public class MetadataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
+    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings, String indexName) {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, Optional.of(indexName));
+        return validationErrors;
+    }
+
+    List<String> getIndexSettingsValidationErrors(
+        final Settings settings,
+        final boolean forbidPrivateIndexSettings,
+        Optional<String> indexName
+    ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataFile());
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
+        }
+        if (indexName.isEmpty() || indexName.get().charAt(0) != '.') {
+            // Apply aware replica balance only to non system indices
+            int replicaCount = settings.getAsInt(
+                IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(Settings.EMPTY)
+            );
+            Optional<String> error = awarenessReplicaBalance.validate(replicaCount);
+            if (error.isPresent()) {
+                validationErrors.add(error.get());
+            }
         }
         return validationErrors;
     }

@@ -141,6 +141,7 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
@@ -1890,7 +1891,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     threadPool,
                     namedXContentRegistry,
                     systemIndices,
-                    false
+                    false,
+                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
                 );
                 actions.put(
                     CreateIndexAction.INSTANCE,
