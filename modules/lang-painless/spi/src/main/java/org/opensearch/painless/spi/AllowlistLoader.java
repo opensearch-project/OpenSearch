@@ -164,9 +164,9 @@ public final class AllowlistLoader {
      * }
      */
     public static Allowlist loadFromResourceFiles(Class<?> resource, Map<String, WhitelistAnnotationParser> parsers, String... filepaths) {
-        List<WhitelistClass> allowlistClasses = new ArrayList<>();
-        List<WhitelistMethod> allowlistStatics = new ArrayList<>();
-        List<WhitelistClassBinding> allowlistClassBindings = new ArrayList<>();
+        List<AllowlistClass> allowlistClasses = new ArrayList<>();
+        List<AllowlistMethod> allowlistStatics = new ArrayList<>();
+        List<AllowlistClassBinding> allowlistClassBindings = new ArrayList<>();
 
         // Execute a single pass through the allowlist text files. This will gather all the
         // constructors, methods, augmented methods, and fields for each allowlisted class.
@@ -183,9 +183,9 @@ public final class AllowlistLoader {
                 String parseType = null;
                 String allowlistClassOrigin = null;
                 String javaClassName = null;
-                List<WhitelistConstructor> allowlistConstructors = null;
-                List<WhitelistMethod> allowlistMethods = null;
-                List<WhitelistField> allowlistFields = null;
+                List<AllowlistConstructor> allowlistConstructors = null;
+                List<AllowlistMethod> allowlistMethods = null;
+                List<AllowlistField> allowlistFields = null;
                 List<Object> classAnnotations = null;
 
                 while ((line = reader.readLine()) != null) {
@@ -254,7 +254,7 @@ public final class AllowlistLoader {
                         // augmented methods, and fields, and add it to the list of allowlisted classes.
                         if ("class".equals(parseType)) {
                             allowlistClasses.add(
-                                new WhitelistClass(
+                                new AllowlistClass(
                                     allowlistClassOrigin,
                                     javaClassName,
                                     allowlistConstructors,
@@ -350,7 +350,7 @@ public final class AllowlistLoader {
                         // Add a static import method or binding depending on the static import type.
                         if ("from_class".equals(staticImportType)) {
                             allowlistStatics.add(
-                                new WhitelistMethod(
+                                new AllowlistMethod(
                                     origin,
                                     targetJavaClassName,
                                     methodName,
@@ -361,7 +361,7 @@ public final class AllowlistLoader {
                             );
                         } else if ("bound_to".equals(staticImportType)) {
                             allowlistClassBindings.add(
-                                new WhitelistClassBinding(
+                                new AllowlistClassBinding(
                                     origin,
                                     targetJavaClassName,
                                     methodName,
@@ -413,7 +413,7 @@ public final class AllowlistLoader {
                                 : parseAllowlistAnnotations(parsers, line.substring(annotationIndex));
 
                             allowlistConstructors.add(
-                                new WhitelistConstructor(origin, Arrays.asList(canonicalTypeNameParameters), annotations)
+                                new AllowlistConstructor(origin, Arrays.asList(canonicalTypeNameParameters), annotations)
                             );
 
                             // Handle the case for a method or augmented method definition.
@@ -465,7 +465,7 @@ public final class AllowlistLoader {
                                 : parseAllowlistAnnotations(parsers, line.substring(annotationIndex));
 
                             allowlistMethods.add(
-                                new WhitelistMethod(
+                                new AllowlistMethod(
                                     origin,
                                     javaAugmentedClassName,
                                     methodName,
@@ -497,7 +497,7 @@ public final class AllowlistLoader {
                                 throw new IllegalArgumentException("invalid field definition: unexpected format [" + line + "]");
                             }
 
-                            allowlistFields.add(new WhitelistField(origin, tokens[1], tokens[0], annotations));
+                            allowlistFields.add(new AllowlistField(origin, tokens[1], tokens[0], annotations));
                         }
                     } else {
                         throw new IllegalArgumentException("invalid definition: unable to parse line [" + line + "]");
@@ -515,10 +515,10 @@ public final class AllowlistLoader {
 
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) resource::getClassLoader);
 
-        return new Whitelist(loader, allowlistClasses, allowlistStatics, allowlistClassBindings, Collections.emptyList());
+        return new Allowlist(loader, allowlistClasses, allowlistStatics, allowlistClassBindings, Collections.emptyList());
     }
 
-    private static List<Object> parseAllowlistAnnotations(Map<String, WhitelistAnnotationParser> parsers, String line) {
+    static List<Object> parseAllowlistAnnotations(Map<String, WhitelistAnnotationParser> parsers, String line) {
 
         List<Object> annotations;
 

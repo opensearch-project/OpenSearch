@@ -49,7 +49,22 @@ import java.util.stream.Collectors;
  * {@link WhitelistField}s which are what will be available with a Painless script.  See each individual
  * allowlist object for more detail.
  */
-public final class Whitelist {
+public class Whitelist {
+
+    static final String[] BASE_ALLOWLIST_FILES = new String[] {
+            "org.opensearch.txt",
+            "java.lang.txt",
+            "java.math.txt",
+            "java.text.txt",
+            "java.time.txt",
+            "java.time.chrono.txt",
+            "java.time.format.txt",
+            "java.time.temporal.txt",
+            "java.time.zone.txt",
+            "java.util.txt",
+            "java.util.function.txt",
+            "java.util.regex.txt",
+            "java.util.stream.txt" };
 
     public static final List<Whitelist> BASE_WHITELISTS = Collections.singletonList(
         WhitelistLoader.loadFromResourceFiles(Whitelist.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_ALLOWLIST_FILES)
@@ -75,9 +90,9 @@ public final class Whitelist {
         List<WhitelistClassBinding> whitelistClassBindings,
         List<WhitelistInstanceBinding> whitelistInstanceBindings
     ) {
-        this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(allowlistClasses));
-        this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(allowlistImportedMethods));
-        this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(allowlistClassBindings));
-        this.whitelistInstanceBindings = Collections.unmodifiableList(Objects.requireNonNull(allowlistInstanceBindings));
+        this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));
+        this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistImportedMethods));
+        this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistClassBindings));
+        this.whitelistInstanceBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistInstanceBindings));
     }
 }
