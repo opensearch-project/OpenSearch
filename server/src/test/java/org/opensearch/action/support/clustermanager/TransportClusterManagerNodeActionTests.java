@@ -274,6 +274,43 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         }
     }
 
+    /* The test is copied from testLocalOperationWithoutBlocks()
+    to validate the backwards compatibility for the deprecated method masterOperation(with task parameter). */
+    public void testDeprecatedMasterOperationWithTaskParameterCanBeCalled() throws ExecutionException, InterruptedException {
+        final boolean clusterManagerOperationFailure = randomBoolean();
+
+        Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        final Exception exception = new Exception();
+        final Response response = new Response();
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+                if (clusterManagerOperationFailure) {
+                    listener.onFailure(exception);
+                } else {
+                    listener.onResponse(response);
+                }
+            }
+        }.execute(request, listener);
+        assertTrue(listener.isDone());
+
+        if (clusterManagerOperationFailure) {
+            try {
+                listener.get();
+                fail("Expected exception but returned proper result");
+            } catch (ExecutionException ex) {
+                assertThat(ex.getCause(), equalTo(exception));
+            }
+        } else {
+            assertThat(listener.get(), equalTo(response));
+        }
+    }
+
     public void testLocalOperationWithBlocks() throws ExecutionException, InterruptedException {
         final boolean retryableBlock = randomBoolean();
         final boolean unblockBeforeTimeout = randomBoolean();
