@@ -143,7 +143,9 @@ public class TaskManager implements ClusterStateApplier {
             }
         };
 
-        clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_CONSUMERS_ENABLED, this::setTaskResourceConsumersEnabled);
+        if (clusterSettings != null) {
+            clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_CONSUMERS_ENABLED, this::setTaskResourceConsumersEnabled);
+        }
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
