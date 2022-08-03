@@ -37,7 +37,6 @@ import org.opensearch.painless.spi.annotation.WhitelistAnnotationParser;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.List;
 import java.util.Map;
 
 /**
