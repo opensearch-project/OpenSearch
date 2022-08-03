@@ -129,7 +129,10 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         masterOperation(request, state, listener);
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)} */
+    /**
+     * Override this operation if access to the task parameter is needed
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)}
+     */
     @Deprecated
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         clusterManagerOperation(task, request, state, listener);
@@ -218,7 +221,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             }
                         });
                         threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> clusterManagerOperation(task, request, clusterState, l)));
+                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getClusterManagerNode() == null) {
