@@ -15,12 +15,10 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.index.translog.FileInfo;
-import org.opensearch.index.translog.transfer.listener.FileTransferListener;
+import org.opensearch.index.translog.FileSnapshot;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 
 /**
  * Service that handles remote transfer of translog related operations
@@ -29,35 +27,30 @@ public class BlobStoreTransferService implements TransferService {
 
     private final BlobStore blobStore;
     private final ThreadPool threadPool;
-    private final FileTransferListener fileTransferListener;
 
     private static final Logger logger = LogManager.getLogger(BlobStoreTransferService.class);
 
-    public BlobStoreTransferService(BlobStore blobStore, ThreadPool threadPool, FileTransferListener fileTransferListener) {
+    public BlobStoreTransferService(BlobStore blobStore, ThreadPool threadPool) {
         this.blobStore = blobStore;
         this.threadPool = threadPool;
-        this.fileTransferListener = fileTransferListener;
     }
 
     @Override
-    public void uploadFile(final FileInfo fileInfo, RemotePathProvider remotePathProvider, ActionListener<Void> listener)
-        throws IOException {
+    public void uploadFile(final FileSnapshot fileSnapshot, RemotePathProvider remotePathProvider, ActionListener<FileSnapshot> listener) {
         BlobPath blobPath = blobPath(remotePathProvider);
         threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(ActionRunnable.wrap(listener, l -> {
             try {
                 blobStore.blobContainer(blobPath)
                     .writeBlobAtomic(
-                        fileInfo.getName(),
-                        new ByteArrayInputStream(fileInfo.getContent()),
-                        fileInfo.getContentLength(),
+                        fileSnapshot.getName(),
+                        new ByteArrayInputStream(fileSnapshot.getContent()),
+                        fileSnapshot.getContentLength(),
                         true
                     );
-                fileTransferListener.onSuccess(fileInfo);
-                l.onResponse(null);
+                l.onResponse(fileSnapshot);
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("Failed to upload some blobs"), e);
-                fileTransferListener.onFailure(fileInfo, e);
-                l.onFailure(e);
+                l.onFailure(new FileTransferException(fileSnapshot, e));
             }
         }));
 

@@ -197,6 +197,16 @@ public final class ExceptionsHelper {
         return first;
     }
 
+    public static <T extends Throwable> RuntimeException multiple(List<T> exceptions) {
+        RuntimeException multiple = new RuntimeException();
+        if (exceptions != null) {
+            for (Throwable t : exceptions) {
+                multiple.addSuppressed(t);
+            }
+        }
+        return multiple;
+    }
+
     private static final List<Class<? extends IOException>> CORRUPTION_EXCEPTIONS = Arrays.asList(
         CorruptIndexException.class,
         IndexFormatTooOldException.class,

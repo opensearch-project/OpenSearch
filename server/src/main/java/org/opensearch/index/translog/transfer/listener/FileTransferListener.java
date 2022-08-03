@@ -8,11 +8,11 @@
 
 package org.opensearch.index.translog.transfer.listener;
 
-import org.opensearch.index.translog.FileInfo;
+import org.opensearch.index.translog.FileSnapshot;
 
 public interface FileTransferListener {
 
-    void onSuccess(FileInfo fileInfo);
+    void onSuccess(FileSnapshot fileSnapshot);
 
-    void onFailure(FileInfo fileInfo, Exception e);
+    void onFailure(FileSnapshot fileSnapshot, Exception e);
 }

@@ -9,7 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.collect.Set;
-import org.opensearch.index.translog.FileInfo;
+import org.opensearch.index.translog.FileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
 import java.util.Map;
@@ -24,9 +24,9 @@ public class FileTransferTracker implements FileTransferListener {
     }
 
     @Override
-    public void onSuccess(FileInfo fileInfo) {
+    public void onSuccess(FileSnapshot fileSnapshot) {
         TransferState targetState = TransferState.SUCCESS;
-        fileTransferTracker.compute(fileInfo.getName(), (k, v) -> {
+        fileTransferTracker.compute(fileSnapshot.getName(), (k, v) -> {
             if (v == null || v.validateNextState(targetState)) {
                 return targetState;
             }
@@ -35,9 +35,9 @@ public class FileTransferTracker implements FileTransferListener {
     }
 
     @Override
-    public void onFailure(FileInfo fileInfo, Exception e) {
+    public void onFailure(FileSnapshot fileSnapshot, Exception e) {
         TransferState targetState = TransferState.FAILED;
-        fileTransferTracker.compute(fileInfo.getName(), (k, v) -> {
+        fileTransferTracker.compute(fileSnapshot.getName(), (k, v) -> {
             if (v == null || v.validateNextState(targetState)) {
                 return targetState;
             }
