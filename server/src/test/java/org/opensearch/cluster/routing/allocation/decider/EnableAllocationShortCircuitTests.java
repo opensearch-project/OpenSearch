@@ -227,7 +227,8 @@ public class EnableAllocationShortCircuitTests extends OpenSearchAllocationTestC
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
     }
 

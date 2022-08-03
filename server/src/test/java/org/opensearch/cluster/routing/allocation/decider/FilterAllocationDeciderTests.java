@@ -79,7 +79,8 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
         ClusterState state = createInitialClusterState(
             service,
@@ -187,7 +188,8 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
         ClusterState state = createInitialClusterState(
             service,
@@ -246,7 +248,8 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
         ClusterState state = createInitialClusterState(service, Settings.EMPTY, Settings.EMPTY);
         RoutingTable routingTable = state.routingTable();

@@ -159,7 +159,8 @@ public class AllocationServiceTests extends OpenSearchTestCase {
                 }
             },
             new EmptyClusterInfoService(),
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -262,7 +263,7 @@ public class AllocationServiceTests extends OpenSearchTestCase {
     }
 
     public void testExplainsNonAllocationOfShardWithUnknownAllocator() {
-        final AllocationService allocationService = new AllocationService(null, null, null, null);
+        final AllocationService allocationService = new AllocationService(null, null, null, null, null);
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
         );

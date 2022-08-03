@@ -154,7 +154,8 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -181,7 +182,8 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -212,7 +214,8 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -249,7 +252,8 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();

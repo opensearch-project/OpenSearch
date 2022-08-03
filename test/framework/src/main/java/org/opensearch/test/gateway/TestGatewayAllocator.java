@@ -157,7 +157,14 @@ public class TestGatewayAllocator extends GatewayAllocator {
         UnassignedAllocationHandler unassignedAllocationHandler
     ) {
         currentNodes = allocation.nodes();
-        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
+        innerAllocatedUnassigned(
+            allocation,
+            primaryShardAllocator,
+            replicaShardAllocator,
+            shardRouting,
+            unassignedAllocationHandler,
+            this.settings
+        );
     }
 
     /**

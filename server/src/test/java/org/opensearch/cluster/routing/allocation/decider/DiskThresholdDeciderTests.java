@@ -140,7 +140,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         Metadata metadata = Metadata.builder()
@@ -220,7 +221,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -252,7 +254,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -323,7 +326,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         Metadata metadata = Metadata.builder()
@@ -373,7 +377,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -437,7 +442,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -470,7 +476,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -572,7 +579,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         Metadata metadata = Metadata.builder()
@@ -645,7 +653,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         Metadata metadata = Metadata.builder()
@@ -755,7 +764,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         Metadata metadata = Metadata.builder()
@@ -1031,7 +1041,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
         // Ensure that the reroute call doesn't alter the routing table, since the first primary is relocating away
         // and therefor we will have sufficient disk space on node1.
@@ -1145,7 +1156,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
         ClusterState result = strategy.reroute(clusterState, "reroute");
 
@@ -1268,7 +1280,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
         ClusterState result = strategy.reroute(clusterState, "reroute");
 
@@ -1401,7 +1414,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             clusterInfoService,
-            snapshotShardSizeInfoRef::get
+            snapshotShardSizeInfoRef::get,
+            Settings.EMPTY
         );
 
         // reroute triggers snapshot shard size fetching

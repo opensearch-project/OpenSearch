@@ -162,7 +162,8 @@ public class DecisionsImpactOnClusterHealthTests extends OpenSearchAllocationTes
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
     }
 

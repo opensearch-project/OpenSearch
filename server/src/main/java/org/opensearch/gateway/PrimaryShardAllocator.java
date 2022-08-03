@@ -48,9 +48,11 @@ import org.opensearch.cluster.routing.allocation.NodeAllocationResult.ShardStore
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
+import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -89,11 +91,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
+    Settings settings;
+
     @Override
     public AllocateUnassignedDecision makeAllocationDecision(
         final ShardRouting unassignedShard,
         final RoutingAllocation allocation,
-        final Logger logger
+        final Logger logger,
+        final Settings settings
     ) {
         if (isResponsibleFor(unassignedShard) == false) {
             // this allocator is not responsible for allocating this shard
@@ -124,7 +129,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(unassignedShard.id());
+        // final IndexSettings indexSettings = indexMetadata.getIndex().
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
         assert inSyncAllocationIds.isEmpty() == false;
@@ -135,6 +142,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             allocation.getIgnoreNodes(unassignedShard.shardId()),
             inSyncAllocationIds,
             shardState,
+            indexSettings,
             logger
         );
         final boolean enoughAllocationsFound = nodeShardsResult.orderedAllocationCandidates.size() > 0;
@@ -328,6 +336,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         Set<String> ignoreNodes,
         Set<String> inSyncAllocationIds,
         FetchResult<NodeGatewayStartedShards> shardState,
+        IndexSettings indexSettings,
         Logger logger
     ) {
         List<NodeGatewayStartedShards> nodeShardStates = new ArrayList<>();
@@ -398,11 +407,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
 
         // If index has segrep enabled, then use replication checkpoint info to order the replicas
-         if (true) {
-            comparator = comparator.thenComparing(HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR);
-         }
+        if (indexSettings.isSegRepEnabled()) {
+            comparator = HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR;
+        }
 
-        nodeShardStates.sort(comparator);
+        nodeShardStates.sort(HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR);
 
         if (logger.isTraceEnabled()) {
             logger.trace(

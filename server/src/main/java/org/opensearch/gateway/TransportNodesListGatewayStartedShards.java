@@ -154,7 +154,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         try {
             final ShardId shardId = request.getShardId();
             IndexService indexService = indicesService.indexService(request.getShardId().getIndex());
-//            IndexSettings settings = indicesService.indexService(request.getShardId().getIndex()).getIndexSettings();
+            final IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
+            final IndexSettings indexSettings = new IndexSettings(metadata, settings);
+            // IndexSettings settings = indicesService.indexService(request.getShardId().getIndex()).getIndexSettings();
             ReplicationCheckpoint replicationCheckpoint = null;
             try {
                 IndexShard shard = indexService.getShard(shardId.getId());
@@ -179,9 +181,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                     } else {
                         // TODO: Fallback for BWC with older OpenSearch versions.
                         // Remove once request.getCustomDataPath() always returns non-null
-                        final IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
                         if (metadata != null) {
-                            customDataPath = new IndexSettings(metadata, settings).customDataPath();
+                            customDataPath = indexSettings.customDataPath();
                         } else {
                             logger.trace("{} node doesn't have meta data for the requests index", shardId);
                             throw new OpenSearchException("node doesn't have meta data for index " + shardId.getIndex());

@@ -304,7 +304,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -406,7 +407,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -546,7 +548,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.EMPTY
         );
 
         final RoutingTable initialRoutingTable = service.reroute(initialClusterState, "reroute").routingTable();

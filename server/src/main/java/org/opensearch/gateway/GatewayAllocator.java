@@ -51,6 +51,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.shard.ShardId;
@@ -79,6 +80,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
 
+    protected final Settings settings;
+
     private final ConcurrentMap<
         ShardId,
         AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>> asyncFetchStarted = ConcurrentCollections
@@ -91,11 +94,13 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     public GatewayAllocator(
         RerouteService rerouteService,
         TransportNodesListGatewayStartedShards startedAction,
-        TransportNodesListShardStoreMetadata storeAction
+        TransportNodesListShardStoreMetadata storeAction,
+        Settings settings
     ) {
         this.rerouteService = rerouteService;
         this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);
         this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);
+        this.settings = settings;
     }
 
     @Override
@@ -111,6 +116,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         this.rerouteService = null;
         this.primaryShardAllocator = null;
         this.replicaShardAllocator = null;
+        this.settings = null;
     }
 
     @Override
@@ -165,7 +171,14 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     ) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
-        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
+        innerAllocatedUnassigned(
+            allocation,
+            primaryShardAllocator,
+            replicaShardAllocator,
+            shardRouting,
+            unassignedAllocationHandler,
+            this.settings
+        );
     }
 
     // allow for testing infra to change shard allocators implementation
@@ -174,13 +187,14 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         PrimaryShardAllocator primaryShardAllocator,
         ReplicaShardAllocator replicaShardAllocator,
         ShardRouting shardRouting,
-        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
+        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler,
+        Settings settings
     ) {
         assert shardRouting.unassigned();
         if (shardRouting.primary()) {
-            primaryShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
+            primaryShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler, settings);
         } else {
-            replicaShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
+            replicaShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler, settings);
         }
     }
 
@@ -190,10 +204,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         assert routingAllocation.debugDecision();
         if (unassignedShard.primary()) {
             assert primaryShardAllocator != null;
-            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger, settings);
         } else {
             assert replicaShardAllocator != null;
-            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger, settings);
         }
     }
 
