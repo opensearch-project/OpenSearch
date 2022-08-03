@@ -125,6 +125,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         throw new UnsupportedOperationException("Must be overridden");
     }
 
+    // TODO: Add abstract keyword after removing the deprecated masterOperation()
     protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         masterOperation(request, state, listener);
     }
