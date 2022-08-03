@@ -25,11 +25,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Loads and creates a {@link Whitelist} from one to many text files. */
+/** Loads and creates a {@link Allowlist} from one to many text files. */
 public final class AllowlistLoader {
 
     /**
-     * Loads and creates a {@link Whitelist} from one to many text files using only the base annotation parsers.
+     * Loads and creates a {@link Allowlist} from one to many text files using only the base annotation parsers.
      * See {@link #loadFromResourceFiles(Class, Map, String...)} for information on how to structure an allowlist
      * text file.
      */
@@ -38,7 +38,7 @@ public final class AllowlistLoader {
     }
 
     /**
-     * Loads and creates a {@link Whitelist} from one to many text files. The file paths are passed in as an array of
+     * Loads and creates a {@link Allowlist} from one to many text files. The file paths are passed in as an array of
      * {@link String}s with a single {@link Class} to be be used to load the resources where each {@link String}
      * is the path of a single text file. The {@link Class}'s {@link ClassLoader} will be used to lookup the Java
      * reflection objects for each individual {@link Class}, {@link Constructor}, {@link Method}, and {@link Field}

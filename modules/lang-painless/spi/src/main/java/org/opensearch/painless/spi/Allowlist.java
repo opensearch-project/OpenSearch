@@ -20,9 +20,9 @@ import java.util.stream.Collectors;
  * constructors, methods, and fields that can be used within a Painless script at both compile-time
  * and run-time.
  *
- * A Allowlist consists of several pieces with {@link WhitelistClass}s as the top level. Each
- * {@link WhitelistClass} will contain zero-to-many {@link WhitelistConstructor}s, {@link WhitelistMethod}s, and
- * {@link WhitelistField}s which are what will be available with a Painless script.  See each individual
+ * An Allowlist consists of several pieces with {@link AllowlistClass}s as the top level. Each
+ * {@link AllowlistClass} will contain zero-to-many {@link AllowlistConstructor}s, {@link AllowlistMethod}s, and
+ * {@link AllowlistField}s which are what will be available with a Painless script.  See each individual
  * allowlist object for more detail.
  */
 public final class Allowlist extends Whitelist {

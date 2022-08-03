@@ -30,13 +30,13 @@ import java.util.stream.Collectors;
  */
 public final class AllowlistClass extends WhitelistClass {
 
-    /** The {@link List} of allowlisted ({@link WhitelistConstructor}s) available to this class. */
+    /** The {@link List} of allowlisted ({@link AllowlistConstructor}s) available to this class. */
     public final List<AllowlistConstructor> allowlistConstructors;
 
-    /** The {@link List} of allowlisted ({@link WhitelistMethod}s) available to this class. */
+    /** The {@link List} of allowlisted ({@link AllowlistMethod}s) available to this class. */
     public final List<AllowlistMethod> allowlistMethods;
 
-    /** The {@link List} of allowlisted ({@link WhitelistField}s) available to this class. */
+    /** The {@link List} of allowlisted ({@link AllowlistField}s) available to this class. */
     public final List<AllowlistField> allowlistFields;
 
     /** Standard constructor. All values must be not {@code null}. */

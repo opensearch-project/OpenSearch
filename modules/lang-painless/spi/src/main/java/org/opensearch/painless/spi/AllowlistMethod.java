@@ -15,7 +15,7 @@ import java.util.List;
  * within Painless. Methods for Painless classes may be accessed exactly as methods for Java classes
  * are using the '.' operator on an existing class variable/field. Painless classes may have multiple
  * methods with the same name as long as they comply with arity overloading described in
- * {@link WhitelistClass}.
+ * {@link AllowlistClass}.
  *
  * Classes may also have additional methods that are not part of the Java class the class represents -
  * these are known as augmented methods. An augmented method can be added to a class as a part of any

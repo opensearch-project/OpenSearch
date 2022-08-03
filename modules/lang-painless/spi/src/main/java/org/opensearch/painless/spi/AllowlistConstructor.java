@@ -14,7 +14,7 @@ import java.util.List;
  * Constructor represents the equivalent of a Java constructor available as a allowlisted class
  * constructor within Painless. Constructors for Painless classes may be accessed exactly as
  * constructors for Java classes are using the 'new' keyword. Painless classes may have multiple
- * constructors as long as they comply with arity overloading described for {@link WhitelistClass}.
+ * constructors as long as they comply with arity overloading described for {@link AllowlistClass}.
  */
 public final class AllowlistConstructor extends WhitelistConstructor {
     /**
