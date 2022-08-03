@@ -105,7 +105,6 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogStats;
@@ -134,8 +133,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -547,7 +544,7 @@ public class InternalEngine extends Engine {
             } catch (Exception e) {
                 try {
                     translogManager.getPendingTranslogRecovery().set(true); // just play safe and never allow commits on this see
-                                                                              // #ensureCanFlush
+                                                                            // #ensureCanFlush
                     failEngine("failed to recover from translog", e);
                 } catch (Exception inner) {
                     e.addSuppressed(inner);
@@ -1789,7 +1786,9 @@ public class InternalEngine extends Engine {
                 }
                 noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
                 if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
-                    final Translog.Location location = translogManager.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+                    final Translog.Location location = translogManager.add(
+                        new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason())
+                    );
                     noOpResult.setTranslogLocation(location);
                 }
             }
