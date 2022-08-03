@@ -14,6 +14,7 @@ import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Priority;
@@ -66,6 +67,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
             .setSize(2)
@@ -93,6 +95,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse response = execute.get();
+        PitTestsUtil.assertUsingGetAllPits(client(), response.getId(), response.getCreationTime());
         assertEquals(4, response.getSuccessfulShards());
         assertEquals(4, service.getActiveContexts());
 
@@ -111,7 +114,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
-
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
             .setSize(2)
@@ -144,7 +147,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         service.doClose();
     }
 
-    public void testCreatePITOnCloseIndex() {
+    public void testCreatePITOnCloseIndex() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -160,6 +163,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(0, service.getActiveContexts());
+        PitTestsUtil.assertGetAllPitsEmpty(client());
         service.doClose();
     }
 
@@ -181,6 +185,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         });
         assertTrue(ex.getMessage().contains("no such index [index]"));
         SearchService service = getInstanceFromNode(SearchService.class);
+        PitTestsUtil.assertGetAllPitsEmpty(client());
         assertEquals(0, service.getActiveContexts());
         service.doClose();
     }
@@ -206,6 +211,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
         validatePitStats("index", 1, 0, 0);
@@ -220,6 +226,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         });
         assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
         assertEquals(0, service.getActiveContexts());
+        PitTestsUtil.assertGetAllPitsEmpty(client());
 
         // PIT reader contexts are lost after close, verifying it with open index api
         client().admin().indices().prepareOpen("index").get();
@@ -338,6 +345,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "test" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
         SearchService service = getInstanceFromNode(SearchService.class);
 
         assertThat(
@@ -482,6 +490,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
             service.doClose();
             assertEquals(0, service.getActiveContexts());
             validatePitStats("test", 0, 1, 0);
+            PitTestsUtil.assertGetAllPitsEmpty(client());
         }
     }
 
@@ -493,6 +502,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
         Thread[] threads = new Thread[5];
         CountDownLatch latch = new CountDownLatch(threads.length);
 
@@ -527,6 +537,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, service.getActiveContexts());
         validatePitStats("index", 0, 1, 0);
         validatePitStats("index", 0, 1, 1);
+        PitTestsUtil.assertGetAllPitsEmpty(client());
     }
 
     public void validatePitStats(String index, long expectedPitCurrent, long expectedPitCount, int shardId) throws ExecutionException,
