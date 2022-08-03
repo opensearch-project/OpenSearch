@@ -30,7 +30,7 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  *
  * @opensearch.internal
  */
-public class RestoreRemoteStoreResponse extends ActionResponse implements ToXContentObject {
+public final class RestoreRemoteStoreResponse extends ActionResponse implements ToXContentObject {
 
     @Nullable
     private final RestoreInfo restoreInfo;

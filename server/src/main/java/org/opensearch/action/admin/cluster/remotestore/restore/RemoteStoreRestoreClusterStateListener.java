@@ -27,7 +27,7 @@ import static org.opensearch.snapshots.RestoreService.restoreInProgress;
  *
  * @opensearch.internal
  */
-public class RemoteStoreRestoreClusterStateListener implements ClusterStateListener {
+public final class RemoteStoreRestoreClusterStateListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(RemoteStoreRestoreClusterStateListener.class);
 

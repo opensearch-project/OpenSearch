@@ -29,7 +29,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportRestoreRemoteStoreAction extends TransportClusterManagerNodeAction<
+public final class TransportRestoreRemoteStoreAction extends TransportClusterManagerNodeAction<
     RestoreRemoteStoreRequest,
     RestoreRemoteStoreResponse> {
     private final RestoreService restoreService;

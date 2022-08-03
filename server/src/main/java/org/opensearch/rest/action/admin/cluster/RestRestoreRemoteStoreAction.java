@@ -25,7 +25,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  *
  * @opensearch.api
  */
-public class RestRestoreRemoteStoreAction extends BaseRestHandler {
+public final class RestRestoreRemoteStoreAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {

@@ -15,7 +15,7 @@ import org.opensearch.action.ActionType;
  *
  * @opensearch.internal
  */
-public class RestoreRemoteStoreAction extends ActionType<RestoreRemoteStoreResponse> {
+public final class RestoreRemoteStoreAction extends ActionType<RestoreRemoteStoreResponse> {
 
     public static final RestoreRemoteStoreAction INSTANCE = new RestoreRemoteStoreAction();
     public static final String NAME = "cluster:admin/remotestore/restore";
