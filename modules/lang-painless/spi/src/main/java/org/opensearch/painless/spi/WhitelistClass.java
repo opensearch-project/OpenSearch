@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
  * Classes will automatically extend other allowlisted classes if the Java class they represent is a
  * subclass of other classes including Java interfaces.
  *
- * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistClass}
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistClass}. The class was declared with final keyword.
  */
 @Deprecated
 public class WhitelistClass {
@@ -78,7 +78,7 @@ public class WhitelistClass {
     public final Map<Class<?>, Object> painlessAnnotations;
 
     /** Standard constructor. All values must be not {@code null}. */
-    WhitelistClass(
+    public WhitelistClass(
         String origin,
         String javaClassName,
         List<WhitelistConstructor> allowlistConstructors,
