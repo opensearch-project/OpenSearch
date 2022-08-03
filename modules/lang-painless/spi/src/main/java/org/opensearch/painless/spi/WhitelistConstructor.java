@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
  * constructors for Java classes are using the 'new' keyword. Painless classes may have multiple
  * constructors as long as they comply with arity overloading described for {@link WhitelistClass}.
  *
- * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistConstructor}
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link AllowlistConstructor}. The class was declared with final keyword.
  */
 @Deprecated
 public class WhitelistConstructor {
@@ -63,7 +63,7 @@ public class WhitelistConstructor {
     public final Map<Class<?>, Object> painlessAnnotations;
 
     /** Standard constructor. All values must be not {@code null}. */
-    WhitelistConstructor(String origin, List<String> canonicalTypeNameParameters, List<Object> painlessAnnotations) {
+    public WhitelistConstructor(String origin, List<String> canonicalTypeNameParameters, List<Object> painlessAnnotations) {
         this.origin = Objects.requireNonNull(origin);
         this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
 

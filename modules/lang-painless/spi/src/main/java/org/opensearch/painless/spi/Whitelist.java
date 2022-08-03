@@ -43,12 +43,12 @@ import java.util.Objects;
  * constructors, methods, and fields that can be used within a Painless script at both compile-time
  * and run-time.
  *
- * A Allowlist consists of several pieces with {@link WhitelistClass}s as the top level. Each
+ * An Allowlist consists of several pieces with {@link WhitelistClass}s as the top level. Each
  * {@link WhitelistClass} will contain zero-to-many {@link WhitelistConstructor}s, {@link WhitelistMethod}s, and
  * {@link WhitelistField}s which are what will be available with a Painless script.  See each individual
  * allowlist object for more detail.
  *
- * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link Allowlist}
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link Allowlist}. The class was declared with final keyword.
  */
 @Deprecated
 public class Whitelist {
