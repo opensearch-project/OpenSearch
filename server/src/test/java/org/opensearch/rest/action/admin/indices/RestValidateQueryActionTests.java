@@ -40,6 +40,7 @@ import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
@@ -82,7 +83,12 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
      */
     @BeforeClass
     public static void stubValidateQueryAction() {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        final TaskManager taskManager = new TaskManager(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            Collections.emptySet()
+        );
 
         final TransportAction transportAction = new TransportAction(
             ValidateQueryAction.NAME,

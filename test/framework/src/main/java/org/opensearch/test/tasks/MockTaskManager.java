@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -64,8 +65,8 @@ public class MockTaskManager extends TaskManager {
 
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
-    public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        super(settings, threadPool, taskHeaders);
+    public MockTaskManager(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, Set<String> taskHeaders) {
+        super(settings, clusterSettings, threadPool, taskHeaders);
     }
 
     @Override

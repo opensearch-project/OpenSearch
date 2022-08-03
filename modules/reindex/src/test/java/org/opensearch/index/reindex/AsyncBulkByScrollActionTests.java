@@ -72,6 +72,7 @@ import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -162,7 +163,12 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
         testRequest = new DummyAbstractBulkByScrollRequest(firstSearchRequest);
         listener = new PlainActionFuture<>();
         scrollId = null;
-        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        taskManager = new TaskManager(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            Collections.emptySet()
+        );
         testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();

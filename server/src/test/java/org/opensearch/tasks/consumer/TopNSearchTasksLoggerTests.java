@@ -41,8 +41,8 @@ public class TopNSearchTasksLoggerTests extends OpenSearchSingleNodeTestCase {
 
     @AfterClass
     public static void cleanup() {
-        appender.stop();
         Loggers.removeAppender(searchLogger, appender);
+        appender.stop();
     }
 
     public void testLoggerWithTasks() {

@@ -40,6 +40,7 @@ import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.AbstractClientHeadersTestCase;
 import org.opensearch.client.Client;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
@@ -73,7 +74,16 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction {
 
         private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(actionName, EMPTY_FILTERS, new TaskManager(settings, threadPool, Collections.emptySet()));
+            super(
+                actionName,
+                EMPTY_FILTERS,
+                new TaskManager(
+                    settings,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    threadPool,
+                    Collections.emptySet()
+                )
+            );
         }
 
         @Override

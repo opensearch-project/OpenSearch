@@ -39,6 +39,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
@@ -98,7 +99,12 @@ public class TransportActionFilterChainTests extends OpenSearchTestCase {
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(
             actionName,
             actionFilters,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+            new TaskManager(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                Collections.emptySet()
+            )
         ) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
@@ -183,7 +189,12 @@ public class TransportActionFilterChainTests extends OpenSearchTestCase {
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(
             actionName,
             actionFilters,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+            new TaskManager(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                Collections.emptySet()
+            )
         ) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {

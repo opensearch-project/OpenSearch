@@ -67,6 +67,11 @@ public class SearchShardTask extends CancellableTask {
         this.metadataSupplier = metadataSupplier;
     }
 
+    /**
+     * Currently this method is invoked only once during unregister of task, to log the query information when the
+     * task is top resource consumer. In future if this method is going to be called more than once, the optimal
+     * approach is to memoize the result as lazily loading will result in more work if invoked more than once.
+     */
     public String getTaskMetadata() {
         return metadataSupplier.get();
     }
