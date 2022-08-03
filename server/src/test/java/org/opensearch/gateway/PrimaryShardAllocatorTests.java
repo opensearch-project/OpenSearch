@@ -275,7 +275,6 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
         assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
     }
 
-
     /**
      * Tests that prefer allocation of older primary even though having lower replication checkpoint
      */

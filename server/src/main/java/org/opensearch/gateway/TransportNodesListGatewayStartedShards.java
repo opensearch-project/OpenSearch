@@ -56,7 +56,6 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -153,20 +152,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
             final ShardId shardId = request.getShardId();
-            IndexService indexService = indicesService.indexService(request.getShardId().getIndex());
-            final IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
-            final IndexSettings indexSettings = new IndexSettings(metadata, settings);
-            // IndexSettings settings = indicesService.indexService(request.getShardId().getIndex()).getIndexSettings();
-            ReplicationCheckpoint replicationCheckpoint = null;
-            try {
-                IndexShard shard = indexService.getShard(shardId.getId());
-                if (shard != null) {
-                    replicationCheckpoint = shard.getLatestReplicationCheckpoint();
-                }
-            } catch (Exception e) {
-                logger.warn("Error fetching replication checkpoint {}", replicationCheckpoint);
-            }
-            if (replicationCheckpoint == null) replicationCheckpoint = ReplicationCheckpoint.empty(shardId);
+            ReplicationCheckpoint replicationCheckpoint;
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
                 logger,
@@ -181,8 +167,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                     } else {
                         // TODO: Fallback for BWC with older OpenSearch versions.
                         // Remove once request.getCustomDataPath() always returns non-null
+                        final IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
                         if (metadata != null) {
-                            customDataPath = indexSettings.customDataPath();
+                            customDataPath = new IndexSettings(metadata, settings).customDataPath();
                         } else {
                             logger.trace("{} node doesn't have meta data for the requests index", shardId);
                             throw new OpenSearchException("node doesn't have meta data for index " + shardId.getIndex());
@@ -208,12 +195,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                             exception
                         );
                         String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
-
                         return new NodeGatewayStartedShards(
                             clusterService.localNode(),
                             allocationId,
                             shardStateMetadata.primary,
-                            replicationCheckpoint,
+                            null,
                             exception
                         );
                     }
@@ -221,6 +207,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
                 logger.debug("{} shard state info found: [{}]", shardId, shardStateMetadata);
                 String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
+                IndexShard shard = indicesService.getShardOrNull(shardId);
+                replicationCheckpoint = shard != null ? shard.getLatestReplicationCheckpoint() : null;
                 return new NodeGatewayStartedShards(
                     clusterService.localNode(),
                     allocationId,
@@ -229,7 +217,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 );
             }
             logger.trace("{} no local shard info found", shardId);
-            return new NodeGatewayStartedShards(clusterService.localNode(), null, false, replicationCheckpoint);
+            return new NodeGatewayStartedShards(clusterService.localNode(), null, false, null);
         } catch (Exception e) {
             throw new OpenSearchException("failed to load started shards", e);
         }
@@ -390,7 +378,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else {
                 storeException = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_3_0_0) && in.readBoolean()) {
                 replicationCheckpoint = new ReplicationCheckpoint(in);
             } else {
                 replicationCheckpoint = null;
@@ -447,8 +435,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else {
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_0_0) && replicationCheckpoint != null) {
+                out.writeBoolean(true);
                 replicationCheckpoint.writeTo(out);
+            } else {
+                out.writeBoolean(false);
             }
         }
 
