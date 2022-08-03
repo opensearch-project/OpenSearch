@@ -88,6 +88,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         doClusterManagerOperation(request, concreteIndices, state, listener);
     }
 
+    // TODO: Add abstract keyword after removing the deprecated doMasterOperation()
     protected void doClusterManagerOperation(
         Request request,
         String[] concreteIndices,
