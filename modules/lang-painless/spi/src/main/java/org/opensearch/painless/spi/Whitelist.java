@@ -90,15 +90,16 @@ public class Whitelist {
     /** Standard constructor. All values must be not {@code null}. */
     public Whitelist(
         ClassLoader classLoader,
-        List<WhitelistClass> whitelistClasses,
-        List<WhitelistMethod> whitelistImportedMethods,
-        List<WhitelistClassBinding> whitelistClassBindings,
-        List<WhitelistInstanceBinding> whitelistInstanceBindings
+        List<WhitelistClass> allowlistClasses,
+        List<WhitelistMethod> allowlistImportedMethods,
+        List<WhitelistClassBinding> allowlistClassBindings,
+        List<WhitelistInstanceBinding> allowlistInstanceBindings
     ) {
+
         this.classLoader = Objects.requireNonNull(classLoader);
-        this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));
-        this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistImportedMethods));
-        this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistClassBindings));
-        this.whitelistInstanceBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistInstanceBindings));
+        this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(allowlistClasses));
+        this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(allowlistImportedMethods));
+        this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(allowlistClassBindings));
+        this.whitelistInstanceBindings = Collections.unmodifiableList(Objects.requireNonNull(allowlistInstanceBindings));
     }
 }
