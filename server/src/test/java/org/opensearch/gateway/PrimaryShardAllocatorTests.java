@@ -208,20 +208,23 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * Tests that replica with highest segment info version will be selected as target
+     * Tests that replica with highest primary ter version will be selected as target
      */
-    public void testPreferReplicaWithHighestSegmentInfoVersion() {
+    public void testPreferReplicaWithHighestPrimaryTerm() {
         String allocId1 = randomAlphaOfLength(10);
         String allocId2 = randomAlphaOfLength(10);
+        String allocId3 = randomAlphaOfLength(10);
         final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
             yesAllocationDeciders(),
             CLUSTER_RECOVERED,
             allocId1,
-            allocId2
+            allocId2,
+            allocId3
         );
         this.testAllocator.enableSegmentReplication();
-        testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 1, 10, 101, 1));
-        testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 1, 10, 120, 2));
+        testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 20, 10, 101, 1));
+        testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 22, 10, 120, 2));
+        testAllocator.addData(node3, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -239,9 +242,9 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * Tests that replica with equal segment info version but higher primary term will be selected as target
+     * Tests that replica with highest segment info version will be selected as target on equal primary terms
      */
-    public void testPreferReplicaWithHigherPrimaryTermOnSameSegmentInfoVersion() {
+    public void testPreferReplicaWithHighestSegmentInfoVersion() {
         String allocId1 = randomAlphaOfLength(10);
         String allocId2 = randomAlphaOfLength(10);
         String allocId3 = randomAlphaOfLength(10);
@@ -253,9 +256,9 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocId3
         );
         this.testAllocator.enableSegmentReplication();
-        testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 1000, 10, 101, 1));
-        testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
-        testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 15, 10, 120, 2));
+        testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 10, 10, 101, 1));
+        testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 3));
+        testAllocator.addData(node3, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -264,10 +267,44 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
             equalTo(node2.getId())
         );
-        // Assert node2's allocation id is used with highest replication checkpoint
+        // Assert node2's allocation id is used
         assertThat(
             allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(),
             equalTo(allocId2)
+        );
+        assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+
+    /**
+     * Tests that prefer allocation of older primary even though having lower replication checkpoint
+     */
+    public void testOutOfSyncHighestRepCheckpointIsIgnored() {
+        String allocId1 = randomAlphaOfLength(10);
+        String allocId2 = randomAlphaOfLength(10);
+        String allocId3 = randomAlphaOfLength(10);
+        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
+            yesAllocationDeciders(),
+            CLUSTER_RECOVERED,
+            allocId1,
+            allocId3
+        );
+        this.testAllocator.enableSegmentReplication();
+        testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 10, 10, 101, 1));
+        testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
+        testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 15, 10, 120, 2));
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(node3.getId())
+        );
+        // Assert node2's allocation id is used with highest replication checkpoint
+        assertThat(
+            allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(),
+            equalTo(allocId3)
         );
         assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
     }
@@ -286,7 +323,8 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocId2,
             allocId3
         );
-        testAllocator.addData(node1, allocId1, true, new ReplicationCheckpoint(shardId, 1000, 10, 101, 1));
+        this.testAllocator.enableSegmentReplication();
+        testAllocator.addData(node1, allocId1, true, new ReplicationCheckpoint(shardId, 10, 10, 101, 1));
         testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
         testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 15, 10, 120, 2));
         allocateAllUnassigned(allocation);

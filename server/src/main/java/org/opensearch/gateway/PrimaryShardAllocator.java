@@ -408,10 +408,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         // If index has segrep enabled, then use replication checkpoint info to order the replicas
         if (indexSettings.isSegRepEnabled()) {
-            comparator = HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR;
+            comparator = comparator.thenComparing(HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR);
         }
 
-        nodeShardStates.sort(HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR);
+        nodeShardStates.sort(comparator);
 
         if (logger.isTraceEnabled()) {
             logger.trace(
