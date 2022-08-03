@@ -269,6 +269,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.breaker.CircuitBreakerService;
@@ -861,7 +862,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
 
         // Remote Store APIs
-        registerHandler.accept(new RestRestoreRemoteStoreAction());
+        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
+            registerHandler.accept(new RestRestoreRemoteStoreAction());
+        }
     }
 
     @Override
