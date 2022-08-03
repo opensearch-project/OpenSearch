@@ -9,11 +9,15 @@
 package org.opensearch.search.internal;
 
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.IndexShard;
+
+import java.util.List;
 
 /**
  * PIT reader context containing PIT specific information such as pit id, create time etc.
@@ -24,6 +28,15 @@ public class PitReaderContext extends ReaderContext {
     private final SetOnce<String> pitId = new SetOnce<>();
     // Creation time of PIT contexts which helps users to differentiate between multiple PIT reader contexts
     private final SetOnce<Long> creationTime = new SetOnce<>();
+    /**
+     * Shard routing at the time of creation of PIT Reader Context
+     */
+    private final ShardRouting shardRouting;
+
+    /**
+     * Encapsulates segments constituting the shard at the time of creation of PIT Reader Context.
+     */
+    private final List<Segment> segments;
 
     public PitReaderContext(
         ShardSearchContextId id,
@@ -34,6 +47,8 @@ public class PitReaderContext extends ReaderContext {
         boolean singleSession
     ) {
         super(id, indexService, indexShard, searcherSupplier, keepAliveInMillis, singleSession);
+        shardRouting = indexShard.routingEntry();
+        segments = indexShard.segments(true);
     }
 
     public String getPitId() {
@@ -66,5 +81,13 @@ public class PitReaderContext extends ReaderContext {
 
     public void setCreationTime(final long creationTime) {
         this.creationTime.set(creationTime);
+    }
+
+    public ShardRouting getShardRouting() {
+        return shardRouting;
+    }
+
+    public List<Segment> getSegments() {
+        return segments;
     }
 }

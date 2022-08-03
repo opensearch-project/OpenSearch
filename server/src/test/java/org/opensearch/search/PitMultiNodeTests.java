@@ -17,6 +17,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
+import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
@@ -49,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.opensearch.action.search.PitTestsUtil.assertSegments;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -82,6 +86,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         assertEquals(2, searchResponse.getSuccessfulShards());
         assertEquals(2, searchResponse.getTotalShards());
         PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+        assertSegments(false, client());
     }
 
     public void testCreatePitWhileNodeDropWithAllowPartialCreationFalse() throws Exception {
@@ -108,6 +113,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 CreatePitResponse pitResponse = execute.get();
                 PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+                assertSegments(false, client());
                 assertEquals(1, pitResponse.getSuccessfulShards());
                 assertEquals(2, pitResponse.getTotalShards());
                 SearchResponse searchResponse = client().prepareSearch("index")
@@ -138,6 +144,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 assertEquals(0, searchResponse.getSkippedShards());
                 assertEquals(2, searchResponse.getTotalShards());
                 PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+                assertSegments(false, client());
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -427,6 +434,66 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                             public void onFailure(Exception e) {}
                         }, countDownLatch);
                         client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest, listener);
+                    } else {
+                        LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<DeletePitResponse>() {
+                            @Override
+                            public void onResponse(DeletePitResponse deletePitResponse) {
+                                if (deletePitResponse.getDeletePitResults().get(0).isSuccessful()) {
+                                    numSuccess.incrementAndGet();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {}
+                        }, countDownLatch);
+                        client().execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
+                    }
+                };
+                operationThreads.add(thread);
+            }
+            TestThreadPool finalTestThreadPool = testThreadPool;
+            operationThreads.forEach(runnable -> finalTestThreadPool.executor("generic").execute(runnable));
+            countDownLatch.await();
+            assertEquals(concurrentRuns, numSuccess.get());
+
+        } finally {
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void testConcurrentGetSegmentsWithDeletes() throws InterruptedException, ExecutionException {
+        CreatePitRequest createPitRequest = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        createPitRequest.setIndices(new String[] { "index" });
+        List<String> pitIds = new ArrayList<>();
+        String id = client().execute(CreatePitAction.INSTANCE, createPitRequest).get().getId();
+        pitIds.add(id);
+        DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
+        AtomicInteger numSuccess = new AtomicInteger();
+        TestThreadPool testThreadPool = null;
+        try {
+            testThreadPool = new TestThreadPool(PitMultiNodeTests.class.getName());
+            int concurrentRuns = randomIntBetween(20, 50);
+
+            List<Runnable> operationThreads = new ArrayList<>();
+            CountDownLatch countDownLatch = new CountDownLatch(concurrentRuns);
+            long randomDeleteThread = randomLongBetween(0, concurrentRuns - 1);
+            for (int i = 0; i < concurrentRuns; i++) {
+                int currentThreadIteration = i;
+                Runnable thread = () -> {
+                    if (currentThreadIteration == randomDeleteThread) {
+                        LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<IndicesSegmentResponse>() {
+                            @Override
+                            public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
+                                if (indicesSegmentResponse.getShardFailures() == null
+                                    || indicesSegmentResponse.getShardFailures().length == 0) {
+                                    numSuccess.incrementAndGet();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {}
+                        }, countDownLatch);
+                        client().execute(PitSegmentsAction.INSTANCE, new PitSegmentsRequest(), listener);
                     } else {
                         LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<DeletePitResponse>() {
                             @Override

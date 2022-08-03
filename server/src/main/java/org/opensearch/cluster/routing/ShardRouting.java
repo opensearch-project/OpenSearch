@@ -54,7 +54,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public final class ShardRouting implements Writeable, ToXContentObject {
+public class ShardRouting implements Writeable, ToXContentObject {
 
     /**
      * Used if shard size is not available
@@ -78,7 +78,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
      * by either this class or tests. Visible for testing.
      */
-    ShardRouting(
+    protected ShardRouting(
         ShardId shardId,
         String currentNodeId,
         String relocatingNodeId,
