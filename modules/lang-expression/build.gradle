@@ -37,7 +37,7 @@ opensearchplugin {
 
 dependencies {
   api "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  api 'org.antlr:antlr4-runtime:4.9.3'
+  api 'org.antlr:antlr4-runtime:4.10.1'
   api "org.ow2.asm:asm:${versions.asm}"
   api "org.ow2.asm:asm-commons:${versions.asm}"
   api "org.ow2.asm:asm-tree:${versions.asm}"
