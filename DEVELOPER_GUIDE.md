@@ -460,7 +460,7 @@ Work to make sure that OpenSearch can scale in a distributed manner.
 
 Includes:
 
-- Nodes (Master, Data, Compute, Ingest, Discovery, etc.)
+- Nodes (Cluster Manager, Data, Compute, Ingest, Discovery, etc.)
 - Replication & Merge Policies (Document, Segment level)
 - Snapshot/Restore (repositories; S3, Azure, GCP, NFS)
 - Translog (e.g., OpenSearch, Kafka, Kinesis)

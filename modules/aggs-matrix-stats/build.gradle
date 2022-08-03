@@ -31,7 +31,7 @@ apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
   description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
-  classname 'org.opensearch.search.aggregations.matrix.MatrixAggregationPlugin'
+  classname 'org.opensearch.search.aggregations.matrix.MatrixAggregationModulePlugin'
   hasClientJar = true
 }
 
