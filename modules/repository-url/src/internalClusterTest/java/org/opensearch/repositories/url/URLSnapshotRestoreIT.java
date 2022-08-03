@@ -39,7 +39,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.plugin.repository.url.URLRepositoryPlugin;
+import org.opensearch.plugin.repository.url.URLRepositoryModulePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotState;
@@ -59,7 +59,7 @@ public class URLSnapshotRestoreIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(URLRepositoryPlugin.class);
+        return Collections.singletonList(URLRepositoryModulePlugin.class);
     }
 
     public void testUrlRepository() throws Exception {
