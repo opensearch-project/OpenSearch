@@ -111,8 +111,11 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
@@ -149,6 +152,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
@@ -329,23 +333,33 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         try {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.ensureOpen();
-                assertEngineCleanedUp(engine, engine.translogManager().getTranslog());
+                assertEngineCleanedUp(engine, assertAndGetInternalTranslogManager(engine.translogManager()).getDeletionPolicy());
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.ensureOpen();
-                assertEngineCleanedUp(replicaEngine, replicaEngine.translogManager().getTranslog());
+                assertEngineCleanedUp(
+                    replicaEngine,
+                    assertAndGetInternalTranslogManager(replicaEngine.translogManager()).getDeletionPolicy()
+                );
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
         }
     }
 
-    protected void assertEngineCleanedUp(Engine engine, Translog translog) throws Exception {
-        translog.getDeletionPolicy().assertNoOpenTranslogRefs();
-        assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-        assertNoInFlightDocuments(engine);
-        assertMaxSeqNoInCommitUserData(engine);
-        assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
+    protected InternalTranslogManager assertAndGetInternalTranslogManager(final TranslogManager translogManager) {
+        assertThat(translogManager, instanceOf(InternalTranslogManager.class));
+        return (InternalTranslogManager) translogManager;
+    }
+
+    protected void assertEngineCleanedUp(Engine engine, TranslogDeletionPolicy translogDeletionPolicy) throws Exception {
+        if (engine.isClosed.get() == false) {
+            translogDeletionPolicy.assertNoOpenTranslogRefs();
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+            assertNoInFlightDocuments(engine);
+            assertMaxSeqNoInCommitUserData(engine);
+            assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
+        }
     }
 
     protected static ParseContext.Document testDocumentWithTextField() {
@@ -1481,7 +1495,11 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
         internalEngine.ensureOpen();
-        return internalEngine.translogManager().getTranslog();
+        TranslogManager translogManager = internalEngine.translogManager();
+        assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
+            + engine.getClass();
+        InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
+        return internalTranslogManager.getTranslog();
     }
 
     /**
