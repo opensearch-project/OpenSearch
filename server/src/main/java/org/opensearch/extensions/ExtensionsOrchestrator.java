@@ -95,6 +95,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportService transportService;
     ClusterService clusterService;
 
+    /**
+     * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions.
+     *
+     * @param settings  Settings from the node the orchestrator is running on.
+     * @param extensionsPath  Path to a directory containing extensions.
+     * @throws IOException  If the extensions discovery file is not properly retrieved.
+     */
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
@@ -112,6 +119,11 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     }
 
+    /**
+     * Sets the transport service and registers request handlers.
+     *
+     * @param transportService  The transport service to set.
+     */
     public void setTransportService(TransportService transportService) {
         this.transportService = transportService;
         registerRequestHandler();
@@ -264,6 +276,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
+    /**
+     * Handles a {@link RegisterApiRequest}.
+     *
+     * @param apiRequest  The request to handle.
+     * @return  A {@link RegisterApiResponse} indicating success.
+     * @throws Exception if the request is not handled properly.
+     */
     TransportResponse handleRegisterApiRequest(RegisterApiRequest apiRequest) throws Exception {
         extensionApiMap.put(apiRequest.getNodeId(), apiRequest.getApi());
         // TODO put more REST handler stuff here
@@ -276,6 +295,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         return new RegisterApiResponse("Registered node " + apiRequest.getNodeId() + " to handle API " + apiRequest.getApi());
     }
 
+    /**
+     * Handles an {@link ExtensionRequest}.
+     *
+     * @param extensionRequest  The request to handle, of a type defined in the {@link RequestType} enum.
+     * @return  an Response matching the request.
+     * @throws Exception if the request is not handled properly.
+     */
     TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
         switch (extensionRequest.getRequestType()) {
             case REQUEST_EXTENSION_CLUSTER_STATE:
