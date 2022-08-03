@@ -32,6 +32,7 @@
 
 package org.opensearch.index.search.stats;
 
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -140,9 +141,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestTimeInMillis = in.readVLong();
             suggestCurrent = in.readVLong();
 
-            pitCount = in.readVLong();
-            pitTimeInMillis = in.readVLong();
-            pitCurrent = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                pitCount = in.readVLong();
+                pitTimeInMillis = in.readVLong();
+                pitCurrent = in.readVLong();
+            }
         }
 
         public void add(Stats stats) {
@@ -289,9 +292,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(suggestTimeInMillis);
             out.writeVLong(suggestCurrent);
 
-            out.writeVLong(pitCount);
-            out.writeVLong(pitTimeInMillis);
-            out.writeVLong(pitCurrent);
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                out.writeVLong(pitCount);
+                out.writeVLong(pitTimeInMillis);
+                out.writeVLong(pitCurrent);
+            }
         }
 
         @Override

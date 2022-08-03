@@ -1455,21 +1455,6 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         validatePitStats("index", 0, 1, 0);
     }
 
-    public void testDeleteAllPitReaderContexts() throws ExecutionException, InterruptedException {
-        createIndex("index");
-        SearchService searchService = getInstanceFromNode(SearchService.class);
-        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
-        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
-        future.actionGet();
-        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
-        future.actionGet();
-        assertThat(searchService.getActiveContexts(), equalTo(2));
-        validatePitStats("index", 2, 0, 0);
-        searchService.freeAllPitContexts();
-        assertThat(searchService.getActiveContexts(), equalTo(0));
-        validatePitStats("index", 0, 2, 0);
-    }
-
     public void testPitContextMaxKeepAlive() {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);

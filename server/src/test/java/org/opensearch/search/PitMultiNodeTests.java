@@ -344,6 +344,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         assertEquals(expectedPitCurrent, pitCurrent);
         assertEquals(expectedOpenContexts, openContexts);
     }
+
     public void testGetAllPits() throws Exception {
         client().admin().indices().prepareCreate("index1").get();
         CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
