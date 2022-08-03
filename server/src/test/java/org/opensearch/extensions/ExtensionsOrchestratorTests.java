@@ -8,17 +8,6 @@
 
 package org.opensearch.extensions;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
@@ -67,8 +56,20 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
@@ -112,6 +113,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         clusterService = createClusterService(threadPool);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -312,6 +314,22 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         }
     }
 
+    public void testHandleRegisterApiRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        extensionsOrchestrator.setTransportService(transportService);
+        String nodeIdStr = "nodeId";
+        List<String> apiList = List.of("API1", "API2", "API3");
+        RegisterApiRequest registerApiRequest = new RegisterApiRequest(nodeIdStr, apiList);
+        TransportResponse response = extensionsOrchestrator.handleRegisterApiRequest(registerApiRequest);
+        assertEquals(RegisterApiResponse.class, response.getClass());
+        assertTrue(((RegisterApiResponse) response).getResponse().contains(nodeIdStr));
+        assertTrue(((RegisterApiResponse) response).getResponse().contains(apiList.toString()));
+    }
+
     public void testHandleExtensionRequest() throws Exception {
 
         Path extensionDir = createTempDir();
@@ -321,19 +339,19 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         extensionsOrchestrator.setTransportService(transportService);
         extensionsOrchestrator.setClusterService(clusterService);
         ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
-        assertEquals(extensionsOrchestrator.handleExtensionRequest(clusterStateRequest).getClass(), ClusterStateResponse.class);
+        assertEquals(ClusterStateResponse.class, extensionsOrchestrator.handleExtensionRequest(clusterStateRequest).getClass());
 
         ExtensionRequest clusterSettingRequest = new ExtensionRequest(
             ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS
         );
-        assertEquals(extensionsOrchestrator.handleExtensionRequest(clusterSettingRequest).getClass(), ClusterSettingsResponse.class);
+        assertEquals(ClusterSettingsResponse.class, extensionsOrchestrator.handleExtensionRequest(clusterSettingRequest).getClass());
 
         ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
-        assertEquals(extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass(), LocalNodeResponse.class);
+        assertEquals(LocalNodeResponse.class, extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass());
 
         ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
         Exception exception = expectThrows(Exception.class, () -> extensionsOrchestrator.handleExtensionRequest(exceptionRequest));
-        assertEquals(exception.getMessage(), "Handler not present for the provided request");
+        assertEquals("Handler not present for the provided request", exception.getMessage());
     }
 
     public void testRegisterHandler() throws Exception {
