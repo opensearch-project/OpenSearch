@@ -54,7 +54,7 @@ public final class WhitelistLoader {
      * text file.
      */
     public static Whitelist loadFromResourceFiles(Class<?> resource, String... filepaths) {
-        return loadFromResourceFiles(resource, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, filepaths);
+        return AllowlistLoader.loadFromResourceFiles(resource, filepaths);
     }
 
     /**
@@ -161,10 +161,6 @@ public final class WhitelistLoader {
      */
     public static Whitelist loadFromResourceFiles(Class<?> resource, Map<String, WhitelistAnnotationParser> parsers, String... filepaths) {
         return AllowlistLoader.loadFromResourceFiles(resource, parsers, filepaths);
-    }
-
-    private static List<Object> parseAllowlistAnnotations(Map<String, WhitelistAnnotationParser> parsers, String line) {
-        return AllowlistLoader.parseAllowlistAnnotations(parsers, line);
     }
 
     private WhitelistLoader() {}
