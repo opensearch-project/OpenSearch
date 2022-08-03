@@ -444,8 +444,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            Settings.EMPTY
+            EmptySnapshotsInfoService.INSTANCE
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false).getClusterState();
         // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
@@ -518,8 +517,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            () -> new SnapshotShardSizeInfo(snapshotShardSizes.build()),
-            Settings.EMPTY
+            () -> new SnapshotShardSizeInfo(snapshotShardSizes.build())
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false).getClusterState();
 

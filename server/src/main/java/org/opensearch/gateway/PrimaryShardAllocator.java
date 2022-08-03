@@ -91,8 +91,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
-    Settings settings;
-
     @Override
     public AllocateUnassignedDecision makeAllocationDecision(
         final ShardRouting unassignedShard,
@@ -129,9 +127,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
-        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        final IndexSettings indexSettings = settings != null ? new IndexSettings(indexMetadata, settings) : null;
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(unassignedShard.id());
-        // final IndexSettings indexSettings = indexMetadata.getIndex().
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
         assert inSyncAllocationIds.isEmpty() == false;
@@ -407,7 +404,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
 
         // If index has segrep enabled, then use replication checkpoint info to order the replicas
-        if (indexSettings.isSegRepEnabled()) {
+        if (indexSettings != null && indexSettings.isSegRepEnabled()) {
             comparator = comparator.thenComparing(HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR);
         }
 

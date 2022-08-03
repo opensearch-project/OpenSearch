@@ -72,8 +72,7 @@ public class ResizeAllocationDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            Settings.EMPTY
+            EmptySnapshotsInfoService.INSTANCE
         );
     }
 

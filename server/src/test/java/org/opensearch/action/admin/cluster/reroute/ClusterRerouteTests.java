@@ -97,8 +97,7 @@ public class ClusterRerouteTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            Settings.EMPTY
+            EmptySnapshotsInfoService.INSTANCE
         );
         ClusterState clusterState = createInitialClusterState(allocationService);
         ClusterRerouteRequest req = new ClusterRerouteRequest();

@@ -95,7 +95,7 @@ public class ClusterAllocationExplainActionTests extends OpenSearchTestCase {
                         throw new UnsupportedOperationException("cannot explain");
                     }
                 }
-            }, null, null, null)
+            }, null, null)
         );
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());

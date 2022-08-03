@@ -168,8 +168,7 @@ public class ClusterStateChanges {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            SETTINGS
+            EmptySnapshotsInfoService.INSTANCE
         );
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(
             allocationService,

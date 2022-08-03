@@ -104,8 +104,7 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
-            Settings.EMPTY
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
     }
 
@@ -115,8 +114,7 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             clusterInfoService,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
-            Settings.EMPTY
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
     }
 
@@ -138,8 +136,7 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             gatewayAllocator,
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            snapshotsInfoService,
-            Settings.EMPTY
+            snapshotsInfoService
         );
     }
 
@@ -315,10 +312,9 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             GatewayAllocator gatewayAllocator,
             ShardsAllocator shardsAllocator,
             ClusterInfoService clusterInfoService,
-            SnapshotsInfoService snapshotsInfoService,
-            Settings settings
+            SnapshotsInfoService snapshotsInfoService
         ) {
-            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService, settings);
+            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService);
         }
 
         public void setNanoTimeOverride(long nanoTime) {

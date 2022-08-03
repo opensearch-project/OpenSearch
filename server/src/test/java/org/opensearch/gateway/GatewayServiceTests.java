@@ -88,8 +88,7 @@ public class GatewayServiceTests extends OpenSearchTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            Settings.EMPTY
+            EmptySnapshotsInfoService.INSTANCE
         );
         return new GatewayService(settings.build(), allocationService, clusterService, null, null, null);
     }

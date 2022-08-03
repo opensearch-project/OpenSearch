@@ -88,8 +88,7 @@ public class RandomAllocationDeciderTests extends OpenSearchAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            Settings.EMPTY
+            EmptySnapshotsInfoService.INSTANCE
         );
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = Metadata.builder();

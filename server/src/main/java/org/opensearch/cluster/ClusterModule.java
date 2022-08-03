@@ -147,13 +147,7 @@ public class ClusterModule extends AbstractModule {
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
-        this.allocationService = new AllocationService(
-            allocationDeciders,
-            shardsAllocator,
-            clusterInfoService,
-            snapshotsInfoService,
-            settings
-        );
+        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
     }
 
     public static List<Entry> getNamedWriteables() {

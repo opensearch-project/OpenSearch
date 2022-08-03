@@ -361,12 +361,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
      * @opensearch.internal
      */
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
-
         private final String allocationId;
         private final boolean primary;
-
         private final Exception storeException;
-
         private final ReplicationCheckpoint replicationCheckpoint;
 
         public NodeGatewayStartedShards(StreamInput in) throws IOException {
@@ -435,11 +432,13 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else {
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_3_0_0) && replicationCheckpoint != null) {
-                out.writeBoolean(true);
-                replicationCheckpoint.writeTo(out);
-            } else {
-                out.writeBoolean(false);
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                if (replicationCheckpoint != null) {
+                    out.writeBoolean(true);
+                    replicationCheckpoint.writeTo(out);
+                } else {
+                    out.writeBoolean(false);
+                }
             }
         }
 
