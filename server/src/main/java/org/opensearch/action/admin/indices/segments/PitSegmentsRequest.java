@@ -17,14 +17,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Transport request for retrieving PITs segment information
  */
 public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
 
-    protected boolean verbose = false;
-    private Collection<String> pitIds;
+    boolean verbose = false;
+    private List<String> pitIds;
 
     public PitSegmentsRequest() {
         this(Strings.EMPTY_ARRAY);
@@ -45,15 +46,15 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
      * <code>true</code> if detailed information about each segment should be returned,
      * <code>false</code> otherwise.
      */
-    public boolean verbose() {
+    public boolean isVerbose() {
         return verbose;
     }
 
     /**
      * Sets the <code>verbose</code> option.
-     * @see #verbose()
+     * @see #isVerbose()
      */
-    public void verbose(boolean v) {
+    public void isVerbose(boolean v) {
         verbose = v;
     }
 
@@ -70,10 +71,10 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
     }
 
     public Collection<String> getPitIds() {
-        return pitIds;
+        return Collections.unmodifiableList(pitIds);
     }
 
-    public void setPitIds(Collection<String> pitIds) {
+    public void setPitIds(List<String> pitIds) {
         this.pitIds = pitIds;
     }
 }
