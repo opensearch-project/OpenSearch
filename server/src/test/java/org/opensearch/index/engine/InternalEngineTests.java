@@ -1299,24 +1299,33 @@ public class InternalEngineTests extends EngineTestCase {
 
         engine.flush();
         engine.ensureOpen();
-        assertThat(engine.translogManager().getTranslog().currentFileGeneration(), equalTo(3L));
-        assertThat(engine.translogManager().getTranslog().getMinFileGeneration(), equalTo(inSync ? 3L : 2L));
+        assertThat(assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration(), equalTo(3L));
+        assertThat(
+            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getMinFileGeneration(),
+            equalTo(inSync ? 3L : 2L)
+        );
 
         engine.flush();
         engine.ensureOpen();
-        assertThat(engine.translogManager().getTranslog().currentFileGeneration(), equalTo(3L));
-        assertThat(engine.translogManager().getTranslog().getMinFileGeneration(), equalTo(inSync ? 3L : 2L));
+        assertThat(assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration(), equalTo(3L));
+        assertThat(
+            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getMinFileGeneration(),
+            equalTo(inSync ? 3L : 2L)
+        );
 
         engine.flush(true, true);
         engine.ensureOpen();
-        assertThat(engine.translogManager().getTranslog().currentFileGeneration(), equalTo(3L));
-        assertThat(engine.translogManager().getTranslog().getMinFileGeneration(), equalTo(inSync ? 3L : 2L));
+        assertThat(assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration(), equalTo(3L));
+        assertThat(
+            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getMinFileGeneration(),
+            equalTo(inSync ? 3L : 2L)
+        );
 
         globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
         engine.flush(true, true);
         engine.ensureOpen();
-        assertThat(engine.translogManager().getTranslog().currentFileGeneration(), equalTo(3L));
-        assertThat(engine.translogManager().getTranslog().getMinFileGeneration(), equalTo(3L));
+        assertThat(assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration(), equalTo(3L));
+        assertThat(assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getMinFileGeneration(), equalTo(3L));
     }
 
     public void testSyncTranslogConcurrently() throws Exception {
@@ -2821,10 +2830,13 @@ public class InternalEngineTests extends EngineTestCase {
                 equalTo(localCheckpoint)
             );
             initialEngine.ensureOpen();
-            initialEngine.translogManager().getTranslog().sync(); // to guarantee the global checkpoint is written to the translog
-                                                                  // checkpoint
+            getTranslog(initialEngine).sync(); // to guarantee the global checkpoint is written to the translog
+                                               // checkpoint
             initialEngine.ensureOpen();
-            assertThat(initialEngine.translogManager().getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(globalCheckpoint));
+            assertThat(
+                assertAndGetInternalTranslogManager(initialEngine.translogManager()).getLastSyncedGlobalCheckpoint(),
+                equalTo(globalCheckpoint)
+            );
             assertThat(Long.parseLong(initialEngine.commitStats().getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(maxSeqNo));
 
         } finally {
@@ -2842,7 +2854,10 @@ public class InternalEngineTests extends EngineTestCase {
                 equalTo(primarySeqNo)
             );
             recoveringEngine.ensureOpen();
-            assertThat(recoveringEngine.translogManager().getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(globalCheckpoint));
+            assertThat(
+                assertAndGetInternalTranslogManager(recoveringEngine.translogManager()).getLastSyncedGlobalCheckpoint(),
+                equalTo(globalCheckpoint)
+            );
             assertThat(
                 Long.parseLong(recoveringEngine.commitStats().getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                 // after recovering from translog, all docs have been flushed to Lucene segments, so here we will assert
@@ -3256,7 +3271,10 @@ public class InternalEngineTests extends EngineTestCase {
                     );
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                     engine.ensureOpen();
-                    assertEquals(engine.translogManager().getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    assertEquals(
+                        assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
+                        userData.get(Translog.TRANSLOG_UUID_KEY)
+                    );
                 }
             }
             // open and recover tlog
@@ -3266,12 +3284,18 @@ public class InternalEngineTests extends EngineTestCase {
                         expectThrows(IllegalStateException.class, engine.translogManager()::ensureCanFlush);
                         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                         engine.ensureOpen();
-                        assertEquals(engine.translogManager().getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        assertEquals(
+                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
+                            userData.get(Translog.TRANSLOG_UUID_KEY)
+                        );
                         TranslogHandler translogHandler = createTranslogHandler(config.getIndexSettings(), engine);
                         engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                         userData = engine.getLastCommittedSegmentInfos().getUserData();
                         engine.ensureOpen();
-                        assertEquals(engine.translogManager().getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        assertEquals(
+                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getTranslogUUID(),
+                            userData.get(Translog.TRANSLOG_UUID_KEY)
+                        );
                     }
                 }
             }
@@ -3287,11 +3311,14 @@ public class InternalEngineTests extends EngineTestCase {
                 try (InternalEngine engine = new InternalEngine(config)) {
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                     engine.ensureOpen();
-                    assertEquals(engine.translogManager().getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    assertEquals(
+                        assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
+                        userData.get(Translog.TRANSLOG_UUID_KEY)
+                    );
                     engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                     engine.ensureOpen();
-                    assertEquals(2, engine.translogManager().getTranslog().currentFileGeneration());
-                    assertEquals(0L, engine.translogManager().getTranslog().stats().getUncommittedOperations());
+                    assertEquals(2, assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration());
+                    assertEquals(0L, engine.translogManager().getTranslogStats().getUncommittedOperations());
                 }
             }
 
@@ -3301,11 +3328,17 @@ public class InternalEngineTests extends EngineTestCase {
                     try (InternalEngine engine = new InternalEngine(config)) {
                         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                         engine.ensureOpen();
-                        assertEquals(engine.translogManager().getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        assertEquals(
+                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
+                            userData.get(Translog.TRANSLOG_UUID_KEY)
+                        );
                         engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                         userData = engine.getLastCommittedSegmentInfos().getUserData();
                         engine.ensureOpen();
-                        assertEquals(engine.translogManager().getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        assertEquals(
+                            assertAndGetInternalTranslogManager(engine.translogManager()).getTranslogUUID(),
+                            userData.get(Translog.TRANSLOG_UUID_KEY)
+                        );
                     }
                 }
             }
@@ -3447,8 +3480,7 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                 );
                 engine.ensureOpen();
-                final long committedGen = engine.translogManager()
-                    .getTranslog()
+                final long committedGen = assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog()
                     .getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration;
                 for (int gen = 1; gen < committedGen; gen++) {
                     final Path genFile = translogPath.resolve(Translog.getFilename(gen));
@@ -3635,7 +3667,8 @@ public class InternalEngineTests extends EngineTestCase {
         }
         assertVisibleCount(engine, numDocs);
         engine.ensureOpen();
-        Translog.TranslogGeneration generation = engine.translogManager().getTranslog().getGeneration();
+        Translog.TranslogGeneration generation = assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog()
+            .getGeneration();
         engine.close();
 
         final Path badTranslogLog = createTempDir();
@@ -3732,7 +3765,9 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         engine = createEngine(configWithCustomTranslogDeletionPolicyFactory);
         engine.ensureOpen();
-        assertTrue(engine.translogManager().getTranslog().getDeletionPolicy() instanceof CustomTranslogDeletionPolicy);
+        assertTrue(
+            assertAndGetInternalTranslogManager(engine.translogManager()).getDeletionPolicy() instanceof CustomTranslogDeletionPolicy
+        );
     }
 
     public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {
@@ -5195,16 +5230,18 @@ public class InternalEngineTests extends EngineTestCase {
             noOpEngine.noOp(new Engine.NoOp(maxSeqNo + 1, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY, System.nanoTime(), reason));
             assertThat(noOpEngine.getProcessedLocalCheckpoint(), equalTo((long) (maxSeqNo + 1)));
             noOpEngine.ensureOpen();
-            assertThat(noOpEngine.translogManager().getTranslog().stats().getUncommittedOperations(), equalTo(gapsFilled));
+            assertThat(noOpEngine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(gapsFilled));
             noOpEngine.noOp(
                 new Engine.NoOp(maxSeqNo + 2, primaryTerm.get(), randomFrom(PRIMARY, REPLICA, PEER_RECOVERY), System.nanoTime(), reason)
             );
             assertThat(noOpEngine.getProcessedLocalCheckpoint(), equalTo((long) (maxSeqNo + 2)));
-            assertThat(noOpEngine.translogManager().getTranslog().stats().getUncommittedOperations(), equalTo(gapsFilled + 1));
+            assertThat(noOpEngine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(gapsFilled + 1));
             // skip to the op that we added to the translog
             Translog.Operation op;
             Translog.Operation last = null;
-            try (Translog.Snapshot snapshot = noOpEngine.translogManager().getTranslog().newSnapshot()) {
+            try (
+                Translog.Snapshot snapshot = assertAndGetInternalTranslogManager(noOpEngine.translogManager()).getTranslog().newSnapshot()
+            ) {
                 while ((op = snapshot.next()) != null) {
                     last = op;
                 }
@@ -5319,8 +5356,9 @@ public class InternalEngineTests extends EngineTestCase {
             );
             final InternalEngine finalActualEngine = actualEngine;
             finalActualEngine.ensureOpen();
-            final Translog translog = finalActualEngine.translogManager().getTranslog();
-            final long generation = finalActualEngine.translogManager().getTranslog().currentFileGeneration();
+            final Translog translog = assertAndGetInternalTranslogManager(finalActualEngine.translogManager()).getTranslog();
+            final long generation = assertAndGetInternalTranslogManager(finalActualEngine.translogManager()).getTranslog()
+                .currentFileGeneration();
             for (int i = 0; i < numberOfTriplets; i++) {
                 /*
                  * Index three documents with the first and last landing in the same generation and the middle document being stalled until
@@ -5449,7 +5487,8 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.ensureOpen();
                 assertThat(
                     "restore from local translog must not add operations to translog",
-                    engine.translogManager().getTranslog().totalOperationsByMinGen(currentTranslogGeneration),
+                    assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog()
+                        .totalOperationsByMinGen(currentTranslogGeneration),
                     equalTo(0)
                 );
             }
@@ -5490,7 +5529,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(maxSeqIDOnReplica, replicaEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(checkpointOnReplica, replicaEngine.getProcessedLocalCheckpoint());
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
-            assertEquals(numDocsOnReplica, getTranslog(recoveringEngine).stats().getUncommittedOperations());
+            assertEquals(numDocsOnReplica, recoveringEngine.translogManager().getTranslogStats().getUncommittedOperations());
             TranslogHandler translogHandler = createTranslogHandler(replicaEngine.config().getIndexSettings(), recoveringEngine);
             recoveringEngine.translogManager()
                 .recoverFromTranslog(translogHandler, recoveringEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
@@ -5953,7 +5992,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.translogManager().syncTranslog();
             assertThat(DirectoryReader.listCommits(store.directory()), contains(commits.get(commits.size() - 1)));
             engine.ensureOpen();
-            assertThat(engine.translogManager().getTranslog().totalOperations(), equalTo(0));
+            assertThat(engine.translogManager().getTranslogStats().estimatedNumberOfOperations(), equalTo(0));
         }
     }
 
@@ -5992,12 +6031,12 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         // A new engine may have more than one empty translog files - the test should account this extra.
         engine.ensureOpen();
-        final Translog translog = engine.translogManager().getTranslog();
+        final Translog translog = assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog();
         final IntSupplier uncommittedTranslogOperationsSinceLastCommit = () -> {
             long localCheckpoint = Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
             return translog.totalOperationsByMinGen(translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration);
         };
-        final long extraTranslogSizeInNewEngine = engine.translogManager().getTranslog().stats().getUncommittedSizeInBytes()
+        final long extraTranslogSizeInNewEngine = engine.translogManager().getTranslogStats().getUncommittedSizeInBytes()
             - Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
         int numDocs = between(10, 100);
         for (int id = 0; id < numDocs; id++) {
@@ -6009,7 +6048,7 @@ public class InternalEngineTests extends EngineTestCase {
         long flushThreshold = RandomNumbers.randomLongBetween(
             random(),
             120,
-            engine.translogManager().getTranslog().stats().getUncommittedSizeInBytes() - extraTranslogSizeInNewEngine
+            engine.translogManager().getTranslogStats().getUncommittedSizeInBytes() - extraTranslogSizeInNewEngine
         );
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
@@ -6026,7 +6065,7 @@ public class InternalEngineTests extends EngineTestCase {
             indexSettings.getSoftDeleteRetentionOperations()
         );
         engine.ensureOpen();
-        assertThat(engine.translogManager().getTranslog().stats().getUncommittedOperations(), equalTo(numDocs));
+        assertThat(engine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(numDocs));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
         engine.flush();
         assertThat(uncommittedTranslogOperationsSinceLastCommit.getAsInt(), equalTo(0));
@@ -6083,12 +6122,12 @@ public class InternalEngineTests extends EngineTestCase {
             indexSettings.getSoftDeleteRetentionOperations()
         );
         engine.ensureOpen();
-        assertThat(engine.translogManager().getTranslog().stats().getUncommittedOperations(), equalTo(1));
+        assertThat(engine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(1));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
         doc = testParsedDocument(Integer.toString(1), null, testDocumentWithTextField(), SOURCE, null);
         engine.index(indexForDoc(doc));
         engine.ensureOpen();
-        assertThat(engine.translogManager().getTranslog().stats().getUncommittedOperations(), equalTo(2));
+        assertThat(engine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(2));
         engine.refresh("test");
         engine.forceMerge(false, 1, false, false, false, UUIDs.randomBase64UUID());
         assertBusy(() -> {
@@ -6124,7 +6163,7 @@ public class InternalEngineTests extends EngineTestCase {
             final ParsedDocument doc = testParsedDocument(Long.toString(seqno), null, testDocumentWithTextField(), SOURCE, null);
             engine.index(replicaIndexForDoc(doc, 1L, seqno, false));
             engine.ensureOpen();
-            if (rarely() && engine.translogManager().getTranslog().shouldRollGeneration()) {
+            if (rarely() && engine.translogManager().shouldRollTranslogGeneration()) {
                 engine.translogManager().rollTranslogGeneration();
             }
             if (rarely() || engine.shouldPeriodicallyFlush()) {
@@ -6348,7 +6387,7 @@ public class InternalEngineTests extends EngineTestCase {
                 globalCheckpoint.set(randomInt(maxSeqNo));
                 engine.translogManager().syncTranslog();
                 engine.ensureOpen();
-                minTranslogGen = engine.translogManager().getTranslog().getMinFileGeneration();
+                minTranslogGen = assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getMinFileGeneration();
             }
 
             store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
@@ -6901,7 +6940,8 @@ public class InternalEngineTests extends EngineTestCase {
         AtomicBoolean running = new AtomicBoolean(true);
         Thread rollTranslog = new Thread(() -> {
             engine.ensureOpen();
-            while (running.get() && engine.translogManager().getTranslog().currentFileGeneration() < 500) {
+            while (running.get()
+                && assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration() < 500) {
                 engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
             }
         });
@@ -7071,8 +7111,8 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.ensureOpen();
                     assertThat(
                         "engine should trim all unreferenced translog after recovery",
-                        engine.translogManager().getTranslog().getMinFileGeneration(),
-                        equalTo(engine.translogManager().getTranslog().currentFileGeneration())
+                        assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().getMinFileGeneration(),
+                        equalTo(assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration())
                     );
                 }
             }
