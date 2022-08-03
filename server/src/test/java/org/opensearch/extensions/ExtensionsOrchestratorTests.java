@@ -392,8 +392,11 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             );
 
-            DiscoveryNode extensionNode = extensionsOrchestrator.extensionsList.get(0);
-            extensionsOrchestrator.getNamedWriteables(extensionNode);
+            extensionsOrchestrator.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(
+                extensionsOrchestrator.extensionsList,
+                transportService
+            );
+            extensionsOrchestrator.namedWriteableRegistry.getNamedWriteables();
             mockLogAppender.assertAllExpectationsMatched();
         }
     }
@@ -436,11 +439,18 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     public void testGetExtensionReader() throws IOException {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsOrchestrator extensionsOrchestrator = spy(new ExtensionsOrchestrator(settings, extensionDir));
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        Exception e = expectThrows(Exception.class, () -> extensionsOrchestrator.getExtensionReader(Example.class, Example.NAME));
+        extensionsOrchestrator.namedWriteableRegistry = spy(
+            new ExtensionNamedWriteableRegistry(extensionsOrchestrator.extensionsList, transportService)
+        );
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> extensionsOrchestrator.namedWriteableRegistry.getExtensionReader(Example.class, Example.NAME)
+        );
         assertEquals(e.getMessage(), "Unknown NamedWriteable [" + Example.class.getName() + "][" + Example.NAME + "]");
-        verify(extensionsOrchestrator, times(1)).getExtensionReader(any(), any());
+        verify(extensionsOrchestrator.namedWriteableRegistry, times(1)).getExtensionReader(any(), any());
     }
 
     public void testParseNamedWriteables() throws Exception {

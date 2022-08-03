@@ -64,8 +64,8 @@ public class NamedWriteableRegistryParseRequest extends TransportRequest {
         return "NamedWriteableRegistryParseRequest{"
             + "categoryClass="
             + categoryClass.getName()
-            + ", context length="
-            + context.length
+            + ", context="
+            + context.toString()
             + " }";
     }
 
