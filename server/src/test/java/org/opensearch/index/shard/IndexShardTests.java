@@ -2660,7 +2660,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRestoreShardFromRemoteStore() throws IOException {
         IndexShard target = newStartedShard(
             true,
-            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE, true).build(),
+            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true).build(),
             new InternalEngineFactory()
         );
 
