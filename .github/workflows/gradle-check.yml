@@ -12,6 +12,7 @@ jobs:
   gradle-check:
     runs-on: ubuntu-latest
     timeout-minutes: 130
+    if: ${{ github.repository == 'opensearch-project/OpenSearch' }}
     steps:
       - name: Checkout OpenSearch repo
         uses: actions/checkout@v2

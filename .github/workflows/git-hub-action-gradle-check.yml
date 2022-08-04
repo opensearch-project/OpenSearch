@@ -1,0 +1,40 @@
+name: GHA_Gradle_check
+
+on:
+  push:
+    branches-ignore:
+      - 'backport/**'
+      - 'create-pull-request/**'
+      - 'dependabot/**'
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  gradle-check-via-gha:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180 # increasing timeout as the github workflow runs on a small machine
+    steps:
+      - name: Checkout OpenSearch repo
+        if: ${{ github.repository != 'opensearch-project/OpenSearch' }}
+        uses: actions/checkout@v2
+      - name: Set up JDK 11
+        if: ${{ github.repository != 'opensearch-project/OpenSearch' }}
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'corretto'
+          cache: 'gradle'
+
+      - name: Run test command
+        if: ${{ github.repository != 'opensearch-project/OpenSearch' }}
+        run: |
+          ./gradlew :modules:geo:test
+
+      - name: Run Success Message
+        if: ${{ github.repository == 'opensearch-project/OpenSearch' }}
+        run: |
+          echo "Check the Jenkins Gradle Action as this is now a dummy test"
+
