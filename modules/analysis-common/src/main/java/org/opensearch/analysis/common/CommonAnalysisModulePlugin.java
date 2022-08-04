@@ -167,9 +167,9 @@ import java.util.function.Supplier;
 
 import static org.opensearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
-public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, ScriptPlugin {
+public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin, ScriptPlugin {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonAnalysisPlugin.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonAnalysisModulePlugin.class);
 
     private final SetOnce<ScriptService> scriptService = new SetOnce<>();
 

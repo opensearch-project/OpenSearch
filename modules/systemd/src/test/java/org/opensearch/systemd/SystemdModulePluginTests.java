@@ -56,7 +56,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class SystemdPluginTests extends OpenSearchTestCase {
+public class SystemdModulePluginTests extends OpenSearchTestCase {
     final Scheduler.Cancellable extender = mock(Scheduler.Cancellable.class);
     final ThreadPool threadPool = mock(ThreadPool.class);
 
@@ -67,14 +67,14 @@ public class SystemdPluginTests extends OpenSearchTestCase {
     }
 
     public void testIsImplicitlyNotEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin(null);
+        final SystemdModulePlugin plugin = new SystemdModulePlugin(null);
         plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
 
     public void testIsExplicitlyNotEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin(Boolean.FALSE.toString());
+        final SystemdModulePlugin plugin = new SystemdModulePlugin(Boolean.FALSE.toString());
         plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
@@ -85,7 +85,7 @@ public class SystemdPluginTests extends OpenSearchTestCase {
             s -> Boolean.TRUE.toString().equals(s) || Boolean.FALSE.toString().equals(s),
             () -> randomAlphaOfLength(4)
         );
-        final RuntimeException e = expectThrows(RuntimeException.class, () -> new SystemdPlugin(esSDNotify));
+        final RuntimeException e = expectThrows(RuntimeException.class, () -> new SystemdModulePlugin(esSDNotify));
         assertThat(e, hasToString(containsString("OPENSEARCH_SD_NOTIFY set to unexpected value [" + esSDNotify + "]")));
     }
 
@@ -113,9 +113,9 @@ public class SystemdPluginTests extends OpenSearchTestCase {
     private void runTestOnNodeStarted(
         final String esSDNotify,
         final int rc,
-        final BiConsumer<Optional<Exception>, SystemdPlugin> assertions
+        final BiConsumer<Optional<Exception>, SystemdModulePlugin> assertions
     ) {
-        runTest(esSDNotify, rc, assertions, SystemdPlugin::onNodeStarted, "READY=1");
+        runTest(esSDNotify, rc, assertions, SystemdModulePlugin::onNodeStarted, "READY=1");
     }
 
     public void testCloseSuccess() {
@@ -138,21 +138,25 @@ public class SystemdPluginTests extends OpenSearchTestCase {
         runTestClose(Boolean.FALSE.toString(), randomInt(), (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
     }
 
-    private void runTestClose(final String esSDNotify, final int rc, final BiConsumer<Optional<Exception>, SystemdPlugin> assertions) {
-        runTest(esSDNotify, rc, assertions, SystemdPlugin::close, "STOPPING=1");
+    private void runTestClose(
+        final String esSDNotify,
+        final int rc,
+        final BiConsumer<Optional<Exception>, SystemdModulePlugin> assertions
+    ) {
+        runTest(esSDNotify, rc, assertions, SystemdModulePlugin::close, "STOPPING=1");
     }
 
     private void runTest(
         final String esSDNotify,
         final int rc,
-        final BiConsumer<Optional<Exception>, SystemdPlugin> assertions,
-        final CheckedConsumer<SystemdPlugin, IOException> invocation,
+        final BiConsumer<Optional<Exception>, SystemdModulePlugin> assertions,
+        final CheckedConsumer<SystemdModulePlugin, IOException> invocation,
         final String expectedState
     ) {
         final AtomicBoolean invoked = new AtomicBoolean();
         final AtomicInteger invokedUnsetEnvironment = new AtomicInteger();
         final AtomicReference<String> invokedState = new AtomicReference<>();
-        final SystemdPlugin plugin = new SystemdPlugin(esSDNotify) {
+        final SystemdModulePlugin plugin = new SystemdModulePlugin(esSDNotify) {
 
             @Override
             int sd_notify(final int unset_environment, final String state) {

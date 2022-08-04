@@ -63,7 +63,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestCommonPlugin.class, CustomScriptPlugin.class);
+        return Arrays.asList(IngestCommonModulePlugin.class, CustomScriptPlugin.class);
     }
 
     @Override

@@ -53,7 +53,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return singletonList(new MapperExtrasPlugin());
+        return singletonList(new MapperExtrasModulePlugin());
     }
 
     @Override

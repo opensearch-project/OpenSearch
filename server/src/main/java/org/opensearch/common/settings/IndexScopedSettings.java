@@ -222,7 +222,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         FeatureFlags.REPLICATION_TYPE,
         IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
         FeatureFlags.REMOTE_STORE,
-        IndexMetadata.INDEX_REMOTE_STORE_SETTING
+        IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
