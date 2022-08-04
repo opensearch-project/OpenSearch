@@ -193,6 +193,18 @@ public class NRTReplicationEngine extends Engine {
         return readerManager;
     }
 
+    /**
+     * Refreshing of this engine will only happen internally when a new set of segments is received.  The engine will ignore external
+     * refresh attempts so we can return false here.  Further Engine's existing implementation reads DirectoryReader.isCurrent after acquiring a searcher.
+     * With this Engine's NRTReplicationReaderManager, This will use StandardDirectoryReader's implementation which determines if the reader is current by
+     * comparing the on-disk SegmentInfos version against the one in the reader, which at refresh points will always return isCurrent false and then refreshNeeded true.
+     * Even if this method returns refresh as needed, we ignore it and only ever refresh with incoming SegmentInfos.
+     */
+    @Override
+    public boolean refreshNeeded() {
+        return false;
+    }
+
     @Override
     public Closeable acquireHistoryRetentionLock() {
         throw new UnsupportedOperationException("Not implemented");
