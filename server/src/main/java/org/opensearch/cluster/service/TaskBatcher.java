@@ -62,10 +62,12 @@ public abstract class TaskBatcher {
     private final PrioritizedOpenSearchThreadPoolExecutor threadExecutor;
     // package visible for tests
     final Map<Object, LinkedHashSet<BatchedTask>> tasksPerBatchingKey = new HashMap<>();
+    private final TaskBatcherListener taskBatcherListener;
 
-    public TaskBatcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor) {
+    public TaskBatcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor, TaskBatcherListener taskBatcherListener) {
         this.logger = logger;
         this.threadExecutor = threadExecutor;
+        this.taskBatcherListener = taskBatcherListener;
     }
 
     public void submitTasks(List<? extends BatchedTask> tasks, @Nullable TimeValue timeout) throws OpenSearchRejectedExecutionException {
@@ -77,6 +79,9 @@ public abstract class TaskBatcher {
             : "tasks submitted in a batch should share the same batching key: " + tasks;
         assert tasks.stream().allMatch(t -> t.getTask().getClass() == firstTask.getTask().getClass())
             : "tasks submitted in a batch should be of same class: " + tasks;
+
+        taskBatcherListener.beforeSubmit(tasks);
+
         // convert to an identity map to check for dups based on task identity
         final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
             .collect(
@@ -138,6 +143,7 @@ public abstract class TaskBatcher {
                     }
                 }
             }
+            taskBatcherListener.beforeTimeout(toRemove);
             onTimeout(toRemove, timeout);
         }
     }
@@ -175,6 +181,7 @@ public abstract class TaskBatcher {
                     return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
                 }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
 
+                taskBatcherListener.beforeExecute(toExecute);
                 run(updateTask.batchingKey, toExecute, tasksSummary);
             }
         }

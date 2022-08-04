@@ -39,6 +39,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
     private ClusterService clusterService;
     private DiscoveryNode localNode;
     private DiscoveryNode[] allNodes;
+    private MasterThrottlingStats throttlingStats;
 
     @BeforeClass
     public static void beforeClass() {
@@ -58,6 +59,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
             Version.V_3_0_0
         );
         allNodes = new DiscoveryNode[] { localNode };
+        throttlingStats = new MasterThrottlingStats();
     }
 
     @After
@@ -74,7 +76,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testDefaults() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
+        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
         for (String key : MasterTaskThrottler.CONFIGURED_TASK_FOR_THROTTLING) {
             assertNull(throttler.getThrottlingLimit(key));
         }
@@ -98,7 +100,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[] { masterNode, dataNode }));
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
+        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
 
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
@@ -132,7 +134,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[] { masterNode, dataNode }));
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
+        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
 
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
@@ -166,7 +168,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[] { masterNode, dataNode }));
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
+        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
 
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
@@ -199,7 +201,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[] { masterNode, dataNode }));
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
+        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
 
         Settings newSettings = Settings.builder().put("master.throttling.thresholds.put-mapping.values", -5).build();
         AtomicBoolean exceptionThrown = new AtomicBoolean();
@@ -213,7 +215,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testUpdateLimit() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService());
+        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
 
         throttler.updateLimit("test", 5);
         assertEquals(5, throttler.getThrottlingLimit("test").intValue());

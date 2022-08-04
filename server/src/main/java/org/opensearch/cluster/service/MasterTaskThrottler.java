@@ -11,6 +11,7 @@ package org.opensearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -18,9 +19,11 @@ import org.opensearch.common.settings.Settings;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * This class is extension of {@link Throttler} and does throttling of master tasks.
@@ -32,7 +35,7 @@ import java.util.Set;
  * e.g : Set "master.throttling.thresholds.put_mapping" to set throttling limit of "put mapping" tasks,
  *       Set it to default value(-1) to disable the throttling for this task type.
  */
-public class MasterTaskThrottler extends Throttler {
+public class MasterTaskThrottler implements TaskBatcherListener {
     private static final Logger logger = LogManager.getLogger(MasterTaskThrottler.class);
 
     public static final Setting<Settings> THRESHOLD_SETTINGS = Setting.groupSetting(
@@ -56,12 +59,22 @@ public class MasterTaskThrottler extends Throttler {
     );
 
     private final int DEFAULT_THRESHOLD_VALUE = -1; // Disabled throttling
-    private final MasterThrottlingStats throttlingStats = new MasterThrottlingStats();
     private final MasterService masterService;
+    private final MasterTaskThrottlerListener masterTaskThrottlerListener;
 
-    public MasterTaskThrottler(final ClusterSettings clusterSettings, final MasterService masterService) {
+    private final ConcurrentMap<String, Long> tasksCount;
+    private final ConcurrentMap<String, Long> tasksThreshold;
+
+    public MasterTaskThrottler(
+        final ClusterSettings clusterSettings,
+        final MasterService masterService,
+        final MasterTaskThrottlerListener masterTaskThrottlerListener
+    ) {
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTINGS, this::updateSetting, this::validateSetting);
         this.masterService = masterService;
+        this.masterTaskThrottlerListener = masterTaskThrottlerListener;
+        tasksCount = new ConcurrentHashMap<>(128); // setting initial capacity so each task will lend in different segment
+        tasksThreshold = new ConcurrentHashMap<>(128); // setting initial capacity so each task will lend in different segment
     }
 
     public void validateSetting(final Settings settings) {
@@ -90,25 +103,44 @@ public class MasterTaskThrottler extends Throttler {
         }
     }
 
-    public boolean acquirePermit(final String type, final int permits) {
-        Optional<Boolean> ableToAcquire = super.acquire(type, permits);
-        if (ableToAcquire.isPresent() && !ableToAcquire.get()) { // not able to acquire
-            throttlingStats.incrementThrottlingCount(type, permits);
-            return false;
-        }
-        return true;   // able to acquire and default behavior
-    }
-
-    public MasterThrottlingStats getThrottlingStats() {
-        return throttlingStats;
-    }
-
-    protected void updateLimit(final String className, final int limit) {
+    protected void updateLimit(final String taskKey, final int limit) {
         assert limit >= DEFAULT_THRESHOLD_VALUE;
         if (limit == DEFAULT_THRESHOLD_VALUE) {
-            super.removeThrottlingLimit(className);
+            tasksThreshold.remove(taskKey);
         } else {
-            super.updateThrottlingLimit(className, limit);
+            tasksThreshold.put(taskKey, (long)limit);
         }
+    }
+
+    @Override
+    public void beforeSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
+        String masterTaskKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
+        tasksCount.putIfAbsent(masterTaskKey, 0L);
+        tasksCount.computeIfPresent(masterTaskKey, (key, count) -> {
+            long size = tasks.size();
+            Long threshold = tasksThreshold.get(masterTaskKey);
+            if(threshold != null && (count + size > threshold)) {
+                logger.warn(
+                    "Throwing Throttling Exception for [{}]. Trying to add [{}] tasks to queue, limit is set to [{}]",
+                    masterTaskKey,
+                    tasks.size(),
+                    threshold
+                );
+                throw new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for " + masterTaskKey);
+            }
+            return count + size;
+        });
+    }
+
+    @Override
+    public void beforeExecute(List<? extends TaskBatcher.BatchedTask> tasks) {
+        String masterTaskKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
+        tasksCount.computeIfPresent(masterTaskKey, (key, count) -> count - tasks.size());
+    }
+
+    @Override
+    public void beforeTimeout(List<? extends TaskBatcher.BatchedTask> tasks) {
+        String masterTaskKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
+        tasksCount.computeIfPresent(masterTaskKey, (key, count) -> count - tasks.size());
     }
 }

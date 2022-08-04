@@ -17,13 +17,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * Contains stats of Master Task Throttling.
  * It stores the total cumulative count of throttled tasks per task type.
  */
-public class MasterThrottlingStats {
+public class MasterThrottlingStats implements MasterTaskThrottlerListener {
 
     private Map<String, CounterMetric> throttledTasksCount = new ConcurrentHashMap<>();
 
-    public void incrementThrottlingCount(String type, final int permits) {
+    private void incrementThrottlingCount(String type, final int permits) {
         if (!throttledTasksCount.containsKey(type)) {
-            throttledTasksCount.put(type, new CounterMetric());
+            throttledTasksCount.computeIfAbsent(type, k -> new CounterMetric());
         }
         throttledTasksCount.get(type).inc(permits);
     }
@@ -38,4 +38,8 @@ public class MasterThrottlingStats {
         return totalCount.count();
     }
 
+    @Override
+    public void onThrottle(String type, int permits) {
+        incrementThrottlingCount(type, permits);
+    }
 }

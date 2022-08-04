@@ -132,6 +132,7 @@ public class MasterService extends AbstractLifecycleComponent {
      * 3. Task is timed out in queue(Task is timed out in queue, so master will throw exception to data nodes. Releasing as task is removed from queue)
      */
     protected final MasterTaskThrottler masterTaskThrottler;
+    private final MasterThrottlingStats throttlingStats;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
@@ -142,7 +143,8 @@ public class MasterService extends AbstractLifecycleComponent {
             this::setSlowTaskLoggingThreshold
         );
 
-        this.masterTaskThrottler = new MasterTaskThrottler(clusterSettings, this);
+        this.throttlingStats = new MasterThrottlingStats();
+        this.masterTaskThrottler = new MasterTaskThrottler(clusterSettings, this, throttlingStats);
         this.threadPool = threadPool;
     }
 
@@ -163,7 +165,7 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
-        taskBatcher = new Batcher(logger, threadPoolExecutor);
+        taskBatcher = new Batcher(logger, threadPoolExecutor, masterTaskThrottler);
     }
 
     protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
@@ -178,8 +180,8 @@ public class MasterService extends AbstractLifecycleComponent {
     @SuppressWarnings("unchecked")
     class Batcher extends TaskBatcher {
 
-        Batcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor) {
-            super(logger, threadExecutor);
+        Batcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor, TaskBatcherListener taskBatcherListener) {
+            super(logger, threadExecutor, taskBatcherListener);
         }
 
         @Override
@@ -193,42 +195,13 @@ public class MasterService extends AbstractLifecycleComponent {
                         )
                     )
                 );
-            String masterThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
-            masterTaskThrottler.release(masterThrottlingKey, tasks.size());
         }
 
         @Override
         protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
-            // All the batched tasks will have same executor so once they are executed in batch
-            // we will release all batch's permit from master task throttling.
-            String masterThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
-            masterTaskThrottler.release(masterThrottlingKey, tasks.size());
             ClusterStateTaskExecutor<Object> taskExecutor = (ClusterStateTaskExecutor<Object>) batchingKey;
             List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
             runTasks(new TaskInputs(taskExecutor, updateTasks, tasksSummary));
-        }
-
-        @Override
-        public void submitTasks(List<? extends BatchedTask> tasks, @Nullable TimeValue timeout)
-            throws OpenSearchRejectedExecutionException {
-            assert tasks.size() > 0;
-            String masterThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
-            if (masterTaskThrottler.acquirePermit(masterThrottlingKey, tasks.size())) {
-                try {
-                    super.submitTasks(tasks, timeout);
-                } catch (Exception e) {
-                    masterTaskThrottler.release(masterThrottlingKey, tasks.size());
-                    throw e;
-                }
-            } else {
-                logger.warn(
-                    "Throwing Throttling Exception for [{}]. Trying to acquire [{}] permits, limit is set to [{}]",
-                    tasks.get(0).getTask().getClass(),
-                    tasks.size(),
-                    masterTaskThrottler.getThrottlingLimit(masterThrottlingKey)
-                );
-                throw new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for " + tasks.get(0).getTask().getClass());
-            }
         }
 
         class UpdateTask extends BatchedTask {
@@ -615,7 +588,7 @@ public class MasterService extends AbstractLifecycleComponent {
      * Returns the number of throttled pending tasks.
      */
     public long numberOfThrottledPendingTasks() {
-        return masterTaskThrottler.getThrottlingStats().getTotalThrottledTaskCount();
+        return throttlingStats.getTotalThrottledTaskCount();
     }
 
     /**
