@@ -57,6 +57,7 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
@@ -113,6 +114,10 @@ public class JoinHelper {
     private final TimeValue joinTimeout; // only used for Zen1 joining
     private final NodeHealthService nodeHealthService;
 
+    public boolean isDecommissioned;
+    private  Runnable onDecommission;
+    private Runnable onRecommission;
+
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
 
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -130,12 +135,17 @@ public class JoinHelper {
         Function<StartJoinRequest, Join> joinLeaderInTerm,
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         RerouteService rerouteService,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        Runnable onDecommission,
+        Runnable onRecommission
     ) {
         this.clusterManagerService = clusterManagerService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
+        this.isDecommissioned = false;
+        this.onDecommission = onDecommission;
+        this.onRecommission = onRecommission;
         this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService, transportService) {
 
             private final long term = currentTermSupplier.getAsLong();
@@ -343,11 +353,22 @@ public class JoinHelper {
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
                         lastFailedJoinAttempt.set(null);
                         onCompletion.run();
+                        if (isDecommissioned) {
+                            isDecommissioned = false;
+                            onRecommission();
+                        }
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         pendingOutgoingJoins.remove(dedupKey);
+                        if (exp instanceof RemoteTransportException && (exp.getCause() instanceof NodeDecommissionedException)) {
+                            logger.info("yes it is decommissioned");
+                            if (!isDecommissioned) {
+                                isDecommissioned = true;
+                                onDecommission();
+                            }
+                        }
                         logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
                         FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
                         attempt.logNow();
@@ -365,6 +386,18 @@ public class JoinHelper {
             logger.debug("already attempting to join {} with request {}, not sending request", destination, joinRequest);
         }
     }
+
+    public void onDecommission() {
+        // trying to set  peerfinder time
+        logger.info("Trying to set peerfinder time");
+        onDecommission.run();
+    }
+
+    public  void onRecommission() {
+        logger.info("Trying to reset peerfinder time onRecommission");
+        onRecommission.run();
+    }
+
 
     public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
         assert startJoinRequest.getSourceNode().isClusterManagerNode() : "sending start-join request for cluster-manager-ineligible "

@@ -84,6 +84,15 @@ public abstract class PeerFinder {
         Setting.Property.NodeScope
     );
 
+    // the time between attempts to find all peers when node is in decommissioned state
+    public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_DECOMMISSION_SETTING = Setting.timeSetting(
+        "discovery.find_peers_interval_decommission",
+        TimeValue.timeValueMillis(4000),
+        //TimeValue.timeValueMillis(300000),
+        TimeValue.timeValueMillis(3000),
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.request_peers_timeout",
         TimeValue.timeValueMillis(3000),
@@ -91,8 +100,9 @@ public abstract class PeerFinder {
         Setting.Property.NodeScope
     );
 
-    private final TimeValue findPeersInterval;
-    private final TimeValue requestPeersTimeout;
+    private TimeValue findPeersInterval;
+    private TimeValue requestPeersTimeout;
+    private final Settings settings;
 
     private final Object mutex = new Object();
     private final TransportService transportService;
@@ -112,6 +122,7 @@ public abstract class PeerFinder {
         TransportAddressConnector transportAddressConnector,
         ConfiguredHostsResolver configuredHostsResolver
     ) {
+        this.settings = settings;
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
@@ -154,6 +165,16 @@ public abstract class PeerFinder {
         if (peersRemoved) {
             onFoundPeersUpdated();
         }
+    }
+
+    public void onDecommission() {
+        logger.info("resetting findPeersInterval due to decommissioning");
+        findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_DECOMMISSION_SETTING.get(settings);
+    }
+
+    public void onRecommission() {
+        logger.info("resetting findPeersInterval due to recommissioning");
+        findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
     }
 
     // exposed to subclasses for testing
