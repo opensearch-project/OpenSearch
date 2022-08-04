@@ -296,8 +296,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             String uri;
             try {
                 int delim = api.indexOf(' ');
-                method = RestRequest.Method.valueOf(api.substring(0, delim));
-                uri = api.substring(delim + 1);
+                method = RestRequest.Method.valueOf(api.substring(0, delim).toUpperCase());
+                uri = api.substring(delim).trim();
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(api + " does not begin with a valid REST method");
             }
