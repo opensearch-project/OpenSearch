@@ -362,7 +362,9 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.array(valuesField.getPreferredName(), values);
+        if (valuesField != null) {
+            builder.array(valuesField.getPreferredName(), values);
+        }
         builder.field(KEYED_FIELD.getPreferredName(), keyed);
         builder = configOrDefault().toXContent(builder, params);
         return builder;

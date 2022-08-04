@@ -18,6 +18,9 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.tasks.ResourceStats;
+import org.opensearch.tasks.ResourceStatsType;
+import org.opensearch.tasks.ResourceUsageMetric;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -46,25 +49,17 @@ public class TopNSearchTasksLoggerTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testLoggerWithTasks() {
-        final Settings settings = Settings.builder().put(LOG_TOP_QUERIES_SIZE, 1).put(LOG_TOP_QUERIES_FREQUENCY, 10).build();
+        final Settings settings = Settings.builder().put(LOG_TOP_QUERIES_SIZE, 1).put(LOG_TOP_QUERIES_FREQUENCY, "0ms").build();
         topNSearchTasksLogger = new TopNSearchTasksLogger(settings);
-
         generateTasks(5);
-        // sleeping enough time for the logger to complete publishing entries to log file
-        try {
-            Thread.sleep(1_000);
-        } catch (InterruptedException e) {
-            // ignore
-        }
-        generateTasks(1);
         LogEvent logEvent = appender.getLastEventAndReset();
         assertNotNull(logEvent);
         assertEquals(logEvent.getLevel(), Level.INFO);
-        assertTrue(logEvent.getMessage().getFormattedMessage().contains("memory=400, cpu=400"));
+        assertTrue(logEvent.getMessage().getFormattedMessage().contains("cpu_time_in_nanos=300, memory_in_bytes=300"));
     }
 
     public void testLoggerWithoutTasks() {
-        final Settings settings = Settings.builder().put(LOG_TOP_QUERIES_SIZE, 1).put(LOG_TOP_QUERIES_FREQUENCY, 10).build();
+        final Settings settings = Settings.builder().put(LOG_TOP_QUERIES_SIZE, 1).put(LOG_TOP_QUERIES_FREQUENCY, "500ms").build();
         topNSearchTasksLogger = new TopNSearchTasksLogger(settings);
 
         assertNull(appender.getLastEventAndReset());
@@ -72,7 +67,7 @@ public class TopNSearchTasksLoggerTests extends OpenSearchSingleNodeTestCase {
 
     public void testLoggerWithHighFrequency() {
         // setting the frequency to a really large value and confirming that nothing gets written to log file.
-        final Settings settings = Settings.builder().put(LOG_TOP_QUERIES_SIZE, 1).put(LOG_TOP_QUERIES_FREQUENCY, 100_000).build();
+        final Settings settings = Settings.builder().put(LOG_TOP_QUERIES_SIZE, 1).put(LOG_TOP_QUERIES_FREQUENCY, "10m").build();
         topNSearchTasksLogger = new TopNSearchTasksLogger(settings);
         generateTasks(5);
         generateTasks(2);
@@ -91,6 +86,18 @@ public class TopNSearchTasksLoggerTests extends OpenSearchSingleNodeTestCase {
                 null,
                 Collections.singletonMap(Task.X_OPAQUE_ID, "my_id"),
                 () -> "n/a"
+            );
+            task.startThreadResourceTracking(
+                i,
+                ResourceStatsType.WORKER_STATS,
+                new ResourceUsageMetric(ResourceStats.MEMORY, 0L),
+                new ResourceUsageMetric(ResourceStats.CPU, 0L)
+            );
+            task.updateThreadResourceStats(
+                i,
+                ResourceStatsType.WORKER_STATS,
+                new ResourceUsageMetric(ResourceStats.MEMORY, i * 100L),
+                new ResourceUsageMetric(ResourceStats.CPU, i * 100L)
             );
             topNSearchTasksLogger.accept(task);
         }
