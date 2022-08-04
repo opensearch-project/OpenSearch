@@ -2726,7 +2726,6 @@ public class InternalEngine extends Engine {
         return translogManager.getLastSyncedGlobalCheckpoint();
     }
 
-    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }

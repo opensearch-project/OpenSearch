@@ -102,18 +102,8 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
-import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.Engine.GetResult;
-import org.opensearch.index.engine.EngineConfig;
-import org.opensearch.index.engine.EngineConfigFactory;
-import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.engine.EngineFactory;
-import org.opensearch.index.engine.ReadOnlyEngine;
-import org.opensearch.index.engine.RefreshFailedEngineException;
-import org.opensearch.index.engine.SafeCommitInfo;
-import org.opensearch.index.engine.Segment;
-import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
 import org.opensearch.index.flush.FlushStats;
@@ -2651,11 +2641,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Fetch the latest checkpoint that has been processed but not necessarily persisted.
+     * Fetch the latest checkpoint that has been processed but not necessarily persisted. This should be used only when Segment Replication is enabled.
      * Also see {@link #getLocalCheckpoint()}.
      */
     public long getProcessedLocalCheckpoint() {
-        return getEngine().getProcessedLocalCheckpoint();
+        assert indexSettings.isSegRepEnabled();
+        // Returns checkpoint only if the current engine is an instance of NRTReplicationEngine or InternalEngine
+        return getReplicationEngine().map(NRTReplicationEngine::getProcessedLocalCheckpoint).orElseGet(() -> {
+            final Engine engine = getEngine();
+            assert engine instanceof InternalEngine;
+            return ((InternalEngine) engine).getProcessedLocalCheckpoint();
+        });
+    }
+
+    private Optional<NRTReplicationEngine> getReplicationEngine() {
+        if (getEngine() instanceof NRTReplicationEngine) {
+            return Optional.of((NRTReplicationEngine) getEngine());
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**
