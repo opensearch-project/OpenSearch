@@ -69,6 +69,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -129,15 +130,15 @@ public class TaskManager implements ClusterStateApplier {
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
-    private boolean taskResourceConsumersEnabled;
-    private final List<Consumer<Task>> taskResourceConsumer;
+    private volatile boolean taskResourceConsumersEnabled;
+    private final Set<Consumer<Task>> taskResourceConsumer;
 
     public TaskManager(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
-        this.taskResourceConsumer = new ArrayList<Consumer<Task>>() {
+        this.taskResourceConsumer = new HashSet<Consumer<Task>>() {
             {
                 add(new TopNSearchTasksLogger(settings));
             }
@@ -271,7 +272,13 @@ public class TaskManager implements ClusterStateApplier {
         task.decrementResourceTrackingThreads();
 
         if (taskResourceConsumersEnabled && task.getResourceStats().isEmpty() == false) {
-            taskResourceConsumer.forEach(consumer -> consumer.accept(task));
+            for (Consumer<Task> taskConsumer : taskResourceConsumer) {
+                try {
+                    taskConsumer.accept(task);
+                } catch (Exception e) {
+                    logger.error("error encountered when updating the consumer", e);
+                }
+            }
         }
 
         if (task instanceof CancellableTask) {
