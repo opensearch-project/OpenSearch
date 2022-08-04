@@ -37,6 +37,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.rest.RestRequest;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
@@ -284,15 +285,30 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * @throws Exception if the request is not handled properly.
      */
     TransportResponse handleRegisterApiRequest(RegisterApiRequest apiRequest) throws Exception {
+        DiscoveryExtension extension = extensionIdMap.get(apiRequest.getNodeId());
+        if (extension == null) {
+            throw new IllegalArgumentException(
+                "API Request unique id " + apiRequest.getNodeId() + " does not match a discovered extension."
+            );
+        }
+        for (String api : apiRequest.getApi()) {
+            RestRequest.Method method;
+            String uri;
+            try {
+                int delim = api.indexOf(' ');
+                method = RestRequest.Method.valueOf(api.substring(0, delim));
+                uri = api.substring(delim + 1);
+            } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
+                throw new IllegalArgumentException(api + " does not begin with a valid REST method");
+            }
+            logger.info("Registering: " + method + " /_extensions/" + extension.getName() + uri);
+            // TODO put more REST handler stuff here
+            // Register using RestController.registerHandler
+        }
         extensionApiMap.put(apiRequest.getNodeId(), apiRequest.getApi());
-        // TODO put more REST handler stuff here
-        logger.info(
-            "Here is where we will actually register REST handlers for node "
-                + apiRequest.getNodeId()
-                + " to handle API "
-                + apiRequest.getApi()
+        return new RegisterApiResponse(
+            "Registered node " + apiRequest.getNodeId() + ", extension " + extension.getName() + " to handle API " + apiRequest.getApi()
         );
-        return new RegisterApiResponse("Registered node " + apiRequest.getNodeId() + " to handle API " + apiRequest.getApi());
     }
 
     /**
