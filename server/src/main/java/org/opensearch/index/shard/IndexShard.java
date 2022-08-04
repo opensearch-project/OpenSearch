@@ -104,6 +104,7 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.AbstractNRTReplicationEngine;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.GetResult;
@@ -111,7 +112,6 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
-import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -164,8 +164,8 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -484,7 +484,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.pendingPrimaryTerm;
     }
 
-    /** Returns the primary term that is currently being used to assign to operations */
+    /**
+     * Returns the primary term that is currently being used to assign to operations
+     */
     public long getOperationPrimaryTerm() {
         return replicationTracker.getOperationPrimaryTerm();
     }
@@ -676,7 +678,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.shardRouting = newRouting;
 
             assert this.shardRouting.primary() == false || this.shardRouting.started() == false || // note that we use started and not
-                                                                                                   // active to avoid relocating shards
+            // active to avoid relocating shards
                 this.indexShardOperationPermits.isBlocked() || // if permits are blocked, we are still transitioning
                 this.replicationTracker.isPrimaryMode() : "a started primary with non-pending operation term must be in primary mode "
                     + this.shardRouting;
@@ -1367,9 +1369,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private Optional<NRTReplicationEngine> getReplicationEngine() {
-        if (getEngine() instanceof NRTReplicationEngine) {
-            return Optional.of((NRTReplicationEngine) getEngine());
+    private Optional<AbstractNRTReplicationEngine> getReplicationEngine() {
+        if (getEngine() instanceof AbstractNRTReplicationEngine) {
+            return Optional.of((AbstractNRTReplicationEngine) getEngine());
         } else {
             return Optional.empty();
         }
@@ -1426,7 +1428,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Checks if checkpoint should be processed
      *
-     * @param requestCheckpoint       received checkpoint that is checked for processing
+     * @param requestCheckpoint received checkpoint that is checked for processing
      * @return true if checkpoint should be processed
      */
     public final boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
@@ -2087,7 +2089,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    /** returns true if the {@link IndexShardState} allows reading */
+    /**
+     * returns true if the {@link IndexShardState} allows reading
+     */
     public boolean isReadAllowed() {
         return readAllowedStates.contains(state);
     }
@@ -2374,10 +2378,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Counts the number of history operations within the provided sequence numbers
-     * @param source     source of the requester (e.g., peer-recovery)
-     * @param fromSeqNo  from sequence number, included
-     * @param toSeqNo    to sequence number, included
-     * @return           number of history operations in the sequence number range
+     *
+     * @param source    source of the requester (e.g., peer-recovery)
+     * @param fromSeqNo from sequence number, included
+     * @param toSeqNo   to sequence number, included
+     * @return number of history operations in the sequence number range
      */
     public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNo) throws IOException {
         return getEngine().countNumberOfHistoryOperations(source, fromSeqNo, toSeqNo);
@@ -2688,7 +2693,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Called when the recovery process for a shard has opened the engine on the target shard. Ensures that the right data structures
      * have been set up locally to track local checkpoint information for the shard and that the shard is added to the replication group.
      *
-     * @param allocationId  the allocation ID of the shard for which recovery was initiated
+     * @param allocationId the allocation ID of the shard for which recovery was initiated
      */
     public void initiateTracking(final String allocationId) {
         assert assertPrimaryMode();
@@ -3344,10 +3349,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * try-with-resources closing the releasable after executing the runnable on successfully acquiring the permit, an otherwise calling
      * back the failure callback.
      *
-     * @param runnable the runnable to execute under permit
-     * @param onFailure the callback on failure
+     * @param runnable        the runnable to execute under permit
+     * @param onFailure       the callback on failure
      * @param executorOnDelay the executor to execute the runnable on if permit acquisition is blocked
-     * @param debugInfo debug info
+     * @param debugInfo       debug info
      */
     public void runUnderPrimaryPermit(
         final Runnable runnable,
@@ -3595,7 +3600,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * @return a list of describing each permit that wasn't released yet. The description consist of the debugInfo supplied
-     *         when the permit was acquired plus a stack traces that was captured when the permit was request.
+     * when the permit was acquired plus a stack traces that was captured when the permit was request.
      */
     public List<String> getActiveOperations() {
         return indexShardOperationPermits.getActiveOperations();
@@ -3743,9 +3748,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Simple struct encapsulating a shard failure
      *
-     * @see IndexShard#addShardFailureCallback(Consumer)
-     *
      * @opensearch.internal
+     * @see IndexShard#addShardFailureCallback(Consumer)
      */
     public static final class ShardFailure {
         public final ShardRouting routing;
@@ -3872,6 +3876,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Registers the given listener and invokes it once the shard is active again and all
      * pending refresh translog location has been refreshed. If there is no pending refresh location registered the listener will be
      * invoked immediately.
+     *
      * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
@@ -3893,7 +3898,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param location the location to listen for
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
-     *        false otherwise.
+     *                 false otherwise.
      */
     public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
         final boolean readAllowed;

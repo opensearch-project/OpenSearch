@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * This is an extension of {@link OpenSearchReaderManager} for use with {@link NRTReplicationEngine}.
+ * This is an extension of {@link OpenSearchReaderManager} for use with {@link AbstractNRTReplicationEngine}.
  * The manager holds a reference to the latest {@link SegmentInfos} object that is used to refresh a reader.
  *
  * @opensearch.internal

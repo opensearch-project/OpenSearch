@@ -103,8 +103,8 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
-import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -3524,7 +3524,8 @@ public class IndexShardTests extends IndexShardTestCase {
     /**
      * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
-     * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
+     *
+     * @param checkpointPublisher Segment Replication Checkpoint Publisher to publish checkpoint
      */
     private IndexShard newShard(SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 0);
