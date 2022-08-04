@@ -152,7 +152,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
             final ShardId shardId = request.getShardId();
-            ReplicationCheckpoint replicationCheckpoint;
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
                 logger,
@@ -207,13 +206,12 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
                 logger.debug("{} shard state info found: [{}]", shardId, shardStateMetadata);
                 String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
-                IndexShard shard = indicesService.getShardOrNull(shardId);
-                replicationCheckpoint = shard != null ? shard.getLatestReplicationCheckpoint() : null;
+                final IndexShard shard = indicesService.getShardOrNull(shardId);
                 return new NodeGatewayStartedShards(
                     clusterService.localNode(),
                     allocationId,
                     shardStateMetadata.primary,
-                    replicationCheckpoint
+                    shard != null ? shard.getLatestReplicationCheckpoint() : null
                 );
             }
             logger.trace("{} no local shard info found", shardId);

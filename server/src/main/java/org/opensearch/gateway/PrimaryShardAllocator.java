@@ -318,8 +318,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         NodeGatewayStartedShards::primary
     ).reversed();
 
-    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR = Comparator.comparing(
-        NodeGatewayStartedShards::replicationCheckpoint
+    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR = Comparator.nullsLast(
+        Comparator.comparing(NodeGatewayStartedShards::replicationCheckpoint)
     );
 
     /**

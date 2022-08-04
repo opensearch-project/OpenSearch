@@ -224,7 +224,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
         this.testAllocator.enableSegmentReplication();
         testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 20, 10, 101, 1));
         testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 22, 10, 120, 2));
-        testAllocator.addData(node3, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
+        testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -237,6 +237,40 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
         assertThat(
             allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(),
             equalTo(allocId2)
+        );
+        assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+    /**
+     * Tests that replica with highest primary ter version will be selected as target
+     */
+    public void testPreferReplicaWithNullReplicationCheckpoint() {
+        String allocId1 = randomAlphaOfLength(10);
+        String allocId2 = randomAlphaOfLength(10);
+        String allocId3 = randomAlphaOfLength(10);
+        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
+            yesAllocationDeciders(),
+            CLUSTER_RECOVERED,
+            allocId1,
+            allocId2,
+            allocId3
+        );
+        this.testAllocator.enableSegmentReplication();
+        testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 20, 10, 101, 1));
+        testAllocator.addData(node2, allocId2, false);
+        testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 40, 10, 120, 2));
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(node3.getId())
+        );
+        // Assert node3's allocation id should be used as it has highest replication checkpoint
+        assertThat(
+            allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(),
+            equalTo(allocId3)
         );
         assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
     }
@@ -258,7 +292,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
         this.testAllocator.enableSegmentReplication();
         testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 10, 10, 101, 1));
         testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 3));
-        testAllocator.addData(node3, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
+        testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
@@ -276,7 +310,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * Tests that prefer allocation of older primary even though having lower replication checkpoint
+     * Tests that prefer allocation of replica at lower checkpoint but in sync set
      */
     public void testOutOfSyncHighestRepCheckpointIsIgnored() {
         String allocId1 = randomAlphaOfLength(10);
@@ -300,7 +334,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
             equalTo(node3.getId())
         );
-        // Assert node2's allocation id is used with highest replication checkpoint
+        // Assert node3's allocation id is used
         assertThat(
             allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(),
             equalTo(allocId3)
@@ -309,7 +343,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * Tests that prefer allocation of older primary even though having lower replication checkpoint
+     * Tests that prefer allocation of older primary over replica with higher replication checkpoint
      */
     public void testPreferAllocatingPreviousPrimaryWithLowerRepCheckpoint() {
         String allocId1 = randomAlphaOfLength(10);
@@ -334,7 +368,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
             equalTo(node1.getId())
         );
-        // Assert node2's allocation id is used with highest replication checkpoint
+        // Assert node1's allocation id is used with highest replication checkpoint
         assertThat(
             allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(),
             equalTo(allocId1)
