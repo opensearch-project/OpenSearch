@@ -11,7 +11,6 @@ package org.opensearch.index.engine;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
@@ -61,42 +60,6 @@ public class NRTReplicationEngine extends AbstractNRTReplicationEngine {
             },
             this
         );
-    }
-
-    @Override
-    public IndexResult index(Index index) throws IOException {
-        ensureOpen();
-        IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
-        final Translog.Location location = translogManager().add(new Translog.Index(index, indexResult));
-        indexResult.setTranslogLocation(location);
-        indexResult.setTook(System.nanoTime() - index.startTime());
-        indexResult.freeze();
-        getLocalCheckpointTracker().advanceMaxSeqNo(index.seqNo());
-        return indexResult;
-    }
-
-    @Override
-    public DeleteResult delete(Delete delete) throws IOException {
-        ensureOpen();
-        DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
-        final Translog.Location location = translogManager().add(new Translog.Delete(delete, deleteResult));
-        deleteResult.setTranslogLocation(location);
-        deleteResult.setTook(System.nanoTime() - delete.startTime());
-        deleteResult.freeze();
-        getLocalCheckpointTracker().advanceMaxSeqNo(delete.seqNo());
-        return deleteResult;
-    }
-
-    @Override
-    public NoOpResult noOp(NoOp noOp) throws IOException {
-        ensureOpen();
-        NoOpResult noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
-        final Translog.Location location = translogManager().add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
-        noOpResult.setTranslogLocation(location);
-        noOpResult.setTook(System.nanoTime() - noOp.startTime());
-        noOpResult.freeze();
-        getLocalCheckpointTracker().advanceMaxSeqNo(noOp.seqNo());
-        return noOpResult;
     }
 
     @Override
