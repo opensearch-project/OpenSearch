@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.opensearch.test.OpenSearchTestCase.between;
 import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
@@ -136,10 +137,6 @@ public class PitTestsUtil {
     public static void assertSegments(boolean isEmpty, Client client) {
         IndicesSegmentResponse indicesSegmentResponse = client.execute(PitSegmentsAction.INSTANCE, new PitSegmentsRequest()).actionGet();
         assertTrue(indicesSegmentResponse.getShardFailures() == null || indicesSegmentResponse.getShardFailures().length == 0);
-        if (isEmpty) {
-            assertTrue(indicesSegmentResponse.getIndices().size() == 0);
-        } else {
-            assertTrue(indicesSegmentResponse.getIndices().size() != 0);
-        }
+        assertEquals(indicesSegmentResponse.getIndices().isEmpty(), isEmpty);
     }
 }

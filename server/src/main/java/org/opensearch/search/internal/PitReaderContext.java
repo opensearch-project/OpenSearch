@@ -17,6 +17,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.IndexShard;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -88,6 +89,6 @@ public class PitReaderContext extends ReaderContext {
     }
 
     public List<Segment> getSegments() {
-        return segments;
+        return Collections.unmodifiableList(segments);
     }
 }

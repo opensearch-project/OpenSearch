@@ -23,7 +23,7 @@ import java.util.List;
  * Transport request for retrieving PITs segment information
  */
 public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
-    boolean verbose = false;
+    private boolean verbose = false;
     private List<String> pitIds;
 
     public PitSegmentsRequest() {
