@@ -115,7 +115,7 @@ Indicates the runner can parse `node_selector` under the `do` operator and use i
 
 Allows you to use a stashed value in any key of an object during a `match` assertion
 
-    - set: {nodes.$master.http.publish_address: host}
+    - set: {nodes.$cluster_manager.http.publish_address: host}
     - match:
         $body:
           {
@@ -157,9 +157,9 @@ The runner is able to send and receive `application/yaml` and perform all assert
 
 Asserts an array of object contains an object with a property set to a certain value. e.g:
 
-… contains: { nodes.$master.plugins: { name: painless-whitelist } } …
+… contains: { nodes.$cluster_manager.plugins: { name: painless-allowlist } } …
 
-Asserts the plugins array contains an object with a `name` property with the value `painless-whitelist`
+Asserts the plugins array contains an object with a `name` property with the value `painless-allowlist`
 
 ## `transform_and_set`
 
@@ -319,13 +319,13 @@ Stashed values can be used in property names, eg:
     - do:
         cluster.state: {}
 
-    - set: { master_node: master }
+    - set: { cluster_manager_node: cluster_manager }
 
     - do:
         nodes.info:
             metric: [ transport ]
 
-    - is_true: nodes.$master.transport.profiles
+    - is_true: nodes.$cluster_manager.transport.profiles
 
 Note that not only expected values can be retrieved from the stashed values (as in the example above), but the same goes for actual values:
 

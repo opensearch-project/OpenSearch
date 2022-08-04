@@ -59,6 +59,11 @@ import java.util.TreeMap;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for analyzing text
+ *
+ * @opensearch.internal
+ */
 public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();
@@ -71,6 +76,8 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     /**
      * A request to analyze a text associated with a specific index. Allow to provide
      * the actual analyzer name to perform the analysis with.
+     *
+     * @opensearch.internal
      */
     public static class Request extends SingleShardRequest<Request> {
 
@@ -298,6 +305,11 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     }
 
+    /**
+     * Inner Response
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final DetailAnalyzeResponse detail;
@@ -400,6 +412,11 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             return Strings.toString(this, true, true);
         }
 
+        /**
+         * Inner Fields used for creating XContent and parsing
+         *
+         * @opensearch.internal
+         */
         static final class Fields {
             static final String TOKENS = "tokens";
 
@@ -407,6 +424,11 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
     }
 
+    /**
+     * Inner Analyze Token
+     *
+     * @opensearch.internal
+     */
     public static class AnalyzeToken implements Writeable, ToXContentObject {
         private final String term;
         private final int startOffset;
@@ -540,6 +562,11 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
     }
 
+    /**
+     * Inner Detail Analyze Response
+     *
+     * @opensearch.internal
+     */
     public static class DetailAnalyzeResponse implements Writeable, ToXContentFragment {
 
         private final boolean customAnalyzer;
@@ -702,6 +729,11 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
     }
 
+    /**
+     * Inner Analyze Token List
+     *
+     * @opensearch.internal
+     */
     public static class AnalyzeTokenList implements Writeable, ToXContentObject {
         private final String name;
         private final AnalyzeToken[] tokens;
@@ -794,6 +826,11 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
     }
 
+    /**
+     * Inner character filtered text
+     *
+     * @opensearch.internal
+     */
     public static class CharFilteredText implements Writeable, ToXContentObject {
         private final String name;
         private final String[] texts;

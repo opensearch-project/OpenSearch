@@ -63,8 +63,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+/**
+ * The OpenSearch DocumentMapper
+ *
+ * @opensearch.internal
+ */
 public class DocumentMapper implements ToXContentFragment {
 
+    /**
+     * Builder for the Document Field Mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
@@ -81,7 +91,7 @@ public class DocumentMapper implements ToXContentFragment {
             this.rootObjectMapper = builder.build(builderContext);
 
             final String type = rootObjectMapper.name();
-            final DocumentMapper existingMapper = mapperService.documentMapper(type);
+            final DocumentMapper existingMapper = mapperService.documentMapper();
             final Version indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
             final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers(
                 indexCreatedVersion
@@ -153,7 +163,7 @@ public class DocumentMapper implements ToXContentFragment {
         this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
 
         try {
-            mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+            mappingSource = new CompressedXContent(this, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {
             throw new OpenSearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
@@ -161,7 +171,6 @@ public class DocumentMapper implements ToXContentFragment {
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(
             VersionFieldMapper.NAME,
             IdFieldMapper.NAME,
-            TypeFieldMapper.NAME,
             SeqNoFieldMapper.NAME,
             SeqNoFieldMapper.PRIMARY_TERM_NAME,
             SeqNoFieldMapper.TOMBSTONE_NAME
@@ -208,14 +217,6 @@ public class DocumentMapper implements ToXContentFragment {
         return mapping.metadataMapper(type);
     }
 
-    public IndexFieldMapper indexMapper() {
-        return metadataMapper(IndexFieldMapper.class);
-    }
-
-    public TypeFieldMapper typeMapper() {
-        return metadataMapper(TypeFieldMapper.class);
-    }
-
     public SourceFieldMapper sourceMapper() {
         return metadataMapper(SourceFieldMapper.class);
     }
@@ -252,14 +253,14 @@ public class DocumentMapper implements ToXContentFragment {
         return documentParser.parseDocument(source, mapping.metadataMappers);
     }
 
-    public ParsedDocument createDeleteTombstoneDoc(String index, String type, String id) throws MapperParsingException {
-        final SourceToParse emptySource = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
+    public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
+        final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
         return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
-        final SourceToParse sourceToParse = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
+        final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
         final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);

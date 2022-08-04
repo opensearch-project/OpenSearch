@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.shards;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -44,7 +44,14 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSearchShardsRequest> implements IndicesRequest.Replaceable {
+/**
+ * Transport request for searching shards
+ *
+ * @opensearch.internal
+ */
+public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<ClusterSearchShardsRequest>
+    implements
+        IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     @Nullable

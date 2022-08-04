@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of max agg
+ *
+ * @opensearch.internal
+ */
 public class InternalMax extends InternalNumericMetricsAggregation.SingleValue implements Max {
     private final double max;
 

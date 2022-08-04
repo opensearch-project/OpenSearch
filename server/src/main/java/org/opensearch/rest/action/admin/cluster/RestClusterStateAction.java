@@ -40,6 +40,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.xcontent.ToXContent;
@@ -63,6 +64,11 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get cluster state
+ *
+ * @opensearch.api
+ */
 public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
@@ -70,6 +76,12 @@ public class RestClusterStateAction extends BaseRestHandler {
     public RestClusterStateAction(SettingsFilter settingsFilter) {
         this.settingsFilter = settingsFilter;
     }
+
+    // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
+    // It's used to log deprecation when request parameter 'metric' contains 'master_node', or request parameter 'master_timeout' is used.
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterStateAction.class);
+    private static final String DEPRECATED_MESSAGE_MASTER_NODE =
+        "Assigning [master_node] to parameter [metric] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_node] instead.";
 
     @Override
     public String getName() {
@@ -97,7 +109,10 @@ public class RestClusterStateAction extends BaseRestHandler {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
         if (request.hasParam("wait_for_metadata_version")) {
             clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }
@@ -112,7 +127,17 @@ public class RestClusterStateAction extends BaseRestHandler {
         if (request.hasParam("metric")) {
             EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
             // do not ask for what we do not need.
-            clusterStateRequest.nodes(metrics.contains(ClusterState.Metric.NODES) || metrics.contains(ClusterState.Metric.MASTER_NODE));
+            clusterStateRequest.nodes(
+                metrics.contains(ClusterState.Metric.NODES)
+                    || metrics.contains(ClusterState.Metric.MASTER_NODE)
+                    || metrics.contains(ClusterState.Metric.CLUSTER_MANAGER_NODE)
+            );
+            // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
+            // Because "_all" value will add all Metric into metrics set, for prevent deprecation message shown in that case,
+            // add the check of validating metrics set doesn't contain all enum elements.
+            if (!metrics.equals(EnumSet.allOf(ClusterState.Metric.class)) && metrics.contains(ClusterState.Metric.MASTER_NODE)) {
+                deprecationLogger.deprecate("cluster_state_metric_parameter_master_node_value", DEPRECATED_MESSAGE_MASTER_NODE);
+            }
             /*
              * there is no distinction in Java api between routing_table and routing_nodes, it's the same info set over the wire, one single
              * flag to ask for it

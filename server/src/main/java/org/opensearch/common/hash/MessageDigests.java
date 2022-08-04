@@ -40,6 +40,8 @@ import java.util.Objects;
  * This MessageDigests class provides convenience methods for obtaining
  * thread local {@link MessageDigest} instances for MD5, SHA-1, and
  * SHA-256 message digests.
+ *
+ * @opensearch.internal
  */
 public final class MessageDigests {
 

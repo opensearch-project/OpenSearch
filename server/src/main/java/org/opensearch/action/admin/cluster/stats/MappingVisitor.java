@@ -35,6 +35,11 @@ package org.opensearch.action.admin.cluster.stats;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Visitor pattern for obtaining index mappings
+ *
+ * @opensearch.internal
+ */
 final class MappingVisitor {
 
     private MappingVisitor() {}

@@ -38,7 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -62,8 +62,10 @@ import java.util.Collections;
  * in-flight writes to an index have been completed prior to the response being returned. These actions
  * are done in multiple cluster state updates (at least two). See also {@link TransportVerifyShardIndexBlockAction}
  * for the eventual delegation for shard-level verification.
+ *
+ * @opensearch.internal
  */
-public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddIndexBlockRequest, AddIndexBlockResponse> {
+public class TransportAddIndexBlockAction extends TransportClusterManagerNodeAction<AddIndexBlockRequest, AddIndexBlockResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportAddIndexBlockAction.class);
 
@@ -121,13 +123,13 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
     }
 
     @Override
-    protected void masterOperation(AddIndexBlockRequest request, ClusterState state, ActionListener<AddIndexBlockResponse> listener)
+    protected void clusterManagerOperation(AddIndexBlockRequest request, ClusterState state, ActionListener<AddIndexBlockResponse> listener)
         throws Exception {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final Task task,
         final AddIndexBlockRequest request,
         final ClusterState state,
@@ -142,7 +144,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
         final AddIndexBlockClusterStateUpdateRequest addBlockRequest = new AddIndexBlockClusterStateUpdateRequest(
             request.getBlock(),
             task.getId()
-        ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
+        ).ackTimeout(request.timeout()).masterNodeTimeout(request.clusterManagerNodeTimeout()).indices(concreteIndices);
         indexStateService.addIndexBlock(addBlockRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
             logger.debug(() -> new ParameterizedMessage("failed to mark indices as readonly [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);

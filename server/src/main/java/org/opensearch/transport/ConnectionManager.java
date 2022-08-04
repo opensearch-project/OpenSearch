@@ -39,6 +39,11 @@ import java.io.Closeable;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Transport connection manager.
+ *
+ * @opensearch.internal
+ */
 public interface ConnectionManager extends Closeable {
 
     void addListener(TransportConnectionListener listener);
@@ -71,11 +76,21 @@ public interface ConnectionManager extends Closeable {
 
     ConnectionProfile getConnectionProfile();
 
+    /**
+     * Validates a connection
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     interface ConnectionValidator {
         void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener<Void> listener);
     }
 
+    /**
+     * Connection listener for a delegating node
+     *
+     * @opensearch.internal
+     */
     final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 
         private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();

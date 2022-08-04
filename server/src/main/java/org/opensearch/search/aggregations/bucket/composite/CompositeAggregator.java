@@ -37,7 +37,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.queries.SearchAfterSortedDocQuery;
+import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -86,6 +86,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
+/**
+ * Main aggregator that aggregates docs from mulitple aggregations
+ *
+ * @opensearch.internal
+ */
 final class CompositeAggregator extends BucketsAggregator {
     private final int size;
     private final List<String> sourceNames;
@@ -191,7 +196,7 @@ final class CompositeAggregator extends BucketsAggregator {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = subAggsForBuckets[slot];
-            int docCount = queue.getDocCount(slot);
+            long docCount = queue.getDocCount(slot);
             buckets[queue.size()] = new InternalComposite.InternalBucket(
                 sourceNames,
                 formats,
@@ -349,8 +354,8 @@ final class CompositeAggregator extends BucketsAggregator {
                     }
 
                     @Override
-                    public FieldComparator<?> getComparator(int numHits, int sortPos) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), sortPos) {
+                    public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), false) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {
@@ -499,7 +504,8 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 try {
-                    if (queue.addIfCompetitive(indexSortPrefix)) {
+                    long docCount = docCountProvider.getDocCount(doc);
+                    if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
                         if (builder != null && lastDoc != doc) {
                             builder.add(doc);
                             lastDoc = doc;
@@ -572,6 +578,11 @@ final class CompositeAggregator extends BucketsAggregator {
         };
     }
 
+    /**
+     * An entry in the composite aggregator
+     *
+     * @opensearch.internal
+     */
     private static class Entry {
         final LeafReaderContext context;
         final DocIdSet docIdSet;

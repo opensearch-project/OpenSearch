@@ -33,7 +33,7 @@
 package org.opensearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.Metadata;
@@ -140,7 +140,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 new EngineConfigFactory(shard.indexSettings()),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER
+                EMPTY_EVENT_LISTENER,
+                null
             );
 
             // restore the shard

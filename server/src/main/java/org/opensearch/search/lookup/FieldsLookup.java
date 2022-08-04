@@ -32,22 +32,23 @@
 package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.common.Nullable;
 import org.opensearch.index.mapper.MapperService;
 
+/**
+ * looks up multiple fields from a leaf reader
+ *
+ * @opensearch.internal
+ */
 public class FieldsLookup {
 
     private final MapperService mapperService;
-    @Nullable
-    private final String[] types;
 
-    FieldsLookup(MapperService mapperService, @Nullable String[] types) {
+    FieldsLookup(MapperService mapperService) {
         this.mapperService = mapperService;
-        this.types = types;
     }
 
     public LeafFieldsLookup getLeafFieldsLookup(LeafReaderContext context) {
-        return new LeafFieldsLookup(mapperService, types, context.reader());
+        return new LeafFieldsLookup(mapperService, context.reader());
     }
 
 }

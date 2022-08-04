@@ -40,7 +40,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Wrapper around all the profilers that makes management easier. */
+/**
+ * Wrapper around all the profilers that makes management easier.
+ *
+ * @opensearch.internal
+ */
 public final class Profilers {
 
     private final ContextIndexSearcher searcher;
@@ -57,7 +61,7 @@ public final class Profilers {
 
     /** Switch to a new profile. */
     public QueryProfiler addQueryProfiler() {
-        QueryProfiler profiler = new QueryProfiler(searcher.allowConcurrentSegmentSearch());
+        QueryProfiler profiler = new QueryProfiler(searcher.getExecutor() != null);
         searcher.setProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;

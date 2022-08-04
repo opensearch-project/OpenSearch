@@ -35,19 +35,29 @@ package org.opensearch.action;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Base exception for a missing routing
+ *
+ * @opensearch.internal
+ */
 public class RoutingMissingException extends OpenSearchException {
 
     private final String type;
 
     private final String id;
 
+    public RoutingMissingException(String index, String id) {
+        this(index, MapperService.SINGLE_MAPPING_NAME, id);
+    }
+
     public RoutingMissingException(String index, String type, String id) {
-        super("routing is required for [" + index + "]/[" + type + "]/[" + id + "]");
+        super("routing is required for [" + index + "]/[" + id + "]");
         Objects.requireNonNull(index, "index must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");

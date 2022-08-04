@@ -29,7 +29,7 @@ Example invocation:
 wget http://benchmarks.elasticsearch.org.s3.amazonaws.com/corpora/geonames/documents-2.json.bz2
 bzip2 -d documents-2.json.bz2
 mv documents-2.json client/benchmark/build
-gradlew -p client/benchmark run --args ' rest bulk localhost build/documents-2.json geonames type 8647880 5000'
+gradlew -p client/benchmark run --args ' rest bulk localhost build/documents-2.json geonames 8647880 5000'
 ```
 
 The parameters are all in the `'`s and are in order:
@@ -39,7 +39,6 @@ The parameters are all in the `'`s and are in order:
 * Benchmark target host IP (the host where OpenSearch is running)
 * full path to the file that should be bulk indexed
 * name of the index
-* name of the (sole) type in the index
 * number of documents in the file
 * bulk size
 

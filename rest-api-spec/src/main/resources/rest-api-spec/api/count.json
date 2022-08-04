@@ -27,27 +27,6 @@
               "description":"A comma-separated list of indices to restrict the results"
             }
           }
-        },
-        {
-          "path":"/{index}/{type}/_count",
-          "methods":[
-            "POST",
-            "GET"
-          ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of indices to restrict the results"
-            },
-            "type": {
-              "type" : "list",
-              "description" : "A comma-separated list of types to restrict the results"
-            }
-          },
-          "deprecated": {
-            "version" : "7.0.0",
-            "description" : "Specifying types in urls has been deprecated"
-          }
         }
       ]
     },

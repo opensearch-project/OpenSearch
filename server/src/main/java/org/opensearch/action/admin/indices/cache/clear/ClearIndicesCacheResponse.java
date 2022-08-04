@@ -44,6 +44,8 @@ import java.util.List;
 
 /**
  * The response of a clear cache action.
+ *
+ * @opensearch.internal
  */
 public class ClearIndicesCacheResponse extends BroadcastResponse {
 

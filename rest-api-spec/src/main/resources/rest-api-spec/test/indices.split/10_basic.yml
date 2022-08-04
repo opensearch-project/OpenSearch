@@ -30,9 +30,7 @@ setup:
 ---
 "Split index via API":
   - skip:
-      version: " - 6.9.99"
-      reason: pre-7.0.0 will send warnings
-      features: "warnings"
+      features: allowed_warnings
 
   # make it read-only
   - do:
@@ -49,6 +47,8 @@ setup:
 
   # now we do the actual split
   - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.split:
         index: "source"
         target: "target"
@@ -69,7 +69,6 @@ setup:
         id:    "1"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -80,7 +79,6 @@ setup:
         id:    "2"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "2"     }
   - match: { _source:  { foo: "hello world 2" } }
 
@@ -91,7 +89,6 @@ setup:
         id:    "3"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 
@@ -99,8 +96,7 @@ setup:
 ---
 "Split from 1 to N":
   - skip:
-      version: " - 6.99.99"
-      reason: automatic preparation for splitting was added in 7.0.0
+      features: allowed_warnings
   - do:
       indices.create:
         index: source_one_shard
@@ -142,6 +138,8 @@ setup:
 
   # now we do the actual split from 1 to 5
   - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.split:
         index: "source_one_shard"
         target: "target"
@@ -162,7 +160,6 @@ setup:
         id:    "1"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -173,7 +170,6 @@ setup:
         id:    "2"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "2"     }
   - match: { _source:  { foo: "hello world 2" } }
 
@@ -184,20 +180,19 @@ setup:
         id:    "3"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 
 ---
 "Create illegal split indices":
   - skip:
-      version: " - 6.9.99"
-      reason: pre-7.0.0 will send warnings
-      features: "warnings"
+      features: allowed_warnings
 
   # try to do an illegal split with number_of_routing_shards set
   - do:
       catch: /illegal_argument_exception/
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.split:
         index: "source"
         target: "target"
@@ -212,6 +207,8 @@ setup:
   # try to do an illegal split with illegal number_of_shards
   - do:
       catch: /illegal_state_exception/
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.split:
         index: "source"
         target: "target"

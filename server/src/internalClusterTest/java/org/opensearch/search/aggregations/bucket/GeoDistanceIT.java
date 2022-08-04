@@ -87,15 +87,15 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         }
         source.endArray();
         source = source.endObject();
-        return client().prepareIndex(idx, "type").setSource(source);
+        return client().prepareIndex(idx).setSource(source);
     }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        prepareCreate("idx").setSettings(settings).addMapping("type", "location", "type=geo_point", "city", "type=keyword").get();
+        prepareCreate("idx").setSettings(settings).setMapping("location", "type=geo_point", "city", "type=keyword").get();
 
-        prepareCreate("idx-multi").addMapping("type", "location", "type=geo_point", "city", "type=keyword").get();
+        prepareCreate("idx-multi").setMapping("location", "type=geo_point", "city", "type=keyword").get();
 
         createIndex("idx_unmapped");
 
@@ -138,11 +138,12 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
             cities.add(indexCity("idx-multi", cityName));
         }
         indexRandom(true, cities);
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "location", "type=geo_point").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer", "location", "type=geo_point").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field("value", i * 2).field("location", "52.0945, 5.116").endObject())
             );
         }

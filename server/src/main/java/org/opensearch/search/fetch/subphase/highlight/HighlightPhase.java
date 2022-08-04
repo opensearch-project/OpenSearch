@@ -51,6 +51,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Highlight Phase of the search request.
+ *
+ * @opensearch.internal
+ */
 public class HighlightPhase implements FetchSubPhase {
 
     private final Map<String, Highlighter> highlighters;

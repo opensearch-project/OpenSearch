@@ -83,7 +83,7 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
         allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
-        when(clusterService.getSettings()).thenReturn(NodeRoles.masterOnlyNode());
+        when(clusterService.getSettings()).thenReturn(NodeRoles.clusterManagerOnlyNode());
         delayedAllocationService = new TestDelayAllocationService(threadPool, clusterService, allocationService);
         verify(clusterService).addListener(delayedAllocationService);
         verify(clusterService).getSettings();
@@ -108,7 +108,7 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
             .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").clusterManagerNodeId("node1"))
             .build();
         clusterState = allocationService.reroute(clusterState, "reroute");
         // starting primaries
@@ -154,7 +154,7 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
             .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").clusterManagerNodeId("node1"))
             .build();
         final long baseTimestampNanos = System.nanoTime();
         allocationService.setNanoTimeOverride(baseTimestampNanos);
@@ -262,9 +262,9 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
             .routingTable(RoutingTable.builder().addAsNew(metadata.index("short_delay")).addAsNew(metadata.index("long_delay")).build())
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node0", singleton(DiscoveryNodeRole.MASTER_ROLE)))
+                    .add(newNode("node0", singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
                     .localNodeId("node0")
-                    .masterNodeId("node0")
+                    .clusterManagerNodeId("node0")
                     .add(newNode("node1"))
                     .add(newNode("node2"))
                     .add(newNode("node3"))
@@ -449,7 +449,7 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
                     .add(newNode("node3"))
                     .add(newNode("node4"))
                     .localNodeId("node1")
-                    .masterNodeId("node1")
+                    .clusterManagerNodeId("node1")
             )
             .build();
         final long nodeLeftTimestampNanos = System.nanoTime();
@@ -556,7 +556,7 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
         }
 
         @Override
-        protected void assertClusterOrMasterStateThread() {
+        protected void assertClusterOrClusterManagerStateThread() {
             // do not check this in the unit tests
         }
 

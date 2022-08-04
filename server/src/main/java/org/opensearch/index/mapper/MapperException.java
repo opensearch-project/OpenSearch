@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown for any mapping errors
+ *
+ * @opensearch.internal
+ */
 public class MapperException extends OpenSearchException {
     public MapperException(StreamInput in) throws IOException {
         super(in);

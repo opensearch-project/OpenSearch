@@ -57,6 +57,8 @@ import java.util.List;
 
 /**
  * Encapsulates state required to execute fetch phases
+ *
+ * @opensearch.internal
  */
 public class FetchContext {
 

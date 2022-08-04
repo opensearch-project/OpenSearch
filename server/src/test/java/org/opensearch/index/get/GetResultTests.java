@@ -46,7 +46,6 @@ import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
@@ -97,7 +96,6 @@ public class GetResultTests extends OpenSearchTestCase {
         {
             GetResult getResult = new GetResult(
                 "index",
-                "type",
                 "id",
                 0,
                 1,
@@ -109,16 +107,16 @@ public class GetResultTests extends OpenSearchTestCase {
             );
             String output = Strings.toString(getResult);
             assertEquals(
-                "{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
+                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
                     + "\"metafield\":\"metavalue\",\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},"
                     + "\"fields\":{\"field1\":[\"value1\"]}}",
                 output
             );
         }
         {
-            GetResult getResult = new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
+            GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
             String output = Strings.toString(getResult);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
+            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
         }
     }
 
@@ -129,7 +127,6 @@ public class GetResultTests extends OpenSearchTestCase {
         // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
         // by the toXContentEmbedded method.
         GetResult expectedGetResult = new GetResult(
-            null,
             null,
             null,
             tuple.v2().getSeqNo(),
@@ -166,7 +163,6 @@ public class GetResultTests extends OpenSearchTestCase {
 
         GetResult getResult = new GetResult(
             "index",
-            "type",
             "id",
             0,
             1,
@@ -186,7 +182,7 @@ public class GetResultTests extends OpenSearchTestCase {
     }
 
     public void testToXContentEmbeddedNotFound() throws IOException {
-        GetResult getResult = new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
+        GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
 
         BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals("{\"found\":false}", originalBytes.utf8ToString());
@@ -194,7 +190,7 @@ public class GetResultTests extends OpenSearchTestCase {
 
     public void testSerializationNotFound() throws IOException {
         // serializes and deserializes with streamable, then prints back to xcontent
-        GetResult getResult = new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
+        GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
 
         BytesStreamOutput out = new BytesStreamOutput();
         getResult.writeTo(out);
@@ -222,7 +218,6 @@ public class GetResultTests extends OpenSearchTestCase {
     public static GetResult copyGetResult(GetResult getResult) {
         return new GetResult(
             getResult.getIndex(),
-            getResult.getType(),
             getResult.getId(),
             getResult.getSeqNo(),
             getResult.getPrimaryTerm(),
@@ -239,7 +234,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 randomUnicodeOfLength(15),
-                getResult.getType(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -254,7 +248,6 @@ public class GetResultTests extends OpenSearchTestCase {
             () -> new GetResult(
                 getResult.getIndex(),
                 randomUnicodeOfLength(15),
-                getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
                 getResult.getVersion(),
@@ -267,21 +260,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 getResult.getIndex(),
-                getResult.getType(),
-                randomUnicodeOfLength(15),
-                getResult.getSeqNo(),
-                getResult.getPrimaryTerm(),
-                getResult.getVersion(),
-                getResult.isExists(),
-                getResult.internalSourceRef(),
-                getResult.getFields(),
-                null
-            )
-        );
-        mutations.add(
-            () -> new GetResult(
-                getResult.getIndex(),
-                getResult.getType(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -295,7 +273,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 getResult.getIndex(),
-                getResult.getType(),
                 getResult.getId(),
                 getResult.isExists() ? UNASSIGNED_SEQ_NO : getResult.getSeqNo(),
                 getResult.isExists() ? 0 : getResult.getPrimaryTerm(),
@@ -309,7 +286,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 getResult.getIndex(),
-                getResult.getType(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -323,7 +299,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 getResult.getIndex(),
-                getResult.getType(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -373,10 +348,9 @@ public class GetResultTests extends OpenSearchTestCase {
             version = -1;
             exists = false;
         }
-        GetResult getResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, docFields, metaFields);
+        GetResult getResult = new GetResult(index, id, seqNo, primaryTerm, version, exists, source, docFields, metaFields);
         GetResult expectedGetResult = new GetResult(
             index,
-            type,
             id,
             seqNo,
             primaryTerm,
@@ -397,9 +371,8 @@ public class GetResultTests extends OpenSearchTestCase {
         Map<String, DocumentField> fields = new HashMap<>(numFields);
         Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
         // As we are using this to construct a GetResult object that already contains
-        // index, type, id, version, seqNo, and source fields, we need to exclude them from random fields
-        Predicate<String> excludeMetaFieldFilter = field -> field.equals(TypeFieldMapper.NAME)
-            || field.equals(IndexFieldMapper.NAME)
+        // index, id, version, seqNo, and source fields, we need to exclude them from random fields
+        Predicate<String> excludeMetaFieldFilter = field -> field.equals(IndexFieldMapper.NAME)
             || field.equals(IdFieldMapper.NAME)
             || field.equals(VersionFieldMapper.NAME)
             || field.equals(SourceFieldMapper.NAME)

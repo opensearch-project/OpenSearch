@@ -48,6 +48,7 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
  *
  * @see SearcherManager
  *
+ * @opensearch.internal
  */
 @SuppressForbidden(reason = "reference counting is required here")
 class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {

@@ -61,15 +61,7 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         values.add("foo");
         values.add("bar");
         values.add("baz");
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index",
-            "_type",
-            "_id",
-            null,
-            null,
-            null,
-            Collections.singletonMap("values", values)
-        );
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values", values));
 
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", new AsyncUpperCaseProcessor("_ingest._value"), false);
         processor.execute(ingestDocument, (result, e) -> {});
@@ -87,7 +79,6 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
     public void testExecuteWithFailure() throws Exception {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
-            "_type",
             "_id",
             null,
             null,
@@ -132,19 +123,10 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         List<Map<String, Object>> values = new ArrayList<>();
         values.add(new HashMap<>());
         values.add(new HashMap<>());
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index",
-            "_type",
-            "_id",
-            null,
-            null,
-            null,
-            Collections.singletonMap("values", values)
-        );
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values", values));
 
         TestProcessor innerProcessor = new TestProcessor(id -> {
             id.setFieldValue("_ingest._value.index", id.getSourceAndMetadata().get("_index"));
-            id.setFieldValue("_ingest._value.type", id.getSourceAndMetadata().get("_type"));
             id.setFieldValue("_ingest._value.id", id.getSourceAndMetadata().get("_id"));
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", innerProcessor, false);
@@ -152,10 +134,8 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
 
         assertThat(innerProcessor.getInvokedCounter(), equalTo(2));
         assertThat(ingestDocument.getFieldValue("values.0.index", String.class), equalTo("_index"));
-        assertThat(ingestDocument.getFieldValue("values.0.type", String.class), equalTo("_type"));
         assertThat(ingestDocument.getFieldValue("values.0.id", String.class), equalTo("_id"));
         assertThat(ingestDocument.getFieldValue("values.1.index", String.class), equalTo("_index"));
-        assertThat(ingestDocument.getFieldValue("values.1.type", String.class), equalTo("_type"));
         assertThat(ingestDocument.getFieldValue("values.1.id", String.class), equalTo("_id"));
     }
 
@@ -170,7 +150,7 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         document.put("values", values);
         document.put("flat_values", new ArrayList<>());
         document.put("other", "value");
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, document);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, document);
 
         ForEachProcessor processor = new ForEachProcessor(
             "_tag",
@@ -220,15 +200,7 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         int numValues = randomIntBetween(1, 10000);
         List<String> values = IntStream.range(0, numValues).mapToObj(i -> "").collect(Collectors.toList());
 
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index",
-            "_type",
-            "_id",
-            null,
-            null,
-            null,
-            Collections.singletonMap("values", values)
-        );
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values", values));
 
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", innerProcessor, false);
         processor.execute(ingestDocument, (result, e) -> {});
@@ -244,15 +216,7 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         values.add("string");
         values.add(1);
         values.add(null);
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index",
-            "_type",
-            "_id",
-            null,
-            null,
-            null,
-            Collections.singletonMap("values", values)
-        );
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values", values));
 
         TemplateScript.Factory template = new TestTemplateService.MockTemplateScript.Factory("errors");
 
@@ -290,7 +254,7 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("_value", "new_value");
         source.put("values", values);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, source);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, source);
 
         TestProcessor processor = new TestProcessor(
             doc -> doc.setFieldValue("_ingest._value", doc.getFieldValue("_source._value", String.class))
@@ -320,15 +284,7 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         value.put("values2", innerValues);
         values.add(value);
 
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index",
-            "_type",
-            "_id",
-            null,
-            null,
-            null,
-            Collections.singletonMap("values1", values)
-        );
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values1", values));
 
         TestProcessor testProcessor = new TestProcessor(
             doc -> doc.setFieldValue("_ingest._value", doc.getFieldValue("_ingest._value", String.class).toUpperCase(Locale.ENGLISH))
@@ -352,7 +308,7 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
     }
 
     public void testIgnoreMissing() throws Exception {
-        IngestDocument originalIngestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, Collections.emptyMap());
+        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(doc -> {});
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "_ingest._value", testProcessor, true);
@@ -363,7 +319,7 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
 
     public void testAppendingToTheSameField() {
         Map<String, Object> source = Collections.singletonMap("field", Arrays.asList("a", "b"));
-        IngestDocument originalIngestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, source);
+        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, source);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(id -> id.appendFieldValue("field", "a"));
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
@@ -375,7 +331,7 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
 
     public void testRemovingFromTheSameField() {
         Map<String, Object> source = Collections.singletonMap("field", Arrays.asList("a", "b"));
-        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", "_type", null, null, null, source);
+        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, source);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(id -> id.removeField("field.0"));
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);

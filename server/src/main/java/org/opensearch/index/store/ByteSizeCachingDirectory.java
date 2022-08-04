@@ -47,8 +47,18 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.util.Set;
 
+/**
+ * Caching directory sized in bytes
+ *
+ * @opensearch.internal
+ */
 final class ByteSizeCachingDirectory extends FilterDirectory {
 
+    /**
+     * Internal caching size and modulo count
+     *
+     * @opensearch.internal
+     */
     private static class SizeAndModCount {
         final long size;
         final long modCount;

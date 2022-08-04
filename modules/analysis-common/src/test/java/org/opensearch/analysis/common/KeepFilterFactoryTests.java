@@ -54,7 +54,7 @@ public class KeepFilterFactoryTests extends OpenSearchTokenStreamTestCase {
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
             createTempDir(),
             RESOURCE,
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep");
         Assert.assertNull(tokenFilter);
@@ -68,7 +68,7 @@ public class KeepFilterFactoryTests extends OpenSearchTokenStreamTestCase {
             .put("index.analysis.filter.broken_keep_filter.keep_words", "[\"Hello\", \"worlD\"]")
             .build();
         try {
-            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
             Assert.fail("path and array are configured");
         } catch (IllegalArgumentException e) {} catch (IOException e) {
             fail("expected IAE");
@@ -83,7 +83,7 @@ public class KeepFilterFactoryTests extends OpenSearchTokenStreamTestCase {
             .build();
         try {
             // test our none existing setup is picked up
-            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
             fail("expected an exception due to non existent keep_words_path");
         } catch (IllegalArgumentException e) {} catch (IOException e) {
             fail("expected IAE");
@@ -92,7 +92,7 @@ public class KeepFilterFactoryTests extends OpenSearchTokenStreamTestCase {
         settings = Settings.builder().put(settings).putList("index.analysis.filter.non_broken_keep_filter.keep_words", "test").build();
         try {
             // test our none existing setup is picked up
-            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
             fail("expected an exception indicating that you can't use [keep_words_path] with [keep_words] ");
         } catch (IllegalArgumentException e) {} catch (IOException e) {
             fail("expected IAE");
@@ -104,7 +104,7 @@ public class KeepFilterFactoryTests extends OpenSearchTokenStreamTestCase {
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
             createTempDir(),
             RESOURCE,
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));
@@ -119,7 +119,7 @@ public class KeepFilterFactoryTests extends OpenSearchTokenStreamTestCase {
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
             createTempDir(),
             RESOURCE,
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_case_sensitive_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));

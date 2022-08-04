@@ -39,6 +39,8 @@ import java.io.Reader;
  *
  * The default implementation of {@link #normalize(Reader)} delegates to
  * {@link #create(Reader)}
+ *
+ * @opensearch.internal
  */
 public interface NormalizingCharFilterFactory extends CharFilterFactory {
 

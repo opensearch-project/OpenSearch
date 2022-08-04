@@ -82,6 +82,11 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to get node information
+ *
+ * @opensearch.api
+ */
 public class RestNodesAction extends AbstractCatAction {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodesAction.class);
     static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act "
@@ -110,7 +115,10 @@ public class RestNodesAction extends AbstractCatAction {
             deprecationLogger.deprecate("cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
         }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
         final boolean fullId = request.paramAsBoolean("full_id", false);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
@@ -189,11 +197,14 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
         table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
+        // TODO: Deprecate "node.role", use "node.roles" which shows full node role names
         table.addCell(
             "node.role",
             "alias:r,role,nodeRole;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only"
         );
-        table.addCell("master", "alias:m;desc:*:current master");
+        table.addCell("node.roles", "alias:rs,all roles;desc: -:coordinating node only");
+        // TODO: Remove the header alias 'master', after removing MASTER_ROLE. It's added for compatibility when using parameter 'h=master'.
+        table.addCell("cluster_manager", "alias:cm,m,master;desc:*:current cluster manager");
         table.addCell("name", "alias:n;desc:node name");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
@@ -332,7 +343,7 @@ public class RestNodesAction extends AbstractCatAction {
     ) {
 
         DiscoveryNodes nodes = state.getState().nodes();
-        String masterId = nodes.getMasterNodeId();
+        String clusterManagerId = nodes.getClusterManagerNodeId();
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {
@@ -416,13 +427,23 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
             final String roles;
+            final String allRoles;
             if (node.getRoles().isEmpty()) {
                 roles = "-";
+                allRoles = "-";
             } else {
-                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
+                List<DiscoveryNodeRole> knownNodeRoles = node.getRoles()
+                    .stream()
+                    .filter(DiscoveryNodeRole::isKnownRole)
+                    .collect(Collectors.toList());
+                roles = knownNodeRoles.size() > 0
+                    ? knownNodeRoles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining())
+                    : "-";
+                allRoles = node.getRoles().stream().map(DiscoveryNodeRole::roleName).sorted().collect(Collectors.joining(","));
             }
             table.addCell(roles);
-            table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
+            table.addCell(allRoles);
+            table.addCell(clusterManagerId == null ? "x" : clusterManagerId.equals(node.getId()) ? "*" : "-");
             table.addCell(node.getName());
 
             CompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();

@@ -34,7 +34,6 @@ package org.opensearch.common.lucene.search.function;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
@@ -46,6 +45,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -58,23 +58,46 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * A query that allows for a pluggable boost function / filter. If it matches
  * the filter, it will be boosted by the formula.
+ *
+ * @opensearch.internal
  */
 public class FunctionScoreQuery extends Query {
     public static final float DEFAULT_MAX_BOOST = Float.MAX_VALUE;
 
+    /**
+     * Filter score function
+     *
+     * @opensearch.internal
+     */
     public static class FilterScoreFunction extends ScoreFunction {
         public final Query filter;
         public final ScoreFunction function;
+        public final String queryName;
 
+        /**
+         * Creates a FilterScoreFunction with query and function.
+         * @param filter filter query
+         * @param function score function
+         */
         public FilterScoreFunction(Query filter, ScoreFunction function) {
+            this(filter, function, null);
+        }
+
+        /**
+         * Creates a FilterScoreFunction with query and function.
+         * @param filter filter query
+         * @param function score function
+         * @param queryName filter query name
+         */
+        public FilterScoreFunction(Query filter, ScoreFunction function, @Nullable String queryName) {
             super(function.getDefaultScoreCombiner());
             this.filter = filter;
             this.function = function;
+            this.queryName = queryName;
         }
 
         @Override
@@ -93,12 +116,14 @@ public class FunctionScoreQuery extends Query {
                 return false;
             }
             FilterScoreFunction that = (FilterScoreFunction) other;
-            return Objects.equals(this.filter, that.filter) && Objects.equals(this.function, that.function);
+            return Objects.equals(this.filter, that.filter)
+                && Objects.equals(this.function, that.function)
+                && Objects.equals(this.queryName, that.queryName);
         }
 
         @Override
         protected int doHashCode() {
-            return Objects.hash(filter, function);
+            return Objects.hash(filter, function, queryName);
         }
 
         @Override
@@ -107,7 +132,7 @@ public class FunctionScoreQuery extends Query {
             if (newFilter == filter) {
                 return this;
             }
-            return new FilterScoreFunction(newFilter, function);
+            return new FilterScoreFunction(newFilter, function, queryName);
         }
 
         @Override
@@ -116,6 +141,11 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
+    /**
+     * The mode of the score
+     *
+     * @opensearch.internal
+     */
     public enum ScoreMode implements Writeable {
         FIRST,
         AVG,
@@ -144,6 +174,7 @@ public class FunctionScoreQuery extends Query {
     final float maxBoost;
     private final Float minScore;
     private final CombineFunction combineFunction;
+    private final String queryName;
 
     /**
      * Creates a FunctionScoreQuery without function.
@@ -152,7 +183,18 @@ public class FunctionScoreQuery extends Query {
      * @param maxBoost The maximum applicable boost.
      */
     public FunctionScoreQuery(Query subQuery, Float minScore, float maxBoost) {
-        this(subQuery, ScoreMode.FIRST, new ScoreFunction[0], CombineFunction.MULTIPLY, minScore, maxBoost);
+        this(subQuery, null, minScore, maxBoost);
+    }
+
+    /**
+     * Creates a FunctionScoreQuery without function.
+     * @param subQuery The query to match.
+     * @param queryName filter query name
+     * @param minScore The minimum score to consider a document.
+     * @param maxBoost The maximum applicable boost.
+     */
+    public FunctionScoreQuery(Query subQuery, @Nullable String queryName, Float minScore, float maxBoost) {
+        this(subQuery, queryName, ScoreMode.FIRST, new ScoreFunction[0], CombineFunction.MULTIPLY, minScore, maxBoost);
     }
 
     /**
@@ -161,7 +203,17 @@ public class FunctionScoreQuery extends Query {
      * @param function The {@link ScoreFunction} to apply.
      */
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
-        this(subQuery, function, CombineFunction.MULTIPLY, null, DEFAULT_MAX_BOOST);
+        this(subQuery, null, function);
+    }
+
+    /**
+     * Creates a FunctionScoreQuery with a single {@link ScoreFunction}
+     * @param subQuery The query to match.
+     * @param queryName filter query name
+     * @param function The {@link ScoreFunction} to apply.
+     */
+    public FunctionScoreQuery(Query subQuery, @Nullable String queryName, ScoreFunction function) {
+        this(subQuery, queryName, function, CombineFunction.MULTIPLY, null, DEFAULT_MAX_BOOST);
     }
 
     /**
@@ -173,7 +225,27 @@ public class FunctionScoreQuery extends Query {
      * @param maxBoost The maximum applicable boost.
      */
     public FunctionScoreQuery(Query subQuery, ScoreFunction function, CombineFunction combineFunction, Float minScore, float maxBoost) {
-        this(subQuery, ScoreMode.FIRST, new ScoreFunction[] { function }, combineFunction, minScore, maxBoost);
+        this(subQuery, null, function, combineFunction, minScore, maxBoost);
+    }
+
+    /**
+     * Creates a FunctionScoreQuery with a single function
+     * @param subQuery The query to match.
+     * @param queryName filter query name
+     * @param function The {@link ScoreFunction} to apply.
+     * @param combineFunction Defines how the query and function score should be applied.
+     * @param minScore The minimum score to consider a document.
+     * @param maxBoost The maximum applicable boost.
+     */
+    public FunctionScoreQuery(
+        Query subQuery,
+        @Nullable String queryName,
+        ScoreFunction function,
+        CombineFunction combineFunction,
+        Float minScore,
+        float maxBoost
+    ) {
+        this(subQuery, queryName, ScoreMode.FIRST, new ScoreFunction[] { function }, combineFunction, minScore, maxBoost);
     }
 
     /**
@@ -193,10 +265,33 @@ public class FunctionScoreQuery extends Query {
         Float minScore,
         float maxBoost
     ) {
+        this(subQuery, null, scoreMode, functions, combineFunction, minScore, maxBoost);
+    }
+
+    /**
+     * Creates a FunctionScoreQuery with multiple score functions
+     * @param subQuery The query to match.
+     * @param queryName filter query name
+     * @param scoreMode Defines how the different score functions should be combined.
+     * @param functions The {@link ScoreFunction}s to apply.
+     * @param combineFunction Defines how the query and function score should be applied.
+     * @param minScore The minimum score to consider a document.
+     * @param maxBoost The maximum applicable boost.
+     */
+    public FunctionScoreQuery(
+        Query subQuery,
+        @Nullable String queryName,
+        ScoreMode scoreMode,
+        ScoreFunction[] functions,
+        CombineFunction combineFunction,
+        Float minScore,
+        float maxBoost
+    ) {
         if (Arrays.stream(functions).anyMatch(func -> func == null)) {
             throw new IllegalArgumentException("Score function should not be null");
         }
         this.subQuery = subQuery;
+        this.queryName = queryName;
         this.scoreMode = scoreMode;
         this.functions = functions;
         this.maxBoost = maxBoost;
@@ -240,7 +335,7 @@ public class FunctionScoreQuery extends Query {
             needsRewrite |= (newFunctions[i] != functions[i]);
         }
         if (needsRewrite) {
-            return new FunctionScoreQuery(newQ, scoreMode, newFunctions, combineFunction, minScore, maxBoost);
+            return new FunctionScoreQuery(newQ, queryName, scoreMode, newFunctions, combineFunction, minScore, maxBoost);
         }
         return this;
     }
@@ -285,11 +380,6 @@ public class FunctionScoreQuery extends Query {
             this.needsScores = needsScores;
         }
 
-        @Override
-        public void extractTerms(Set<Term> terms) {
-            subQueryWeight.extractTerms(terms);
-        }
-
         private FunctionFactorScorer functionScorer(LeafReaderContext context) throws IOException {
             Scorer subQueryScorer = subQueryWeight.scorer(context);
             if (subQueryScorer == null) {
@@ -332,8 +422,7 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-
-            Explanation expl = subQueryWeight.explain(context, doc);
+            Explanation expl = Functions.explainWithName(subQueryWeight.explain(context, doc), queryName);
             if (!expl.isMatch()) {
                 return expl;
             }
@@ -355,11 +444,15 @@ public class FunctionScoreQuery extends Query {
                     Explanation functionExplanation = function.getLeafScoreFunction(context).explainScore(doc, expl);
                     if (function instanceof FilterScoreFunction) {
                         float factor = functionExplanation.getValue().floatValue();
-                        Query filterQuery = ((FilterScoreFunction) function).filter;
+                        final FilterScoreFunction filterScoreFunction = (FilterScoreFunction) function;
+                        Query filterQuery = filterScoreFunction.filter;
                         Explanation filterExplanation = Explanation.match(
                             factor,
                             "function score, product of:",
-                            Explanation.match(1.0f, "match filter: " + filterQuery.toString()),
+                            Explanation.match(
+                                1.0f,
+                                "match filter" + Functions.nameOrEmptyFunc(filterScoreFunction.queryName) + ": " + filterQuery.toString()
+                            ),
                             functionExplanation
                         );
                         functionsExplanations.add(filterExplanation);
@@ -400,6 +493,11 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
+    /**
+     * Internal function factor scorer
+     *
+     * @opensearch.internal
+     */
     static class FunctionFactorScorer extends FilterScorer {
         private final ScoreFunction[] functions;
         private final ScoreMode scoreMode;
@@ -543,11 +641,12 @@ public class FunctionScoreQuery extends Query {
             && Objects.equals(this.combineFunction, other.combineFunction)
             && Objects.equals(this.minScore, other.minScore)
             && Objects.equals(this.scoreMode, other.scoreMode)
-            && Arrays.equals(this.functions, other.functions);
+            && Arrays.equals(this.functions, other.functions)
+            && Objects.equals(this.queryName, other.queryName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(functions));
+        return Objects.hash(classHash(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(functions), queryName);
     }
 }

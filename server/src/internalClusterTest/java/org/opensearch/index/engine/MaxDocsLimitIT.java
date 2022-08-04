@@ -32,8 +32,6 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.index.IndexWriterMaxDocsChanger;
-
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -94,12 +92,12 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
     @Before
     public void setMaxDocs() {
         maxDocs.set(randomIntBetween(10, 100)); // Do not set this too low as we can fail to write the cluster state
-        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs.get());
+        setIndexWriterMaxDocs(maxDocs.get());
     }
 
     @After
     public void restoreMaxDocs() {
-        IndexWriterMaxDocsChanger.restoreMaxDocs();
+        restoreIndexWriterMaxDocs();
     }
 
     public void testMaxDocsLimit() throws Exception {
@@ -123,7 +121,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
         assertThat(indexingResult.numSuccess, equalTo(0));
         final IllegalArgumentException deleteError = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareDelete("test", "_doc", "any-id").get()
+            () -> client().prepareDelete("test", "any-id").get()
         );
         assertThat(deleteError.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
         client().admin().indices().prepareRefresh("test").get();
@@ -206,7 +204,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
                 phaser.arriveAndAwaitAdvance();
                 while (completedRequests.incrementAndGet() <= numRequests) {
                     try {
-                        final IndexResponse resp = client().prepareIndex("test", "_doc").setSource("{}", XContentType.JSON).get();
+                        final IndexResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
                         numSuccess.incrementAndGet();
                         assertThat(resp.status(), equalTo(RestStatus.CREATED));
                     } catch (IllegalArgumentException e) {

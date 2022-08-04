@@ -74,6 +74,11 @@ import java.util.stream.Stream;
 
 import static org.opensearch.common.settings.Setting.intSetting;
 
+/**
+ * Sniff for initial seed nodes
+ *
+ * @opensearch.internal
+ */
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     /**
@@ -136,7 +141,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     static final int CHANNELS_PER_CONNECTION = 6;
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-        && (node.isMasterNode() == false || node.isDataNode() || node.isIngestNode());
+        && (node.isClusterManagerNode() == false || node.isDataNode() || node.isIngestNode());
 
     private final List<String> configuredSeedNodes;
     private final List<Supplier<DiscoveryNode>> seedNodes;
@@ -556,6 +561,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return Objects.equals(oldProxy, newProxy) == false;
     }
 
+    /**
+     * Information about the sniff mode
+     *
+     * @opensearch.internal
+     */
     public static class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         final List<String> seedNodes;

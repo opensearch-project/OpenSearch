@@ -36,7 +36,11 @@ import org.apache.lucene.search.Explanation;
 
 import java.io.IOException;
 
-/** Per-leaf {@link ScoreFunction}. */
+/**
+ * Per-leaf {@link ScoreFunction}.
+ *
+ * @opensearch.internal
+ */
 public abstract class LeafScoreFunction {
 
     public abstract double score(int docId, float subQueryScore) throws IOException;

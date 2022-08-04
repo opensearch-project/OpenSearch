@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.get;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Action to retrieve one or more Composable Index templates
+ *
+ * @opensearch.internal
+ */
 public class GetComposableIndexTemplateAction extends ActionType<GetComposableIndexTemplateAction.Response> {
 
     public static final GetComposableIndexTemplateAction INSTANCE = new GetComposableIndexTemplateAction();
@@ -59,8 +64,10 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
 
     /**
      * Request that to retrieve one or more index templates
+     *
+     * @opensearch.internal
      */
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends ClusterManagerNodeReadRequest<Request> {
 
         @Nullable
         private String name;
@@ -120,6 +127,11 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         }
     }
 
+    /**
+     * Inner response for getting composable index template
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField NAME = new ParseField("name");
         public static final ParseField INDEX_TEMPLATES = new ParseField("index_templates");

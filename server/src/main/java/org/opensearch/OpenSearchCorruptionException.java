@@ -36,6 +36,8 @@ import java.io.IOException;
 /**
  * This exception is thrown when OpenSearch detects
  * an inconsistency in one of it's persistent files.
+ *
+ * @opensearch.internal
  */
 public class OpenSearchCorruptionException extends IOException {
 

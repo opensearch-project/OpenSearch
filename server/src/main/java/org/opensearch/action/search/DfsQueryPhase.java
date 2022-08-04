@@ -50,6 +50,8 @@ import java.util.function.Function;
  * retry on another shard if any of the shards are failing. Failures are treated as shard failures and are counted as a non-successful
  * operation.
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
+ *
+ * @opensearch.internal
  */
 final class DfsQueryPhase extends SearchPhase {
     private final ArraySearchPhaseResults<SearchPhaseResult> queryResult;

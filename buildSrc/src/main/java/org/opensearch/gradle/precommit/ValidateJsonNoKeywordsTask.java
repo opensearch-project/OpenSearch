@@ -51,6 +51,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -126,14 +127,17 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
                     final JsonNode jsonNode = mapper.readTree(file);
 
                     if (jsonNode.isObject() == false) {
-                        errors.put(file, Set.of("Expected an object, but found: " + jsonNode.getNodeType()));
+                        errors.put(file, new HashSet<>(Arrays.asList("Expected an object, but found: " + jsonNode.getNodeType())));
                         return;
                     }
 
                     final ObjectNode rootNode = (ObjectNode) jsonNode;
 
                     if (rootNode.size() != 1) {
-                        errors.put(file, Set.of("Expected an object with exactly 1 key, but found " + rootNode.size() + " keys"));
+                        errors.put(
+                            file,
+                            new HashSet<>(Arrays.asList("Expected an object with exactly 1 key, but found " + rootNode.size() + " keys"))
+                        );
                         return;
                     }
 
@@ -148,7 +152,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
                         }
                     }
                 } catch (IOException e) {
-                    errors.put(file, Set.of("Failed to load file: " + e.getMessage()));
+                    errors.put(file, new HashSet<>(Arrays.asList("Failed to load file: " + e.getMessage())));
                 }
             });
 

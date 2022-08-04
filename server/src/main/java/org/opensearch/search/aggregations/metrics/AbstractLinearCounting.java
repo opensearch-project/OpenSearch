@@ -42,6 +42,8 @@ import org.apache.lucene.util.packed.PackedInts;
  * Trying to understand what this class does without having read the paper is considered adventurous.
  *
  * The algorithm just keep a record of all distinct values provided encoded as an integer.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorithm {
 
@@ -100,7 +102,11 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
         return (int) encoded;
     }
 
-    /** Iterator over the hash values */
+    /**
+     * Iterator over the hash values
+     *
+     * @opensearch.internal
+     */
     public interface HashesIterator {
 
         /**

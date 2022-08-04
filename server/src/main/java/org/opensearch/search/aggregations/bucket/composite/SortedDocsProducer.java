@@ -40,6 +40,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.common.Nullable;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.bucket.DocCountProvider;
 
 import java.io.IOException;
 
@@ -47,6 +48,8 @@ import java.io.IOException;
  * A producer that visits composite buckets in the order of the value indexed in the leading source of the composite
  * definition. It can be used to control which documents should be collected to produce the top composite buckets
  * without visiting all documents in an index.
+ *
+ * @opensearch.internal
  */
 abstract class SortedDocsProducer {
     protected final String field;
@@ -72,6 +75,8 @@ abstract class SortedDocsProducer {
     ) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
+        final DocCountProvider docCountProvider = new DocCountProvider();
+        docCountProvider.setLeafReaderContext(context);
         final LeafBucketCollector queueCollector = new LeafBucketCollector() {
             int lastDoc = -1;
 
@@ -84,7 +89,8 @@ abstract class SortedDocsProducer {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 hasCollected[0] = true;
-                if (queue.addIfCompetitive()) {
+                long docCount = docCountProvider.getDocCount(doc);
+                if (queue.addIfCompetitive(docCount)) {
                     topCompositeCollected[0]++;
                     if (adder != null && doc != lastDoc) {
                         if (remainingBits == 0) {

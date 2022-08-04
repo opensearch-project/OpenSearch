@@ -32,14 +32,16 @@
 
 package org.opensearch.action.admin.cluster.snapshots.get;
 
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
 /**
  * Get snapshots request builder
+ *
+ * @opensearch.internal
  */
-public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<
+public class GetSnapshotsRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     GetSnapshotsRequest,
     GetSnapshotsResponse,
     GetSnapshotsRequestBuilder> {

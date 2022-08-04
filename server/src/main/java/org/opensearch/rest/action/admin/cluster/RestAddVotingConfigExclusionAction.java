@@ -49,6 +49,11 @@ import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to add voting config exclusions
+ *
+ * @opensearch.api
+ */
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
     private static final Logger logger = LogManager.getLogger(RestAddVotingConfigExclusionAction.class);

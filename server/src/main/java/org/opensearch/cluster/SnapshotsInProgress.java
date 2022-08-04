@@ -71,6 +71,8 @@ import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
 
 /**
  * Meta data about snapshots that are currently executing
+ *
+ * @opensearch.internal
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
@@ -175,6 +177,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         );
     }
 
+    /**
+     * Entry in the collection.
+     *
+     * @opensearch.internal
+     */
     public static class Entry implements Writeable, ToXContent, RepositoryOperation {
         private final State state;
         private final Snapshot snapshot;
@@ -297,9 +304,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (in.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 version = Version.readVersion(in);
             } else if (in.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
-                // If an older master informs us that shard generations are supported we use the minimum shard generation compatible
-                // version. If shard generations are not supported yet we use a placeholder for a version that does not use shard
-                // generations.
+                // If an older cluster-manager informs us that shard generations are supported
+                // we use the minimum shard generation compatible version.
+                // If shard generations are not supported yet we use a placeholder for a version that does not use shard generations.
                 version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : SnapshotsService.OLD_SNAPSHOT_FORMAT;
             } else {
                 version = SnapshotsService.OLD_SNAPSHOT_FORMAT;
@@ -332,10 +339,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Set<String> indexNamesInShards = new HashSet<>();
             shards.iterator().forEachRemaining(s -> {
                 indexNamesInShards.add(s.key.getIndexName());
-                assert source == null
-                    || s.value.nodeId == null : "Shard snapshot must not be assigned to data node when copying from snapshot ["
-                        + source
-                        + "]";
+                assert source == null || s.value.nodeId == null
+                    : "Shard snapshot must not be assigned to data node when copying from snapshot [" + source + "]";
             });
             assert source == null || indexNames.isEmpty() == false : "No empty snapshot clones allowed";
             assert source != null || indexNames.equals(indexNamesInShards) : "Indices in shards "
@@ -348,12 +353,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final boolean shardsCompleted = completed(shards.values()) && completed(clones.values());
             // Check state consistency for normal snapshots and started clone operations
             if (source == null || clones.isEmpty() == false) {
-                assert (state.completed() && shardsCompleted)
-                    || (state.completed() == false
-                        && shardsCompleted == false) : "Completed state must imply all shards completed but saw state ["
-                            + state
-                            + "] and shards "
-                            + shards;
+                assert (state.completed() && shardsCompleted) || (state.completed() == false && shardsCompleted == false)
+                    : "Completed state must imply all shards completed but saw state [" + state + "] and shards " + shards;
             }
             if (source != null && state.completed()) {
                 assert hasFailures(clones) == false || state == State.FAILED : "Failed shard clones in ["
@@ -567,8 +568,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata,
                 version
             );
-            assert updated.state().completed() == false
-                && completed(updated.shards().values()) == false : "Only running snapshots allowed but saw [" + updated + "]";
+            assert updated.state().completed() == false && completed(updated.shards().values()) == false
+                : "Only running snapshots allowed but saw [" + updated + "]";
             return updated;
         }
 
@@ -782,6 +783,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return false;
     }
 
+    /**
+     * Status of shard snapshots.
+     *
+     * @opensearch.internal
+     */
     public static class ShardSnapshotStatus implements Writeable {
 
         /**
@@ -917,6 +923,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
     }
 
+    /**
+     * State of the snapshots.
+     *
+     * @opensearch.internal
+     */
     public enum State {
         INIT((byte) 0, false),
         STARTED((byte) 1, false),
@@ -966,8 +977,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         for (Entry entry : entries) {
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
                 if (shard.value.isActive()) {
-                    assert assignedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>())
-                        .add(shard.key) : "Found duplicate shard assignments in " + entries;
+                    assert assignedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>()).add(shard.key)
+                        : "Found duplicate shard assignments in " + entries;
                 }
             }
         }
@@ -1054,6 +1065,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return builder;
     }
 
+    /**
+     * The shard state.
+     *
+     * @opensearch.internal
+     */
     public enum ShardState {
         INIT((byte) 0, false, false),
         SUCCESS((byte) 2, true, false),

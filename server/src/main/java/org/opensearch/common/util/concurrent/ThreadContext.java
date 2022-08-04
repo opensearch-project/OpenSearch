@@ -66,6 +66,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 /**
  * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
@@ -94,6 +95,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING
  *     // previous context is restored on StoredContext#close()
  * </pre>
  *
+ * @opensearch.internal
  */
 public final class ThreadContext implements Writeable {
 
@@ -134,16 +136,23 @@ public final class ThreadContext implements Writeable {
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
          * Otherwise when context is stash, it should be empty.
          */
+
+        ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
+
         if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(
+            threadContextStruct = threadContextStruct.putHeaders(
                 MapBuilder.<String, String>newMapBuilder()
                     .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
                     .immutableMap()
             );
-            threadLocal.set(threadContextStruct);
-        } else {
-            threadLocal.set(DEFAULT_CONTEXT);
         }
+
+        if (context.transientHeaders.containsKey(TASK_ID)) {
+            threadContextStruct = threadContextStruct.putTransient(TASK_ID, context.transientHeaders.get(TASK_ID));
+        }
+
+        threadLocal.set(threadContextStruct);
+
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an
@@ -485,6 +494,11 @@ public final class ThreadContext implements Writeable {
         return threadLocal.get().isSystemContext;
     }
 
+    /**
+     * A stored context
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface StoredContext extends AutoCloseable {
         @Override
@@ -805,6 +819,11 @@ public final class ThreadContext implements Writeable {
 
     private static final Collector<String, Set<String>, Set<String>> LINKED_HASH_SET_COLLECTOR = new LinkedHashSetCollector<>();
 
+    /**
+     * Collector based on a linked hash set
+     *
+     * @opensearch.internal
+     */
     private static class LinkedHashSetCollector<T> implements Collector<T, Set<T>, Set<T>> {
         @Override
         public Supplier<Set<T>> supplier() {

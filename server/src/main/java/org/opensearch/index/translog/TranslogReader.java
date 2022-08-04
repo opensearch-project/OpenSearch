@@ -50,6 +50,8 @@ import static org.opensearch.index.translog.Translog.getCommitCheckpointFileName
 
 /**
  * an immutable translog filereader
+ *
+ * @opensearch.internal
  */
 public class TranslogReader extends BaseTranslogReader implements Closeable {
     protected final long length;
@@ -111,7 +113,6 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                     );
                     Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
 
-                    IOUtils.fsync(checkpointFile, false);
                     IOUtils.fsync(checkpointFile.getParent(), true);
 
                     newReader = new TranslogReader(newCheckpoint, channel, path, header);

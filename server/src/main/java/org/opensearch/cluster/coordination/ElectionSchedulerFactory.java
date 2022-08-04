@@ -56,6 +56,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * randomly at reasonably high frequency and backing off (linearly) until one of them succeeds. We also place an upper bound on the backoff
  * so that if elections are failing due to a network partition that lasts for a long time then when the partition heals there is an election
  * attempt reasonably quickly.
+ *
+ * @opensearch.internal
  */
 public class ElectionSchedulerFactory {
 
@@ -181,6 +183,11 @@ public class ElectionSchedulerFactory {
             + '}';
     }
 
+    /**
+     * The Election scheduler.
+     *
+     * @opensearch.internal
+     */
     private class ElectionScheduler implements Releasable {
         private final AtomicBoolean isClosed = new AtomicBoolean();
         private final AtomicLong attempt = new AtomicLong();

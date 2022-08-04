@@ -37,6 +37,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -79,6 +80,7 @@ public class LoggerUsageTask extends PrecommitTask {
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
+    @IgnoreEmptyDirectories
     public FileCollection getClassDirectories() {
         return getProject().getConvention()
             .getPlugin(JavaPluginConvention.class)

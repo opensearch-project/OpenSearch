@@ -42,7 +42,7 @@ import org.opensearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -70,7 +70,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
+/**
+ * Transport action for rerouting cluster allocation commands
+ *
+ * @opensearch.internal
+ */
+public class TransportClusterRerouteAction extends TransportClusterManagerNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
 
@@ -114,7 +119,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ClusterRerouteRequest request,
         final ClusterState state,
         final ActionListener<ClusterRerouteResponse> listener
@@ -209,6 +214,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         );
     }
 
+    /**
+     * Inner Reroute Response Acknowledged the Cluster State Update
+     *
+     * @opensearch.internal
+     */
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {
 
         private final ClusterRerouteRequest request;

@@ -33,7 +33,11 @@ import java.lang.annotation.Annotation;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
+ * A real element.
+ *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class RealElement implements Element {
     private static final AtomicInteger nextUniqueId = new AtomicInteger(1);

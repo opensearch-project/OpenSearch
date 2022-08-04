@@ -74,6 +74,8 @@ import java.util.List;
  *     </li>
  * </ul>
  *
+ *
+ * @opensearch.internal
  */
 public class AggregationPath {
 
@@ -126,6 +128,11 @@ public class AggregationPath {
         return new AggregationPath(tokens);
     }
 
+    /**
+     * Element in an agg path
+     *
+     * @opensearch.internal
+     */
     public static class PathElement {
 
         private final String fullName;
@@ -228,8 +235,8 @@ public class AggregationPath {
         AggregationPath.PathElement token = pathElements.get(0);
         // TODO both unwrap and subAggregator are only used here!
         Aggregator aggregator = ProfilingAggregator.unwrap(root.subAggregator(token.name));
-        assert (aggregator instanceof SingleBucketAggregator)
-            || (aggregator instanceof NumericMetricsAggregator) : "this should be picked up before aggregation execution - on validate";
+        assert (aggregator instanceof SingleBucketAggregator) || (aggregator instanceof NumericMetricsAggregator)
+            : "this should be picked up before aggregation execution - on validate";
         return aggregator;
     }
 

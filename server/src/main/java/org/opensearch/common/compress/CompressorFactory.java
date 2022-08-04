@@ -40,6 +40,11 @@ import org.opensearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Factory to create a compressor instance.
+ *
+ * @opensearch.internal
+ */
 public class CompressorFactory {
 
     public static final Compressor COMPRESSOR = new DeflateCompressor();

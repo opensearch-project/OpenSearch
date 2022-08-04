@@ -39,6 +39,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Basic {@link ShardShuffler} implementation that uses an {@link AtomicInteger} to generate seeds and uses a rotation to permute shards.
+ *
+ * @opensearch.internal
  */
 public class RotationShardShuffler extends ShardShuffler {
 

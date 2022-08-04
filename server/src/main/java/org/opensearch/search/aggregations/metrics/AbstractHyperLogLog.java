@@ -38,6 +38,8 @@ package org.opensearch.search.aggregations.metrics;
  * https://docs.google.com/document/d/1gyjfMHy43U9OWBXxfaeG-3MjGzejW1dlpyMwEYAAWEI/view?fullscreen
  *
  * Trying to understand what this class does without having read the paper is considered adventurous.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
 
@@ -5950,7 +5952,11 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
         return THRESHOLDS[p - 4];
     }
 
-    /** Iterator over a HyperLogLog register */
+    /**
+     * Iterator over a HyperLogLog register
+     *
+     * @opensearch.internal
+     */
     public interface RunLenIterator {
 
         /**

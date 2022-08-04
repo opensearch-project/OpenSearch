@@ -32,7 +32,9 @@
 
 package org.opensearch.common.settings;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
@@ -101,8 +103,8 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
             bytes[i] = (byte) i;
         }
         keystore.setFile("foo", bytes);
-        keystore.save(env.configFile(), new char[0]);
-        keystore = KeyStoreWrapper.load(env.configFile());
+        keystore.save(env.configDir(), new char[0]);
+        keystore = KeyStoreWrapper.load(env.configDir());
         keystore.decrypt(new char[0]);
         try (InputStream stream = keystore.getFile("foo")) {
             for (int i = 0; i < 256; ++i) {
@@ -123,11 +125,11 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testDecryptKeyStoreWithWrongPassword() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        keystore.save(env.configFile(), new char[0]);
-        final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
+        keystore.save(env.configDir(), new char[0]);
+        final KeyStoreWrapper loadedKeystore = KeyStoreWrapper.load(env.configDir());
         final SecurityException exception = expectThrows(
             SecurityException.class,
-            () -> loadedkeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
+            () -> loadedKeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
         );
         if (inFipsJvm()) {
             assertThat(
@@ -181,17 +183,17 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     public void testUpgradeNoop() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         SecureString seed = keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey());
-        keystore.save(env.configFile(), new char[0]);
+        keystore.save(env.configDir(), new char[0]);
         // upgrade does not overwrite seed
-        KeyStoreWrapper.upgrade(keystore, env.configFile(), new char[0]);
+        KeyStoreWrapper.upgrade(keystore, env.configDir(), new char[0]);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
-        keystore = KeyStoreWrapper.load(env.configFile());
+        keystore = KeyStoreWrapper.load(env.configDir());
         keystore.decrypt(new char[0]);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
 
     public void testFailWhenCannotConsumeSecretStream() throws Exception {
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
@@ -219,7 +221,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     }
 
     public void testFailWhenCannotConsumeEncryptedBytesStream() throws Exception {
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
@@ -248,7 +250,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     }
 
     public void testFailWhenSecretStreamNotConsumed() throws Exception {
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
@@ -275,7 +277,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     }
 
     public void testFailWhenEncryptedBytesStreamIsNotConsumed() throws Exception {
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
@@ -328,23 +330,24 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         byte[] encryptedBytes,
         int truncEncryptedDataLength
     ) throws Exception {
-        indexOutput.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
-        indexOutput.writeInt(salt.length);
-        indexOutput.writeBytes(salt, salt.length);
-        indexOutput.writeInt(iv.length);
-        indexOutput.writeBytes(iv, iv.length);
-        indexOutput.writeInt(encryptedBytes.length - truncEncryptedDataLength);
-        indexOutput.writeBytes(encryptedBytes, encryptedBytes.length);
+        DataOutput io = EndiannessReverserUtil.wrapDataOutput(indexOutput);
+        io.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
+        io.writeInt(salt.length);
+        io.writeBytes(salt, salt.length);
+        io.writeInt(iv.length);
+        io.writeBytes(iv, iv.length);
+        io.writeInt(encryptedBytes.length - truncEncryptedDataLength);
+        io.writeBytes(encryptedBytes, encryptedBytes.length);
     }
 
     public void testUpgradeAddsSeed() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.remove(KeyStoreWrapper.SEED_SETTING.getKey());
-        keystore.save(env.configFile(), new char[0]);
-        KeyStoreWrapper.upgrade(keystore, env.configFile(), new char[0]);
+        keystore.save(env.configDir(), new char[0]);
+        KeyStoreWrapper.upgrade(keystore, env.configDir(), new char[0]);
         SecureString seed = keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey());
         assertNotNull(seed);
-        keystore = KeyStoreWrapper.load(env.configFile());
+        keystore = KeyStoreWrapper.load(env.configDir());
         keystore.decrypt(new char[0]);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
@@ -361,9 +364,9 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testBackcompatV1() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
-        try (IndexOutput output = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, "opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, "opensearch.keystore", 1);
             output.writeByte((byte) 0); // hasPassword = false
             output.writeString("PKCS12");
@@ -392,11 +395,11 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testBackcompatV2() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         byte[] fileBytes = new byte[20];
         random().nextBytes(fileBytes);
-        try (IndexOutput output = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, "opensearch.keystore", IOContext.DEFAULT)) {
 
             CodecUtil.writeHeader(output, "opensearch.keystore", 2);
             output.writeByte((byte) 0); // hasPassword = false
@@ -454,10 +457,10 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         final Path temp = createTempDir();
         Files.write(temp.resolve("file_setting"), "file_value".getBytes(StandardCharsets.UTF_8));
         wrapper.setFile("file_setting", Files.readAllBytes(temp.resolve("file_setting")));
-        wrapper.save(env.configFile(), new char[0]);
+        wrapper.save(env.configDir(), new char[0]);
         wrapper.close();
 
-        final KeyStoreWrapper afterSave = KeyStoreWrapper.load(env.configFile());
+        final KeyStoreWrapper afterSave = KeyStoreWrapper.load(env.configDir());
         assertNotNull(afterSave);
         afterSave.decrypt(new char[0]);
         assertThat(afterSave.getSettingNames(), equalTo(new HashSet<>(Arrays.asList("keystore.seed", "string_setting", "file_setting"))));

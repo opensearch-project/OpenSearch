@@ -46,6 +46,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Stats for scripts
+ *
+ * @opensearch.internal
+ */
 public class ScriptStats implements Writeable, ToXContentFragment {
     private final List<ScriptContextStats> contextStats;
     private final long compilations;

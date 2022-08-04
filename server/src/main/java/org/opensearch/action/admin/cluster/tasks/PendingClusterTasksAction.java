@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.tasks;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for getting pending cluster tasks
+ *
+ * @opensearch.internal
+ */
 public class PendingClusterTasksAction extends ActionType<PendingClusterTasksResponse> {
 
     public static final PendingClusterTasksAction INSTANCE = new PendingClusterTasksAction();

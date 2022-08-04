@@ -65,6 +65,8 @@ import static org.opensearch.common.inject.internal.MoreTypes.getRawType;
  *
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
+ *
+ * @opensearch.internal
  */
 public final class InjectionPoint {
 
@@ -404,6 +406,11 @@ public final class InjectionPoint {
         return Modifier.isStatic(member.getModifiers());
     }
 
+    /**
+     * Factory for the injection point
+     *
+     * @opensearch.internal
+     */
     private interface Factory<M extends Member & AnnotatedElement> {
         Factory<Field> FIELDS = new Factory<Field>() {
             @Override

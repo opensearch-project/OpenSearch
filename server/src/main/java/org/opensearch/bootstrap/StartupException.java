@@ -44,6 +44,8 @@ import java.util.function.Consumer;
  * "reasonably". This means limits on stacktrace frames and
  * cleanup for guice, and some guidance about consulting full
  * logs for the whole exception.
+ *
+ * @opensearch.internal
  */
 // TODO: remove this when guice is removed, and exceptions are cleaned up
 // this is horrible, but its what we must do

@@ -33,11 +33,18 @@
 package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.lucene.search.function.Functions;
 
 import java.io.IOException;
 
+/**
+ * Foundation builder for a linear decay
+ *
+ * @opensearch.internal
+ */
 public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecayFunctionBuilder> {
     public static final String NAME = "linear";
     public static final ScoreFunctionParser<LinearDecayFunctionBuilder> PARSER = new DecayFunctionParser<>(LinearDecayFunctionBuilder::new);
@@ -47,8 +54,23 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
         super(fieldName, origin, scale, offset);
     }
 
+    public LinearDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, @Nullable String functionName) {
+        super(fieldName, origin, scale, offset, functionName);
+    }
+
     public LinearDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
         super(fieldName, origin, scale, offset, decay);
+    }
+
+    public LinearDecayFunctionBuilder(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay,
+        @Nullable String functionName
+    ) {
+        super(fieldName, origin, scale, offset, decay, functionName);
     }
 
     LinearDecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
@@ -72,6 +94,11 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
         return LINEAR_DECAY_FUNCTION;
     }
 
+    /**
+     * Linear decay
+     *
+     * @opensearch.internal
+     */
     private static final class LinearDecayScoreFunction implements DecayFunction {
 
         @Override
@@ -80,8 +107,11 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
         }
 
         @Override
-        public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match((float) evaluate(value, scale), "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
+        public Explanation explainFunction(String valueExpl, double value, double scale, @Nullable String functionName) {
+            return Explanation.match(
+                (float) evaluate(value, scale),
+                "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + Functions.nameOrEmptyArg(functionName) + ")"
+            );
         }
 
         @Override

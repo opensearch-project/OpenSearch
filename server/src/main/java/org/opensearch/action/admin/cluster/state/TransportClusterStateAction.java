@@ -37,10 +37,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -58,7 +58,12 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
+/**
+ * Transport action for obtaining cluster state
+ *
+ * @opensearch.internal
+ */
+public class TransportClusterStateAction extends TransportClusterManagerNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -110,7 +115,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ClusterStateRequest request,
         final ClusterState state,
         final ActionListener<ClusterStateResponse> listener
@@ -122,7 +127,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         final Predicate<ClusterState> acceptableClusterStateOrNotMasterPredicate = request.local()
             ? acceptableClusterStatePredicate
-            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
+            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedClusterManager() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
@@ -137,8 +142,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                             ActionListener.completeWith(listener, () -> buildResponse(request, newState));
                         } else {
                             listener.onFailure(
-                                new NotMasterException(
-                                    "master stepped down waiting for metadata version " + request.waitForMetadataVersion()
+                                new NotClusterManagerException(
+                                    "cluster-manager stepped down waiting for metadata version " + request.waitForMetadataVersion()
                                 )
                             );
                         }

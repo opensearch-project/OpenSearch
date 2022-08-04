@@ -53,6 +53,8 @@ import java.util.Set;
  * as well as the latest written shard generation per shard in case there is a shard generation for a shard that has
  * been cleanly written out to the repository but not yet made part of the current {@link org.opensearch.repositories.RepositoryData}
  * through a snapshot finalization.
+ *
+ * @opensearch.internal
  */
 public final class InFlightShardSnapshotStates {
 
@@ -96,8 +98,8 @@ public final class InFlightShardSnapshotStates {
             busyIds.computeIfAbsent(indexName, k -> new HashSet<>()).add(shardId);
             assert assertGenerationConsistency(generations, indexName, shardId, shardState.generation());
         } else if (shardState.state() == SnapshotsInProgress.ShardState.SUCCESS) {
-            assert busyIds.getOrDefault(indexName, Collections.emptySet())
-                .contains(shardId) == false : "Can't have a successful operation queued after an in-progress operation";
+            assert busyIds.getOrDefault(indexName, Collections.emptySet()).contains(shardId) == false
+                : "Can't have a successful operation queued after an in-progress operation";
             generations.computeIfAbsent(indexName, k -> new HashMap<>()).put(shardId, shardState.generation());
         }
     }

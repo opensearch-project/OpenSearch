@@ -62,10 +62,12 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-/*
+/**
  * Holds all the configuration that is used to create an {@link Engine}.
  * Once {@link Engine} has been created with this object, changes to this
  * object will affect the {@link Engine} instance.
+ *
+ * @opensearch.internal
  */
 public final class EngineConfig {
     private final ShardId shardId;
@@ -95,6 +97,7 @@ public final class EngineConfig {
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
+    private final boolean isReadOnlyReplica;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -226,6 +229,66 @@ public final class EngineConfig {
         LongSupplier primaryTermSupplier,
         TombstoneDocSupplier tombstoneDocSupplier
     ) {
+        this(
+            shardId,
+            threadPool,
+            indexSettings,
+            warmer,
+            store,
+            mergePolicy,
+            analyzer,
+            similarity,
+            codecService,
+            eventListener,
+            queryCache,
+            queryCachingPolicy,
+            translogConfig,
+            translogDeletionPolicyFactory,
+            flushMergesAfter,
+            externalRefreshListener,
+            internalRefreshListener,
+            indexSort,
+            circuitBreakerService,
+            globalCheckpointSupplier,
+            retentionLeasesSupplier,
+            primaryTermSupplier,
+            tombstoneDocSupplier,
+            false
+        );
+    }
+
+    /**
+     * Creates a new {@link org.opensearch.index.engine.EngineConfig}
+     */
+    EngineConfig(
+        ShardId shardId,
+        ThreadPool threadPool,
+        IndexSettings indexSettings,
+        Engine.Warmer warmer,
+        Store store,
+        MergePolicy mergePolicy,
+        Analyzer analyzer,
+        Similarity similarity,
+        CodecService codecService,
+        Engine.EventListener eventListener,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        TranslogConfig translogConfig,
+        TranslogDeletionPolicyFactory translogDeletionPolicyFactory,
+        TimeValue flushMergesAfter,
+        List<ReferenceManager.RefreshListener> externalRefreshListener,
+        List<ReferenceManager.RefreshListener> internalRefreshListener,
+        Sort indexSort,
+        CircuitBreakerService circuitBreakerService,
+        LongSupplier globalCheckpointSupplier,
+        Supplier<RetentionLeases> retentionLeasesSupplier,
+        LongSupplier primaryTermSupplier,
+        TombstoneDocSupplier tombstoneDocSupplier,
+        boolean isReadOnlyReplica
+    ) {
+        if (isReadOnlyReplica && indexSettings.isSegRepEnabled() == false) {
+            throw new IllegalArgumentException("Shard can only be wired as a read only replica with Segment Replication enabled");
+        }
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -264,6 +327,7 @@ public final class EngineConfig {
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
         this.tombstoneDocSupplier = tombstoneDocSupplier;
+        this.isReadOnlyReplica = isReadOnlyReplica;
     }
 
     /**
@@ -459,14 +523,26 @@ public final class EngineConfig {
     }
 
     /**
+     * Returns if this replica should be wired as a read only.
+     * This is used for Segment Replication where the engine implementation used is dependent on
+     * if the shard is a primary/replica.
+     * @return true if this engine should be wired as read only.
+     */
+    public boolean isReadOnlyReplica() {
+        return indexSettings.isSegRepEnabled() && isReadOnlyReplica;
+    }
+
+    /**
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     *
+     * @opensearch.internal
      */
     public interface TombstoneDocSupplier {
         /**
          * Creates a tombstone document for a delete operation.
          */
-        ParsedDocument newDeleteTombstoneDoc(String type, String id);
+        ParsedDocument newDeleteTombstoneDoc(String id);
 
         /**
          * Creates a tombstone document for a noop operation.

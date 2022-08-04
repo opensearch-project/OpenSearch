@@ -46,6 +46,8 @@ import java.util.jar.Manifest;
 
 /**
  * Information about a build of OpenSearch.
+ *
+ * @opensearch.internal
  */
 public class Build {
     /**
@@ -54,6 +56,11 @@ public class Build {
      */
     public static final Build CURRENT;
 
+    /**
+     * The type of build
+     *
+     * @opensearch.internal
+     */
     public enum Type {
 
         DEB("deb"),

@@ -48,6 +48,8 @@ import java.util.Set;
 /**
  * Identifies an object that supplies a filter for the content of a {@link RestRequest}. This interface should be implemented by a
  * {@link org.opensearch.rest.RestHandler} that expects there will be sensitive content in the body of the request such as a password
+ *
+ * @opensearch.api
  */
 public interface RestRequestFilter {
 

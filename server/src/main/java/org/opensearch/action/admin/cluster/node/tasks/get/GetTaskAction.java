@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * ActionType for retrieving a list of currently running tasks
+ *
+ * @opensearch.internal
  */
 public class GetTaskAction extends ActionType<GetTaskResponse> {
     public static final String TASKS_ORIGIN = "tasks";

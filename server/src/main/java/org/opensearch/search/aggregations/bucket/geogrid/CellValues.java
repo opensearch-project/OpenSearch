@@ -40,6 +40,8 @@ import java.io.IOException;
  * Class representing the long-encoded grid-cells belonging to
  * the geo-doc-values. Class must encode the values and then
  * sort them in order to account for the cells correctly.
+ *
+ * @opensearch.internal
  */
 abstract class CellValues extends AbstractSortingNumericDocValues {
     private MultiGeoPointValues geoValues;

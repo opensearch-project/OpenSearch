@@ -36,6 +36,8 @@ import java.util.function.BiConsumer;
 
 /**
  * A {@link BiConsumer}-like interface which allows throwing checked exceptions.
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface CheckedBiConsumer<T, U, E extends Exception> {

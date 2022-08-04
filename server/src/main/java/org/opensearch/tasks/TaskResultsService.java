@@ -73,6 +73,8 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * Service that can store task results.
+ *
+ * @opensearch.internal
  */
 public class TaskResultsService {
 
@@ -80,13 +82,11 @@ public class TaskResultsService {
 
     public static final String TASK_INDEX = ".tasks";
 
-    public static final String TASK_TYPE = "task";
-
     public static final String TASK_RESULT_INDEX_MAPPING_FILE = "task-index-mapping.json";
 
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
 
-    public static final int TASK_RESULT_MAPPING_VERSION = 3;
+    public static final int TASK_RESULT_MAPPING_VERSION = 3; // must match version in task-index-mapping.json
 
     /**
      * The backoff policy to use when saving a task result fails. The total wait
@@ -115,7 +115,7 @@ public class TaskResultsService {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.settings(taskResultIndexSettings());
             createIndexRequest.index(TASK_INDEX);
-            createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping(), XContentType.JSON);
+            createIndexRequest.mapping(taskResultIndexMapping());
             createIndexRequest.cause("auto(task api)");
 
             client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
@@ -146,7 +146,6 @@ public class TaskResultsService {
                 client.admin()
                     .indices()
                     .preparePutMapping(TASK_INDEX)
-                    .setType(TASK_TYPE)
                     .setSource(taskResultIndexMapping(), XContentType.JSON)
                     .execute(ActionListener.delegateFailure(listener, (l, r) -> doStoreResult(taskResult, listener)));
             } else {
@@ -156,7 +155,7 @@ public class TaskResultsService {
     }
 
     private int getTaskResultMappingVersion(IndexMetadata metadata) {
-        MappingMetadata mappingMetadata = metadata.getMappings().get(TASK_TYPE);
+        MappingMetadata mappingMetadata = metadata.mapping();
         if (mappingMetadata == null) {
             return 0;
         }
@@ -169,7 +168,7 @@ public class TaskResultsService {
     }
 
     private void doStoreResult(TaskResult taskResult, ActionListener<Void> listener) {
-        IndexRequestBuilder index = client.prepareIndex(TASK_INDEX, TASK_TYPE, taskResult.getTask().getTaskId().toString());
+        IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().getTaskId().toString());
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             taskResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
             index.setSource(builder);

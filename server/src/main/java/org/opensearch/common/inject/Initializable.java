@@ -36,6 +36,8 @@ import org.opensearch.common.inject.internal.ErrorsException;
  * Holds a reference that requires initialization to be performed before it can be used.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 interface Initializable<T> {
 

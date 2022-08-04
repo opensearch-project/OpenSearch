@@ -38,7 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -53,7 +53,12 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<UpgradeSettingsRequest, AcknowledgedResponse> {
+/**
+ * Transport action for upgrading index settings
+ *
+ * @opensearch.internal
+ */
+public class TransportUpgradeSettingsAction extends TransportClusterManagerNodeAction<UpgradeSettingsRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpgradeSettingsAction.class);
 
@@ -97,14 +102,14 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final UpgradeSettingsRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
         UpgradeSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpgradeSettingsClusterStateUpdateRequest().ackTimeout(
             request.timeout()
-        ).versions(request.versions()).masterNodeTimeout(request.masterNodeTimeout());
+        ).versions(request.versions()).masterNodeTimeout(request.clusterManagerNodeTimeout());
 
         updateSettingsService.upgradeIndexSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override

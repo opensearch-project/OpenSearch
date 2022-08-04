@@ -62,22 +62,23 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
     }
 
     public void testAbdicateAfterVotingConfigExclusionAdded() throws ExecutionException, InterruptedException {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         internalCluster().startNodes(2);
-        final String originalMaster = internalCluster().getMasterName();
+        final String originalClusterManager = internalCluster().getClusterManagerName();
 
-        logger.info("--> excluding master node {}", originalMaster);
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
+        logger.info("--> excluding cluster-manager node {}", originalClusterManager);
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalClusterManager)).get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
-        assertNotEquals(originalMaster, internalCluster().getMasterName());
+        assertNotEquals(originalClusterManager, internalCluster().getClusterManagerName());
     }
 
     public void testElectsNodeNotInVotingConfiguration() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         final List<String> nodeNames = internalCluster().startNodes(4);
 
         // a 4-node cluster settles on a 3-node configuration; we then prevent the nodes in the configuration from winning an election
-        // by failing at the pre-voting stage, so that the extra node must be elected instead when the master shuts down. This extra node
+        // by failing at the pre-voting stage, so that the extra node must be elected instead when the cluster-manager shuts down. This
+        // extra node
         // should then add itself into the voting configuration.
 
         assertFalse(
@@ -104,7 +105,7 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
         final Set<String> votingConfiguration = clusterState.getLastCommittedConfiguration().getNodeIds();
         assertThat(votingConfiguration, hasSize(3));
         assertThat(clusterState.nodes().getSize(), equalTo(4));
-        assertThat(votingConfiguration, hasItem(clusterState.nodes().getMasterNodeId()));
+        assertThat(votingConfiguration, hasItem(clusterState.nodes().getClusterManagerNodeId()));
         for (DiscoveryNode discoveryNode : clusterState.nodes()) {
             if (votingConfiguration.contains(discoveryNode.getId()) == false) {
                 assertThat(excludedNodeName, nullValue());
@@ -133,7 +134,7 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
             }
         }
 
-        internalCluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentClusterManagerNode();
         assertFalse(
             internalCluster().client()
                 .admin()
@@ -154,7 +155,10 @@ public class VotingConfigurationIT extends OpenSearchIntegTestCase {
             .setMetadata(true)
             .get()
             .getState();
-        assertThat(newClusterState.nodes().getMasterNode().getName(), equalTo(excludedNodeName));
-        assertThat(newClusterState.getLastCommittedConfiguration().getNodeIds(), hasItem(newClusterState.nodes().getMasterNodeId()));
+        assertThat(newClusterState.nodes().getClusterManagerNode().getName(), equalTo(excludedNodeName));
+        assertThat(
+            newClusterState.getLastCommittedConfiguration().getNodeIds(),
+            hasItem(newClusterState.nodes().getClusterManagerNodeId())
+        );
     }
 }

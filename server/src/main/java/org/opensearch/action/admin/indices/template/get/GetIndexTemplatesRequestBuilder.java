@@ -31,10 +31,15 @@
 
 package org.opensearch.action.admin.indices.template.get;
 
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+/**
+ * Request builder to retrieve one or more Index templates
+ *
+ * @opensearch.internal
+ */
+public class GetIndexTemplatesRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     GetIndexTemplatesRequest,
     GetIndexTemplatesResponse,
     GetIndexTemplatesRequestBuilder> {

@@ -79,7 +79,7 @@ public class InternalTestClusterIT extends OpenSearchIntegTestCase {
     }
 
     public void testOperationsDuringRestart() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override

@@ -49,6 +49,8 @@ import java.util.Objects;
 
 /**
  * Fuzzy options for completion suggester
+ *
+ * @opensearch.internal
  */
 public class FuzzyOptions implements ToXContentFragment, Writeable {
     static final ParseField FUZZY_OPTIONS = new ParseField("fuzzy");
@@ -218,6 +220,8 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
 
     /**
      * Options for fuzzy queries
+     *
+     * @opensearch.internal
      */
     public static class Builder {
 

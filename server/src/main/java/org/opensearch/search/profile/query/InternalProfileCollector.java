@@ -50,6 +50,8 @@ import java.util.List;
  * - needsScores()
  *
  * InternalProfiler facilitates the linking of the Collector graph
+ *
+ * @opensearch.internal
  */
 public class InternalProfileCollector implements Collector, InternalProfileComponent {
 

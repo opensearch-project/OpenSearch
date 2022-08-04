@@ -56,6 +56,11 @@ import java.util.Locale;
 
 import static org.opensearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 
+/**
+ * Core geo point
+ *
+ * @opensearch.internal
+ */
 public class GeoPoint implements ToXContentFragment {
 
     protected double lat;

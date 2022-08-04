@@ -64,6 +64,6 @@ public class ValidateInputTaskTests extends OpenSearchTestCase {
         assertThat(summary.get("Elasticsearch Version"), is("7.10.2"));
         assertThat(summary.get("Elasticsearch Plugins"), is("[plugin-1, plugin-2]"));
         assertThat(summary.get("Elasticsearch Config"), is("es_home"));
-        assertThat(summary.get("OpenSearch Config"), is(env.configFile().toString()));
+        assertThat(summary.get("OpenSearch Config"), is(env.configDir().toString()));
     }
 }

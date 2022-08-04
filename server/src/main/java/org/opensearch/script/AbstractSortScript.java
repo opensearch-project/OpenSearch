@@ -46,6 +46,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Base sort script
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractSortScript implements ScorerAware {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);

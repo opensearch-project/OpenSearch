@@ -43,6 +43,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Search context used during highlighting phase
+ *
+ * @opensearch.internal
+ */
 public class SearchHighlightContext {
 
     private final Map<String, Field> fields;
@@ -74,6 +79,11 @@ public class SearchHighlightContext {
         return _field == null ? false : _field.fieldOptions.forceSource;
     }
 
+    /**
+     * Field for the search highlight context
+     *
+     * @opensearch.internal
+     */
     public static class Field {
         private final String field;
         private final FieldOptions fieldOptions;
@@ -94,6 +104,11 @@ public class SearchHighlightContext {
         }
     }
 
+    /**
+     * Field options for the search highlight context
+     *
+     * @opensearch.internal
+     */
     public static class FieldOptions {
 
         // Field options that default to null or -1 are often set to their real default in HighlighterParseElement#parse
@@ -138,6 +153,12 @@ public class SearchHighlightContext {
         private Map<String, Object> options;
 
         private int phraseLimit = -1;
+
+        private Integer maxAnalyzerOffset = null;
+
+        public Integer maxAnalyzerOffset() {
+            return maxAnalyzerOffset;
+        }
 
         public int fragmentCharSize() {
             return fragmentCharSize;
@@ -318,6 +339,15 @@ public class SearchHighlightContext {
                 return this;
             }
 
+            Builder maxAnalyzerOffset(Integer maxAnalyzerOffset) {
+                // throws an execption if the value is not a positive integer
+                if (maxAnalyzerOffset != null && maxAnalyzerOffset <= 0) {
+                    throw new IllegalArgumentException("the value [" + maxAnalyzerOffset + "] of max_analyzer_offset is invalid");
+                }
+                fieldOptions.maxAnalyzerOffset = maxAnalyzerOffset;
+                return this;
+            }
+
             Builder matchedFields(Set<String> matchedFields) {
                 fieldOptions.matchedFields = matchedFields;
                 return this;
@@ -389,6 +419,9 @@ public class SearchHighlightContext {
                 }
                 if (fieldOptions.phraseLimit == -1) {
                     fieldOptions.phraseLimit = globalOptions.phraseLimit;
+                }
+                if (fieldOptions.maxAnalyzerOffset == null) {
+                    fieldOptions.maxAnalyzerOffset = globalOptions.maxAnalyzerOffset;
                 }
                 return this;
             }

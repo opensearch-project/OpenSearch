@@ -39,6 +39,8 @@ import java.io.OutputStream;
 
 /**
  * {@link OutputStream} that writes into underlying IndexOutput
+ *
+ * @opensearch.internal
  */
 public class IndexOutputOutputStream extends OutputStream {
 

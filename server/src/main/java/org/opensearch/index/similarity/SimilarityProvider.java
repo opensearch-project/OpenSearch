@@ -38,6 +38,8 @@ import java.util.Objects;
 
 /**
  * Wrapper around a {@link Similarity} and its name.
+ *
+ * @opensearch.internal
  */
 public final class SimilarityProvider {
 

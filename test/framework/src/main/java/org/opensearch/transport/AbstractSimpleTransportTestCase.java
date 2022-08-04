@@ -107,7 +107,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.opensearch.transport.TransportHandshaker.V_3_0_0;
 import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -2227,11 +2226,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.STATE
             );
             try (Transport.Connection connection = serviceA.openConnection(node, builder.build())) {
-                // OpenSearch [1.0:3.0) in bwc mode should only "upgrade" to Legacy v7.10.2
-                assertEquals(
-                    connection.getVersion(),
-                    version.onOrAfter(Version.V_1_0_0) && version.before(V_3_0_0) ? LegacyESVersion.V_7_10_2 : version
-                );
+                assertEquals(version, connection.getVersion());
             }
         }
     }
@@ -2276,9 +2271,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
-                // OpenSearch sends a handshake version spoofed as Legacy version 7_10_2
-                // todo change for OpenSearch 3.0.0 when Legacy compatibility is removed
-                assertEquals(LegacyESVersion.V_7_10_2, connection.getVersion());
+                assertEquals(connection.getVersion(), connection.getVersion());
             }
         }
     }
@@ -2485,31 +2478,26 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         MockTransportService serviceC = buildService("TS_C", version0, Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
-        serviceC.registerRequestHandler(
-            "internal:action",
-            ThreadPool.Names.SAME,
-            TestRequest::new,
-            (request, channel, task) -> {
-                // don't block on a network thread here
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+        serviceC.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            // don't block on a network thread here
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException e1) {
+                        throw new UncheckedIOException(e1);
                     }
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        receivedLatch.countDown();
-                        sendResponseLatch.await();
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    }
-                });
-            }
-        );
+                @Override
+                protected void doRun() throws Exception {
+                    receivedLatch.countDown();
+                    sendResponseLatch.await();
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                }
+            });
+        });
         serviceC.start();
         serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
@@ -2564,31 +2552,26 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         MockTransportService serviceC = buildService("TS_C", version0, Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
-        serviceB.registerRequestHandler(
-            "internal:action",
-            ThreadPool.Names.SAME,
-            TestRequest::new,
-            (request, channel, task) -> {
-                // don't block on a network thread here
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+        serviceB.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            // don't block on a network thread here
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException e1) {
+                        throw new UncheckedIOException(e1);
                     }
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        receivedLatch.countDown();
-                        sendResponseLatch.await();
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    }
-                });
-            }
-        );
+                @Override
+                protected void doRun() throws Exception {
+                    receivedLatch.countDown();
+                    sendResponseLatch.await();
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                }
+            });
+        });
         serviceC.start();
         serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
@@ -2634,8 +2617,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(51, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(55, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2649,16 +2632,16 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(111, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(115, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
-            assertEquals(50, stats.getRxSize().getBytes());
-            assertEquals(111, stats.getTxSize().getBytes());
+            assertEquals(54, stats.getRxSize().getBytes());
+            assertEquals(115, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2688,31 +2671,26 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         Exception ex = new RuntimeException("boom");
         ex.setStackTrace(new StackTraceElement[0]);
-        serviceB.registerRequestHandler(
-            "internal:action",
-            ThreadPool.Names.SAME,
-            TestRequest::new,
-            (request, channel, task) -> {
-                // don't block on a network thread here
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+        serviceB.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            // don't block on a network thread here
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException e1) {
+                        throw new UncheckedIOException(e1);
                     }
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        receivedLatch.countDown();
-                        sendResponseLatch.await();
-                        onFailure(ex);
-                    }
-                });
-            }
-        );
+                @Override
+                protected void doRun() throws Exception {
+                    receivedLatch.countDown();
+                    sendResponseLatch.await();
+                    onFailure(ex);
+                }
+            });
+        });
         serviceC.start();
         serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
@@ -2760,8 +2738,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(51, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(55, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2775,8 +2753,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(111, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(115, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2788,10 +2766,10 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             BytesStreamOutput streamOutput = new BytesStreamOutput();
             exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
-            // 53 bytes are the non-exception message bytes that have been received. It should include the initial
+            // 57 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
-            assertEquals(failedMessage, 53 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(111, stats.getTxSize().getBytes());
+            assertEquals(failedMessage, 57 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
+            assertEquals(115, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }

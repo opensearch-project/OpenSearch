@@ -41,6 +41,8 @@ import java.io.IOException;
 /**
  * Contains information about a dangling index, i.e. an index that OpenSearch has found
  * on-disk but is not present in the cluster state.
+ *
+ * @opensearch.internal
  */
 public class DanglingIndexInfo implements Writeable {
     private final String nodeId;

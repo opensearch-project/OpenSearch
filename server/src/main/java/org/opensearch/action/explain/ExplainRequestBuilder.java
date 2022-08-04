@@ -41,6 +41,8 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A builder for {@link ExplainRequest}.
+ *
+ * @opensearch.internal
  */
 public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
@@ -48,16 +50,8 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         super(client, action, new ExplainRequest());
     }
 
-    public ExplainRequestBuilder(OpenSearchClient client, ExplainAction action, String index, String type, String id) {
-        super(client, action, new ExplainRequest().index(index).type(type).id(id));
-    }
-
-    /**
-     * Sets the type to get a score explanation for.
-     */
-    public ExplainRequestBuilder setType(String type) {
-        request().type(type);
-        return this;
+    public ExplainRequestBuilder(OpenSearchClient client, ExplainAction action, String index, String id) {
+        super(client, action, new ExplainRequest().index(index).id(id));
     }
 
     /**

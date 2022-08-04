@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * A bucket metric agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedBucketMetricValue extends ParsedSingleValueNumericMetricsAggregation implements BucketMetricValue {
 
     private List<String> keys = Collections.emptyList();

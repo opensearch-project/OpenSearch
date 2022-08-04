@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for retrieving index stats
+ *
+ * @opensearch.internal
+ */
 public class IndicesStatsAction extends ActionType<IndicesStatsResponse> {
 
     public static final IndicesStatsAction INSTANCE = new IndicesStatsAction();

@@ -40,14 +40,10 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
@@ -173,7 +169,6 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
             assertThat(bulkItemResponse.getFailureMessage(), bulkItemResponse.isFailed(), equalTo(false));
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
-            assertThat(bulkItemResponse.getType(), equalTo("test"));
             // with concurrent requests > 1 we can't rely on the order of the bulk requests
             assertThat(Integer.valueOf(bulkItemResponse.getId()), both(greaterThan(0)).and(lessThanOrEqualTo(numDocs)));
             // we do want to check that we don't get duplicate ids back
@@ -253,17 +248,14 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
                 if (randomBoolean()) {
                     testDocs++;
                     processor.add(
-                        new IndexRequest("test", "test", Integer.toString(testDocs)).source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+                        new IndexRequest("test").id(Integer.toString(testDocs)).source(Requests.INDEX_CONTENT_TYPE, "field", "value")
                     );
-                    multiGetRequestBuilder.add("test", "test", Integer.toString(testDocs));
+                    multiGetRequestBuilder.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
                     processor.add(
-                        new IndexRequest("test-ro", "test", Integer.toString(testReadOnlyDocs)).source(
-                            Requests.INDEX_CONTENT_TYPE,
-                            "field",
-                            "value"
-                        )
+                        new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs))
+                            .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
                     );
                 }
             }
@@ -280,7 +272,6 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
         Set<String> readOnlyIds = new HashSet<>();
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
             assertThat(bulkItemResponse.getIndex(), either(equalTo("test")).or(equalTo("test-ro")));
-            assertThat(bulkItemResponse.getType(), equalTo("test"));
             if (bulkItemResponse.getIndex().equals("test")) {
                 assertThat(bulkItemResponse.isFailed(), equalTo(false));
                 // with concurrent requests > 1 we can't rely on the order of the bulk requests
@@ -302,25 +293,11 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
     private static MultiGetRequestBuilder indexDocs(Client client, BulkProcessor processor, int numDocs) throws Exception {
         MultiGetRequestBuilder multiGetRequestBuilder = client.prepareMultiGet();
         for (int i = 1; i <= numDocs; i++) {
-            if (randomBoolean()) {
-                processor.add(
-                    new IndexRequest("test", "test", Integer.toString(i)).source(
-                        Requests.INDEX_CONTENT_TYPE,
-                        "field",
-                        randomRealisticUnicodeOfLengthBetween(1, 30)
-                    )
-                );
-            } else {
-                final String source = "{ \"index\":{\"_index\":\"test\",\"_type\":\"test\",\"_id\":\""
-                    + Integer.toString(i)
-                    + "\"} }\n"
-                    + Strings.toString(
-                        JsonXContent.contentBuilder().startObject().field("field", randomRealisticUnicodeOfLengthBetween(1, 30)).endObject()
-                    )
-                    + "\n";
-                processor.add(new BytesArray(source), null, null, XContentType.JSON);
-            }
-            multiGetRequestBuilder.add("test", "test", Integer.toString(i));
+            processor.add(
+                new IndexRequest("test").id(Integer.toString(i))
+                    .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30))
+            );
+            multiGetRequestBuilder.add("test", Integer.toString(i));
         }
         return multiGetRequestBuilder;
     }
@@ -330,7 +307,6 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
         int i = 1;
         for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
-            assertThat(bulkItemResponse.getType(), equalTo("test"));
             assertThat(bulkItemResponse.getId(), equalTo(Integer.toString(i++)));
             assertThat(
                 "item " + i + " failed with cause: " + bulkItemResponse.getFailureMessage(),
@@ -345,7 +321,6 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
         int i = 1;
         for (MultiGetItemResponse multiGetItemResponse : multiGetResponse) {
             assertThat(multiGetItemResponse.getIndex(), equalTo("test"));
-            assertThat(multiGetItemResponse.getType(), equalTo("test"));
             assertThat(multiGetItemResponse.getId(), equalTo(Integer.toString(i++)));
         }
     }

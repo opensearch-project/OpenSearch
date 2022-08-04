@@ -41,6 +41,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Information about an ingest processor
+ *
+ * @opensearch.internal
+ */
 public class ProcessorInfo implements Writeable, ToXContentObject, Comparable<ProcessorInfo> {
 
     private final String type;

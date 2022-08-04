@@ -48,6 +48,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  *
  * @see IndexRequest
  * @see org.opensearch.client.Client#index(IndexRequest)
+ *
+ * @opensearch.internal
  */
 public class IndexResponse extends DocWriteResponse {
 
@@ -59,12 +61,12 @@ public class IndexResponse extends DocWriteResponse {
         super(in);
     }
 
-    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean created) {
-        this(shardId, type, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
+    public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created) {
+        this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
     }
 
-    private IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        super(shardId, type, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
+    private IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
     }
 
     private static Result assertCreatedOrUpdated(Result result) {
@@ -82,7 +84,6 @@ public class IndexResponse extends DocWriteResponse {
         StringBuilder builder = new StringBuilder();
         builder.append("IndexResponse[");
         builder.append("index=").append(getIndex());
-        builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
@@ -113,11 +114,13 @@ public class IndexResponse extends DocWriteResponse {
      * Builder class for {@link IndexResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link Builder#build()} method is called to
      * instantiate the {@link IndexResponse}.
+     *
+     * @opensearch.internal
      */
     public static class Builder extends DocWriteResponse.Builder {
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, primaryTerm, version, result);
+            IndexResponse indexResponse = new IndexResponse(shardId, id, seqNo, primaryTerm, version, result);
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

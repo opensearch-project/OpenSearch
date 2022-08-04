@@ -38,9 +38,10 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
+import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -104,7 +105,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    private TimedClusterApplierService createTimedClusterService(boolean makeMaster) {
+    private TimedClusterApplierService createTimedClusterService(boolean makeClusterManager) {
         DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         TimedClusterApplierService timedClusterApplierService = new TimedClusterApplierService(
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),
@@ -118,7 +119,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
                     DiscoveryNodes.builder()
                         .add(localNode)
                         .localNodeId(localNode.getId())
-                        .masterNodeId(makeMaster ? localNode.getId() : null)
+                        .clusterManagerNodeId(makeClusterManager ? localNode.getId() : null)
                 )
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                 .build()
@@ -292,41 +293,78 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public void testLocalNodeMasterListenerCallbacks() {
+    public void testLocalNodeClusterManagerListenerCallbacks() {
         TimedClusterApplierService timedClusterApplierService = createTimedClusterService(false);
 
-        AtomicBoolean isMaster = new AtomicBoolean();
-        timedClusterApplierService.addLocalNodeMasterListener(new LocalNodeMasterListener() {
+        AtomicBoolean isClusterManager = new AtomicBoolean();
+        timedClusterApplierService.addLocalNodeClusterManagerListener(new LocalNodeClusterManagerListener() {
             @Override
             public void onMaster() {
-                isMaster.set(true);
+                isClusterManager.set(true);
             }
 
             @Override
             public void offMaster() {
-                isMaster.set(false);
+                isClusterManager.set(false);
+            }
+        });
+
+        ClusterState state = timedClusterApplierService.state();
+        DiscoveryNodes nodes = state.nodes();
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes).clusterManagerNodeId(nodes.getLocalNodeId());
+        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        setState(timedClusterApplierService, state);
+        assertThat(isClusterManager.get(), is(true));
+
+        nodes = state.nodes();
+        nodesBuilder = DiscoveryNodes.builder(nodes).clusterManagerNodeId(null);
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES))
+            .nodes(nodesBuilder)
+            .build();
+        setState(timedClusterApplierService, state);
+        assertThat(isClusterManager.get(), is(false));
+        nodesBuilder = DiscoveryNodes.builder(nodes).clusterManagerNodeId(nodes.getLocalNodeId());
+        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        setState(timedClusterApplierService, state);
+        assertThat(isClusterManager.get(), is(true));
+
+        timedClusterApplierService.close();
+    }
+
+    /* Validate the backwards compatibility of LocalNodeMasterListener remains
+     * after making it a subclass of LocalNodeClusterManagerListener.
+     * Overriding the methods with non-inclusive words are intentional.
+     * To support inclusive language, LocalNodeMasterListener is deprecated in 2.2.
+     */
+    public void testDeprecatedLocalNodeMasterListenerCallbacks() {
+        TimedClusterApplierService timedClusterApplierService = createTimedClusterService(false);
+
+        AtomicBoolean isClusterManager = new AtomicBoolean();
+        timedClusterApplierService.addLocalNodeMasterListener(new LocalNodeMasterListener() {
+            @Override
+            public void onMaster() {
+                isClusterManager.set(true);
+            }
+
+            @Override
+            public void offMaster() {
+                isClusterManager.set(false);
             }
         });
 
         ClusterState state = timedClusterApplierService.state();
         DiscoveryNodes nodes = state.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
-        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        state = ClusterState.builder(state).nodes(nodesBuilder).build();
         setState(timedClusterApplierService, state);
-        assertThat(isMaster.get(), is(true));
+        assertThat(isClusterManager.get(), is(true));
 
         nodes = state.nodes();
         nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
-        state = ClusterState.builder(state)
-            .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
-            .nodes(nodesBuilder)
-            .build();
+        state = ClusterState.builder(state).nodes(nodesBuilder).build();
         setState(timedClusterApplierService, state);
-        assertThat(isMaster.get(), is(false));
-        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
-        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
-        setState(timedClusterApplierService, state);
-        assertThat(isMaster.get(), is(true));
+        assertThat(isClusterManager.get(), is(false));
 
         timedClusterApplierService.close();
     }

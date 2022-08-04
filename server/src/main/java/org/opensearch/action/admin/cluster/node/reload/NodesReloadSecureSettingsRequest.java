@@ -49,6 +49,8 @@ import java.util.Arrays;
 
 /**
  * Request for a reload secure settings action
+ *
+ * @opensearch.internal
  */
 public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesReloadSecureSettingsRequest> {
 

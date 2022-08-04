@@ -33,6 +33,8 @@ package org.opensearch.common.inject.internal;
  * String utilities.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public class Strings {
     private Strings() {}

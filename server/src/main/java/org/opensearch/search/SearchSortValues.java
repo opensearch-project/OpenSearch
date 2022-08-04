@@ -47,6 +47,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Values to sort during search
+ *
+ * @opensearch.internal
+ */
 public class SearchSortValues implements ToXContentFragment, Writeable {
 
     private static final Object[] EMPTY_ARRAY = new Object[0];

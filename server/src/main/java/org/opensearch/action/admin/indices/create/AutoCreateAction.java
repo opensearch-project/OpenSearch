@@ -36,7 +36,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ActiveShardsObserver;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -62,6 +62,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
+ *
+ * @opensearch.internal
  */
 public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
@@ -72,7 +74,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         super(NAME, CreateIndexResponse::new);
     }
 
-    public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
+    /**
+     * Transport Action for Auto Create
+     *
+     * @opensearch.internal
+     */
+    public static final class TransportAction extends TransportClusterManagerNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
         private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
@@ -105,7 +112,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         }
 
         @Override
-        protected void masterOperation(CreateIndexRequest request, ClusterState state, ActionListener<CreateIndexResponse> finalListener) {
+        protected void clusterManagerOperation(
+            CreateIndexRequest request,
+            ClusterState state,
+            ActionListener<CreateIndexResponse> finalListener
+        ) {
             AtomicReference<String> indexNameRef = new AtomicReference<>();
             ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(response -> {
                 String indexName = indexNameRef.get();
@@ -137,7 +148,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         if (dataStreamTemplate != null) {
                             CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
                                 request.index(),
-                                request.masterNodeTimeout(),
+                                request.clusterManagerNodeTimeout(),
                                 request.timeout()
                             );
                             ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
@@ -150,7 +161,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 request.cause(),
                                 indexName,
                                 request.index()
-                            ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+                            ).ackTimeout(request.timeout()).masterNodeTimeout(request.clusterManagerNodeTimeout());
                             return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                         }
                     }

@@ -40,6 +40,11 @@ import org.opensearch.search.dfs.AggregatedDfs;
 
 import java.util.Objects;
 
+/**
+ * Reader context that does not hold a reference to a point in time Searcher
+ *
+ * @opensearch.internal
+ */
 public class LegacyReaderContext extends ReaderContext {
     private final ShardSearchRequest shardSearchRequest;
     private final ScrollContext scrollContext;

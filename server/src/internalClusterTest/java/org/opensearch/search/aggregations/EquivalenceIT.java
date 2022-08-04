@@ -133,14 +133,11 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
             }
         }
 
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("values")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -152,7 +149,7 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
                 source = source.value(docs[i][j]);
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx", "type").setSource(source).get();
+            client().prepareIndex("idx").setSource(source).get();
         }
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
 
@@ -235,10 +232,8 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
 
         final IntHashSet valuesSet = new IntHashSet();
         cluster().wipeIndices("idx");
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("num")
                 .field("type", "double")
@@ -257,7 +252,6 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .startObject("double_values")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -283,7 +277,7 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
                 source = source.value(Integer.toString(values[j]));
             }
             source = source.endArray().endObject();
-            indexingRequests.add(client().prepareIndex("idx", "type").setSource(source));
+            indexingRequests.add(client().prepareIndex("idx").setSource(source));
         }
         indexRandom(true, indexingRequests);
 
@@ -358,14 +352,11 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
 
     // Duel between histograms and scripted terms
     public void testDuelTermsHistogram() throws Exception {
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("num")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -387,7 +378,7 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
                 source = source.value(randomFrom(values));
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx", "type").setSource(source).get();
+            client().prepareIndex("idx").setSource(source).get();
         }
         assertNoFailures(
             client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get()
@@ -422,14 +413,11 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
 
     public void testLargeNumbersOfPercentileBuckets() throws Exception {
         // test high numbers of percentile buckets to make sure paging and release work correctly
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("double_value")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -439,7 +427,7 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
         logger.info("Indexing [{}] docs", numDocs);
         List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
-            indexingRequests.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource("double_value", randomDouble()));
+            indexingRequests.add(client().prepareIndex("idx").setId(Integer.toString(i)).setSource("double_value", randomDouble()));
         }
         indexRandom(true, indexingRequests);
 
@@ -458,7 +446,7 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
     public void testReduce() throws Exception {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);
-        indexRandom(true, client().prepareIndex("idx", "type").setSource("f", value));
+        indexRandom(true, client().prepareIndex("idx").setSource("f", value));
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(
                 filter("filter", QueryBuilders.matchAllQuery()).subAggregation(
@@ -518,7 +506,7 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
             final int v1 = randomInt(1 << randomInt(7));
             final int v2 = randomInt(1 << randomInt(7));
             final int v3 = randomInt(1 << randomInt(7));
-            reqs.add(client().prepareIndex("idx", "type").setSource("f1", v1, "f2", v2, "f3", v3));
+            reqs.add(client().prepareIndex("idx").setSource("f1", v1, "f2", v2, "f3", v3));
         }
         indexRandom(true, reqs);
 

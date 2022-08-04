@@ -46,6 +46,8 @@ grant codeBase "${codebase.opensearch-secure-sm}" {
 grant codeBase "${codebase.opensearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
+  // needed for SPI class loading
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 //// Very special jar permissions:
@@ -114,9 +116,12 @@ grant {
   permission java.util.PropertyPermission "solr.data.dir", "write";
   permission java.util.PropertyPermission "solr.directoryFactory", "write";
 
-  // set by ESTestCase to improve test reproducibility
+  // set by OpenSearchTestCase to improve test reproducibility
   // TODO: set this with gradle or some other way that repros with seed?
   permission java.util.PropertyPermission "processors.override", "write";
+
+  // needed for feature flags
+  permission java.util.PropertyPermission "opensearch.experimental.feature.*", "write";
 
   // TODO: these simply trigger a noisy warning if its unable to clear the properties
   // fix that in randomizedtesting

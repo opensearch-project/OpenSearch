@@ -104,4 +104,3 @@ teardown:
       cluster.post_voting_config_exclusions:
         node_ids: nodeId
         node_names: nodeName
-

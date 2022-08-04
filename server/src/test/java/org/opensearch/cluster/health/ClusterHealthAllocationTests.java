@@ -85,9 +85,14 @@ public class ClusterHealthAllocationTests extends OpenSearchAllocationTestCase {
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
     }
 
-    private ClusterState addNode(ClusterState clusterState, String nodeName, boolean isMaster) {
+    private ClusterState addNode(ClusterState clusterState, String nodeName, boolean isClusterManager) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.getNodes());
-        nodeBuilder.add(newNode(nodeName, Collections.singleton(isMaster ? DiscoveryNodeRole.MASTER_ROLE : DiscoveryNodeRole.DATA_ROLE)));
+        nodeBuilder.add(
+            newNode(
+                nodeName,
+                Collections.singleton(isClusterManager ? DiscoveryNodeRole.CLUSTER_MANAGER_ROLE : DiscoveryNodeRole.DATA_ROLE)
+            )
+        );
         return ClusterState.builder(clusterState).nodes(nodeBuilder).build();
     }
 

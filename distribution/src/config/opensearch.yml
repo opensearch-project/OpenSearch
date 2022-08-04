@@ -67,9 +67,9 @@ ${path.logs}
 #
 #discovery.seed_hosts: ["host1", "host2"]
 #
-# Bootstrap the cluster using an initial set of master-eligible nodes:
+# Bootstrap the cluster using an initial set of cluster-manager-eligible nodes:
 #
-#cluster.initial_master_nodes: ["node-1", "node-2"]
+#cluster.initial_cluster_manager_nodes: ["node-1", "node-2"]
 #
 # For more information, consult the discovery and cluster formation module documentation.
 #

@@ -38,6 +38,8 @@ import java.util.Set;
 
 /**
  * Holds the action filters injected through plugins, properly sorted by {@link org.opensearch.action.support.ActionFilter#order()}
+ *
+ * @opensearch.internal
  */
 public class ActionFilters {
 

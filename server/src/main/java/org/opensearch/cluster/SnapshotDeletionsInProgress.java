@@ -57,6 +57,8 @@ import java.util.Set;
 
 /**
  * A class that represents the snapshot deletions that are in progress in the cluster.
+ *
+ * @opensearch.internal
  */
 public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
@@ -217,6 +219,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     /**
      * A class representing a snapshot deletion request entry in the cluster state.
+     *
+     * @opensearch.internal
      */
     public static final class Entry implements Writeable, RepositoryOperation {
         private final List<SnapshotId> snapshots;
@@ -373,6 +377,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         }
     }
 
+    /**
+     * State of the deletions.
+     *
+     * @opensearch.internal
+     */
     public enum State implements Writeable {
 
         /**

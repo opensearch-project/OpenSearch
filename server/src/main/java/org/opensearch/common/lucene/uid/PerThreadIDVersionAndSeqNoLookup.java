@@ -61,6 +61,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  *  This class uses live docs, so it should be cached based on the
  *  {@link org.apache.lucene.index.IndexReader#getReaderCacheHelper() reader cache helper}
  *  rather than the {@link LeafReader#getCoreCacheHelper() core cache helper}.
+ *
+ *  @opensearch.internal
  */
 final class PerThreadIDVersionAndSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
@@ -117,10 +119,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * entirely for these readers.
      */
     public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context) throws IOException {
-        assert context.reader()
-            .getCoreCacheHelper()
-            .getKey()
-            .equals(readerKey) : "context's reader is not the same as the reader class was initialized on.";
+        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey)
+            : "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, context);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
@@ -174,10 +174,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
     /** Return null if id is not found. */
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
-        assert context.reader()
-            .getCoreCacheHelper()
-            .getKey()
-            .equals(readerKey) : "context's reader is not the same as the reader class was initialized on.";
+        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey)
+            : "context's reader is not the same as the reader class was initialized on.";
         final int docID = getDocID(id, context);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final long seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);

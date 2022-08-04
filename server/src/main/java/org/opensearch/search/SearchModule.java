@@ -34,6 +34,7 @@ package org.opensearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.opensearch.common.NamedRegistry;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.ShapesAvailability;
@@ -89,7 +90,6 @@ import org.opensearch.index.query.SpanWithinQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.TermsSetQueryBuilder;
-import org.opensearch.index.query.TypeQueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.index.query.WrapperQueryBuilder;
 import org.opensearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
@@ -159,8 +159,11 @@ import org.opensearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.opensearch.search.aggregations.bucket.terms.InternalMultiTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationFactory;
 import org.opensearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.SignificantLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.SignificantStringTerms;
@@ -274,6 +277,8 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -294,11 +299,14 @@ import org.opensearch.search.suggest.phrase.SmoothingModel;
 import org.opensearch.search.suggest.phrase.StupidBackoff;
 import org.opensearch.search.suggest.term.TermSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -309,6 +317,8 @@ import static org.opensearch.index.query.CommonTermsQueryBuilder.COMMON_TERMS_QU
 
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
+ *
+ * @opensearch.internal
  */
 public class SearchModule {
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(
@@ -330,6 +340,8 @@ public class SearchModule {
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final QueryPhaseSearcher queryPhaseSearcher;
+    private final SearchPlugin.ExecutorServiceProvider indexSearcherExecutorProvider;
 
     /**
      * Constructs a new SearchModule object
@@ -356,6 +368,8 @@ public class SearchModule {
         registerSearchExts(plugins);
         registerShapes();
         registerIntervalsSourceProviders();
+        queryPhaseSearcher = registerQueryPhaseSearcher(plugins);
+        indexSearcherExecutorProvider = registerIndexSearcherExecutorProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
     }
 
@@ -676,6 +690,12 @@ public class SearchModule {
             new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder.PARSER)
                 .addResultReader(InternalComposite::new)
                 .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(MultiTermsAggregationBuilder.NAME, MultiTermsAggregationBuilder::new, MultiTermsAggregationBuilder.PARSER)
+                .addResultReader(InternalMultiTerms::new)
+                .setAggregatorRegistrar(MultiTermsAggregationFactory::registerAggregators),
             builder
         );
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));
@@ -1183,7 +1203,6 @@ public class SearchModule {
         registerQuery(
             new QuerySpec<>(SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent)
         );
-        registerQuery(new QuerySpec<>(TypeQueryBuilder.NAME, TypeQueryBuilder::new, TypeQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(ScriptQueryBuilder.NAME, ScriptQueryBuilder::new, ScriptQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(GeoDistanceQueryBuilder.NAME, GeoDistanceQueryBuilder::new, GeoDistanceQueryBuilder::fromXContent));
         registerQuery(
@@ -1284,7 +1303,49 @@ public class SearchModule {
         );
     }
 
+    private QueryPhaseSearcher registerQueryPhaseSearcher(List<SearchPlugin> plugins) {
+        QueryPhaseSearcher searcher = null;
+
+        for (SearchPlugin plugin : plugins) {
+            final Optional<QueryPhaseSearcher> searcherOpt = plugin.getQueryPhaseSearcher();
+
+            if (searcher == null) {
+                searcher = searcherOpt.orElse(null);
+            } else if (searcherOpt.isPresent()) {
+                throw new IllegalStateException("Only one QueryPhaseSearcher is allowed, but more than one are provided by the plugins");
+            }
+        }
+
+        return searcher;
+    }
+
+    private SearchPlugin.ExecutorServiceProvider registerIndexSearcherExecutorProvider(List<SearchPlugin> plugins) {
+        SearchPlugin.ExecutorServiceProvider provider = null;
+
+        for (SearchPlugin plugin : plugins) {
+            final Optional<SearchPlugin.ExecutorServiceProvider> providerOpt = plugin.getIndexSearcherExecutorProvider();
+
+            if (provider == null) {
+                provider = providerOpt.orElse(null);
+            } else if (providerOpt.isPresent()) {
+                throw new IllegalStateException(
+                    "The index searcher executor is already assigned but more than one are provided by the plugins"
+                );
+            }
+        }
+
+        return provider;
+    }
+
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
+    }
+
+    public QueryPhase getQueryPhase() {
+        return (queryPhaseSearcher == null) ? new QueryPhase() : new QueryPhase(queryPhaseSearcher);
+    }
+
+    public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {
+        return (indexSearcherExecutorProvider == null) ? null : indexSearcherExecutorProvider.getExecutor(pool);
     }
 }

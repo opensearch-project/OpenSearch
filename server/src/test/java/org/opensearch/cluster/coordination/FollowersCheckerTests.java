@@ -685,7 +685,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testPreferMasterNodes() {
+    public void testPreferClusterManagerNodes() {
         List<DiscoveryNode> nodes = randomNodes(10);
         DiscoveryNodes.Builder discoNodesBuilder = DiscoveryNodes.builder();
         nodes.forEach(dn -> discoNodesBuilder.add(dn));
@@ -713,7 +713,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             .map(cr -> cr.node)
             .collect(Collectors.toList());
         List<DiscoveryNode> sortedFollowerTargets = new ArrayList<>(followerTargets);
-        Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> n.isMasterNode() == false));
+        Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> n.isClusterManagerNode() == false));
         assertEquals(sortedFollowerTargets, followerTargets);
     }
 

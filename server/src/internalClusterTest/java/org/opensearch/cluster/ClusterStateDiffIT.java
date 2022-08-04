@@ -37,7 +37,7 @@ import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexGraveyardTests;
@@ -93,9 +93,13 @@ import static org.hamcrest.Matchers.is;
 public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        DiscoveryNode masterNode = randomNode("master");
+        DiscoveryNode clusterManagerNode = randomNode("cluster-manager");
         DiscoveryNode otherNode = randomNode("other");
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(clusterManagerNode)
+            .add(otherNode)
+            .localNodeId(clusterManagerNode.getId())
+            .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),
@@ -392,9 +396,9 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
     private ClusterBlock randomGlobalBlock() {
         switch (randomInt(2)) {
             case 0:
-                return NoMasterBlockService.NO_MASTER_BLOCK_ALL;
+                return NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL;
             case 1:
-                return NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
+                return NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES;
             default:
                 return GatewayService.STATE_NOT_RECOVERED_BLOCK;
         }

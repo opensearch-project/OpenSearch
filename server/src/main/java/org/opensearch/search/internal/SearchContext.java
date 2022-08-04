@@ -32,6 +32,7 @@
 package org.opensearch.search.internal;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
@@ -66,6 +67,7 @@ import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
@@ -81,6 +83,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This class encapsulates the state needed to execute a search. It holds a reference to the
  * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
  * state from one query / fetch phase to another.
+ *
+ * @opensearch.internal
  */
 public abstract class SearchContext implements Releasable {
 
@@ -384,12 +388,26 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * Returns time in milliseconds that can be used for relative time calculations.
-     * WARN: This is not the epoch time.
+     * WARN: This is not the epoch time and can be a cached time.
      */
     public abstract long getRelativeTimeInMillis();
 
-    /** Return a view of the additional query collectors that should be run for this context. */
-    public abstract Map<Class<?>, Collector> queryCollectors();
+    /**
+     * Returns time in milliseconds that can be used for relative time calculations. this method will fall back to
+     * {@link SearchContext#getRelativeTimeInMillis()} (which might be a cached time) if useCache was set to true else it will be just be a
+     * wrapper of {@link System#nanoTime()} converted to milliseconds.
+     * @param useCache to allow using cached time if true or forcing calling {@link System#nanoTime()} if false
+     * @return Returns time in milliseconds that can be used for relative time calculations.
+     */
+    public long getRelativeTimeInMillis(boolean useCache) {
+        if (useCache) {
+            return getRelativeTimeInMillis();
+        }
+        return TimeValue.nsecToMSec(System.nanoTime());
+    }
+
+    /** Return a view of the additional query collector managers that should be run for this context. */
+    public abstract Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers();
 
     public abstract QueryShardContext getQueryShardContext();
 

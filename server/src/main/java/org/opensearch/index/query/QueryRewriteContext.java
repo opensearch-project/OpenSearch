@@ -45,6 +45,8 @@ import java.util.function.LongSupplier;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
+ *
+ * @opensearch.internal
  */
 public class QueryRewriteContext {
     private final NamedXContentRegistry xContentRegistry;
@@ -52,6 +54,7 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
+    private final boolean validate;
 
     public QueryRewriteContext(
         NamedXContentRegistry xContentRegistry,
@@ -59,11 +62,22 @@ public class QueryRewriteContext {
         Client client,
         LongSupplier nowInMillis
     ) {
+        this(xContentRegistry, writeableRegistry, client, nowInMillis, false);
+    }
+
+    public QueryRewriteContext(
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry writeableRegistry,
+        Client client,
+        LongSupplier nowInMillis,
+        boolean validate
+    ) {
 
         this.xContentRegistry = xContentRegistry;
         this.writeableRegistry = writeableRegistry;
         this.client = client;
         this.nowInMillis = nowInMillis;
+        this.validate = validate;
     }
 
     /**
@@ -140,4 +154,7 @@ public class QueryRewriteContext {
         }
     }
 
+    public boolean validate() {
+        return validate;
+    }
 }

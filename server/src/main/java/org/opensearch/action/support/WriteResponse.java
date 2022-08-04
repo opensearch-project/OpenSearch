@@ -42,6 +42,8 @@ import org.opensearch.index.IndexSettings;
 /**
  * Interface implemented by responses for actions that modify the documents in an index like {@link IndexResponse}, {@link UpdateResponse},
  * and {@link BulkResponse}. Rather than implement this directly most implementers should extend {@link DocWriteResponse}.
+ *
+ * @opensearch.internal
  */
 public interface WriteResponse {
     /**

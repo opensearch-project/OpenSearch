@@ -80,7 +80,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
 import static org.opensearch.test.NodeRoles.nonDataNode;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -105,14 +105,14 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
 
     @Override
     protected void ensureClusterStateConsistency() throws IOException {
-        // testShardActiveElseWhere might change the state of a non-master node
+        // testShardActiveElseWhere might change the state of a non-cluster-manager node
         // so we cannot check state consistency of this cluster
     }
 
     public void testIndexCleanup() throws Exception {
         internalCluster().startNode(nonDataNode());
-        final String node_1 = internalCluster().startNode(nonMasterNode());
-        final String node_2 = internalCluster().startNode(nonMasterNode());
+        final String node_1 = internalCluster().startNode(nonClusterManagerNode());
+        final String node_2 = internalCluster().startNode(nonClusterManagerNode());
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(
             prepareCreate("test").setSettings(
@@ -133,7 +133,7 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
         assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
 
         logger.info("--> starting node server3");
-        final String node_3 = internalCluster().startNode(nonMasterNode());
+        final String node_3 = internalCluster().startNode(nonClusterManagerNode());
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin()
             .cluster()
@@ -345,7 +345,7 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final List<String> nodes = internalCluster().startDataOnlyNodes(4);
 
         final String node1 = nodes.get(0);
@@ -459,11 +459,11 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
     public void testShardActiveElseWhere() throws Exception {
         List<String> nodes = internalCluster().startNodes(2);
 
-        final String masterNode = internalCluster().getMasterName();
-        final String nonMasterNode = nodes.get(0).equals(masterNode) ? nodes.get(1) : nodes.get(0);
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
+        final String nonClusterManagerNode = nodes.get(0).equals(clusterManagerNode) ? nodes.get(1) : nodes.get(0);
 
-        final String masterId = internalCluster().clusterService(masterNode).localNode().getId();
-        final String nonMasterId = internalCluster().clusterService(nonMasterNode).localNode().getId();
+        final String clusterManagerId = internalCluster().clusterService(clusterManagerNode).localNode().getId();
+        final String nonClusterManagerId = internalCluster().clusterService(nonClusterManagerNode).localNode().getId();
 
         final int numShards = scaledRandomIntBetween(2, 10);
         assertAcked(
@@ -476,14 +476,14 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
         waitNoPendingTasksOnAll();
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         final Index index = stateResponse.getState().metadata().index("test").getIndex();
-        RoutingNode routingNode = stateResponse.getState().getRoutingNodes().node(nonMasterId);
+        RoutingNode routingNode = stateResponse.getState().getRoutingNodes().node(nonClusterManagerId);
         final int[] node2Shards = new int[routingNode.numberOfOwningShards()];
         int i = 0;
         for (ShardRouting shardRouting : routingNode) {
             node2Shards[i] = shardRouting.shardId().id();
             i++;
         }
-        logger.info("Node [{}] has shards: {}", nonMasterNode, Arrays.toString(node2Shards));
+        logger.info("Node [{}] has shards: {}", nonClusterManagerNode, Arrays.toString(node2Shards));
 
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
@@ -496,14 +496,14 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        ClusterApplierService clusterApplierService = internalCluster().getInstance(ClusterService.class, nonMasterNode)
+        ClusterApplierService clusterApplierService = internalCluster().getInstance(ClusterService.class, nonClusterManagerNode)
             .getClusterApplierService();
         ClusterState currentState = clusterApplierService.state();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int j = 0; j < numShards; j++) {
             indexRoutingTableBuilder.addIndexShard(
                 new IndexShardRoutingTable.Builder(new ShardId(index, j)).addShard(
-                    TestShardRouting.newShardRouting("test", j, masterId, true, ShardRoutingState.STARTED)
+                    TestShardRouting.newShardRouting("test", j, clusterManagerId, true, ShardRoutingState.STARTED)
                 ).build()
             );
         }
@@ -528,7 +528,7 @@ public class IndicesStoreIntegrationIT extends OpenSearchIntegTestCase {
         waitNoPendingTasksOnAll();
         logger.info("Checking if shards aren't removed");
         for (int shard : node2Shards) {
-            assertShardExists(nonMasterNode, index, shard);
+            assertShardExists(nonClusterManagerNode, index, shard);
         }
     }
 

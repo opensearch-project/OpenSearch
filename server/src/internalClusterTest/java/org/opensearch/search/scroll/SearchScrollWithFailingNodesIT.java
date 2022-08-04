@@ -77,7 +77,7 @@ public class SearchScrollWithFailingNodesIT extends OpenSearchIntegTestCase {
 
         List<IndexRequestBuilder> writes = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            writes.add(client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", i).endObject()));
+            writes.add(client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", i).endObject()));
         }
         indexRandom(false, writes);
         refresh();
@@ -97,7 +97,7 @@ public class SearchScrollWithFailingNodesIT extends OpenSearchIntegTestCase {
         assertThat(numHits, equalTo(100L));
         clearScroll("_all");
 
-        internalCluster().stopRandomNonMasterNode();
+        internalCluster().stopRandomNonClusterManagerNode();
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).setScroll(TimeValue.timeValueMinutes(1)).get();
         assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));

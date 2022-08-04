@@ -35,6 +35,11 @@ package org.opensearch.index.fielddata.plain;
 import org.apache.lucene.index.BinaryDocValues;
 import org.opensearch.index.fielddata.ScriptDocValues;
 
+/**
+ * Field data for binary strings
+ *
+ * @opensearch.internal
+ */
 final class StringBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
     StringBinaryDVLeafFieldData(BinaryDocValues values) {
         super(values);

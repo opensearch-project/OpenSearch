@@ -32,8 +32,8 @@
 
 package org.opensearch.analysis.common;
 
-import org.apache.lucene.analysis.CannedTokenStream;
-import org.apache.lucene.analysis.Token;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.Token;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
@@ -52,7 +52,10 @@ public class RemoveDuplicatesFilterFactoryTests extends OpenSearchTokenStreamTes
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put("index.analysis.filter.removedups.type", "remove_duplicates")
             .build();
-        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+            settings,
+            new CommonAnalysisModulePlugin()
+        );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("removedups");
         assertThat(tokenFilter, instanceOf(RemoveDuplicatesTokenFilterFactory.class));
 

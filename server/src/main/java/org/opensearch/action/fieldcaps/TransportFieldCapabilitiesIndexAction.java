@@ -85,6 +85,11 @@ import java.util.function.Predicate;
 
 import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;
 
+/**
+ * Transport action for field capabilities request in an index
+ *
+ * @opensearch.internal
+ */
 public class TransportFieldCapabilitiesIndexAction extends HandledTransportAction<
     FieldCapabilitiesIndexRequest,
     FieldCapabilitiesIndexResponse> {
@@ -195,7 +200,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             return true;
         }
         assert req.nowInMillis() != 0L;
-        ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), null, req.nowInMillis(), AliasFilter.EMPTY);
+        ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), req.nowInMillis(), AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
         return searchService.canMatch(searchRequest).canMatch();
     }
@@ -212,6 +217,8 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
      * An action that executes on each shard sequentially until it finds one that can match the provided
      * {@link FieldCapabilitiesIndexRequest#indexFilter()}. In which case the shard is used
      * to create the final {@link FieldCapabilitiesIndexResponse}.
+     *
+     * @opensearch.internal
      */
     class AsyncShardsAction {
         private final FieldCapabilitiesIndexRequest request;
@@ -336,6 +343,11 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         }
     }
 
+    /**
+     * Shard transport handler for field capabilities index action
+     *
+     * @opensearch.internal
+     */
     private class ShardTransportHandler implements TransportRequestHandler<FieldCapabilitiesIndexRequest> {
         @Override
         public void messageReceived(final FieldCapabilitiesIndexRequest request, final TransportChannel channel, Task task)

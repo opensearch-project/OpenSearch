@@ -32,11 +32,9 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.CopyOnWriteHashMap;
@@ -58,24 +56,44 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Field mapper for object field types
+ *
+ * @opensearch.internal
+ */
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
 
+    /**
+     * Parameter defaults
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
         public static final Dynamic DYNAMIC = null; // not set, inherited from root
     }
 
+    /**
+     * Dynamic field mapping specification
+     *
+     * @opensearch.internal
+     */
     public enum Dynamic {
         TRUE,
         FALSE,
         STRICT
     }
 
+    /**
+     * Nested objects
+     *
+     * @opensearch.internal
+     */
     public static class Nested {
 
         public static final Nested NO = new Nested(false, new Explicit<>(false, false), new Explicit<>(false, false));
@@ -147,6 +165,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
+    /**
+     * Builder for object field mapper
+     *
+     * @opensearch.internal
+     */
     @SuppressWarnings("rawtypes")
     public static class Builder<T extends Builder> extends Mapper.Builder<T> {
 
@@ -224,6 +247,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
+    /**
+     * Type parser for object field mapper
+     *
+     * @opensearch.internal
+     */
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
@@ -388,8 +416,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private final Nested nested;
 
-    private final String nestedTypePathAsString;
-    private final BytesRef nestedTypePathAsBytes;
+    private final String nestedTypePath;
 
     private final Query nestedTypeFilter;
 
@@ -420,9 +447,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } else {
             this.mappers = CopyOnWriteHashMap.copyOf(mappers);
         }
-        this.nestedTypePathAsString = "__" + fullPath;
-        this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
-        this.nestedTypeFilter = new TermQuery(new Term(TypeFieldMapper.NAME, nestedTypePathAsBytes));
+        Version version = Version.indexCreated(settings);
+        if (version.before(Version.V_2_0_0)) {
+            this.nestedTypePath = "__" + fullPath;
+        } else {
+            this.nestedTypePath = fullPath;
+        }
+        this.nestedTypeFilter = NestedPathFieldMapper.filter(version, nestedTypePath);
     }
 
     @Override
@@ -486,8 +517,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.fullPath;
     }
 
-    public String nestedTypePathAsString() {
-        return nestedTypePathAsString;
+    public String nestedTypePath() {
+        return nestedTypePath;
     }
 
     public final Dynamic dynamic() {

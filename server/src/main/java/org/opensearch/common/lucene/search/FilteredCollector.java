@@ -43,6 +43,11 @@ import org.opensearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
+/**
+ * A filtered collector.
+ *
+ * @opensearch.internal
+ */
 public class FilteredCollector implements Collector {
 
     private final Collector collector;
@@ -51,6 +56,10 @@ public class FilteredCollector implements Collector {
     public FilteredCollector(Collector collector, Weight filter) {
         this.collector = collector;
         this.filter = filter;
+    }
+
+    public Collector getCollector() {
+        return collector;
     }
 
     @Override

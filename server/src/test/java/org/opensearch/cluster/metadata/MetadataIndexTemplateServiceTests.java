@@ -38,9 +38,11 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -85,7 +87,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.env.Environment.PATH_HOME_SETTING;
 import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
@@ -185,17 +190,14 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(singletonList("te*"));
-        request.putMapping(
-            "type1",
+        request.mappings(
             Strings.toString(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field2")
                     .field("type", "text")
                     .field("analyzer", "custom_1")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -211,7 +213,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     public void testBrokenMapping() throws Exception {
         PutRequest request = new PutRequest("api", "broken_mapping");
         request.patterns(singletonList("te*"));
-        request.putMapping("type1", "abcde");
+        request.mappings("abcde");
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -223,7 +225,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         // invalid json: put index template fails
         PutRequest request = new PutRequest("api", "blank_mapping");
         request.patterns(singletonList("te*"));
-        request.putMapping("type1", "{}");
+        request.mappings("{}");
         Set<Alias> aliases = new HashSet<>();
         aliases.add(new Alias("invalid_alias").filter("abcde"));
         request.aliases(aliases);
@@ -970,7 +972,6 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
     public void testResolveConflictingMappings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
@@ -2066,10 +2067,36 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         service.addIndexTemplateV2(stateWithDSAndTemplate, false, "logs", nonDSTemplate);
     }
 
+    public void testLegacyNoopUpdate() {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        PutRequest pr = new PutRequest("api", "id");
+        pr.patterns(Arrays.asList("foo", "bar"));
+        if (randomBoolean()) {
+            pr.settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
+        }
+        if (randomBoolean()) {
+            pr.mappings("{}");
+        }
+        if (randomBoolean()) {
+            pr.aliases(Collections.singleton(new Alias("alias")));
+        }
+        pr.order(randomIntBetween(0, 10));
+        state = MetadataIndexTemplateService.innerPutTemplate(state, pr, new IndexTemplateMetadata.Builder("id"));
+
+        assertNotNull(state.metadata().templates().get("id"));
+
+        assertThat(MetadataIndexTemplateService.innerPutTemplate(state, pr, new IndexTemplateMetadata.Builder("id")), equalTo(state));
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
+        ClusterService clusterService = mock(ClusterService.class);
+        Settings settings = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
-            null,
+            clusterService,
             null,
             null,
             null,
@@ -2079,7 +2106,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             null,
             xContentRegistry,
             new SystemIndices(Collections.emptyMap()),
-            true
+            true,
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
             null,
@@ -2141,7 +2169,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             null,
             xContentRegistry(),
             new SystemIndices(Collections.emptyMap()),
-            true
+            true,
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
         );
         return new MetadataIndexTemplateService(
             clusterService,

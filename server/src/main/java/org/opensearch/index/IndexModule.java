@@ -70,6 +70,7 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.RemoteDirectoryFactory;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -109,6 +110,8 @@ import java.util.function.Function;
  *      <li>Settings update listener - Custom settings update listener can be registered via
  *      {@link #addSettingsUpdateConsumer(Setting, Consumer)}</li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public final class IndexModule {
 
@@ -140,6 +143,18 @@ public final class IndexModule {
     public static final Setting<List<String>> INDEX_STORE_PRE_LOAD_SETTING = Setting.listSetting(
         "index.store.preload",
         Collections.emptyList(),
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    /** Which lucene file extensions to load with the mmap directory when using hybridfs store.
+     *  This is an expert setting.
+     *  @see <a href="https://lucene.apache.org/core/9_2_0/core/org/apache/lucene/codecs/lucene92/package-summary.html#file-names">Lucene File Extensions</a>.
+     */
+    public static final Setting<List<String>> INDEX_STORE_HYBRID_MMAP_EXTENSIONS = Setting.listSetting(
+        "index.store.hybrid.mmap.extensions",
+        List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"),
         Function.identity(),
         Property.IndexScope,
         Property.NodeScope
@@ -184,9 +199,9 @@ public final class IndexModule {
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
      * via {@link org.opensearch.plugins.PluginsService#onIndexModule(IndexModule)}.
      *
-     * @param indexSettings       the index settings
-     * @param analysisRegistry    the analysis registry
-     * @param engineFactory       the engine factory
+     * @param indexSettings      the index settings
+     * @param analysisRegistry   the analysis registry
+     * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
      */
     public IndexModule(
@@ -385,6 +400,11 @@ public final class IndexModule {
         return false;
     }
 
+    /**
+     * Type of file system
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         HYBRIDFS("hybridfs"),
         NIOFS("niofs"),
@@ -466,7 +486,8 @@ public final class IndexModule {
         IndicesFieldDataCache indicesFieldDataCache,
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
-        ValuesSourceRegistry valuesSourceRegistry
+        ValuesSourceRegistry valuesSourceRegistry,
+        RemoteDirectoryFactory remoteDirectoryFactory
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -509,6 +530,7 @@ public final class IndexModule {
                 client,
                 queryCache,
                 directoryFactory,
+                remoteDirectoryFactory,
                 eventListener,
                 readerWrapperFactory,
                 mapperRegistry,

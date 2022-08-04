@@ -32,6 +32,11 @@
 
 package org.opensearch.search.aggregations;
 
+/**
+ * Base interface for buckets that have sub aggs
+ *
+ * @opensearch.internal
+ */
 public interface HasAggregations {
 
     Aggregations getAggregations();

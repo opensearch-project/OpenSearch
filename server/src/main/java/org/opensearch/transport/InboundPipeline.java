@@ -48,6 +48,11 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+/**
+ * Pipeline for receiving inbound messages
+ *
+ * @opensearch.internal
+ */
 public class InboundPipeline implements Releasable {
 
     private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);

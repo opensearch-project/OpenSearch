@@ -68,6 +68,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * greater than {@code maxConcurrentFileChunks}), the sending/requesting thread will abort its execution. That process will be resumed by
  * one of the networking threads which receive/handle the responses of the current pending file chunk requests. This process will continue
  * until all chunk requests are sent/responded.
+ *
+ * @opensearch.internal
  */
 public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTransfer.ChunkRequest> implements Closeable {
     private Status status = Status.PROCESSING;
@@ -209,6 +211,11 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
 
     protected abstract void handleError(Source resource, Exception e) throws Exception;
 
+    /**
+     * A file chunk item as the response
+     *
+     * @opensearch.internal
+     */
     private static class FileChunkResponseItem<Source> {
         final long requestSeqId;
         final Source source;
@@ -221,6 +228,11 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
         }
     }
 
+    /**
+     * A chunk request
+     *
+     * @opensearch.internal
+     */
     public interface ChunkRequest {
         /**
          * @return {@code true} if this chunk request is the last chunk of the current file

@@ -38,6 +38,11 @@ import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A double numeric terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedDoubleTerms extends ParsedTerms {
 
     @Override
@@ -60,6 +65,11 @@ public class ParsedDoubleTerms extends ParsedTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for double terms
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
         private Double key;

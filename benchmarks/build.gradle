@@ -48,8 +48,8 @@ dependencies {
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
-  runtimeOnly 'net.sf.jopt-simple:jopt-simple:4.6'
-  runtimeOnly 'org.apache.commons:commons-math3:3.2'
+  runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
+  runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
@@ -67,12 +67,6 @@ dependenciesInfo.enabled = false
 
 thirdPartyAudit.ignoreViolations(
   // these classes intentionally use JDK internal API (and this is ok since the project is maintained by Oracle employees)
-  'org.openjdk.jmh.profile.AbstractHotspotProfiler',
-  'org.openjdk.jmh.profile.HotspotThreadProfiler',
-  'org.openjdk.jmh.profile.HotspotClassloadingProfiler',
-  'org.openjdk.jmh.profile.HotspotCompilationProfiler',
-  'org.openjdk.jmh.profile.HotspotMemoryProfiler',
-  'org.openjdk.jmh.profile.HotspotRuntimeProfiler',
   'org.openjdk.jmh.util.Utils'
 )
 

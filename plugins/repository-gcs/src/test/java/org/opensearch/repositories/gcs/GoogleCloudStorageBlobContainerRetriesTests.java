@@ -39,7 +39,6 @@ import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
 
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
@@ -62,7 +61,6 @@ import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCas
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
-import org.junit.BeforeClass;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -105,21 +103,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         assertThat(httpServer, notNullValue());
         InetSocketAddress address = httpServer.getAddress();
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
-    }
-
-    public static void assumeNotJava8() {
-        assumeFalse(
-            "This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used "
-                + "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, "
-                + "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 "
-                + "for more background on this issue.",
-            JavaVersion.current().equals(JavaVersion.parse("8"))
-        );
-    }
-
-    @BeforeClass
-    public static void skipJava8() {
-        assumeNotJava8();
     }
 
     @Override

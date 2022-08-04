@@ -34,7 +34,7 @@ package org.opensearch.painless.spi.annotation;
 
 import java.util.Map;
 
-public class DeprecatedAnnotationParser implements WhitelistAnnotationParser {
+public class DeprecatedAnnotationParser implements AllowlistAnnotationParser {
 
     public static final DeprecatedAnnotationParser INSTANCE = new DeprecatedAnnotationParser();
 

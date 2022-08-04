@@ -66,6 +66,8 @@ import static java.util.Objects.requireNonNull;
  * A scrollable source of results. Pumps data out into the passed onResponse consumer. Same data may come out several times in case
  * of failures during searching (though not yet). Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive
  * more data (only receives one response at a time).
+ *
+ * @opensearch.internal
  */
 public abstract class ScrollableHitSource {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
@@ -176,6 +178,11 @@ public abstract class ScrollableHitSource {
         this.scrollId.set(scrollId);
     }
 
+    /**
+     * Asynchronous response
+     *
+     * @opensearch.internal
+     */
     public interface AsyncResponse {
         /**
          * The response data made available.
@@ -191,6 +198,8 @@ public abstract class ScrollableHitSource {
 
     /**
      * Response from each scroll batch.
+     *
+     * @opensearch.internal
      */
     public static class Response {
         private final boolean timedOut;
@@ -246,17 +255,14 @@ public abstract class ScrollableHitSource {
     /**
      * A document returned as part of the response. Think of it like {@link SearchHit} but with all the things reindex needs in convenient
      * methods.
+     *
+     * @opensearch.internal
      */
     public interface Hit {
         /**
          * The index in which the hit is stored.
          */
         String getIndex();
-
-        /**
-         * The type that the hit has.
-         */
-        String getType();
 
         /**
          * The document id of the hit.
@@ -301,10 +307,11 @@ public abstract class ScrollableHitSource {
 
     /**
      * An implementation of {@linkplain Hit} that uses getters and setters.
+     *
+     * @opensearch.internal
      */
     public static class BasicHit implements Hit {
         private final String index;
-        private final String type;
         private final String id;
         private final long version;
 
@@ -314,9 +321,8 @@ public abstract class ScrollableHitSource {
         private long seqNo;
         private long primaryTerm;
 
-        public BasicHit(String index, String type, String id, long version) {
+        public BasicHit(String index, String id, long version) {
             this.index = index;
-            this.type = type;
             this.id = id;
             this.version = version;
         }
@@ -324,11 +330,6 @@ public abstract class ScrollableHitSource {
         @Override
         public String getIndex() {
             return index;
-        }
-
-        @Override
-        public String getType() {
-            return type;
         }
 
         @Override
@@ -388,6 +389,8 @@ public abstract class ScrollableHitSource {
 
     /**
      * A failure during search. Like {@link ShardSearchFailure} but useful for reindex from remote as well.
+     *
+     * @opensearch.internal
      */
     public static class SearchFailure implements Writeable, ToXContentObject {
         private final Throwable reason;

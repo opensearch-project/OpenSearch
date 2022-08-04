@@ -101,7 +101,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public boolean blobExists(String blobName) {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            return SocketAccess.doPrivileged(() -> clientReference.client().doesObjectExist(blobStore.bucket(), buildKey(blobName)));
+            return SocketAccess.doPrivileged(() -> clientReference.get().doesObjectExist(blobStore.bucket(), buildKey(blobName)));
         } catch (final Exception e) {
             throw new BlobStoreException("Failed to check if blob [" + blobName + "] exists", e);
         }
@@ -169,13 +169,13 @@ class S3BlobContainer extends AbstractBlobContainer {
                 ObjectListing list;
                 if (prevListing != null) {
                     final ObjectListing finalPrevListing = prevListing;
-                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
+                    list = SocketAccess.doPrivileged(() -> clientReference.get().listNextBatchOfObjects(finalPrevListing));
                 } else {
                     final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
                     listObjectsRequest.setBucketName(blobStore.bucket());
                     listObjectsRequest.setPrefix(keyPath);
                     listObjectsRequest.setRequestMetricCollector(blobStore.listMetricCollector);
-                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
+                    list = SocketAccess.doPrivileged(() -> clientReference.get().listObjects(listObjectsRequest));
                 }
                 final List<String> blobsToDelete = new ArrayList<>();
                 list.getObjectSummaries().forEach(s3ObjectSummary -> {
@@ -236,7 +236,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                         .map(DeleteObjectsRequest.KeyVersion::getKey)
                         .collect(Collectors.toList());
                     try {
-                        clientReference.client().deleteObjects(deleteRequest);
+                        clientReference.get().deleteObjects(deleteRequest);
                         outstanding.removeAll(keysInRequest);
                     } catch (MultiObjectDeleteException e) {
                         // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
@@ -324,9 +324,9 @@ class S3BlobContainer extends AbstractBlobContainer {
             ObjectListing list;
             if (prevListing != null) {
                 final ObjectListing finalPrevListing = prevListing;
-                list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
+                list = SocketAccess.doPrivileged(() -> clientReference.get().listNextBatchOfObjects(finalPrevListing));
             } else {
-                list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
+                list = SocketAccess.doPrivileged(() -> clientReference.get().listObjects(listObjectsRequest));
             }
             results.add(list);
             if (list.isTruncated()) {
@@ -374,7 +374,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         putRequest.setRequestMetricCollector(blobStore.putMetricCollector);
 
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            SocketAccess.doPrivilegedVoid(() -> { clientReference.client().putObject(putRequest); });
+            SocketAccess.doPrivilegedVoid(() -> { clientReference.get().putObject(putRequest); });
         } catch (final AmazonClientException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
         }
@@ -413,7 +413,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
 
-            uploadId.set(SocketAccess.doPrivileged(() -> clientReference.client().initiateMultipartUpload(initRequest).getUploadId()));
+            uploadId.set(SocketAccess.doPrivileged(() -> clientReference.get().initiateMultipartUpload(initRequest).getUploadId()));
             if (Strings.isEmpty(uploadId.get())) {
                 throw new IOException("Failed to initialize multipart upload " + blobName);
             }
@@ -439,7 +439,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 }
                 bytesCount += uploadRequest.getPartSize();
 
-                final UploadPartResult uploadResponse = SocketAccess.doPrivileged(() -> clientReference.client().uploadPart(uploadRequest));
+                final UploadPartResult uploadResponse = SocketAccess.doPrivileged(() -> clientReference.get().uploadPart(uploadRequest));
                 parts.add(uploadResponse.getPartETag());
             }
 
@@ -456,7 +456,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 parts
             );
             complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
-            SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
+            SocketAccess.doPrivilegedVoid(() -> clientReference.get().completeMultipartUpload(complRequest));
             success = true;
 
         } catch (final AmazonClientException e) {
@@ -465,7 +465,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             if ((success == false) && Strings.hasLength(uploadId.get())) {
                 final AbortMultipartUploadRequest abortRequest = new AbortMultipartUploadRequest(bucketName, blobName, uploadId.get());
                 try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                    SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortRequest));
+                    SocketAccess.doPrivilegedVoid(() -> clientReference.get().abortMultipartUpload(abortRequest));
                 }
             }
         }

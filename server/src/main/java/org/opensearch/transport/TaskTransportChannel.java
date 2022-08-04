@@ -37,6 +37,11 @@ import org.opensearch.common.lease.Releasable;
 
 import java.io.IOException;
 
+/**
+ * Transport channel for tasks
+ *
+ * @opensearch.internal
+ */
 public class TaskTransportChannel implements TransportChannel {
 
     private final TransportChannel channel;

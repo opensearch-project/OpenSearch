@@ -55,14 +55,13 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.TestRuleMarkFailure;
-import org.apache.lucene.util.TestUtil;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.TestRuleMarkFailure;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -967,17 +966,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      * generate a random TimeZone from the ones available in java.time
      */
     public static ZoneId randomZone() {
-        // work around a JDK bug, where java 8 cannot parse the timezone GMT0 back into a temporal accessor
-        // see https://bugs.openjdk.java.net/browse/JDK-8138664
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            ZoneId timeZone;
-            do {
-                timeZone = ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
-            } while (timeZone.equals(ZoneId.of("GMT0")));
-            return timeZone;
-        } else {
-            return ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
-        }
+        return ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
     }
 
     /**

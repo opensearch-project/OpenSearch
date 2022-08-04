@@ -58,6 +58,8 @@ import static org.opensearch.tasks.Task.X_OPAQUE_ID;
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
  * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
+ *
+ * @opensearch.internal
  */
 public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
 
@@ -128,8 +130,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                     finalContent = BytesArray.EMPTY;
                 }
             } catch (IllegalArgumentException ignored) {
-                assert restResponse
-                    .status() == RestStatus.METHOD_NOT_ALLOWED : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
+                    : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
             }
 
             final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);

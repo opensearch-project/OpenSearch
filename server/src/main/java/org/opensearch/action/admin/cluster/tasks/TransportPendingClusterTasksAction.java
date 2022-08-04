@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -50,7 +50,12 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportPendingClusterTasksAction extends TransportMasterNodeReadAction<
+/**
+ * Transport action for getting pending cluster tasks
+ *
+ * @opensearch.internal
+ */
+public class TransportPendingClusterTasksAction extends TransportClusterManagerNodeReadAction<
     PendingClusterTasksRequest,
     PendingClusterTasksResponse> {
 
@@ -95,13 +100,13 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         PendingClusterTasksRequest request,
         ClusterState state,
         ActionListener<PendingClusterTasksResponse> listener
     ) {
         logger.trace("fetching pending tasks from cluster service");
-        final List<PendingClusterTask> pendingTasks = clusterService.getMasterService().pendingTasks();
+        final List<PendingClusterTask> pendingTasks = clusterService.getClusterManagerService().pendingTasks();
         logger.trace("done fetching pending tasks from cluster service");
         listener.onResponse(new PendingClusterTasksResponse(pendingTasks));
     }

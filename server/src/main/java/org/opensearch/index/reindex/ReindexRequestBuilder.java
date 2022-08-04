@@ -39,6 +39,11 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Builder for reindex requests
+ *
+ * @opensearch.internal
+ */
 public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
     private final IndexRequestBuilder destination;
 
@@ -75,14 +80,6 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
      */
     public ReindexRequestBuilder destination(String index) {
         destination.setIndex(index);
-        return this;
-    }
-
-    /**
-     * Set the destination index and type.
-     */
-    public ReindexRequestBuilder destination(String index, String type) {
-        destination.setIndex(index).setType(type);
         return this;
     }
 

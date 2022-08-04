@@ -5,7 +5,7 @@ services:
     image: opensearch:test
     environment:
        - node.name=opensearch-1
-       - cluster.initial_master_nodes=opensearch-1,opensearch-2
+       - cluster.initial_cluster_manager_nodes=opensearch-1,opensearch-2
        - discovery.seed_hosts=opensearch-2:9300
        - cluster.name=opensearch
        - bootstrap.memory_lock=true
@@ -29,7 +29,7 @@ services:
     image: opensearch:test
     environment:
        - node.name=opensearch-2
-       - cluster.initial_master_nodes=opensearch-1,opensearch-2
+       - cluster.initial_cluster_manager_nodes=opensearch-1,opensearch-2
        - discovery.seed_hosts=opensearch-1:9300
        - cluster.name=opensearch
        - bootstrap.memory_lock=true

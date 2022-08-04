@@ -57,6 +57,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Id for a serach context.
+ *
+ * @opensearch.internal
+ */
 public class SearchContextId {
     private final Map<ShardId, SearchContextIdForNode> shards;
     private final Map<String, AliasFilter> aliasFilter;
@@ -111,7 +116,7 @@ public class SearchContextId {
             }
             return new SearchContextId(Collections.unmodifiableMap(shards), Collections.unmodifiableMap(aliasFilters));
         } catch (IOException e) {
-            throw new IllegalArgumentException(e);
+            throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
     }
 

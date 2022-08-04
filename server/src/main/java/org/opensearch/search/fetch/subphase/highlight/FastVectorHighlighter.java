@@ -64,6 +64,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Uses Lucene's Fast Vector Highlighting
+ *
+ * @opensearch.internal
+ */
 public class FastVectorHighlighter implements Highlighter {
     private static final BoundaryScanner DEFAULT_SIMPLE_BOUNDARY_SCANNER = new SimpleBoundaryScanner();
     private static final BoundaryScanner DEFAULT_SENTENCE_BOUNDARY_SCANNER = new BreakIteratorBoundaryScanner(

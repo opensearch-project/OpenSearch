@@ -41,6 +41,8 @@ import java.io.IOException;
 /**
  * Abstract diffable object with simple diffs implementation that sends the entire object if object has changed or
  * nothing if object remained the same.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffable<T> {
 
@@ -64,6 +66,11 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
         return (Diff<T>) EMPTY;
     }
 
+    /**
+     * A complete diff.
+     *
+     * @opensearch.internal
+     */
     private static class CompleteDiff<T extends Diffable<T>> implements Diff<T> {
 
         @Nullable

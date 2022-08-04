@@ -44,6 +44,8 @@ import java.util.Objects;
 
 /**
  * Request to submit cluster reroute allocation commands
+ *
+ * @opensearch.internal
  */
 public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteRequest> {
     private AllocationCommands commands = new AllocationCommands();
@@ -161,12 +163,12 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
             && Objects.equals(explain, other.explain)
             && Objects.equals(timeout, other.timeout)
             && Objects.equals(retryFailed, other.retryFailed)
-            && Objects.equals(masterNodeTimeout, other.masterNodeTimeout);
+            && Objects.equals(clusterManagerNodeTimeout, other.clusterManagerNodeTimeout);
     }
 
     @Override
     public int hashCode() {
         // Override equals and hashCode for testing
-        return Objects.hash(commands, dryRun, explain, timeout, retryFailed, masterNodeTimeout);
+        return Objects.hash(commands, dryRun, explain, timeout, retryFailed, clusterManagerNodeTimeout);
     }
 }

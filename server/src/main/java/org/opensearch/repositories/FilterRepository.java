@@ -57,6 +57,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Repository that is filtered
+ *
+ * @opensearch.internal
+ */
 public class FilterRepository implements Repository {
 
     private final Repository in;

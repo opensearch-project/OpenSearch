@@ -49,6 +49,11 @@ import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.settings.Setting.listSetting;
 import static org.opensearch.common.settings.Setting.timeSetting;
 
+/**
+ * Settings for transport config
+ *
+ * @opensearch.internal
+ */
 public final class TransportSettings {
 
     public static final String DEFAULT_PROFILE = "default";

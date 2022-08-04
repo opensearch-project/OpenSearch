@@ -58,6 +58,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Holds JVM statistics
+ *
+ * @opensearch.internal
+ */
 public class JvmStats implements Writeable, ToXContentFragment {
 
     private static final RuntimeMXBean runtimeMXBean;
@@ -366,6 +371,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         static final String TOTAL_UNLOADED_COUNT = "total_unloaded_count";
     }
 
+    /**
+     * Garbage collector references.
+     *
+     * @opensearch.internal
+     */
     public static class GarbageCollectors implements Writeable, Iterable<GarbageCollector> {
 
         private final GarbageCollector[] collectors;
@@ -393,6 +403,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * The garbage collector.
+     *
+     * @opensearch.internal
+     */
     public static class GarbageCollector implements Writeable {
 
         private final String name;
@@ -431,6 +446,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Thread information.
+     *
+     * @opensearch.internal
+     */
     public static class Threads implements Writeable {
 
         private final int count;
@@ -465,6 +485,8 @@ public class JvmStats implements Writeable, ToXContentFragment {
      * Stores the memory usage after the Java virtual machine
      * most recently expended effort in recycling unused objects
      * in particular memory pool.
+     *
+     * @opensearch.internal
      */
     public static class MemoryPoolGcStats implements Writeable {
 
@@ -503,6 +525,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * A memory pool.
+     *
+     * @opensearch.internal
+     */
     public static class MemoryPool implements Writeable {
 
         private final String name;
@@ -574,6 +601,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Memory data.
+     *
+     * @opensearch.internal
+     */
     public static class Mem implements Writeable, Iterable<MemoryPool> {
 
         private final long heapCommitted;
@@ -650,6 +682,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * A buffer pool.
+     *
+     * @opensearch.internal
+     */
     public static class BufferPool implements Writeable {
 
         private final String name;
@@ -696,6 +733,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Class information.
+     *
+     * @opensearch.internal
+     */
     public static class Classes implements Writeable {
 
         private final long loadedClassCount;

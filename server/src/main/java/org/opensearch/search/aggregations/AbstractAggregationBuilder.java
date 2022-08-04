@@ -43,6 +43,8 @@ import java.util.Objects;
 
 /**
  * Base implementation of a {@link AggregationBuilder}.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationBuilder<AB>> extends AggregationBuilder {
 

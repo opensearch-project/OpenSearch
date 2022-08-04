@@ -39,7 +39,9 @@ import org.opensearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * A single multi get response.
+ * A single multi term response.
+ *
+ * @opensearch.internal
  */
 public class MultiTermVectorsItemResponse implements Writeable {
 
@@ -70,16 +72,6 @@ public class MultiTermVectorsItemResponse implements Writeable {
             return failure.getIndex();
         }
         return response.getIndex();
-    }
-
-    /**
-     * The type of the document.
-     */
-    public String getType() {
-        if (failure != null) {
-            return failure.getType();
-        }
-        return response.getType();
     }
 
     /**

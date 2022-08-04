@@ -71,7 +71,7 @@ class DatabaseReaderLazyLoader implements Closeable {
 
     /**
      * Read the database type from the database. We do this manually instead of relying on the built-in mechanism to avoid reading the
-     * entire database into memory merely to read the type. This is especially important to maintain on master nodes where pipelines are
+     * entire database into memory merely to read the type. This is especially important to maintain on cluster-manager nodes where pipelines are
      * validated. If we read the entire database into memory, we could potentially run into low-memory constraints on such nodes where
      * loading this data would otherwise be wasteful if they are not also ingest nodes.
      *

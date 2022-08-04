@@ -49,6 +49,8 @@ import java.util.List;
 
 /**
  * The response for the reload secure settings action
+ *
+ * @opensearch.internal
  */
 public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesReloadSecureSettingsResponse.NodeResponse>
     implements
@@ -103,6 +105,11 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
         }
     }
 
+    /**
+     * Inner Node Response
+     *
+     * @opensearch.internal
+     */
     public static class NodeResponse extends BaseNodeResponse {
 
         private Exception reloadException = null;

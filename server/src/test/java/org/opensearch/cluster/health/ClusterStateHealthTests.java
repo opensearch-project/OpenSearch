@@ -144,7 +144,7 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
         setState(
             clusterService,
             ClusterState.builder(clusterService.state())
-                .nodes(DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null))
+                .nodes(DiscoveryNodes.builder(clusterService.state().nodes()).clusterManagerNodeId(null))
                 .build()
         );
 
@@ -157,13 +157,13 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
             }
         });
 
-        logger.info("--> submit task to restore master");
+        logger.info("--> submit task to restore cluster-manager");
         ClusterState currentState = clusterService.getClusterApplierService().state();
         clusterService.getClusterApplierService()
             .onNewClusterState(
-                "restore master",
+                "restore cluster-manager",
                 () -> ClusterState.builder(currentState)
-                    .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId()))
+                    .nodes(DiscoveryNodes.builder(currentState.nodes()).clusterManagerNodeId(currentState.nodes().getLocalNodeId()))
                     .build(),
                 (source, e) -> {}
             );
@@ -184,7 +184,7 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
 
         assertFalse(listener.isDone());
 
-        logger.info("--> realising task to restore master");
+        logger.info("--> realising task to restore cluster-manager");
         applyLatch.countDown();
         listener.get();
     }
@@ -219,7 +219,10 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());
         clusterStateHealth = maybeSerialize(clusterStateHealth);
-        assertThat(clusterStateHealth.hasDiscoveredMaster(), equalTo(clusterService.state().nodes().getMasterNodeId() != null));
+        assertThat(
+            clusterStateHealth.hasDiscoveredClusterManager(),
+            equalTo(clusterService.state().nodes().getClusterManagerNodeId() != null)
+        );
         assertClusterHealth(clusterStateHealth, counter);
     }
 

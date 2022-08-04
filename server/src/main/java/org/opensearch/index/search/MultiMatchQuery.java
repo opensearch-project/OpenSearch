@@ -58,6 +58,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
 
+/**
+ * Foundation multi match query
+ *
+ * @opensearch.internal
+ */
 public class MultiMatchQuery extends MatchQuery {
 
     private Float groupTieBreaker = null;
@@ -340,6 +345,11 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
+    /**
+     * Holder for a field and it's boost value
+     *
+     * @opensearch.internal
+     */
     static final class FieldAndBoost {
         final MappedFieldType fieldType;
         final float boost;

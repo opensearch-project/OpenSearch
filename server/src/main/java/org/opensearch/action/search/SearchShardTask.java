@@ -43,6 +43,8 @@ import java.util.function.Supplier;
 /**
  * Task storing information about a currently running search shard request.
  * See {@link ShardSearchRequest}, {@link ShardFetchSearchRequest}, ...
+ *
+ * @opensearch.internal
  */
 public class SearchShardTask extends CancellableTask {
     // generating metadata in a lazy way since source can be quite big
@@ -67,6 +69,11 @@ public class SearchShardTask extends CancellableTask {
 
     public String getTaskMetadata() {
         return metadataSupplier.get();
+    }
+
+    @Override
+    public boolean supportsResourceTracking() {
+        return true;
     }
 
     @Override

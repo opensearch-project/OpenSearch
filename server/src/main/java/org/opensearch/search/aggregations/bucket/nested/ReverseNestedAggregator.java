@@ -53,6 +53,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregates documents that match a nested path.
+ *
+ * @opensearch.internal
+ */
 public class ReverseNestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField PATH_FIELD = new ParseField("path");
@@ -71,7 +76,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
         if (objectMapper == null) {
-            parentFilter = Queries.newNonNestedFilter(context.mapperService().getIndexSettings().getIndexVersionCreated());
+            parentFilter = Queries.newNonNestedFilter();
         } else {
             parentFilter = objectMapper.nestedTypeFilter();
         }

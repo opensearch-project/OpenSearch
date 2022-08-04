@@ -43,6 +43,11 @@ import org.opensearch.transport.TransportService;
 
 import static java.util.stream.Collectors.toList;
 
+/**
+ * Transport action for remote monitoring
+ *
+ * @opensearch.internal
+ */
 public final class TransportRemoteInfoAction extends HandledTransportAction<RemoteInfoRequest, RemoteInfoResponse> {
 
     private final RemoteClusterService remoteClusterService;

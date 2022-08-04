@@ -41,7 +41,6 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -55,6 +54,8 @@ import java.util.zip.CheckedOutputStream;
  * data using a compressed representation in order to require less permanent
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
+ *
+ * @opensearch.internal
  */
 public final class CompressedXContent {
 
@@ -82,15 +83,19 @@ public final class CompressedXContent {
     /**
      * Create a {@link CompressedXContent} out of a {@link ToXContent} instance.
      */
-    public CompressedXContent(ToXContent xcontent, XContentType type, ToXContent.Params params) throws IOException {
+    public CompressedXContent(ToXContent xcontent, ToXContent.Params params) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
         OutputStream compressedStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream);
         CRC32 crc32 = new CRC32();
         OutputStream checkedStream = new CheckedOutputStream(compressedStream, crc32);
-        try (XContentBuilder builder = XContentFactory.contentBuilder(type, checkedStream)) {
-            builder.startObject();
+        try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {
+            if (xcontent.isFragment()) {
+                builder.startObject();
+            }
             xcontent.toXContent(builder, params);
-            builder.endObject();
+            if (xcontent.isFragment()) {
+                builder.endObject();
+            }
         }
         this.bytes = BytesReference.toBytes(bStream.bytes());
         this.crc32 = (int) crc32.getValue();

@@ -33,7 +33,6 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -47,7 +46,6 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -66,7 +64,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                 .put("index.analysis.filter.my_word_delimiter.catenate_all", "true")
                 .put("index.analysis.filter.my_word_delimiter.preserve_original", "true")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
@@ -116,7 +114,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                 .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot";
@@ -148,7 +146,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
                 .put("index.analysis.filter.my_word_delimiter.adjust_offsets", "false")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot";
@@ -183,7 +181,10 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
             .put("index.analysis.analyzer.my_analyzer.filter", "my_keyword, my_word_delimiter")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+            settings,
+            new CommonAnalysisModulePlugin()
+        );
         String source = "PowerShot PowerHungry";
         int[] expectedStartOffsets = new int[] { 0, 5, 10, 15 };
         int[] expectedEndOffsets = new int[] { 5, 9, 15, 21 };
@@ -193,7 +194,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
 
         // test with keywords but ignore_keywords is set as true
         settings = Settings.builder().put(settings).put("index.analysis.filter.my_word_delimiter.ignore_keywords", "true").build();
-        analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
         analyzer = analysis.indexAnalyzers.get("my_analyzer");
         expectedStartOffsets = new int[] { 0, 5, 10 };
         expectedEndOffsets = new int[] { 5, 9, 21 };
@@ -202,38 +203,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
     }
 
     public void testPreconfiguredFilter() throws IOException {
-        // Before 7.3 we don't adjust offsets
-        {
-            Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-            Settings indexSettings = Settings.builder()
-                .put(
-                    IndexMetadata.SETTING_VERSION_CREATED,
-                    VersionUtils.randomVersionBetween(
-                        random(),
-                        LegacyESVersion.V_7_0_0,
-                        VersionUtils.getPreviousVersion(LegacyESVersion.V_7_3_0)
-                    )
-                )
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-                .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
-                .build();
-            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
-            try (
-                IndexAnalyzers indexAnalyzers = new AnalysisModule(
-                    TestEnvironment.newEnvironment(settings),
-                    Collections.singletonList(new CommonAnalysisPlugin())
-                ).getAnalysisRegistry().build(idxSettings)
-            ) {
-
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "h100", new String[] { "h", "100" }, new int[] { 0, 0 }, new int[] { 4, 4 });
-
-            }
-        }
-
-        // Afger 7.3 we do adjust offsets
         {
             Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
             Settings indexSettings = Settings.builder()
@@ -246,7 +216,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
             try (
                 IndexAnalyzers indexAnalyzers = new AnalysisModule(
                     TestEnvironment.newEnvironment(settings),
-                    Collections.singletonList(new CommonAnalysisPlugin())
+                    Collections.singletonList(new CommonAnalysisModulePlugin())
                 ).getAnalysisRegistry().build(idxSettings)
             ) {
 

@@ -45,6 +45,8 @@ import java.util.Objects;
 
 /**
  * Calculate a doubly exponential weighted moving average
+ *
+ * @opensearch.internal
  */
 public class HoltLinearModel extends MovAvgModel {
     public static final String NAME = "holt";
@@ -193,6 +195,11 @@ public class HoltLinearModel extends MovAvgModel {
         return Objects.equals(alpha, other.alpha) && Objects.equals(beta, other.beta);
     }
 
+    /**
+     * Builder for the holt linear model
+     *
+     * @opensearch.internal
+     */
     public static class HoltLinearModelBuilder implements MovAvgModelBuilder {
         private double alpha = DEFAULT_ALPHA;
         private double beta = DEFAULT_BETA;

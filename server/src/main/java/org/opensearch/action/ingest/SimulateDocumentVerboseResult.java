@@ -47,6 +47,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 /**
  * Holds the result of what a pipeline did to a sample document via the simulate api, but instead of {@link SimulateDocumentBaseResult}
  * this result class holds the intermediate result each processor did to the sample document.
+ *
+ * @opensearch.internal
  */
 public final class SimulateDocumentVerboseResult implements SimulateDocumentResult {
     public static final String PROCESSOR_RESULT_FIELD = "processor_results";

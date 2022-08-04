@@ -66,6 +66,8 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 
 /**
  * The REST handler for get alias and head alias APIs.
+ *
+ * @opensearch.api
  */
 public class RestGetAliasesAction extends BaseRestHandler {
 
@@ -187,7 +189,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // The TransportGetAliasesAction was improved do the same post processing as is happening here.
         // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here
-        // in when 8.0 becomes the new version in the master branch.
+        // in when 8.0 becomes the new version in the main branch.
 
         final boolean namesProvided = request.hasParam("name");
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");

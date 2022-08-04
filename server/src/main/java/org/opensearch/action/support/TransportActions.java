@@ -40,6 +40,11 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.ShardNotFoundException;
 
+/**
+ * Utility class for transport actions
+ *
+ * @opensearch.internal
+ */
 public class TransportActions {
 
     public static boolean isShardNotAvailableException(final Throwable e) {

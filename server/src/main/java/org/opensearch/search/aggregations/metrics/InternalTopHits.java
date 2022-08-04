@@ -53,6 +53,8 @@ import java.util.Map;
 
 /**
  * Results of the {@link TopHitsAggregator}.
+ *
+ * @opensearch.internal
  */
 public class InternalTopHits extends InternalAggregation implements TopHits {
     private int from;
@@ -141,16 +143,22 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
                 shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
+                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                    doc.shardIndex = i;
+                }
             }
-            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs, true);
+            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
         } else {
             shardDocs = new TopDocs[aggregations.size()];
             for (int i = 0; i < shardDocs.length; i++) {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
                 shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
+                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                    doc.shardIndex = i;
+                }
             }
-            reducedTopDocs = TopDocs.merge(from, size, shardDocs, true);
+            reducedTopDocs = TopDocs.merge(from, size, shardDocs);
         }
 
         float maxScore = Float.NaN;

@@ -38,6 +38,8 @@ import org.opensearch.search.aggregations.HasAggregations;
 
 /**
  * A single bucket aggregation
+ *
+ * @opensearch.internal
  */
 public interface SingleBucketAggregation extends Aggregation, HasAggregations {
 

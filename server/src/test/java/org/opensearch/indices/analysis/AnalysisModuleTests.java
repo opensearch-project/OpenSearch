@@ -34,7 +34,7 @@ package org.opensearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharFilter;
-import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
@@ -42,7 +42,6 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.Streams;
@@ -87,7 +86,7 @@ import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -130,7 +129,6 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-
     }
 
     public void testSimpleConfigurationJson() throws IOException {
@@ -211,34 +209,6 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
                     equalTo("analyzer name must not start with '_'. got \"_invalidName\"")
                 )
             );
-        }
-    }
-
-    public void testStandardFilterBWC() throws IOException {
-        // standard tokenfilter should have been removed entirely in the 7x line. However, a
-        // cacheing bug meant that it was still possible to create indexes using a standard
-        // filter until 7.6
-        {
-            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_6_0, Version.CURRENT);
-            final Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
-                .put("index.analysis.analyzer.my_standard.filter", "standard")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
-            assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
-        }
-        {
-            Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_2);
-            final Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
-                .put("index.analysis.analyzer.my_standard.filter", "standard")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-            getIndexAnalyzers(settings);
-            assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
         }
     }
 
@@ -474,7 +444,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
         Dictionary dictionary;
-        try (Directory tmp = new NIOFSDirectory(environment.tmpFile())) {
+        try (Directory tmp = new NIOFSDirectory(environment.tmpDir())) {
             dictionary = new Dictionary(tmp, "hunspell", aff, dic);
         }
         AnalysisModule module = new AnalysisModule(environment, singletonList(new AnalysisPlugin() {

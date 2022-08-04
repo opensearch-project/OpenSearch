@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+/**
+ * Cluster Name
+ *
+ * @opensearch.internal
+ */
 public class ClusterName implements Writeable {
 
     public static final Setting<ClusterName> CLUSTER_NAME_SETTING = new Setting<>("cluster.name", "opensearch", (s) -> {

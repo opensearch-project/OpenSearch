@@ -39,6 +39,11 @@ import org.opensearch.node.ReportingService;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 
+/**
+ * HTTP Transport server
+ *
+ * @opensearch.internal
+ */
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";

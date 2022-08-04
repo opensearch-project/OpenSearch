@@ -32,6 +32,11 @@
 
 package org.opensearch.repositories;
 
+/**
+ * Exception thrown when a repository fails verification
+ *
+ * @opensearch.internal
+ */
 public class VerificationFailure {
 
     private String nodeId;

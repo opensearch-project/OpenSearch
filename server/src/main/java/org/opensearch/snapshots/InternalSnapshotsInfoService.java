@@ -67,6 +67,11 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.function.Supplier;
 
+/**
+ * Information service for snapshots
+ *
+ * @opensearch.internal
+ */
 public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
 
     public static final Setting<Integer> INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING = Setting.intSetting(
@@ -125,7 +130,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         this.maxConcurrentFetches = INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.get(settings);
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING, this::setMaxConcurrentFetches);
-        if (DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
             clusterService.addListener(this);
         }
     }
@@ -150,7 +155,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) {
+        if (event.localNodeClusterManager()) {
             final Set<SnapshotShard> onGoingSnapshotRecoveries = listOfSnapshotShards(event.state());
 
             int unknownShards = 0;
@@ -175,9 +180,9 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                 fetchNextSnapshotShard();
             }
 
-        } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
-            // TODO Maybe just clear out non-ongoing snapshot recoveries is the node is master eligible, so that we don't
-            // have to repopulate the data over and over in an unstable master situation?
+        } else if (event.previousState().nodes().isLocalNodeElectedClusterManager()) {
+            // TODO Maybe just clear out non-ongoing snapshot recoveries is the node is cluster-manager eligible, so that we don't
+            // have to repopulate the data over and over in an unstable cluster-manager situation?
             synchronized (mutex) {
                 // information only needed on current master
                 knownSnapshotShards = ImmutableOpenMap.of();
@@ -357,6 +362,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         }
         return Collections.unmodifiableSet(snapshotShards);
     }
+
+    /**
+     * A snapshot of a shard
+     *
+     * @opensearch.internal
+     */
 
     public static class SnapshotShard {
 

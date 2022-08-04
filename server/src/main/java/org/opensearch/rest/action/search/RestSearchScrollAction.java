@@ -50,6 +50,11 @@ import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to perform a search scroll
+ *
+ * @opensearch.api
+ */
 public class RestSearchScrollAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 

@@ -18,4 +18,3 @@
   - match: { _type:    test   }
   - match: { _id:      '1'    }
   - match: { _source:  { foo: "bar" } }
-

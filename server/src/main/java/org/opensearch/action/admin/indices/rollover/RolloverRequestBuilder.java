@@ -33,14 +33,21 @@ package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 
-public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
+/**
+ * Transport request to rollover an index.
+ *
+ * @opensearch.internal
+ */
+public class RolloverRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
+    RolloverRequest,
+    RolloverResponse,
+    RolloverRequestBuilder> {
     public RolloverRequestBuilder(OpenSearchClient client, RolloverAction action) {
         super(client, action, new RolloverRequest());
     }
@@ -85,13 +92,8 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder mapping(String type, Object... source) {
-        this.request.getCreateIndexRequest().mapping(type, source);
-        return this;
-    }
-
-    public RolloverRequestBuilder mapping(String type, String source, XContentType xContentType) {
-        this.request.getCreateIndexRequest().mapping(type, source, xContentType);
+    public RolloverRequestBuilder simpleMapping(String... source) {
+        this.request.getCreateIndexRequest().simpleMapping(source);
         return this;
     }
 

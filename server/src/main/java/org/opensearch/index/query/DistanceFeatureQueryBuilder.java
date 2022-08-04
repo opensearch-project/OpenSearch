@@ -54,6 +54,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 /**
  * A query to boost scores based on their proximity to the given origin
  * for date, date_nanos and geo_point field types
+ *
+ * @opensearch.internal
  */
 public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFeatureQueryBuilder> {
     public static final String NAME = "distance_feature";
@@ -156,6 +158,11 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         return this.field.equals(other.field) && Objects.equals(this.origin, other.origin) && this.pivot.equals(other.pivot);
     }
 
+    /**
+     * Origin of a distance feature query
+     *
+     * @opensearch.internal
+     */
     public static class Origin {
         private final Object origin;
 

@@ -135,14 +135,12 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", TERMS_AGGS_FIELD, "type=keyword"));
-        assertAcked(prepareCreate("field-collapsing").addMapping("type", "group", "type=keyword"));
+        assertAcked(prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword"));
+        assertAcked(prepareCreate("field-collapsing").setMapping("group", "type=keyword"));
         createIndex("empty");
         assertAcked(
-            prepareCreate("articles").addMapping(
-                "article",
+            prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("article")
                     .startObject("properties")
                     .startObject(TERMS_AGGS_FIELD)
                     .field("type", "keyword")
@@ -174,7 +172,6 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
         );
         ensureGreen("idx", "empty", "articles");
@@ -182,7 +179,8 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
             builders.add(
-                client().prepareIndex("idx", "type", Integer.toString(i))
+                client().prepareIndex("idx")
+                    .setId(Integer.toString(i))
                     .setSource(
                         jsonBuilder().startObject()
                             .field(TERMS_AGGS_FIELD, "val" + (i / 10))
@@ -196,39 +194,48 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         }
 
         builders.add(
-            client().prepareIndex("field-collapsing", "type", "1")
+            client().prepareIndex("field-collapsing")
+                .setId("1")
                 .setSource(jsonBuilder().startObject().field("group", "a").field("text", "term x y z b").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing", "type", "2")
+            client().prepareIndex("field-collapsing")
+                .setId("2")
                 .setSource(jsonBuilder().startObject().field("group", "a").field("text", "term x y z n rare").field("value", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing", "type", "3")
+            client().prepareIndex("field-collapsing")
+                .setId("3")
                 .setSource(jsonBuilder().startObject().field("group", "b").field("text", "x y z term").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing", "type", "4")
+            client().prepareIndex("field-collapsing")
+                .setId("4")
                 .setSource(jsonBuilder().startObject().field("group", "b").field("text", "x y term").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing", "type", "5")
+            client().prepareIndex("field-collapsing")
+                .setId("5")
                 .setSource(jsonBuilder().startObject().field("group", "b").field("text", "x term").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing", "type", "6")
+            client().prepareIndex("field-collapsing")
+                .setId("6")
                 .setSource(jsonBuilder().startObject().field("group", "b").field("text", "term rare").field("value", 3).endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing", "type", "7")
+            client().prepareIndex("field-collapsing")
+                .setId("7")
                 .setSource(jsonBuilder().startObject().field("group", "c").field("text", "x y z term").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing", "type", "8")
+            client().prepareIndex("field-collapsing")
+                .setId("8")
                 .setSource(jsonBuilder().startObject().field("group", "c").field("text", "x y term b").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing", "type", "9")
+            client().prepareIndex("field-collapsing")
+                .setId("9")
                 .setSource(jsonBuilder().startObject().field("group", "c").field("text", "rare x term").field("value", 2).endObject())
         );
 
@@ -243,11 +250,12 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             }
             builder.endArray().endObject();
 
-            builders.add(client().prepareIndex("articles", "article").setSource(builder));
+            builders.add(client().prepareIndex("articles").setSource(builder));
         }
 
         builders.add(
-            client().prepareIndex("articles", "article", "1")
+            client().prepareIndex("articles")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "title 1")
@@ -290,7 +298,8 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
                 )
         );
         builders.add(
-            client().prepareIndex("articles", "article", "2")
+            client().prepareIndex("articles")
+                .setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "title 2")
@@ -1123,7 +1132,6 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             for (SearchHit hit : hits) {
                 assertThat(hit.getSourceAsMap(), nullValue());
                 assertThat(hit.getId(), nullValue());
-                assertThat(hit.getType(), equalTo("type"));
             }
         }
     }
@@ -1135,7 +1143,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
     public void testScriptCaching() throws Exception {
         try {
             assertAcked(
-                prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+                prepareCreate("cache_test_idx").setMapping("d", "type=long")
                     .setSettings(
                         Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1)
                     )
@@ -1143,8 +1151,8 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             );
             indexRandom(
                 true,
-                client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2)
+                client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
             );
 
             // Make sure we are starting with a clear cache
@@ -1378,7 +1386,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             SearchResponse response = client().prepareSearch("idx")
                 .addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f)))
                 .addAggregation(
-                    terms("terms").field(TERMS_AGGS_FIELD).subAggregation(topHits("hits").sort(SortBuilders.fieldSort("_type")))
+                    terms("terms").field(TERMS_AGGS_FIELD).subAggregation(topHits("hits").sort(SortBuilders.fieldSort("_index")))
                 )
                 .get();
             Terms terms = response.getAggregations().get("terms");
@@ -1395,7 +1403,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
                 .addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f)))
                 .addAggregation(
                     terms("terms").field(TERMS_AGGS_FIELD)
-                        .subAggregation(topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_type")))
+                        .subAggregation(topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_index")))
                 )
                 .get();
             Terms terms = response.getAggregations().get("terms");

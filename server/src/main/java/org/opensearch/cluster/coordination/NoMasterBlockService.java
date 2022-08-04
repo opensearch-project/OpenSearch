@@ -31,79 +31,20 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.cluster.block.ClusterBlock;
-import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.rest.RestStatus;
 
-import java.util.EnumSet;
-
-public class NoMasterBlockService {
-    public static final int NO_MASTER_BLOCK_ID = 2;
-    public static final ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(
-        NO_MASTER_BLOCK_ID,
-        "no master",
-        true,
-        false,
-        false,
-        RestStatus.SERVICE_UNAVAILABLE,
-        EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE)
-    );
-    public static final ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(
-        NO_MASTER_BLOCK_ID,
-        "no master",
-        true,
-        true,
-        false,
-        RestStatus.SERVICE_UNAVAILABLE,
-        ClusterBlockLevel.ALL
-    );
-    public static final ClusterBlock NO_MASTER_BLOCK_METADATA_WRITES = new ClusterBlock(
-        NO_MASTER_BLOCK_ID,
-        "no master",
-        true,
-        false,
-        false,
-        RestStatus.SERVICE_UNAVAILABLE,
-        EnumSet.of(ClusterBlockLevel.METADATA_WRITE)
-    );
-
-    public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>(
-        "cluster.no_master_block",
-        "write",
-        NoMasterBlockService::parseNoMasterBlock,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
-    private volatile ClusterBlock noMasterBlock;
+/**
+ * Service to block the master node
+ *
+ * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link NoClusterManagerBlockService}
+ */
+@Deprecated
+public class NoMasterBlockService extends NoClusterManagerBlockService {
 
     public NoMasterBlockService(Settings settings, ClusterSettings clusterSettings) {
-        this.noMasterBlock = NO_MASTER_BLOCK_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(NO_MASTER_BLOCK_SETTING, this::setNoMasterBlock);
+        super(settings, clusterSettings);
     }
 
-    private static ClusterBlock parseNoMasterBlock(String value) {
-        switch (value) {
-            case "all":
-                return NO_MASTER_BLOCK_ALL;
-            case "write":
-                return NO_MASTER_BLOCK_WRITES;
-            case "metadata_write":
-                return NO_MASTER_BLOCK_METADATA_WRITES;
-            default:
-                throw new IllegalArgumentException("invalid no-master block [" + value + "], must be one of [all, write, metadata_write]");
-        }
-    }
-
-    public ClusterBlock getNoMasterBlock() {
-        return noMasterBlock;
-    }
-
-    private void setNoMasterBlock(ClusterBlock noMasterBlock) {
-        this.noMasterBlock = noMasterBlock;
-    }
 }

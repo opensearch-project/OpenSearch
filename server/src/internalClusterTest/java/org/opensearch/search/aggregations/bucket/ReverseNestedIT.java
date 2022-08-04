@@ -75,8 +75,7 @@ public class ReverseNestedIT extends OpenSearchIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
-            prepareCreate("idx1").addMapping(
-                "type",
+            prepareCreate("idx1").setMapping(
                 jsonBuilder().startObject()
                     .startObject("properties")
                     .startObject("field1")
@@ -99,8 +98,7 @@ public class ReverseNestedIT extends OpenSearchIntegTestCase {
             )
         );
         assertAcked(
-            prepareCreate("idx2").addMapping(
-                "type",
+            prepareCreate("idx2").setMapping(
                 jsonBuilder().startObject()
                     .startObject("properties")
                     .startObject("nested1")
@@ -156,7 +154,7 @@ public class ReverseNestedIT extends OpenSearchIntegTestCase {
             source.startObject().field("field2", value1).endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, client().prepareIndex("idx1", "type").setRouting("1").setSource(source));
+        indexRandom(false, client().prepareIndex("idx1").setRouting("1").setSource(source));
     }
 
     private void insertIdx2(String[][] values) throws Exception {
@@ -169,7 +167,7 @@ public class ReverseNestedIT extends OpenSearchIntegTestCase {
             source.endArray().endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, client().prepareIndex("idx2", "type").setRouting("1").setSource(source));
+        indexRandom(false, client().prepareIndex("idx2").setRouting("1").setSource(source));
     }
 
     public void testSimpleReverseNestedToRoot() throws Exception {
@@ -531,7 +529,6 @@ public class ReverseNestedIT extends OpenSearchIntegTestCase {
 
     public void testSameParentDocHavingMultipleBuckets() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("product")
             .field("dynamic", "strict")
             .startObject("properties")
             .startObject("id")
@@ -562,14 +559,14 @@ public class ReverseNestedIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
         assertAcked(
             prepareCreate("idx3").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("product", mapping)
+                .setMapping(mapping)
         );
 
-        client().prepareIndex("idx3", "product", "1")
+        client().prepareIndex("idx3")
+            .setId("1")
             .setRefreshPolicy(IMMEDIATE)
             .setSource(
                 jsonBuilder().startObject()

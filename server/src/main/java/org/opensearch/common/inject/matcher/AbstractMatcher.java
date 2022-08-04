@@ -33,6 +33,8 @@ package org.opensearch.common.inject.matcher;
  * Implements {@code and()} and {@code or()}.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractMatcher<T> implements Matcher<T> {
 
@@ -46,6 +48,11 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
         return new OrMatcher<>(this, other);
     }
 
+    /**
+     * An AND matcher
+     *
+     * @opensearch.internal
+     */
     private static class AndMatcher<T> extends AbstractMatcher<T> {
         private final Matcher<? super T> a, b;
 
@@ -75,6 +82,11 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
         }
     }
 
+    /**
+     * An OR matcher
+     *
+     * @opensearch.internal
+     */
     private static class OrMatcher<T> extends AbstractMatcher<T> {
         private final Matcher<? super T> a, b;
 

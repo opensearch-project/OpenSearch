@@ -33,7 +33,6 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -61,40 +60,12 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
             .put("index.analysis.analyzer.my_analyzer.tokenizer", tokenizer)
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(new CommonAnalysisPlugin()))
+        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(new CommonAnalysisModulePlugin()))
             .getAnalysisRegistry()
             .build(idxSettings);
     }
 
     public void testPreConfiguredTokenizer() throws IOException {
-
-        // Before 7.3 we return ngrams of length 1 only
-        {
-            Version version = VersionUtils.randomVersionBetween(
-                random(),
-                LegacyESVersion.fromString("7.0.0"),
-                VersionUtils.getPreviousVersion(LegacyESVersion.fromString("7.3.0"))
-            );
-            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
-            }
-        }
-
-        // Check deprecated name as well
-        {
-            Version version = VersionUtils.randomVersionBetween(
-                random(),
-                LegacyESVersion.fromString("7.0.0"),
-                VersionUtils.getPreviousVersion(LegacyESVersion.fromString("7.3.0"))
-            );
-            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
-            }
-        }
 
         // Afterwards, we return ngrams of length 1 and 2, to match the default factory settings
         {
@@ -109,7 +80,7 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
         {
             try (
                 IndexAnalyzers indexAnalyzers = buildAnalyzers(
-                    VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromString("7.3.0"), Version.CURRENT),
+                    VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT),
                     "edgeNGram"
                 )
             ) {

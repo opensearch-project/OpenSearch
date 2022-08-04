@@ -42,6 +42,8 @@ import java.util.List;
 /**
  * A helper class for fetching field values during the {@link FetchFieldsPhase}. Each {@link MappedFieldType}
  * is in charge of defining a value fetcher through {@link MappedFieldType#valueFetcher}.
+ *
+ * @opensearch.internal
  */
 public interface ValueFetcher {
     /**

@@ -32,7 +32,7 @@
 package org.opensearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DiversifiedTopDocsCollector;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.ParseField;
@@ -62,6 +62,8 @@ import java.util.Map;
  * as the basis for generating de-dup values. Their syntax for creating bucket
  * values would be preferable to users having to recreate this logic in a
  * 'script' e.g. to turn a datetime in milliseconds into a month key value.
+ *
+ * @opensearch.internal
  */
 public class SamplerAggregator extends DeferableBucketAggregator implements SingleBucketAggregator {
 
@@ -71,6 +73,11 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
 
     static final long SCOREDOCKEY_SIZE = RamUsageEstimator.shallowSizeOfInstance(DiversifiedTopDocsCollector.ScoreDocKey.class);
 
+    /**
+     * The execution mode for the sampler
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {

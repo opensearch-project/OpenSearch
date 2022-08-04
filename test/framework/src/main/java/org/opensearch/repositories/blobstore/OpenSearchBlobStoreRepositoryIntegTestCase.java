@@ -107,7 +107,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
             client().admin().cluster().preparePutRepository(name).setType(repositoryType()).setVerify(verify).setSettings(settings)
         );
 
-        internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
+        internalCluster().getDataOrClusterManagerNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
             assertThat(repositories.repository(name), instanceOf(BlobStoreRepository.class));
             assertThat(repositories.repository(name).isReadOnly(), is(false));
@@ -280,7 +280,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
 
     protected BlobStore newBlobStore() {
         final String repository = createRepository(randomName());
-        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getMasterNodeInstance(
+        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getClusterManagerNodeInstance(
             RepositoriesService.class
         ).repository(repository);
         return PlainActionFuture.get(
@@ -326,7 +326,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                     logger.info("--> delete {} random documents from {}", deleteCount, index);
                     for (int i = 0; i < deleteCount; i++) {
                         int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(index, index, Integer.toString(doc)).get();
+                        client().prepareDelete(index, Integer.toString(doc)).get();
                     }
                     client().admin().indices().prepareRefresh(index).get();
                 }
@@ -379,7 +379,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                     logger.info("--> delete {} random documents from {}", deleteCount, indexName);
                     for (int j = 0; j < deleteCount; j++) {
                         int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(indexName, indexName, Integer.toString(doc)).get();
+                        client().prepareDelete(indexName, Integer.toString(doc)).get();
                     }
                     client().admin().indices().prepareRefresh(indexName).get();
                 }
@@ -470,8 +470,11 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snap").get());
 
         logger.info("--> verify index folder deleted from blob container");
-        RepositoriesService repositoriesSvc = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
-        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
+        RepositoriesService repositoriesSvc = internalCluster().getInstance(
+            RepositoriesService.class,
+            internalCluster().getClusterManagerName()
+        );
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getClusterManagerName());
         BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
 
         final SetOnce<BlobContainer> indicesBlobContainer = new SetOnce<>();
@@ -493,7 +496,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     protected void addRandomDocuments(String name, int numDocs) throws InterruptedException {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders[i] = client().prepareIndex(name, name, Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex(name)
+                .setId(Integer.toString(i))
                 .setRouting(randomAlphaOfLength(randomIntBetween(1, 10)))
                 .setSource("field", "value");
         }

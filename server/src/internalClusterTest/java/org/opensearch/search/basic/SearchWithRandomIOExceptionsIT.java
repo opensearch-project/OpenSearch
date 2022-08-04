@@ -32,7 +32,7 @@
 
 package org.opensearch.search.basic;
 
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
@@ -46,7 +46,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
@@ -73,11 +72,9 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("test")
                 .field("type", "keyword")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -108,11 +105,11 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
         if (createIndexWithoutErrors) {
             Settings.Builder settings = Settings.builder().put("index.number_of_replicas", numberOfReplicas());
             logger.info("creating index: [test] using settings: [{}]", settings.build());
-            client().admin().indices().prepareCreate("test").setSettings(settings).addMapping("type", mapping, XContentType.JSON).get();
+            client().admin().indices().prepareCreate("test").setSettings(settings).setMapping(mapping).get();
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
-                client().prepareIndex("test", "type", "init" + i).setSource("test", "init").get();
+                client().prepareIndex("test").setId("init" + i).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
             client().admin().indices().prepareFlush("test").execute().get();
@@ -134,7 +131,7 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
                 // we cannot expect that the index will be valid
                 .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate);
             logger.info("creating index: [test] using settings: [{}]", settings.build());
-            client().admin().indices().prepareCreate("test").setSettings(settings).addMapping("type", mapping, XContentType.JSON).get();
+            client().admin().indices().prepareCreate("test").setSettings(settings).setMapping(mapping).get();
         }
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
@@ -160,7 +157,8 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             added[i] = false;
             try {
-                IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i))
+                IndexResponse indexResponse = client().prepareIndex("test")
+                    .setId(Integer.toString(i))
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test", English.intToEnglish(i))
                     .get();
@@ -192,7 +190,6 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
                 int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
                 SearchResponse searchResponse = client().prepareSearch()
-                    .setTypes("type")
                     .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
                     .setSize(expectedResults)
                     .get();
@@ -202,7 +199,6 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
                 }
                 // check match all
                 searchResponse = client().prepareSearch()
-                    .setTypes("type")
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numCreated + numInitialDocs)
                     .addSort("_uid", SortOrder.ASC)
@@ -239,10 +235,7 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
                 );
             client().admin().indices().prepareOpen("test").execute().get();
             ensureGreen();
-            SearchResponse searchResponse = client().prepareSearch()
-                .setTypes("type")
-                .setQuery(QueryBuilders.matchQuery("test", "init"))
-                .get();
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
             assertNoFailures(searchResponse);
             assertHitCount(searchResponse, numInitialDocs);
         }

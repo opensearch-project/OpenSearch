@@ -40,7 +40,7 @@ import org.opensearch.index.query.QueryBuilders;
 
 import java.io.IOException;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -93,30 +93,6 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     @Override
     protected void extraForSliceAssertions(DeleteByQueryRequest original, DeleteByQueryRequest forSliced) {
         // No extra assertions needed
-    }
-
-    public void testTypesGetter() {
-        int numTypes = between(1, 50);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = randomSimpleString(random(), 1, 30);
-        }
-        SearchRequest searchRequest = new SearchRequest();
-        searchRequest.types(types);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        assertArrayEquals(request.types(), types);
-    }
-
-    public void testTypesSetter() {
-        int numTypes = between(1, 50);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = randomSimpleString(random(), 1, 30);
-        }
-        SearchRequest searchRequest = new SearchRequest();
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        request.types(types);
-        assertArrayEquals(request.types(), types);
     }
 
     public void testValidateGivenNoQuery() {

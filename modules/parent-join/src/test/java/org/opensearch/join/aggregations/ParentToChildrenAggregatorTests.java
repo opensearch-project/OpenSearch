@@ -39,7 +39,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -62,7 +62,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.join.ParentJoinPlugin;
+import org.opensearch.join.ParentJoinModulePlugin;
 import org.opensearch.join.mapper.MetaJoinFieldMapper;
 import org.opensearch.join.mapper.ParentJoinFieldMapper;
 import org.opensearch.plugins.SearchPlugin;
@@ -287,6 +287,6 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return Collections.singletonList(new ParentJoinPlugin());
+        return Collections.singletonList(new ParentJoinModulePlugin());
     }
 }

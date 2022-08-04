@@ -49,6 +49,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Base aggregator for the TDigest agg
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
 
     private static int indexOfKey(double[] keys, double key) {

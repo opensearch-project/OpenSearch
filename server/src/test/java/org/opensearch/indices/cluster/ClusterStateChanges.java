@@ -55,9 +55,9 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.MasterNodeRequest;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
-import org.opensearch.action.support.master.TransportMasterNodeActionUtils;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
+import org.opensearch.action.support.clustermanager.TransportMasterNodeActionUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -81,6 +81,7 @@ import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.FailedShard;
 import org.opensearch.cluster.routing.allocation.RandomAllocationDeciderTests;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -190,6 +191,7 @@ public class ClusterStateChanges {
         // mocks
         clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.getSettings()).thenReturn(SETTINGS);
         IndicesService indicesService = mock(IndicesService.class);
         // MetadataCreateIndexService uses withTempIndexService to check mappings -> fake it here
         try {
@@ -259,7 +261,8 @@ public class ClusterStateChanges {
             null,
             actionFilters
         );
-        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService);
+        final SystemIndices systemIndices = new SystemIndices(emptyMap());
+        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService, systemIndices);
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(
             clusterService,
             allocationService,
@@ -271,13 +274,17 @@ public class ClusterStateChanges {
             transportVerifyShardIndexBlockAction
         );
         MetadataDeleteIndexService deleteIndexService = new MetadataDeleteIndexService(SETTINGS, clusterService, allocationService);
+
+        final AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(SETTINGS, clusterService.getClusterSettings());
+
         MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
             clusterService,
             allocationService,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             indicesService,
             shardLimitValidator,
-            threadPool
+            threadPool,
+            awarenessReplicaBalance
         );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             SETTINGS,
@@ -290,8 +297,9 @@ public class ClusterStateChanges {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             threadPool,
             xContentRegistry,
-            new SystemIndices(emptyMap()),
-            true
+            systemIndices,
+            true,
+            awarenessReplicaBalance
         );
 
         transportCloseIndexAction = new TransportCloseIndexAction(
@@ -396,13 +404,19 @@ public class ClusterStateChanges {
         );
     }
 
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+    public ClusterState joinNodesAndBecomeClusterManager(ClusterState clusterState, List<DiscoveryNode> nodes) {
         List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
-        joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
+        joinNodes.add(JoinTaskExecutor.newBecomeClusterManagerTask());
         joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
         joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList()));
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #joinNodesAndBecomeClusterManager(ClusterState, List)} */
+    @Deprecated
+    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+        return joinNodesAndBecomeClusterManager(clusterState, nodes);
     }
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
@@ -462,14 +476,19 @@ public class ClusterStateChanges {
         }
     }
 
-    private <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> ClusterState execute(
-        TransportMasterNodeAction<Request, Response> masterNodeAction,
+    private <Request extends ClusterManagerNodeRequest<Request>, Response extends ActionResponse> ClusterState execute(
+        TransportClusterManagerNodeAction<Request, Response> masterNodeAction,
         Request request,
         ClusterState clusterState
     ) {
         return executeClusterStateUpdateTask(clusterState, () -> {
             try {
-                TransportMasterNodeActionUtils.runMasterOperation(masterNodeAction, request, clusterState, new PlainActionFuture<>());
+                TransportMasterNodeActionUtils.runClusterManagerOperation(
+                    masterNodeAction,
+                    request,
+                    clusterState,
+                    new PlainActionFuture<>()
+                );
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

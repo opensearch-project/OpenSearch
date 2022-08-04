@@ -52,6 +52,8 @@ import static java.util.Collections.unmodifiableSet;
  * Bind a non-constant key.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public class BindingBuilder<T> extends AbstractBindingBuilder<T> implements AnnotatedBindingBuilder<T> {
 

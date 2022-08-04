@@ -39,6 +39,8 @@ import java.util.Map;
 
 /**
  * An aggregation. Extends {@link ToXContent} as it makes it easier to print out its content.
+ *
+ * @opensearch.internal
  */
 public interface Aggregation extends ToXContentFragment {
 

@@ -54,6 +54,11 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
+/**
+ * Orchestrator class for source lookups
+ *
+ * @opensearch.internal
+ */
 public class SourceLookup implements Map {
 
     private LeafReader reader;

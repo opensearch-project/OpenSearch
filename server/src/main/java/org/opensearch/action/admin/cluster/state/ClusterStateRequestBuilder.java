@@ -33,11 +33,16 @@
 package org.opensearch.action.admin.cluster.state;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
-public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+/**
+ * Transport request builder for obtaining cluster state
+ *
+ * @opensearch.internal
+ */
+public class ClusterStateRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     ClusterStateRequest,
     ClusterStateResponse,
     ClusterStateRequestBuilder> {

@@ -47,6 +47,8 @@ import java.util.concurrent.ThreadFactory;
 
 /**
  * A builder for fixed executors.
+ *
+ * @opensearch.internal
  */
 public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.FixedExecutorSettings> {
 

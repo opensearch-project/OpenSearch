@@ -40,6 +40,7 @@ import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecid
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
@@ -67,6 +68,8 @@ import java.util.function.Predicate;
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
+ *
+ * @opensearch.internal
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
@@ -146,6 +149,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_CHECK_ON_STARTUP,
                 IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
                 IndexSettings.MAX_SLICES_PER_SCROLL,
+                IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 IndexSettings.INDEX_GC_DELETES_SETTING,
@@ -176,6 +180,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
+                IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS,
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
                 FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
@@ -187,6 +192,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.FINAL_PIPELINE,
                 MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
                 ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -203,6 +211,18 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
             )
         )
+    );
+
+    /**
+     * Map of feature flag name to feature-flagged index setting. Once each feature
+     * is ready for production release, the feature flag can be removed, and the
+     * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
+     */
+    public static final Map<String, Setting> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
+        FeatureFlags.REPLICATION_TYPE,
+        IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
+        FeatureFlags.REMOTE_STORE,
+        IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

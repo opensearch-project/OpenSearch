@@ -50,6 +50,11 @@ import java.util.Objects;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
+/**
+ * Aggregation Builder for serial_diff agg
+ *
+ * @opensearch.internal
+ */
 public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<SerialDiffPipelineAggregationBuilder> {
     public static final String NAME = "serial_diff";
 

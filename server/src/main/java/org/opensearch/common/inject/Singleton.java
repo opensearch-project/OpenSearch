@@ -40,6 +40,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * (per {@link Injector}) to be reused for all injections for that binding.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 @Target({ ElementType.TYPE, ElementType.METHOD })
 @Retention(RUNTIME)

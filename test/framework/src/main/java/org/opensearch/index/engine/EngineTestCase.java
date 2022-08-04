@@ -61,6 +61,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -74,6 +76,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
@@ -108,17 +111,19 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -143,14 +148,15 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
 public abstract class EngineTestCase extends OpenSearchTestCase {
 
@@ -173,10 +179,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     protected Path replicaTranslogDir;
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
-
-    protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
-        assertVisibleCount(engine, numDocs, true);
-    }
 
     protected static void assertVisibleCount(Engine engine, int numDocs, boolean refresh) throws IOException {
         if (refresh) {
@@ -224,7 +226,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
         primaryTranslogDir = createTempDir("translog-primary");
-        translogHandler = createTranslogHandler(defaultSettings);
         engine = createEngine(store, primaryTranslogDir);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -331,21 +332,33 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         super.tearDown();
         try {
             if (engine != null && engine.isClosed.get() == false) {
-                engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
-                assertNoInFlightDocuments(engine);
-                assertMaxSeqNoInCommitUserData(engine);
-                assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
+                engine.ensureOpen();
+                assertEngineCleanedUp(engine, assertAndGetInternalTranslogManager(engine.translogManager()).getDeletionPolicy());
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
-                replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
-                assertNoInFlightDocuments(replicaEngine);
-                assertMaxSeqNoInCommitUserData(replicaEngine);
-                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
+                replicaEngine.ensureOpen();
+                assertEngineCleanedUp(
+                    replicaEngine,
+                    assertAndGetInternalTranslogManager(replicaEngine.translogManager()).getDeletionPolicy()
+                );
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
+        }
+    }
+
+    protected InternalTranslogManager assertAndGetInternalTranslogManager(final TranslogManager translogManager) {
+        assertThat(translogManager, instanceOf(InternalTranslogManager.class));
+        return (InternalTranslogManager) translogManager;
+    }
+
+    protected void assertEngineCleanedUp(Engine engine, TranslogDeletionPolicy translogDeletionPolicy) throws Exception {
+        if (engine.isClosed.get() == false) {
+            translogDeletionPolicy.assertNoOpenTranslogRefs();
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+            assertNoInFlightDocuments(engine);
+            assertMaxSeqNoInCommitUserData(engine);
+            assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
         }
     }
 
@@ -411,21 +424,11 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         } else {
             document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         }
-        return new ParsedDocument(
-            versionField,
-            seqID,
-            id,
-            "test",
-            routing,
-            Arrays.asList(document),
-            source,
-            XContentType.JSON,
-            mappingUpdate
-        );
+        return new ParsedDocument(versionField, seqID, id, routing, Arrays.asList(document), source, XContentType.JSON, mappingUpdate);
     }
 
     public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
-        final MapperService mapperService = createMapperService("type");
+        final MapperService mapperService = createMapperService();
         final String nestedMapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
@@ -449,7 +452,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 source.endObject();
             }
             source.endObject();
-            return nestedMapper.parse(new SourceToParse("test", "type", docId, BytesReference.bytes(source), XContentType.JSON));
+            return nestedMapper.parse(new SourceToParse("test", docId, BytesReference.bytes(source), XContentType.JSON));
         };
     }
 
@@ -459,7 +462,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     public static EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
-            public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
+            public ParsedDocument newDeleteTombstoneDoc(String id) {
                 final ParseContext.Document doc = new ParseContext.Document();
                 Field uidField = new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
                 doc.add(uidField);
@@ -475,7 +478,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     versionField,
                     seqID,
                     id,
-                    type,
                     null,
                     Collections.singletonList(doc),
                     new BytesArray("{}"),
@@ -497,17 +499,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 doc.add(versionField);
                 BytesRef byteRef = new BytesRef(reason);
                 doc.add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
-                return new ParsedDocument(
-                    versionField,
-                    seqID,
-                    null,
-                    null,
-                    null,
-                    Collections.singletonList(doc),
-                    null,
-                    XContentType.JSON,
-                    null
-                );
+                return new ParsedDocument(versionField, seqID, null, null, Collections.singletonList(doc), null, XContentType.JSON, null);
             }
         };
     }
@@ -546,8 +538,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         );
     }
 
-    protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {
-        return new TranslogHandler(xContentRegistry(), indexSettings);
+    protected TranslogHandler createTranslogHandler(IndexSettings indexSettings, Engine engine) {
+        return new TranslogHandler(xContentRegistry(), indexSettings, engine);
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
@@ -684,12 +676,13 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+        translogHandler = createTranslogHandler(config.getIndexSettings(), internalEngine);
+        internalEngine.translogManager().recoverFromTranslog(translogHandler, internalEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
         return internalEngine;
     }
 
     public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
-        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
+        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER);
     }
 
     @FunctionalInterface
@@ -965,7 +958,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
-        return new Engine.Get(realtime, realtime, doc.type(), doc.id(), newUid(doc));
+        return new Engine.Get(realtime, realtime, doc.id(), newUid(doc));
     }
 
     protected Engine.Index indexForDoc(ParsedDocument doc) {
@@ -990,7 +983,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
-        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, null, REPLICA, startTime, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+        return new Engine.Delete(id, newUid(id), seqNo, 1, version, null, REPLICA, startTime, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
     }
 
     protected static void assertVisibleCount(InternalEngine engine, int numDocs) throws IOException {
@@ -1055,7 +1048,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 );
             } else {
                 op = new Engine.Delete(
-                    "test",
                     docId,
                     id,
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -1114,7 +1106,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     case DELETE:
                         operations.add(
                             new Engine.Delete(
-                                doc.type(),
                                 doc.id(),
                                 EngineTestCase.newUid(doc),
                                 seqNo,
@@ -1336,9 +1327,9 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
      * Reads all engine operations that have been processed by the engine from Lucene index.
      * The returned operations are sorted and de-duplicated, thus each sequence number will be have at most one operation.
      */
-    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, MapperService mapper) throws IOException {
+    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapper, 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);
@@ -1350,13 +1341,9 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     /**
      * Reads all engine operations that have been processed by the engine from Lucene index/Translog based on source.
      */
-    public static List<Translog.Operation> readAllOperationsBasedOnSource(
-        Engine engine,
-        Engine.HistorySource historySource,
-        MapperService mapper
-    ) throws IOException {
+    public static List<Translog.Operation> readAllOperationsBasedOnSource(Engine engine) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", historySource, mapper, 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);
@@ -1368,8 +1355,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     /**
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
-    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper == null || mapper.documentMapper() == null || (engine instanceof InternalEngine) == false) {
+    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine) throws IOException {
+        if (engine instanceof InternalEngine == false) {
             return;
         }
         final List<Translog.Operation> translogOps = new ArrayList<>();
@@ -1379,7 +1366,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 translogOps.add(op);
             }
         }
-        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
+        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
         for (Translog.Operation op : translogOps) {
@@ -1392,8 +1379,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
         final long seqNoForRecovery;
         if (engine.config().getIndexSettings().isSoftDeleteEnabled()) {
-            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-                seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+            try (GatedCloseable<IndexCommit> wrappedSafeCommit = engine.acquireSafeIndexCommit()) {
+                seqNoForRecovery = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
             }
         } else {
             seqNoForRecovery = engine.getMinRetainedSeqNo();
@@ -1481,7 +1468,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         }
     }
 
-    public static MapperService createMapperService(String type) throws IOException {
+    public static MapperService createMapperService() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(
                 Settings.builder()
@@ -1489,7 +1476,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             )
-            .putMapping(type, "{\"properties\": {}}")
+            .putMapping("{\"properties\": {}}")
             .build();
         MapperService mapperService = MapperTestUtils.newMapperService(
             new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
@@ -1507,7 +1494,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     public static Translog getTranslog(Engine engine) {
         assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
-        return internalEngine.getTranslog();
+        internalEngine.ensureOpen();
+        TranslogManager translogManager = internalEngine.translogManager();
+        assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
+            + engine.getClass();
+        InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
+        return internalTranslogManager.getTranslog();
     }
 
     /**

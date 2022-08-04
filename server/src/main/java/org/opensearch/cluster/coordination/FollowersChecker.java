@@ -76,6 +76,8 @@ import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
  * follower has failed the leader will remove it from the cluster. We are fairly lenient, possibly allowing multiple checks to fail before
  * considering a follower to be faulty, to allow for a brief network partition or a long GC cycle to occur without triggering the removal of
  * a node and the consequent shard reallocation.
+ *
+ * @opensearch.internal
  */
 public class FollowersChecker {
 
@@ -166,7 +168,7 @@ public class FollowersChecker {
             followerCheckers.keySet().removeIf(isUnknownNode);
             faultyNodes.removeIf(isUnknownNode);
 
-            discoveryNodes.mastersFirstStream().forEach(discoveryNode -> {
+            discoveryNodes.clusterManagersFirstStream().forEach(discoveryNode -> {
                 if (discoveryNode.equals(discoveryNodes.getLocalNode()) == false
                     && followerCheckers.containsKey(discoveryNode) == false
                     && faultyNodes.contains(discoveryNode) == false) {
@@ -292,6 +294,11 @@ public class FollowersChecker {
         }
     }
 
+    /**
+     * A fast response state.
+     *
+     * @opensearch.internal
+     */
     static class FastResponseState {
         final long term;
         final Mode mode;
@@ -309,6 +316,8 @@ public class FollowersChecker {
 
     /**
      * A checker for an individual follower.
+     *
+     * @opensearch.internal
      */
     private class FollowerChecker {
         private final DiscoveryNode discoveryNode;
@@ -447,6 +456,11 @@ public class FollowersChecker {
         }
     }
 
+    /**
+     * Request to check follower.
+     *
+     * @opensearch.internal
+     */
     public static class FollowerCheckRequest extends TransportRequest {
 
         private final long term;

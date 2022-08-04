@@ -38,6 +38,8 @@ import org.opensearch.index.IndexSettings;
 
 /**
  * Builds an analyzer for normalization that lowercases terms.
+ *
+ * @opensearch.internal
  */
 public class LowercaseNormalizerProvider extends AbstractIndexAnalyzerProvider<LowercaseNormalizer> {
 

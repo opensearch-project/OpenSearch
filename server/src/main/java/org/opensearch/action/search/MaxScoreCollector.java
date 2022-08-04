@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * A collector that computes the maximum score.
+ *
+ * @opensearch.internal
  */
 public class MaxScoreCollector extends SimpleCollector {
 

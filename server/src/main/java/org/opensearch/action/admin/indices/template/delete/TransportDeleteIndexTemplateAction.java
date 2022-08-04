@@ -37,7 +37,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -53,8 +53,12 @@ import java.io.IOException;
 
 /**
  * Delete index action.
+ *
+ * @opensearch.internal
  */
-public class TransportDeleteIndexTemplateAction extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
+public class TransportDeleteIndexTemplateAction extends TransportClusterManagerNodeAction<
+    DeleteIndexTemplateRequest,
+    AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexTemplateAction.class);
 
@@ -98,13 +102,13 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteIndexTemplateRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
         indexTemplateService.removeTemplates(
-            new MetadataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()),
+            new MetadataIndexTemplateService.RemoveRequest(request.name()).clusterManagerTimeout(request.clusterManagerNodeTimeout()),
             new MetadataIndexTemplateService.RemoveListener() {
                 @Override
                 public void onResponse(MetadataIndexTemplateService.RemoveResponse response) {

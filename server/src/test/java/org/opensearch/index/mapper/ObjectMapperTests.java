@@ -59,7 +59,6 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             defaultMapper.parse(
                 new SourceToParse(
                     "test",
-                    "type",
                     "1",
                     new BytesArray(
                         " {\n"

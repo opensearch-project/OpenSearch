@@ -40,6 +40,8 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.Node;
+import org.opensearch.threadpool.RunnableTaskExecutionListener;
+import org.opensearch.threadpool.TaskAwareRunnable;
 
 import java.util.List;
 import java.util.Optional;
@@ -55,8 +57,14 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+/**
+ * Executors.
+ *
+ * @opensearch.internal
+ */
 public class OpenSearchExecutors {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OpenSearchExecutors.class);
@@ -166,6 +174,43 @@ public class OpenSearchExecutors {
             0,
             TimeUnit.MILLISECONDS,
             queue,
+            threadFactory,
+            new OpenSearchAbortPolicy(),
+            contextHolder
+        );
+    }
+
+    public static OpenSearchThreadPoolExecutor newResizable(
+        String name,
+        int size,
+        int queueCapacity,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        AtomicReference<RunnableTaskExecutionListener> runnableTaskListener
+    ) {
+
+        if (queueCapacity <= 0) {
+            throw new IllegalArgumentException("queue capacity for [" + name + "] executor must be positive, got: " + queueCapacity);
+        }
+
+        Function<Runnable, WrappedRunnable> runnableWrapper;
+        if (runnableTaskListener != null) {
+            runnableWrapper = (runnable) -> {
+                TaskAwareRunnable taskAwareRunnable = new TaskAwareRunnable(contextHolder, runnable, runnableTaskListener);
+                return new TimedRunnable(taskAwareRunnable);
+            };
+        } else {
+            runnableWrapper = TimedRunnable::new;
+        }
+
+        return new QueueResizableOpenSearchThreadPoolExecutor(
+            name,
+            size,
+            size,
+            0,
+            TimeUnit.MILLISECONDS,
+            new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity),
+            runnableWrapper,
             threadFactory,
             new OpenSearchAbortPolicy(),
             contextHolder
@@ -337,6 +382,11 @@ public class OpenSearchExecutors {
         return new OpenSearchThreadFactory(namePrefix);
     }
 
+    /**
+     * A thread factory
+     *
+     * @opensearch.internal
+     */
     static class OpenSearchThreadFactory implements ThreadFactory {
 
         final ThreadGroup group;
@@ -363,6 +413,11 @@ public class OpenSearchExecutors {
      */
     private OpenSearchExecutors() {}
 
+    /**
+     * A scaling queue for executors
+     *
+     * @opensearch.internal
+     */
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
         ThreadPoolExecutor executor;
@@ -396,6 +451,8 @@ public class OpenSearchExecutors {
     /**
      * A handler for rejected tasks that adds the specified element to this queue,
      * waiting if necessary for space to become available.
+     *
+     * @opensearch.internal
      */
     static class ForceQueuePolicy implements XRejectedExecutionHandler {
 

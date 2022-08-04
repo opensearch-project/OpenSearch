@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.containsString;
 public class RemoveCustomsCommandIT extends OpenSearchIntegTestCase {
 
     public void testRemoveCustomsAbortedByUser() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
@@ -59,7 +59,7 @@ public class RemoveCustomsCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testRemoveCustomsSuccessful() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         createIndex("test");
         client().admin().indices().prepareDelete("test").get();
@@ -85,7 +85,7 @@ public class RemoveCustomsCommandIT extends OpenSearchIntegTestCase {
     }
 
     public void testCustomDoesNotMatch() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String node = internalCluster().startNode();
         createIndex("test");
         client().admin().indices().prepareDelete("test").get();

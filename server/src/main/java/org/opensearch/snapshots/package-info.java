@@ -30,13 +30,13 @@
  *
  * <h2>Preliminaries</h2>
  *
- * <p>There are two communication channels between all nodes and master in the snapshot functionality:</p>
+ * <p>There are two communication channels between all nodes and cluster-manager in the snapshot functionality:</p>
  * <ul>
- * <li>The master updates the cluster state by adding, removing or altering the contents of its custom entry
+ * <li>The cluster-manager updates the cluster state by adding, removing or altering the contents of its custom entry
  * {@link org.opensearch.cluster.SnapshotsInProgress}. All nodes consume the state of the {@code SnapshotsInProgress} and will start or
  * abort relevant shard snapshot tasks accordingly.</li>
  * <li>Nodes that are executing shard snapshot tasks report either success or failure of their snapshot task by submitting a
- * {@link org.opensearch.snapshots.UpdateIndexShardSnapshotStatusRequest} to the master node that will update the
+ * {@link org.opensearch.snapshots.UpdateIndexShardSnapshotStatusRequest} to the cluster-manager node that will update the
  * snapshot's entry in the cluster state accordingly.</li>
  * </ul>
  *
@@ -57,8 +57,8 @@
  * the {@code SnapshotShardsService} will check if any local primary shards are to be snapshotted (signaled by the shard's snapshot state
  * being {@code INIT}). For those local primary shards found in state {@code INIT}) the snapshot process of writing the shard's data files
  * to the snapshot's {@link org.opensearch.repositories.Repository} is executed. Once the snapshot execution finishes for a shard an
- * {@code UpdateIndexShardSnapshotStatusRequest} is sent to the master node signaling either status {@code SUCCESS} or {@code FAILED}.
- * The master node will then update a shard's state in the snapshots {@code SnapshotsInProgress.Entry} whenever it receives such a
+ * {@code UpdateIndexShardSnapshotStatusRequest} is sent to the cluster-manager node signaling either status {@code SUCCESS} or {@code FAILED}.
+ * The cluster-manager node will then update a shard's state in the snapshots {@code SnapshotsInProgress.Entry} whenever it receives such a
  * {@code UpdateIndexShardSnapshotStatusRequest}.</li>
  *
  * <li>If as a result of the received status update requests, all shards in the cluster state are in a completed state, i.e are marked as
@@ -82,12 +82,12 @@
  * <li>Aborting a snapshot starts by updating the state of the snapshot's {@code SnapshotsInProgress.Entry} to {@code ABORTED}.</li>
  *
  * <li>The snapshot's state change to {@code ABORTED} in cluster state is then picked up by the {@code SnapshotShardsService} on all nodes.
- * Those nodes that have shard snapshot actions for the snapshot assigned to them, will abort them and notify master about the shards
+ * Those nodes that have shard snapshot actions for the snapshot assigned to them, will abort them and notify cluster-manager about the shards
  * snapshot status accordingly. If the shard snapshot action completed or was in state {@code FINALIZE} when the abort was registered by
- * the {@code SnapshotShardsService}, then the shard's state will be reported to master as {@code SUCCESS}.
+ * the {@code SnapshotShardsService}, then the shard's state will be reported to cluster-manager as {@code SUCCESS}.
  * Otherwise, it will be reported as {@code FAILED}.</li>
  *
- * <li>Once all the shards are reported to master as either {@code SUCCESS} or {@code FAILED} the {@code SnapshotsService} on the master
+ * <li>Once all the shards are reported to cluster-manager as either {@code SUCCESS} or {@code FAILED} the {@code SnapshotsService} on the master
  * will finish the snapshot process as all shard's states are now completed and hence the snapshot can be completed as explained in point 4
  * of the snapshot creation section above.</li>
  * </ol>
@@ -109,7 +109,7 @@
  *
  * <h2>Cloning a Snapshot</h2>
  *
- * <p>Cloning part of a snapshot is a process executed entirely on the master node. On a high level, the process of cloning a snapshot is
+ * <p>Cloning part of a snapshot is a process executed entirely on the cluster-manager node. On a high level, the process of cloning a snapshot is
  * analogous to that of creating a snapshot from data in the cluster except that the source of data files is the snapshot repository
  * instead of the data nodes. It begins with cloning all shards and then finalizes the cloned snapshot the same way a normal snapshot would
  * be finalized. Concretely, it is executed as follows:</p>
@@ -132,7 +132,7 @@
  *     failures of the relevant indices.</li>
  *     <li>Once all shard counts are known and the health of all source indices data has been verified, we populate the
  *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the the relevant shard clone tasks.</li>
- *     <li>After the clone tasks have been added to the {@code SnapshotsInProgress.Entry}, master executes them on its snapshot thread-pool
+ *     <li>After the clone tasks have been added to the {@code SnapshotsInProgress.Entry}, cluster-manager executes them on its snapshot thread-pool
  *     by invoking {@link org.opensearch.repositories.Repository#cloneShardSnapshot} for each shard that is to be cloned. Each completed
  *     shard snapshot triggers a call to the {@link org.opensearch.snapshots.SnapshotsService#SHARD_STATE_EXECUTOR} which updates the
  *     clone's {@code SnapshotsInProgress.Entry} to mark the shard clone operation completed.</li>
@@ -151,7 +151,7 @@
  *
  * If multiple snapshot creation jobs are started at the same time, the data-node operations of multiple snapshots may run in parallel
  * across different shards. If multiple snapshots want to snapshot a certain shard, then the shard snapshots for that shard will be
- * executed one by one. This is enforced by the master node setting the shard's snapshot state to
+ * executed one by one. This is enforced by the cluster-manager node setting the shard's snapshot state to
  * {@link org.opensearch.cluster.SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED} for all but one snapshot. The order of
  * operations on a single shard is given by the order in which the snapshots were started.
  * As soon as all shards for a given snapshot have finished, it will be finalized as explained above. Finalization will happen one snapshot

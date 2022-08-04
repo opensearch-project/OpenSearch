@@ -33,7 +33,7 @@
 package org.opensearch.gateway;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
@@ -75,7 +75,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -97,7 +97,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             "node1",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE),
+            Sets.newHashSet(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         clusterName = new ClusterName(randomAlphaOfLength(10));
@@ -405,7 +405,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             );
             Settings settings = Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value())
-                .put(nonMasterNode())
+                .put(nonClusterManagerNode())
                 .put(Node.NODE_NAME_SETTING.getKey(), "test")
                 .build();
             final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, bigArrays);

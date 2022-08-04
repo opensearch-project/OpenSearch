@@ -77,6 +77,8 @@ import java.util.function.Predicate;
  * <li> {@link #relocateShard} starts relocation of a started shard.
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
 
@@ -599,13 +601,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         ensureMutable();
         assert failedShard.assignedToNode() : "only assigned shards can be failed";
         assert indexMetadata.getIndex().equals(failedShard.index()) : "shard failed for unknown index (shard entry: " + failedShard + ")";
-        assert getByAllocationId(
-            failedShard.shardId(),
-            failedShard.allocationId().getId()
-        ) == failedShard : "shard routing to fail does not exist in routing table, expected: "
-            + failedShard
-            + " but was: "
-            + getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId());
+        assert getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId()) == failedShard
+            : "shard routing to fail does not exist in routing table, expected: "
+                + failedShard
+                + " but was: "
+                + getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId());
 
         logger.debug("{} failing shard {} with unassigned info ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
 
@@ -850,12 +850,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + oldShard
             + " by shard with same shard id but was "
             + newShard;
-        assert oldShard.unassigned() == false
-            && newShard.unassigned() == false : "only assigned shards can be updated in list of assigned shards (prev: "
-                + oldShard
-                + ", new: "
-                + newShard
-                + ")";
+        assert oldShard.unassigned() == false && newShard.unassigned() == false
+            : "only assigned shards can be updated in list of assigned shards (prev: " + oldShard + ", new: " + newShard + ")";
         assert oldShard.currentNodeId().equals(newShard.currentNodeId()) : "shard to update "
             + oldShard
             + " can only update "
@@ -897,6 +893,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.size();
     }
 
+    /**
+     * Unassigned shard list.
+     *
+     * @opensearch.internal
+     */
     public static final class UnassignedShards implements Iterable<ShardRouting> {
 
         private final RoutingNodes nodes;
@@ -993,6 +994,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             ignored.add(shard);
         }
 
+        /**
+         * An unassigned iterator.
+         *
+         * @opensearch.internal
+         */
         public class UnassignedIterator implements Iterator<ShardRouting>, ExistingShardsAllocator.UnassignedAllocationHandler {
 
             private final ListIterator<ShardRouting> iterator;
@@ -1373,6 +1379,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
     }
 
+    /**
+     * A collection of recoveries.
+     *
+     * @opensearch.internal
+     */
     private static final class Recoveries {
         private static final Recoveries EMPTY = new Recoveries();
         private int incoming = 0;

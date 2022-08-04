@@ -37,8 +37,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.DiversifiedTopDocsCollector;
-import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.opensearch.index.fielddata.AbstractNumericDocValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -52,6 +52,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Aggregate all docs that match the diversified ordinal sample
+ *
+ * @opensearch.internal
+ */
 public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
 
     private ValuesSource.Bytes.WithOrdinals.FieldData valuesSource;

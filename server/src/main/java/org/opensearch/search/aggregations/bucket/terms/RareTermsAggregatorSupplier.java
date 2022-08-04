@@ -41,6 +41,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregator supplier interface for rare_terms agg
+ *
+ * @opensearch.internal
+ */
 interface RareTermsAggregatorSupplier {
     Aggregator build(
         String name,

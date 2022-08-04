@@ -59,6 +59,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to reload secure settings
+ *
+ * @opensearch.api
+ */
 public final class RestReloadSecureSettingsAction extends BaseRestHandler implements RestRequestFilter {
 
     static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER = new ObjectParser<>(

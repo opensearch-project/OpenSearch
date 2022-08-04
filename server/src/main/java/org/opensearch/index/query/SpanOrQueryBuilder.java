@@ -32,9 +32,9 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -52,6 +52,8 @@ import static org.opensearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.c
 
 /**
  * Span query that matches the union of its clauses. Maps to {@link SpanOrQuery}.
+ *
+ * @opensearch.internal
  */
 public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_or";

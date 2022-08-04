@@ -31,17 +31,20 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
 /**
- * Thrown when a node join request or a master ping reaches a node which is not
- * currently acting as a master or when a cluster state update task is to be executed
- * on a node that is no longer master.
+ * Thrown when a node join request or a cluster-manager ping reaches a node which is not
+ * currently acting as a cluster-manager or when a cluster state update task is to be executed
+ * on a node that is no longer cluster-manager.
+ *
+ * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link NotClusterManagerException}
  */
-public class NotMasterException extends OpenSearchException {
+@Deprecated
+public class NotMasterException extends NotClusterManagerException {
 
     public NotMasterException(String msg) {
         super(msg);
@@ -51,8 +54,4 @@ public class NotMasterException extends OpenSearchException {
         super(in);
     }
 
-    @Override
-    public Throwable fillInStackTrace() {
-        return this;
-    }
 }

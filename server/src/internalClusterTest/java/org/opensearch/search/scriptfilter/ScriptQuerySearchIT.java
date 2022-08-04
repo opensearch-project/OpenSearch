@@ -127,17 +127,15 @@ public class ScriptQuerySearchIT extends OpenSearchIntegTestCase {
         final byte[] randomBytesDoc2 = getRandomBytes(16);
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("my-index")
-                .addMapping("my-type", createMappingSource("binary"))
-                .setSettings(indexSettings())
+            client().admin().indices().prepareCreate("my-index").setMapping(createMappingSource("binary")).setSettings(indexSettings())
         );
-        client().prepareIndex("my-index", "my-type", "1")
+        client().prepareIndex("my-index")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("binaryData", Base64.getEncoder().encodeToString(randomBytesDoc1)).endObject())
             .get();
         flush();
-        client().prepareIndex("my-index", "my-type", "2")
+        client().prepareIndex("my-index")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("binaryData", Base64.getEncoder().encodeToString(randomBytesDoc2)).endObject())
             .get();
         flush();
@@ -168,12 +166,10 @@ public class ScriptQuerySearchIT extends OpenSearchIntegTestCase {
     private XContentBuilder createMappingSource(String fieldType) throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("my-type")
             .startObject("properties")
             .startObject("binaryData")
             .field("type", fieldType)
             .field("doc_values", "true")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -181,15 +177,18 @@ public class ScriptQuerySearchIT extends OpenSearchIntegTestCase {
 
     public void testCustomScriptBoost() throws Exception {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
             .get();
         flush();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject())
             .get();
         flush();
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
             .get();
         refresh();
@@ -241,10 +240,10 @@ public class ScriptQuerySearchIT extends OpenSearchIntegTestCase {
 
     public void testDisallowExpensiveQueries() {
         try {
-            assertAcked(prepareCreate("test-index").addMapping("_doc", "num1", "type=double"));
+            assertAcked(prepareCreate("test-index").setMapping("num1", "type=double"));
             int docCount = 10;
             for (int i = 1; i <= docCount; i++) {
-                client().prepareIndex("test-index", "_doc").setId("" + i).setSource("num1", i).get();
+                client().prepareIndex("test-index").setId("" + i).setSource("num1", i).get();
             }
             refresh();
 

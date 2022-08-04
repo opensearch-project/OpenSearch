@@ -41,11 +41,16 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.PitSearchContextIdForNode;
+import org.opensearch.action.search.SearchContextIdForNode;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.search.UpdatePitContextRequest;
+import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
@@ -222,7 +227,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testClearOnClose() {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
         assertThat(searchResponse.getScrollId(), is(notNullValue()));
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -234,7 +239,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testClearOnStop() {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
         assertThat(searchResponse.getScrollId(), is(notNullValue()));
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -246,7 +251,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testClearIndexDelete() {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
         assertThat(searchResponse.getScrollId(), is(notNullValue()));
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -259,7 +264,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public void testCloseSearchContextOnRewriteException() {
         // if refresh happens while checking the exception, the subsequent reference count might not match, so we switch it off
         createIndex("index", Settings.builder().put("index.refresh_interval", -1).build());
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchService service = getInstanceFromNode(SearchService.class);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -278,7 +283,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchService service = getInstanceFromNode(SearchService.class);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -302,7 +307,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        client().prepareIndex("index", "type")
+                        client().prepareIndex("index")
                             .setSource("field", "value")
                             .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()))
                             .execute(new ActionListener<IndexResponse>() {
@@ -387,7 +392,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testSearchWhileIndexDeletedDoesNotLeakSearchContext() throws ExecutionException, InterruptedException {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
@@ -633,7 +638,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
      */
     public void testMaxOpenScrollContexts() throws Exception {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -958,7 +963,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             ).canMatch()
         );
         // the source can match and can be rewritten to a match_none, but not the alias filter
-        final IndexResponse response = client().prepareIndex("index", "_doc", "1").setSource("id", "1").get();
+        final IndexResponse response = client().prepareIndex("index").setId("1").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
         searchRequest.indices("alias").source(new SearchSourceBuilder().query(new TermQueryBuilder("id", "1")));
         assertFalse(
@@ -1050,7 +1055,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         final SearchService service = getInstanceFromNode(SearchService.class);
         Index index = resolveIndex("throttled_threadpool_index");
         assertTrue(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
-        client().prepareIndex("throttled_threadpool_index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("throttled_threadpool_index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("throttled_threadpool_index")
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
             .setSize(1)
@@ -1104,7 +1109,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             )
         ).actionGet();
 
-        client().prepareIndex("throttled_threadpool_index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("throttled_threadpool_index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(client().prepareSearch().get(), 1L);
         assertHitCount(client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED).get(), 1L);
     }
@@ -1116,7 +1121,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("frozen_index", "index.frozen", "true")
         ).actionGet();
 
-        client().prepareIndex("frozen_index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("frozen_index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(client().prepareSearch().get(), 0L);
         assertHitCount(client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED).get(), 1L);
     }
@@ -1180,7 +1185,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         final IndexService indexService = createIndex(index);
         final SearchService service = getInstanceFromNode(SearchService.class);
         final ShardId shardId = new ShardId(indexService.index(), 0);
-        final ShardSearchRequest request = new ShardSearchRequest(shardId, new String[0], 0, null) {
+        final ShardSearchRequest request = new ShardSearchRequest(shardId, 0, null) {
             @Override
             public SearchType searchType() {
                 // induce an artificial NPE
@@ -1315,7 +1320,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         createIndex("test");
         int numDocs = randomIntBetween(1, 20);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "_doc").setSource("f", "v").get();
+            client().prepareIndex("test").setSource("f", "v").get();
         }
         client().admin().indices().prepareRefresh("test").get();
         AtomicBoolean stopped = new AtomicBoolean(false);
@@ -1406,9 +1411,10 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);
         PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
-        searchService.openReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
     }
 
@@ -1421,5 +1427,129 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             randomNonNegativeLong(),
             false
         );
+    }
+
+    public void testDeletePitReaderContext() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        List<PitSearchContextIdForNode> contextIds = new ArrayList<>();
+        ShardSearchContextId shardSearchContextId = future.actionGet();
+        PitSearchContextIdForNode pitSearchContextIdForNode = new PitSearchContextIdForNode(
+            "1",
+            new SearchContextIdForNode(null, "node1", shardSearchContextId)
+        );
+        contextIds.add(pitSearchContextIdForNode);
+
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(1));
+        DeletePitResponse deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
+        // assert true for reader context not found
+        deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
+        // adding this assert to showcase behavior difference
+        assertFalse(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testPitContextMaxKeepAlive() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueHours(25), future);
+            future.actionGet();
+        });
+        assertEquals(
+            "Keep alive for request (1d) is too large. "
+                + "It must be less than ("
+                + SearchService.MAX_PIT_KEEPALIVE_SETTING.get(Settings.EMPTY)
+                + "). "
+                + "This limit can be set by changing the ["
+                + SearchService.MAX_PIT_KEEPALIVE_SETTING.getKey()
+                + "] cluster level setting.",
+            ex.getMessage()
+        );
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(0));
+    }
+
+    public void testUpdatePitId() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        ShardSearchContextId id = future.actionGet();
+        PlainActionFuture<UpdatePitContextResponse> updateFuture = new PlainActionFuture<>();
+        UpdatePitContextRequest updateRequest = new UpdatePitContextRequest(
+            id,
+            "pitId",
+            TimeValue.timeValueMinutes(between(1, 10)).millis(),
+            System.currentTimeMillis()
+        );
+        searchService.updatePitIdAndKeepAlive(updateRequest, updateFuture);
+        UpdatePitContextResponse updateResponse = updateFuture.actionGet();
+        assertTrue(updateResponse.getPitId().equalsIgnoreCase("pitId"));
+        assertTrue(updateResponse.getCreationTime() == updateRequest.getCreationTime());
+        assertTrue(updateResponse.getKeepAlive() == updateRequest.getKeepAlive());
+        assertTrue(updateResponse.getPitId().equalsIgnoreCase("pitId"));
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(1));
+        assertTrue(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testUpdatePitIdMaxKeepAlive() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        ShardSearchContextId id = future.actionGet();
+
+        UpdatePitContextRequest updateRequest = new UpdatePitContextRequest(
+            id,
+            "pitId",
+            TimeValue.timeValueHours(25).millis(),
+            System.currentTimeMillis()
+        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            PlainActionFuture<UpdatePitContextResponse> updateFuture = new PlainActionFuture<>();
+            searchService.updatePitIdAndKeepAlive(updateRequest, updateFuture);
+        });
+
+        assertEquals(
+            "Keep alive for request (1d) is too large. "
+                + "It must be less than ("
+                + SearchService.MAX_PIT_KEEPALIVE_SETTING.get(Settings.EMPTY)
+                + "). "
+                + "This limit can be set by changing the ["
+                + SearchService.MAX_PIT_KEEPALIVE_SETTING.getKey()
+                + "] cluster level setting.",
+            ex.getMessage()
+        );
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(1));
+        assertTrue(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testUpdatePitIdWithInvalidReaderId() {
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        ShardSearchContextId id = new ShardSearchContextId("session", 9);
+
+        UpdatePitContextRequest updateRequest = new UpdatePitContextRequest(
+            id,
+            "pitId",
+            TimeValue.timeValueHours(23).millis(),
+            System.currentTimeMillis()
+        );
+        SearchContextMissingException ex = expectThrows(SearchContextMissingException.class, () -> {
+            PlainActionFuture<UpdatePitContextResponse> updateFuture = new PlainActionFuture<>();
+            searchService.updatePitIdAndKeepAlive(updateRequest, updateFuture);
+        });
+
+        assertEquals("No search context found for id [" + id.getId() + "]", ex.getMessage());
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(0));
     }
 }

@@ -65,7 +65,7 @@ public class MultiplexerTokenFilterTests extends OpenSearchTokenStreamTestCase {
 
         IndexAnalyzers indexAnalyzers = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisPlugin())
+            Collections.singletonList(new CommonAnalysisModulePlugin())
         ).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
@@ -99,7 +99,7 @@ public class MultiplexerTokenFilterTests extends OpenSearchTokenStreamTestCase {
 
         IndexAnalyzers indexAnalyzers = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisPlugin())
+            Collections.singletonList(new CommonAnalysisModulePlugin())
         ).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {

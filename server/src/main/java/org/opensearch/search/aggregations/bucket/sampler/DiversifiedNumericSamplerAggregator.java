@@ -35,8 +35,8 @@ package org.opensearch.search.aggregations.bucket.sampler;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DiversifiedTopDocsCollector;
-import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.opensearch.OpenSearchException;
 import org.opensearch.index.fielddata.AbstractNumericDocValues;
@@ -51,6 +51,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Aggregate all docs that match the diversified numeric sample
+ *
+ * @opensearch.internal
+ */
 public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
 
     private ValuesSource.Numeric valuesSource;

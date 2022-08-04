@@ -47,6 +47,8 @@ import java.util.function.Predicate;
 
 /**
  * Base class for all services and components that need up-to-date information about the registered remote clusters
+ *
+ * @opensearch.internal
  */
 public abstract class RemoteClusterAware {
 

@@ -60,19 +60,17 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testTook() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
             .field("term_vector", "with_positions_offsets_payloads")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
         createIndex("test", Settings.EMPTY, "type1", mapping);
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -81,7 +79,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
 
         List<Long> longs = Stream.of(abs(randomLong()), abs(randomLong())).sorted().collect(toList());
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "type1", "0");
+        TermVectorsRequest request = new TermVectorsRequest("test", "0");
         TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request, longs.iterator()::next);
 
         assertThat(response, notNullValue());
@@ -90,12 +88,10 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testDocFreqs() throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("_doc")
             .startObject("properties")
             .startObject("text")
             .field("type", "text")
             .field("term_vector", "with_positions_offsets_payloads")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -107,12 +103,12 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
             bulk.add(
-                client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
             );
         }
         bulk.get();
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "_doc", "0").termStatistics(true);
+        TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -130,13 +126,11 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testWithIndexedPhrases() throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("_doc")
             .startObject("properties")
             .startObject("text")
             .field("type", "text")
             .field("index_phrases", true)
             .field("term_vector", "with_positions_offsets_payloads")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -148,12 +142,12 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
             bulk.add(
-                client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
             );
         }
         bulk.get();
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "_doc", "0").termStatistics(true);
+        TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));

@@ -35,7 +35,7 @@ package org.opensearch.action.ingest;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -48,7 +48,12 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class DeletePipelineTransportAction extends TransportMasterNodeAction<DeletePipelineRequest, AcknowledgedResponse> {
+/**
+ * Perform the action of deleting a pipeline
+ *
+ * @opensearch.internal
+ */
+public class DeletePipelineTransportAction extends TransportClusterManagerNodeAction<DeletePipelineRequest, AcknowledgedResponse> {
 
     private final IngestService ingestService;
 
@@ -83,7 +88,7 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected void masterOperation(DeletePipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+    protected void clusterManagerOperation(DeletePipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         ingestService.delete(request, listener);
     }

@@ -127,7 +127,6 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                             .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                     )
                         .putMapping(
-                            "_doc",
                             XContentHelper.convertToJson(
                                 BytesReference.bytes(
                                     XContentFactory.jsonBuilder()
@@ -153,7 +152,6 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                                 .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                         )
                             .putMapping(
-                                "_doc",
                                 XContentHelper.convertToJson(
                                     BytesReference.bytes(
                                         XContentFactory.jsonBuilder()
@@ -225,8 +223,8 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
-        request.add(new MultiGetRequest.Item("index1", "_doc", "1"));
-        request.add(new MultiGetRequest.Item("index1", "_doc", "2"));
+        request.add(new MultiGetRequest.Item("index1", "1"));
+        request.add(new MultiGetRequest.Item("index1", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
         transportAction = new TransportMultiGetAction(
@@ -257,8 +255,8 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
-        request.add(new MultiGetRequest.Item("index2", "_doc", "1").routing("1"));
-        request.add(new MultiGetRequest.Item("index2", "_doc", "2"));
+        request.add(new MultiGetRequest.Item("index2", "1").routing("1"));
+        request.add(new MultiGetRequest.Item("index2", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
         transportAction = new TransportMultiGetAction(

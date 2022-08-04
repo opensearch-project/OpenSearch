@@ -84,6 +84,11 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
+/**
+ * Controller for the search phase.
+ *
+ * @opensearch.internal
+ */
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
@@ -224,7 +229,6 @@ public final class SearchPhaseController {
         if (results.isEmpty()) {
             return null;
         }
-        final boolean setShardIndex = false;
         final TopDocs topDocs = results.stream().findFirst().get();
         final TopDocs mergedTopDocs;
         final int numShards = results.size();
@@ -234,15 +238,15 @@ public final class SearchPhaseController {
             CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
-            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, setShardIndex);
+            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
-            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs, setShardIndex);
+            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
-            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs, setShardIndex);
+            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
         return mergedTopDocs;
     }
@@ -609,6 +613,11 @@ public final class SearchPhaseController {
             : source.from());
     }
 
+    /**
+     * The reduced query phase
+     *
+     * @opensearch.internal
+     */
     public static final class ReducedQueryPhase {
         // the sum of all hits across all reduces shards
         final TotalHits totalHits;
@@ -710,6 +719,11 @@ public final class SearchPhaseController {
         );
     }
 
+    /**
+     * The top docs statistics
+     *
+     * @opensearch.internal
+     */
     static final class TopDocsStats {
         final int trackTotalHitsUpTo;
         long totalHits;
@@ -774,6 +788,11 @@ public final class SearchPhaseController {
         }
     }
 
+    /**
+     * Top docs that have been sorted
+     *
+     * @opensearch.internal
+     */
     static final class SortedTopDocs {
         static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null);
         // the searches merged top docs

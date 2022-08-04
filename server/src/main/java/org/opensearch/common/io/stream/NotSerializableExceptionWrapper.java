@@ -44,6 +44,8 @@ import java.io.IOException;
  * This class will preserve the stacktrace as well as the suppressed exceptions of
  * the throwable it was created with instead of it's own. The stacktrace has no indication
  * of where this exception was created.
+ *
+ * @opensearch.internal
  */
 public final class NotSerializableExceptionWrapper extends OpenSearchException {
 

@@ -52,6 +52,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 
 /**
  * Base class for all broadcast operation based responses.
+ *
+ * @opensearch.internal
  */
 public class BroadcastResponse extends ActionResponse implements ToXContentObject {
 

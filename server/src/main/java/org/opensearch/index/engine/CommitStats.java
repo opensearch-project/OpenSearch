@@ -44,7 +44,11 @@ import java.io.IOException;
 import java.util.Base64;
 import java.util.Map;
 
-/** a class the returns dynamic information with respect to the last commit point of this shard */
+/**
+ * a class the returns dynamic information with respect to the last commit point of this shard
+ *
+ * @opensearch.internal
+ */
 public final class CommitStats implements Writeable, ToXContentFragment {
 
     private final Map<String, String> userData;
@@ -108,6 +112,11 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         out.writeInt(numDocs);
     }
 
+    /**
+     * Fields used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String GENERATION = "generation";
         static final String USER_DATA = "user_data";

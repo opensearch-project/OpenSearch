@@ -57,7 +57,6 @@ import static org.opensearch.action.ingest.SimulatePipelineRequest.SIMULATED_PIP
 import static org.opensearch.ingest.IngestDocument.Metadata.ID;
 import static org.opensearch.ingest.IngestDocument.Metadata.INDEX;
 import static org.opensearch.ingest.IngestDocument.Metadata.ROUTING;
-import static org.opensearch.ingest.IngestDocument.Metadata.TYPE;
 import static org.opensearch.ingest.IngestDocument.Metadata.VERSION;
 import static org.opensearch.ingest.IngestDocument.Metadata.VERSION_TYPE;
 import static org.opensearch.ingest.IngestDocument.Metadata.IF_SEQ_NO;
@@ -86,15 +85,7 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         when(ingestService.getProcessorFactories()).thenReturn(registry);
     }
 
-    public void testParseUsingPipelineStoreNoType() throws Exception {
-        innerTestParseUsingPipelineStore(false);
-    }
-
-    public void testParseUsingPipelineStoreWithType() throws Exception {
-        innerTestParseUsingPipelineStore(true);
-    }
-
-    private void innerTestParseUsingPipelineStore(boolean useExplicitType) throws Exception {
+    public void testParseUsingPipelineStore(boolean useExplicitType) throws Exception {
         int numDocs = randomIntBetween(1, 10);
 
         Map<String, Object> requestContent = new HashMap<>();
@@ -104,12 +95,8 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             String index = randomAlphaOfLengthBetween(1, 10);
-            String type = randomAlphaOfLengthBetween(1, 10);
             String id = randomAlphaOfLengthBetween(1, 10);
             doc.put(INDEX.getFieldName(), index);
-            if (useExplicitType) {
-                doc.put(TYPE.getFieldName(), type);
-            }
             doc.put(ID.getFieldName(), id);
             String fieldName = randomAlphaOfLengthBetween(1, 10);
             String fieldValue = randomAlphaOfLengthBetween(1, 10);
@@ -117,11 +104,6 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
             docs.add(doc);
             Map<String, Object> expectedDoc = new HashMap<>();
             expectedDoc.put(INDEX.getFieldName(), index);
-            if (useExplicitType) {
-                expectedDoc.put(TYPE.getFieldName(), type);
-            } else {
-                expectedDoc.put(TYPE.getFieldName(), "_doc");
-            }
             expectedDoc.put(ID.getFieldName(), id);
             expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
             expectedDocs.add(expectedDoc);
@@ -140,7 +122,6 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
             assertThat(metadataMap.get(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(metadataMap.get(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
             assertThat(metadataMap.get(ID), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
@@ -148,20 +129,9 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         assertThat(actualRequest.getPipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
-        if (useExplicitType) {
-            assertWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
-        }
     }
 
-    public void testParseWithProvidedPipelineNoType() throws Exception {
-        innerTestParseWithProvidedPipeline(false);
-    }
-
-    public void testParseWithProvidedPipelineWithType() throws Exception {
-        innerTestParseWithProvidedPipeline(true);
-    }
-
-    private void innerTestParseWithProvidedPipeline(boolean useExplicitType) throws Exception {
+    public void innerTestParseWithProvidedPipeline() throws Exception {
         int numDocs = randomIntBetween(1, 10);
 
         Map<String, Object> requestContent = new HashMap<>();
@@ -171,16 +141,7 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             Map<String, Object> expectedDoc = new HashMap<>();
-            List<IngestDocument.Metadata> fields = Arrays.asList(
-                INDEX,
-                TYPE,
-                ID,
-                ROUTING,
-                VERSION,
-                VERSION_TYPE,
-                IF_SEQ_NO,
-                IF_PRIMARY_TERM
-            );
+            List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO, IF_PRIMARY_TERM);
             for (IngestDocument.Metadata field : fields) {
                 if (field == VERSION) {
                     Long value = randomLong();
@@ -194,14 +155,6 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
                     Long value = randomNonNegativeLong();
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
-                } else if (field == TYPE) {
-                    if (useExplicitType) {
-                        String value = randomAlphaOfLengthBetween(1, 10);
-                        doc.put(field.getFieldName(), value);
-                        expectedDoc.put(field.getFieldName(), value);
-                    } else {
-                        expectedDoc.put(field.getFieldName(), "_doc");
-                    }
                 } else {
                     if (randomBoolean()) {
                         String value = randomAlphaOfLengthBetween(1, 10);
@@ -270,9 +223,6 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         assertThat(actualRequest.getPipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(numProcessors));
-        if (useExplicitType) {
-            assertWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
-        }
     }
 
     public void testNullPipelineId() {

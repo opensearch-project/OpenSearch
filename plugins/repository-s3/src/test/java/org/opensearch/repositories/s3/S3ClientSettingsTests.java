@@ -37,10 +37,15 @@ import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3Client;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
@@ -55,10 +60,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         assertThat(defaultSettings.credentials, nullValue());
         assertThat(defaultSettings.endpoint, is(emptyString()));
         assertThat(defaultSettings.protocol, is(Protocol.HTTPS));
-        assertThat(defaultSettings.proxyHost, is(emptyString()));
-        assertThat(defaultSettings.proxyPort, is(80));
-        assertThat(defaultSettings.proxyUsername, is(emptyString()));
-        assertThat(defaultSettings.proxyPassword, is(emptyString()));
+        assertThat(defaultSettings.proxySettings, is(ProxySettings.NO_PROXY_SETTINGS));
         assertThat(defaultSettings.readTimeoutMillis, is(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT));
         assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
         assertThat(defaultSettings.throttleRetries, is(ClientConfiguration.DEFAULT_THROTTLE_RETRIES));
@@ -115,6 +117,52 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
             () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build())
         );
         assertThat(e.getMessage(), is("Missing access key and secret key for s3 client [default]"));
+    }
+
+    public void testIrsaCredentialsTypeWithIdentityTokenFile() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.identity_token_file", "file").build()
+        );
+        final S3ClientSettings defaultSettings = settings.get("default");
+        final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
+        assertThat(credentials.getIdentityTokenFile(), is("file"));
+        assertThat(credentials.getRoleArn(), is(nullValue()));
+        assertThat(credentials.getRoleSessionName(), startsWith("s3-sdk-java-"));
+    }
+
+    public void testIrsaCredentialsTypeRoleArn() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.role_arn", "role");
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
+        final S3ClientSettings defaultSettings = settings.get("default");
+        final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
+        assertThat(credentials.getRoleArn(), is("role"));
+        assertThat(credentials.getRoleSessionName(), startsWith("s3-sdk-java-"));
+    }
+
+    public void testIrsaCredentialsTypeWithRoleArnAndRoleSessionName() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.role_arn", "role");
+        secureSettings.setString("s3.client.default.role_session_name", "session");
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
+        final S3ClientSettings defaultSettings = settings.get("default");
+        final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
+        assertThat(credentials.getRoleArn(), is("role"));
+        assertThat(credentials.getRoleSessionName(), is("session"));
+    }
+
+    public void testIrsaCredentialsTypeWithRoleArnAndRoleSessionNameAndIdentityTokeFile() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.role_arn", "role");
+        secureSettings.setString("s3.client.default.role_session_name", "session");
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).put("s3.client.default.identity_token_file", "file").build()
+        );
+        final S3ClientSettings defaultSettings = settings.get("default");
+        final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
+        assertThat(credentials.getIdentityTokenFile(), is("file"));
+        assertThat(credentials.getRoleArn(), is("role"));
+        assertThat(credentials.getRoleSessionName(), is("session"));
     }
 
     public void testCredentialsTypeWithAccessKeyAndSecretKey() {
@@ -198,7 +246,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
         try (S3Service s3Service = new S3Service()) {
-            AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other"));
+            AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other")).client();
             assertThat(other.getSignerRegionOverride(), is(region));
         }
     }
@@ -215,4 +263,77 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"));
         assertThat(configuration.getSignerOverride(), is(signerOverride));
     }
+
+    public void testSetProxySettings() throws Exception {
+        final int port = randomIntBetween(10, 1080);
+        final String userName = randomAlphaOfLength(10);
+        final String password = randomAlphaOfLength(10);
+        final String proxyType = randomFrom("http", "https", "socks");
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.proxy.username", userName);
+        secureSettings.setString("s3.client.default.proxy.password", password);
+
+        final Settings settings = Settings.builder()
+            .put("s3.client.default.proxy.type", proxyType)
+            .put("s3.client.default.proxy.host", randomFrom("127.0.0.10"))
+            .put("s3.client.default.proxy.port", randomFrom(port))
+            .setSecureSettings(secureSettings)
+            .build();
+
+        final S3ClientSettings s3ClientSettings = S3ClientSettings.load(settings).get("default");
+
+        assertEquals(ProxySettings.ProxyType.valueOf(proxyType.toUpperCase(Locale.ROOT)), s3ClientSettings.proxySettings.getType());
+        assertEquals(new InetSocketAddress(InetAddress.getByName("127.0.0.10"), port), s3ClientSettings.proxySettings.getAddress());
+        assertEquals(userName, s3ClientSettings.proxySettings.getUsername());
+        assertEquals(password, s3ClientSettings.proxySettings.getPassword());
+    }
+
+    public void testProxyWrongHost() {
+        final Settings settings = Settings.builder()
+            .put("s3.client.default.proxy.type", randomFrom("socks", "http"))
+            .put("s3.client.default.proxy.host", "thisisnotavalidhostorwehavebeensuperunlucky")
+            .put("s3.client.default.proxy.port", 8080)
+            .build();
+        final SettingsException e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings));
+        assertEquals("S3 proxy host is unknown.", e.getMessage());
+    }
+
+    public void testProxyTypeNotSet() {
+        final Settings hostPortSettings = Settings.builder()
+            .put("s3.client.default.proxy.host", "127.0.0.1")
+            .put("s3.client.default.proxy.port", 8080)
+            .build();
+
+        SettingsException e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(hostPortSettings));
+        assertEquals("S3 proxy port or host or username or password have been set but proxy type is not defined.", e.getMessage());
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.proxy.username", "aaaa");
+        secureSettings.setString("s3.client.default.proxy.password", "bbbb");
+        final Settings usernamePasswordSettings = Settings.builder().setSecureSettings(secureSettings).build();
+
+        e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(usernamePasswordSettings));
+        assertEquals("S3 proxy port or host or username or password have been set but proxy type is not defined.", e.getMessage());
+    }
+
+    public void testProxyHostNotSet() {
+        final Settings settings = Settings.builder()
+            .put("s3.client.default.proxy.port", 8080)
+            .put("s3.client.default.proxy.type", randomFrom("socks", "http", "https"))
+            .build();
+        final SettingsException e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings));
+        assertEquals("S3 proxy type has been set but proxy host or port is not defined.", e.getMessage());
+    }
+
+    public void testSocksDoesNotSupportForHttpProtocol() {
+        final Settings settings = Settings.builder()
+            .put("s3.client.default.proxy.host", "127.0.0.1")
+            .put("s3.client.default.proxy.port", 8080)
+            .put("s3.client.default.protocol", "http")
+            .put("s3.client.default.proxy.type", "socks")
+            .build();
+        expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings));
+    }
+
 }

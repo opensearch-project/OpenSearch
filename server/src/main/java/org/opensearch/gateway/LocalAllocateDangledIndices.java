@@ -53,7 +53,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.MasterNotDiscoveredException;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -68,6 +68,11 @@ import java.util.Collection;
 
 import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
 
+/**
+ * Allocates dangled indices
+ *
+ * @opensearch.internal
+ */
 public class LocalAllocateDangledIndices {
 
     private static final Logger logger = LogManager.getLogger(LocalAllocateDangledIndices.class);
@@ -103,9 +108,9 @@ public class LocalAllocateDangledIndices {
 
     public void allocateDangled(Collection<IndexMetadata> indices, ActionListener<AllocateDangledResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
-        if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
+        DiscoveryNode clusterManagerNode = clusterState.nodes().getClusterManagerNode();
+        if (clusterManagerNode == null) {
+            listener.onFailure(new ClusterManagerNotDiscoveredException("no cluster-manager to send allocate dangled request"));
             return;
         }
         AllocateDangledRequest request = new AllocateDangledRequest(
@@ -113,7 +118,7 @@ public class LocalAllocateDangledIndices {
             indices.toArray(new IndexMetadata[indices.size()])
         );
         transportService.sendRequest(
-            masterNode,
+            clusterManagerNode,
             ACTION_NAME,
             request,
             new ActionListenerResponseHandler<>(listener, AllocateDangledResponse::new, ThreadPool.Names.SAME)
@@ -160,7 +165,7 @@ public class LocalAllocateDangledIndices {
                                 indexMetadata.getIndex(),
                                 request.fromNode,
                                 indexMetadata.getCreationVersion(),
-                                currentState.getNodes().getMasterNode().getVersion()
+                                currentState.getNodes().getClusterManagerNode().getVersion()
                             );
                             continue;
                         }
@@ -261,6 +266,12 @@ public class LocalAllocateDangledIndices {
         }
     }
 
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
+
     public static class AllocateDangledRequest extends TransportRequest {
 
         DiscoveryNode fromNode;
@@ -285,6 +296,11 @@ public class LocalAllocateDangledIndices {
         }
     }
 
+    /**
+     * The response.
+     *
+     * @opensearch.internal
+     */
     public static class AllocateDangledResponse extends TransportResponse {
 
         private boolean ack;

@@ -50,6 +50,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a geographic bounds
+ *
+ * @opensearch.internal
+ */
 final class GeoBoundsAggregator extends MetricsAggregator {
 
     static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");

@@ -60,6 +60,8 @@ import java.util.stream.Collectors;
 /**
  * A class that represents the data in a repository, as captured in the
  * repository's index blob.
+ *
+ * @opensearch.internal
  */
 public final class RepositoryData {
 
@@ -168,11 +170,8 @@ public final class RepositoryData {
             + shardGenerations.indices()
             + " but snapshots only reference indices "
             + indices.values();
-        assert indexSnapshots.values()
-            .stream()
-            .noneMatch(
-                snapshotIdList -> new HashSet<>(snapshotIdList).size() != snapshotIdList.size()
-            ) : "Found duplicate snapshot ids per index in [" + indexSnapshots + "]";
+        assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> new HashSet<>(snapshotIdList).size() != snapshotIdList.size())
+            : "Found duplicate snapshot ids per index in [" + indexSnapshots + "]";
     }
 
     protected RepositoryData copy() {
@@ -355,8 +354,8 @@ public final class RepositoryData {
                 + "]";
             newIndexMetaGenerations = IndexMetaDataGenerations.EMPTY;
         } else {
-            assert indexMetaBlobs.isEmpty()
-                || shardGenerations.indices().equals(indexMetaBlobs.keySet()) : "Shard generations contained indices "
+            assert indexMetaBlobs.isEmpty() || shardGenerations.indices().equals(indexMetaBlobs.keySet())
+                : "Shard generations contained indices "
                     + shardGenerations.indices()
                     + " but indexMetaData was given for "
                     + indexMetaBlobs.keySet();

@@ -60,6 +60,11 @@ import java.util.stream.Stream;
 
 import static org.opensearch.common.settings.Setting.intSetting;
 
+/**
+ * Connect through a proxy
+ *
+ * @opensearch.internal
+ */
 public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     /**
@@ -339,6 +344,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         return new TransportAddress(parseConfiguredAddress(address));
     }
 
+    /**
+     * Contains information about the proxy mode
+     *
+     * @opensearch.internal
+     */
     public static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         private final String address;

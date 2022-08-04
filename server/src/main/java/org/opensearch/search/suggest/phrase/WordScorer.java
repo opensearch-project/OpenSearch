@@ -44,7 +44,12 @@ import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSe
 
 import java.io.IOException;
 
-//TODO public for tests
+/**
+ * Scores by words
+ *
+ * @opensearch.internal
+ */
+// TODO public for tests
 public abstract class WordScorer {
     protected final IndexReader reader;
     protected final String field;
@@ -128,6 +133,11 @@ public abstract class WordScorer {
         return result.get();
     }
 
+    /**
+     * Factory for a new scorer
+     *
+     * @opensearch.internal
+     */
     public interface WordScorerFactory {
         WordScorer newScorer(IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator)
             throws IOException;

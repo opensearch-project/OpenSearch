@@ -34,20 +34,20 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.AssertingDirectoryReader;
+import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.AssertingIndexSearcher;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -175,16 +175,16 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
-    private static List<String> TYPE_TEST_BLACKLIST;
+    private static List<String> TYPE_TEST_DENYLIST;
 
     static {
-        List<String> blacklist = new ArrayList<>();
-        blacklist.add(ObjectMapper.CONTENT_TYPE); // Cannot aggregate objects
-        blacklist.add(GeoShapeFieldMapper.CONTENT_TYPE); // Cannot aggregate geoshapes (yet)
-        blacklist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
-        blacklist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
-        blacklist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
-        TYPE_TEST_BLACKLIST = blacklist;
+        List<String> denylist = new ArrayList<>();
+        denylist.add(ObjectMapper.CONTENT_TYPE); // Cannot aggregate objects
+        denylist.add(GeoShapeFieldMapper.CONTENT_TYPE); // Cannot aggregate geoshapes (yet)
+        denylist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
+        denylist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
+        denylist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
+        TYPE_TEST_DENYLIST = denylist;
     }
 
     /**
@@ -334,7 +334,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             indexSearcher.getSimilarity(),
             queryCache,
             queryCachingPolicy,
-            false
+            false,
+            null
         );
 
         SearchContext searchContext = mock(SearchContext.class);
@@ -652,7 +653,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     /**
      * Added to randomly run with more assertions on the index searcher level,
-     * like {@link org.apache.lucene.util.LuceneTestCase#newSearcher(IndexReader)}, which can't be used because it also
+     * like {@link org.apache.lucene.tests.util.LuceneTestCase#newSearcher(IndexReader)}, which can't be used because it also
      * wraps in the IndexSearcher's IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
      */
     protected static IndexSearcher newIndexSearcher(IndexReader indexReader) {
@@ -666,7 +667,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     /**
      * Added to randomly run with more assertions on the index reader level,
-     * like {@link org.apache.lucene.util.LuceneTestCase#wrapReader(IndexReader)}, which can't be used because it also
+     * like {@link org.apache.lucene.tests.util.LuceneTestCase#wrapReader(IndexReader)}, which can't be used because it also
      * wraps in the IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
      */
     protected static IndexReader maybeWrapReaderEs(DirectoryReader reader) throws IOException {
@@ -713,11 +714,11 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * A method that allows implementors to specifically blacklist particular field types (based on their content_name).
+     * A method that allows implementors to specifically denylist particular field types (based on their content_name).
      * This is needed in some areas where the ValuesSourceType is not granular enough, for example integer values
      * vs floating points, or `keyword` bytes vs `binary` bytes (which are not searchable)
      *
-     * This is a blacklist instead of a whitelist because there are vastly more field types than ValuesSourceTypes,
+     * This is a denylist instead of an allowlist because there are vastly more field types than ValuesSourceTypes,
      * and it's expected that these unsupported cases are exceptional rather than common
      */
     protected List<String> unsupportedMappedFieldTypes() {
@@ -748,7 +749,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         for (Map.Entry<String, Mapper.TypeParser> mappedType : mapperRegistry.getMapperParsers().entrySet()) {
 
             // Some field types should not be tested, or require more work and are not ready yet
-            if (TYPE_TEST_BLACKLIST.contains(mappedType.getKey())) {
+            if (TYPE_TEST_DENYLIST.contains(mappedType.getKey())) {
                 continue;
             }
 

@@ -56,6 +56,8 @@ import java.io.IOException;
 
 /**
  * Comparator source for string/binary values.
+ *
+ * @opensearch.internal
  */
 public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
@@ -91,7 +93,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     protected void setScorer(Scorable scorer) {}
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
@@ -167,6 +169,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     /**
      * A view of a SortedDocValues where missing values
      * are replaced with the specified term
+     *
+     * @opensearch.internal
      */
     // TODO: move this out if we need it for other reasons
     static class ReplaceMissing extends AbstractSortedDocValues {

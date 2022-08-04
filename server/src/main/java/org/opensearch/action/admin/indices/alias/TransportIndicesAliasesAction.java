@@ -39,7 +39,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -72,8 +72,10 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * Add/remove aliases action
+ *
+ * @opensearch.internal
  */
-public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
+public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
@@ -124,7 +126,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final IndicesAliasesRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -198,7 +200,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         request.aliasActions().clear();
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(unmodifiableList(finalActions))
             .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
+            .masterNodeTimeout(request.clusterManagerNodeTimeout());
 
         indexAliasesService.indicesAliases(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override

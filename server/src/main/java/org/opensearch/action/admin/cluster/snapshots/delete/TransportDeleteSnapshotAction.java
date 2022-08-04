@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.snapshots.delete;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -51,8 +51,10 @@ import java.io.IOException;
 
 /**
  * Transport action for delete snapshot operation
+ *
+ * @opensearch.internal
  */
-public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<DeleteSnapshotRequest, AcknowledgedResponse> {
+public class TransportDeleteSnapshotAction extends TransportClusterManagerNodeAction<DeleteSnapshotRequest, AcknowledgedResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -93,7 +95,7 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteSnapshotRequest request,
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

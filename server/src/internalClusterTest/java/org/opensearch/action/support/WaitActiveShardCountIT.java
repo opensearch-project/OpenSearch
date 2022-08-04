@@ -63,9 +63,10 @@ public class WaitActiveShardCountIT extends OpenSearchIntegTestCase {
         assertAcked(createIndexResponse);
 
         // indexing, by default, will work (waiting for one shard copy only)
-        client().prepareIndex("test", "type1", "1").setSource(source("1", "test"), XContentType.JSON).execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource(source("1", "test"), XContentType.JSON).execute().actionGet();
         try {
-            client().prepareIndex("test", "type1", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(2) // wait for 2 active shard copies
                 .setTimeout(timeValueMillis(100))
@@ -96,7 +97,8 @@ public class WaitActiveShardCountIT extends OpenSearchIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         // this should work, since we now have two
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(source("1", "test"), XContentType.JSON)
             .setWaitForActiveShards(2)
             .setTimeout(timeValueSeconds(1))
@@ -104,7 +106,8 @@ public class WaitActiveShardCountIT extends OpenSearchIntegTestCase {
             .actionGet();
 
         try {
-            client().prepareIndex("test", "type1", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
                 .setTimeout(timeValueMillis(100))
@@ -138,7 +141,8 @@ public class WaitActiveShardCountIT extends OpenSearchIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         // this should work, since we now have all shards started
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(source("1", "test"), XContentType.JSON)
             .setWaitForActiveShards(ActiveShardCount.ALL)
             .setTimeout(timeValueSeconds(1))

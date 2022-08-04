@@ -47,6 +47,7 @@ import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -195,6 +196,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @Classpath
     @SkipWhenEmpty
+    @IgnoreEmptyDirectories
     public Set<File> getJarsToScan() {
         // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
         // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
@@ -235,6 +237,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         Set<String> jdkJarHellClasses = runJdkJarHellCheck();
 
         if (missingClassExcludes != null) {
+            assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
             long bogousExcludesCount = Stream.concat(missingClassExcludes.stream(), violationsExcludes.stream())
                 .filter(each -> missingClasses.contains(each) == false)
                 .filter(each -> violationsClasses.contains(each) == false)
@@ -245,7 +248,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
                     "All excluded classes seem to have no issues. " + "This is sometimes an indication that the check silently failed"
                 );
             }
-            assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
             missingClasses.removeAll(missingClassExcludes);
         }
         assertNoPointlessExclusions("have no violations", violationsExcludes, violationsClasses);

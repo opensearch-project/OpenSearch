@@ -147,7 +147,7 @@ public class AppendProcessorTests extends OpenSearchTestCase {
     public void testAppendMetadataExceptVersion() throws Exception {
         // here any metadata field value becomes a list, which won't make sense in most of the cases,
         // but support for append is streamlined like for set so we test it
-        Metadata randomMetadata = randomFrom(Metadata.INDEX, Metadata.TYPE, Metadata.ID, Metadata.ROUTING);
+        Metadata randomMetadata = randomFrom(Metadata.INDEX, Metadata.ID, Metadata.ROUTING);
         List<String> values = new ArrayList<>();
         Processor appendProcessor;
         if (randomBoolean()) {

@@ -116,6 +116,8 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * </pre>
  * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
  * Troubleshooting Security</a> for information.
+ *
+ * @opensearch.internal
  */
 final class Security {
     /** no instantiation */
@@ -178,11 +180,11 @@ final class Security {
      * we look for matching plugins and set URLs to fit
      */
     @SuppressForbidden(reason = "proper use of URL")
-    static Map<String, Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
+    static Map<String, Policy> getPluginPermissions(Environment environment) throws IOException {
         Map<String, Policy> map = new HashMap<>();
         // collect up set of plugins and modules by listing directories.
-        Set<Path> pluginsAndModules = new LinkedHashSet<>(PluginsService.findPluginDirs(environment.pluginsFile()));
-        pluginsAndModules.addAll(PluginsService.findPluginDirs(environment.modulesFile()));
+        Set<Path> pluginsAndModules = new LinkedHashSet<>(PluginsService.findPluginDirs(environment.pluginsDir()));
+        pluginsAndModules.addAll(PluginsService.findPluginDirs(environment.modulesDir()));
 
         // now process each one
         for (Path plugin : pluginsAndModules) {
@@ -310,19 +312,19 @@ final class Security {
      */
     static void addFilePermissions(Permissions policy, Environment environment) throws IOException {
         // read-only dirs
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
-        addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binDir(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libDir(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesDir(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsDir(), "read,readlink", false);
+        addDirectoryPath(policy, "path.conf'", environment.configDir(), "read,readlink", false);
         // read-write dirs
-        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
-        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
-        if (environment.sharedDataFile() != null) {
+        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpDir(), "read,readlink,write,delete", false);
+        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsDir(), "read,readlink,write,delete", false);
+        if (environment.sharedDataDir() != null) {
             addDirectoryPath(
                 policy,
                 Environment.PATH_SHARED_DATA_SETTING.getKey(),
-                environment.sharedDataFile(),
+                environment.sharedDataDir(),
                 "read,readlink,write,delete",
                 false
             );

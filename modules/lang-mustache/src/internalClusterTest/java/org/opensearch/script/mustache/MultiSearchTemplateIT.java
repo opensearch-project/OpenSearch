@@ -58,7 +58,7 @@ public class MultiSearchTemplateIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(MustachePlugin.class);
+        return Collections.singleton(MustacheModulePlugin.class);
     }
 
     public void testBasic() throws Exception {
@@ -66,7 +66,8 @@ public class MultiSearchTemplateIT extends OpenSearchIntegTestCase {
         final int numDocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("msearch", "test", String.valueOf(i))
+            indexRequestBuilders[i] = client().prepareIndex("msearch")
+                .setId(String.valueOf(i))
                 .setSource("odd", (i % 2 == 0), "group", (i % 3));
         }
         indexRandom(true, indexRequestBuilders);

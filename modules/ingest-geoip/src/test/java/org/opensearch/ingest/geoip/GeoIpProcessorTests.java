@@ -37,7 +37,7 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
+import org.opensearch.ingest.geoip.IngestGeoIpModulePlugin.GeoIpCache;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -308,7 +308,7 @@ public class GeoIpProcessorTests extends OpenSearchTestCase {
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(4));
         assertThat(geoData.get("ip"), equalTo(ip));
-        assertThat(geoData.get("asn"), equalTo(1136));
+        assertThat(geoData.get("asn"), equalTo(1136L));
         assertThat(geoData.get("organization_name"), equalTo("KPN B.V."));
         assertThat(geoData.get("network"), equalTo("82.168.0.0/14"));
     }

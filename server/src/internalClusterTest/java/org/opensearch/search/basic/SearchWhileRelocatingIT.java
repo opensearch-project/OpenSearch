@@ -65,14 +65,15 @@ public class SearchWhileRelocatingIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
-            .addMapping("type", "loc", "type=geo_point", "test", "type=text")
+            .setMapping("loc", "type=geo_point", "test", "type=text")
             .get();
         ensureGreen();
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         final int numDocs = between(10, 20);
         for (int i = 0; i < numDocs; i++) {
             indexBuilders.add(
-                client().prepareIndex("test", "type", Integer.toString(i))
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("test", "value")

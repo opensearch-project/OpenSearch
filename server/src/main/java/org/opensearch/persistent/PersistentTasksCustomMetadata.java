@@ -71,6 +71,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * A cluster state record that contains a list of all running persistent tasks
+ *
+ * @opensearch.internal
  */
 public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
@@ -273,6 +275,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         metadataBuilder.putCustom(TYPE, taskBuilder.build());
         return ClusterState.builder(clusterState).metadata(metadataBuilder).build();
     }
+
+    /**
+     * The assignment.
+     *
+     * @opensearch.internal
+     */
 
     public static class Assignment {
         @Nullable
@@ -596,6 +604,11 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return new Builder(tasks);
     }
 
+    /**
+     * The task builder.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private final Map<String, PersistentTask<?>> tasks = new HashMap<>();
         private long lastAllocationId;

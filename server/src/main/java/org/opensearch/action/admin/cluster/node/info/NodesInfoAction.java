@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for OpenSearch Node Information
+ *
+ * @opensearch.internal
+ */
 public class NodesInfoAction extends ActionType<NodesInfoResponse> {
 
     public static final NodesInfoAction INSTANCE = new NodesInfoAction();

@@ -55,6 +55,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -67,6 +68,8 @@ import java.util.TreeSet;
 /**
  * Defines the include/exclude regular expression filtering for string terms aggregation. In this filtering logic,
  * exclusion has precedence, where the {@code include} is evaluated first and then the {@code exclude}.
+ *
+ * @opensearch.internal
  */
 public class IncludeExclude implements Writeable, ToXContentFragment {
     public static final ParseField INCLUDE_FIELD = new ParseField("include");
@@ -77,6 +80,14 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     // otherwise tests fail to get expected results and worse, shards
     // can disagree on which terms hash to the required partition.
     private static final int HASH_PARTITIONING_SEED = 31;
+
+    /**
+     * The default length limit for a reg-ex string. The value is derived from {@link IndexSettings#MAX_REGEX_LENGTH_SETTING}.
+     * For context, see:
+     * https://github.com/opensearch-project/OpenSearch/issues/1992
+     * https://github.com/opensearch-project/OpenSearch/issues/2858
+     */
+    private static final int DEFAULT_MAX_REGEX_LENGTH = 1000;
 
     // for parsing purposes only
     // TODO: move all aggs to the same package so that this stuff could be pkg-private
@@ -151,16 +162,29 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Base filter class
+     *
+     * @opensearch.internal
+     */
     public abstract static class Filter {}
 
-    // The includeValue and excludeValue ByteRefs which are the result of the parsing
-    // process are converted into a LongFilter when used on numeric fields
-    // in the index.
+    /**
+     * The includeValue and excludeValue ByteRefs which are the result of the parsing
+     * process are converted into a LongFilter when used on numeric fields
+     * in the index.
+     *
+     * @opensearch.internal
+     */
     public abstract static class LongFilter extends Filter {
         public abstract boolean accept(long value);
-
     }
 
+    /**
+     * Long filter that is partitioned
+     *
+     * @opensearch.internal
+     */
     public class PartitionedLongFilter extends LongFilter {
         @Override
         public boolean accept(long value) {
@@ -170,6 +194,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Long filter backed by valid values
+     *
+     * @opensearch.internal
+     */
     public static class SetBackedLongFilter extends LongFilter {
         private LongSet valids;
         private LongSet invalids;
@@ -197,7 +226,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    // Only used for the 'map' execution mode (ie. scripts)
+    /**
+     * Only used for the 'map' execution mode (ie. scripts)
+     *
+     * @opensearch.internal
+     */
     public abstract static class StringFilter extends Filter {
         public abstract boolean accept(BytesRef value);
     }
@@ -209,6 +242,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * String filter backed by an automaton
+     *
+     * @opensearch.internal
+     */
     static class AutomatonBackedStringFilter extends StringFilter {
 
         private final ByteRunAutomaton runAutomaton;
@@ -226,6 +264,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * String filter backed by a term list
+     *
+     * @opensearch.internal
+     */
     static class TermListBackedStringFilter extends StringFilter {
 
         private final Set<BytesRef> valids;
@@ -246,6 +289,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * An ordinals filter
+     *
+     * @opensearch.internal
+     */
     public abstract static class OrdinalsFilter extends Filter {
         public abstract LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException;
 
@@ -273,6 +321,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * An ordinals filter backed by an automaton
+     *
+     * @opensearch.internal
+     */
     static class AutomatonBackedOrdinalsFilter extends OrdinalsFilter {
 
         private final CompiledAutomaton compiled;
@@ -300,6 +353,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     }
 
+    /**
+     * An ordinals filter backed by a terms list
+     *
+     * @opensearch.internal
+     */
     static class TermListBackedOrdinalsFilter extends OrdinalsFilter {
 
         private final SortedSet<BytesRef> includeValues;
@@ -337,29 +395,22 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     }
 
-    private final RegExp include, exclude;
+    private final String include, exclude;
     private final SortedSet<BytesRef> includeValues, excludeValues;
     private final int incZeroBasedPartition;
     private final int incNumPartitions;
 
     /**
-     * @param include   The regular expression pattern for the terms to be included
-     * @param exclude   The regular expression pattern for the terms to be excluded
+     * @param include   The string or regular expression pattern for the terms to be included
+     * @param exclude   The string or regular expression pattern for the terms to be excluded
      */
-    public IncludeExclude(RegExp include, RegExp exclude) {
-        if (include == null && exclude == null) {
-            throw new IllegalArgumentException();
-        }
+    public IncludeExclude(String include, String exclude) {
         this.include = include;
         this.exclude = exclude;
         this.includeValues = null;
         this.excludeValues = null;
         this.incZeroBasedPartition = 0;
         this.incNumPartitions = 0;
-    }
-
-    public IncludeExclude(String include, String exclude) {
-        this(include == null ? null : new RegExp(include), exclude == null ? null : new RegExp(exclude));
     }
 
     /**
@@ -412,10 +463,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             excludeValues = null;
             incZeroBasedPartition = 0;
             incNumPartitions = 0;
-            String includeString = in.readOptionalString();
-            include = includeString == null ? null : new RegExp(includeString);
-            String excludeString = in.readOptionalString();
-            exclude = excludeString == null ? null : new RegExp(excludeString);
+            include = in.readOptionalString();
+            exclude = in.readOptionalString();
             return;
         }
         include = null;
@@ -447,8 +496,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         boolean regexBased = isRegexBased();
         out.writeBoolean(regexBased);
         if (regexBased) {
-            out.writeOptionalString(include == null ? null : include.getOriginalString());
-            out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
+            out.writeOptionalString(include);
+            out.writeOptionalString(exclude);
         } else {
             boolean hasIncludes = includeValues != null;
             out.writeBoolean(hasIncludes);
@@ -506,6 +555,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     /**
      * Terms adapter around doc values.
+     *
+     * @opensearch.internal
      */
     private static class DocValuesTerms extends Terms {
 
@@ -584,26 +635,53 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return incNumPartitions > 0;
     }
 
-    private Automaton toAutomaton() {
-        Automaton a = null;
+    private Automaton toAutomaton(int maxRegExLength) {
+        Automaton a;
         if (include != null) {
-            a = include.toAutomaton();
+            validateRegExpStringLength(include, maxRegExLength);
+            a = new RegExp(include).toAutomaton();
         } else if (includeValues != null) {
             a = Automata.makeStringUnion(includeValues);
         } else {
             a = Automata.makeAnyString();
         }
         if (exclude != null) {
-            a = Operations.minus(a, exclude.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            validateRegExpStringLength(exclude, maxRegExLength);
+            Automaton excludeAutomaton = new RegExp(exclude).toAutomaton();
+            a = Operations.minus(a, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         } else if (excludeValues != null) {
             a = Operations.minus(a, Automata.makeStringUnion(excludeValues), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
         return a;
     }
 
+    private static void validateRegExpStringLength(String source, int maxRegexLength) {
+        if (maxRegexLength > 0 && source.length() > maxRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["
+                    + source.length()
+                    + "] used in the request has exceeded "
+                    + "the allowed maximum of ["
+                    + maxRegexLength
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
+    }
+
+    /**
+     * Wrapper method that imposes a default regex limit.
+     * See https://github.com/opensearch-project/OpenSearch/issues/2858
+     */
     public StringFilter convertToStringFilter(DocValueFormat format) {
+        return convertToStringFilter(format, DEFAULT_MAX_REGEX_LENGTH);
+    }
+
+    public StringFilter convertToStringFilter(DocValueFormat format, int maxRegexLength) {
         if (isRegexBased()) {
-            return new AutomatonBackedStringFilter(toAutomaton());
+            return new AutomatonBackedStringFilter(toAutomaton(maxRegexLength));
         }
         if (isPartitionBased()) {
             return new PartitionedStringFilter();
@@ -624,10 +702,18 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return result;
     }
 
+    /**
+     * Wrapper method that imposes a default regex limit.
+     * See https://github.com/opensearch-project/OpenSearch/issues/2858
+     */
     public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format) {
+        return convertToOrdinalsFilter(format, DEFAULT_MAX_REGEX_LENGTH);
+    }
+
+    public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format, int maxRegexLength) {
 
         if (isRegexBased()) {
-            return new AutomatonBackedOrdinalsFilter(toAutomaton());
+            return new AutomatonBackedOrdinalsFilter(toAutomaton(maxRegexLength));
         }
         if (isPartitionBased()) {
             return new PartitionedOrdinalsFilter();
@@ -684,7 +770,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (include != null) {
-            builder.field(INCLUDE_FIELD.getPreferredName(), include.getOriginalString());
+            builder.field(INCLUDE_FIELD.getPreferredName(), include);
         } else if (includeValues != null) {
             builder.startArray(INCLUDE_FIELD.getPreferredName());
             for (BytesRef value : includeValues) {
@@ -698,7 +784,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             builder.endObject();
         }
         if (exclude != null) {
-            builder.field(EXCLUDE_FIELD.getPreferredName(), exclude.getOriginalString());
+            builder.field(EXCLUDE_FIELD.getPreferredName(), exclude);
         } else if (excludeValues != null) {
             builder.startArray(EXCLUDE_FIELD.getPreferredName());
             for (BytesRef value : excludeValues) {
@@ -711,14 +797,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            include == null ? null : include.getOriginalString(),
-            exclude == null ? null : exclude.getOriginalString(),
-            includeValues,
-            excludeValues,
-            incZeroBasedPartition,
-            incNumPartitions
-        );
+        return Objects.hash(include, exclude, includeValues, excludeValues, incZeroBasedPartition, incNumPartitions);
     }
 
     @Override
@@ -730,14 +809,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             return false;
         }
         IncludeExclude other = (IncludeExclude) obj;
-        return Objects.equals(
-            include == null ? null : include.getOriginalString(),
-            other.include == null ? null : other.include.getOriginalString()
-        )
-            && Objects.equals(
-                exclude == null ? null : exclude.getOriginalString(),
-                other.exclude == null ? null : other.exclude.getOriginalString()
-            )
+        return Objects.equals(include, other.include)
+            && Objects.equals(exclude, other.exclude)
             && Objects.equals(includeValues, other.includeValues)
             && Objects.equals(excludeValues, other.excludeValues)
             && Objects.equals(incZeroBasedPartition, other.incZeroBasedPartition)

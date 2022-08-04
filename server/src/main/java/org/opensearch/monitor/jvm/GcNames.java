@@ -32,6 +32,11 @@
 
 package org.opensearch.monitor.jvm;
 
+/**
+ * Simple utility class for human readable GC names
+ *
+ * @opensearch.internal
+ */
 public class GcNames {
 
     public static final String YOUNG = "young";

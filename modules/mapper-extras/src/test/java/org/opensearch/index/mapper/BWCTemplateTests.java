@@ -47,7 +47,7 @@ import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
 public class BWCTemplateTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperExtrasPlugin.class);
+        return pluginList(MapperExtrasModulePlugin.class);
     }
 
     public void testBeatsTemplatesBWC() throws Exception {
@@ -58,8 +58,8 @@ public class BWCTemplateTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().preparePutTemplate("packetbeat").setSource(packetBeat, XContentType.JSON).get();
         client().admin().indices().preparePutTemplate("filebeat").setSource(fileBeat, XContentType.JSON).get();
 
-        client().prepareIndex("metricbeat-foo", "doc", "1").setSource("message", "foo").get();
-        client().prepareIndex("packetbeat-foo", "doc", "1").setSource("message", "foo").get();
-        client().prepareIndex("filebeat-foo", "doc", "1").setSource("message", "foo").get();
+        client().prepareIndex("metricbeat-foo").setId("1").setSource("message", "foo").get();
+        client().prepareIndex("packetbeat-foo").setId("1").setSource("message", "foo").get();
+        client().prepareIndex("filebeat-foo").setId("1").setSource("message", "foo").get();
     }
 }

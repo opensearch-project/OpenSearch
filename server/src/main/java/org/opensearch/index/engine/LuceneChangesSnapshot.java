@@ -36,26 +36,24 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
-import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -66,6 +64,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
+ *
+ * @opensearch.internal
  */
 final class LuceneChangesSnapshot implements Translog.Snapshot {
     static final int DEFAULT_BATCH_SIZE = 1024;
@@ -77,7 +77,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private final boolean requiredFullRange;
 
     private final IndexSearcher indexSearcher;
-    private final MapperService mapperService;
     private int docIndex = 0;
     private final int totalHits;
     private ScoreDoc[] scoreDocs;
@@ -88,7 +87,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
      * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
-     * @param mapperService     the mapper service which will be mainly used to resolve the document's type and uid
      * @param searchBatchSize   the number of documents should be returned by each search
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
@@ -96,11 +94,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
      */
     LuceneChangesSnapshot(
         Engine.Searcher engineSearcher,
-        MapperService mapperService,
         int searchBatchSize,
         long fromSeqNo,
         long toSeqNo,
-        boolean requiredFullRange
+        boolean requiredFullRange,
+        boolean accurateCount
     ) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
@@ -114,7 +112,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
                 IOUtils.close(engineSearcher);
             }
         };
-        this.mapperService = mapperService;
         final long requestingSize = (toSeqNo - fromSeqNo) == Long.MAX_VALUE ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
         this.searchBatchSize = requestingSize < searchBatchSize ? Math.toIntExact(requestingSize) : searchBatchSize;
         this.fromSeqNo = fromSeqNo;
@@ -124,7 +121,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
         this.indexSearcher.setQueryCache(null);
         this.parallelArray = new ParallelArray(this.searchBatchSize);
-        final TopDocs topDocs = searchOperations(null);
+        final TopDocs topDocs = searchOperations(null, accurateCount);
         this.totalHits = Math.toIntExact(topDocs.totalHits.value);
         this.scoreDocs = topDocs.scoreDocs;
         fillParallelArray(scoreDocs, parallelArray);
@@ -200,7 +197,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         // we have processed all docs in the current search - fetch the next batch
         if (docIndex == scoreDocs.length && docIndex > 0) {
             final ScoreDoc prev = scoreDocs[scoreDocs.length - 1];
-            scoreDocs = searchOperations(prev).scoreDocs;
+            scoreDocs = searchOperations((FieldDoc) prev, false).scoreDocs;
             fillParallelArray(scoreDocs, parallelArray);
             docIndex = 0;
         }
@@ -249,16 +246,31 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         }
     }
 
-    private TopDocs searchOperations(ScoreDoc after) throws IOException {
-        final Query rangeQuery = new BooleanQuery.Builder().add(
-            LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo),
-            BooleanClause.Occur.MUST
-        )
-            // exclude non-root nested documents
-            .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.MUST)
+    private static Query operationsRangeQuery(long fromSeqNo, long toSeqNo) {
+        return new BooleanQuery.Builder().add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.MUST)
+            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested docs
             .build();
+    }
+
+    static int countNumberOfHistoryOperations(Engine.Searcher searcher, long fromSeqNo, long toSeqNo) throws IOException {
+        if (fromSeqNo > toSeqNo || fromSeqNo < 0 || toSeqNo < 0) {
+            throw new IllegalArgumentException("Invalid sequence range; fromSeqNo [" + fromSeqNo + "] toSeqNo [" + toSeqNo + "]");
+        }
+        IndexSearcher indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
+        return indexSearcher.count(operationsRangeQuery(fromSeqNo, toSeqNo));
+    }
+
+    private TopDocs searchOperations(FieldDoc after, boolean accurate) throws IOException {
+        final Query rangeQuery = operationsRangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
         final Sort sortedBySeqNo = new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG));
-        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, sortedBySeqNo);
+        final TopFieldCollector topFieldCollector = TopFieldCollector.create(
+            sortedBySeqNo,
+            searchBatchSize,
+            after,
+            accurate ? Integer.MAX_VALUE : 0
+        );
+        indexSearcher.search(rangeQuery, topFieldCollector);
+        return topFieldCollector.topDocs();
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {
@@ -278,20 +290,17 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             : SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
         leaf.reader().document(segmentDocID, fields);
-        fields.postProcess(mapperService);
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
-        if (isTombstone && fields.uid() == null) {
+        if (isTombstone && fields.id() == null) {
             op = new Translog.NoOp(seqNo, primaryTerm, fields.source().utf8ToString());
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {
-            final String id = fields.uid().id();
-            final String type = fields.uid().type();
-            final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+            final String id = fields.id();
             if (isTombstone) {
-                op = new Translog.Delete(type, id, uid, seqNo, primaryTerm, version);
+                op = new Translog.Delete(id, seqNo, primaryTerm, version);
                 assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
             } else {
                 final BytesReference source = fields.source();
@@ -310,7 +319,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
                 // TODO: pass the latest timestamp from engine.
                 final long autoGeneratedIdTimestamp = -1;
                 op = new Translog.Index(
-                    type,
                     id,
                     seqNo,
                     primaryTerm,
@@ -342,6 +350,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return ndv.longValue() == 1;
     }
 
+    /**
+     * Parallel array to hold translog operations
+     *
+     * @opensearch.internal
+     */
     private static final class ParallelArray {
         final LeafReaderContext[] leafReaderContexts;
         final long[] version;

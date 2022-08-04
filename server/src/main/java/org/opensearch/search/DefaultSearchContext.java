@@ -36,6 +36,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -48,6 +49,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
@@ -55,7 +57,6 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryBuilder;
@@ -75,6 +76,7 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
@@ -83,6 +85,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QueryPhaseExecutionException;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
@@ -95,8 +98,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
+/**
+ * The main search context used during search phase
+ *
+ * @opensearch.internal
+ */
 final class DefaultSearchContext extends SearchContext {
 
     private final ReaderContext readerContext;
@@ -163,7 +172,7 @@ final class DefaultSearchContext extends SearchContext {
     private Profilers profilers;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
-    private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
 
@@ -177,7 +186,9 @@ final class DefaultSearchContext extends SearchContext {
         TimeValue timeout,
         FetchPhase fetchPhase,
         boolean lowLevelCancellation,
-        Version minNodeVersion
+        Version minNodeVersion,
+        boolean validate,
+        Executor executor
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -198,7 +209,8 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
-            lowLevelCancellation
+            lowLevelCancellation,
+            executor
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
@@ -207,9 +219,9 @@ final class DefaultSearchContext extends SearchContext {
             request.shardId().id(),
             this.searcher,
             request::nowInMillis,
-            shardTarget.getClusterAlias()
+            shardTarget.getClusterAlias(),
+            validate
         );
-        queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
     }
@@ -277,7 +289,7 @@ final class DefaultSearchContext extends SearchContext {
             }
         }
 
-        if (sliceBuilder != null) {
+        if (sliceBuilder != null && scrollContext() != null) {
             int sliceLimit = indexService.getIndexSettings().getMaxSlicesPerScroll();
             int numSlices = sliceBuilder.getMax();
             if (numSlices > sliceLimit) {
@@ -294,6 +306,22 @@ final class DefaultSearchContext extends SearchContext {
             }
         }
 
+        if (sliceBuilder != null && readerContext != null && readerContext instanceof PitReaderContext) {
+            int sliceLimit = indexService.getIndexSettings().getMaxSlicesPerPit();
+            int numSlices = sliceBuilder.getMax();
+            if (numSlices > sliceLimit) {
+                throw new OpenSearchRejectedExecutionException(
+                    "The number of slices ["
+                        + numSlices
+                        + "] is too large. It must "
+                        + "be less than ["
+                        + sliceLimit
+                        + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_SLICES_PER_PIT.getKey()
+                        + "] index level setting."
+                );
+            }
+        }
         // initialize the filtering alias based on the provided filters
         try {
             final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
@@ -321,15 +349,10 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
-        Query typeFilter = createTypeFilter(queryShardContext.getTypes());
-        if (typeFilter != null) {
-            filters.add(typeFilter);
-        }
-
         if (mapperService().hasNested()
             && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
             && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
-            filters.add(Queries.newNonNestedFilter(mapperService().getIndexSettings().getIndexVersionCreated()));
+            filters.add(Queries.newNonNestedFilter());
         }
 
         if (aliasFilter != null) {
@@ -355,17 +378,6 @@ final class DefaultSearchContext extends SearchContext {
             }
             return builder.build();
         }
-    }
-
-    private Query createTypeFilter(String[] types) {
-        if (types != null && types.length >= 1) {
-            if (mapperService().documentMapper() == null) {
-                return null;
-            }
-            TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType(mapperService().documentMapper().type());
-            return ft.typeFilter(types);
-        }
-        return null;
     }
 
     @Override
@@ -836,8 +848,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return queryCollectors;
+    public Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers() {
+        return queryCollectorManagers;
     }
 
     @Override

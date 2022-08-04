@@ -44,6 +44,8 @@ import java.util.List;
  * A builder for a list of coordinates.
  * Enables chaining of individual coordinates either as long/lat pairs
  * or as {@link Coordinate} elements, arrays or collections.
+ *
+ * @opensearch.internal
  */
 public class CoordinatesBuilder {
 

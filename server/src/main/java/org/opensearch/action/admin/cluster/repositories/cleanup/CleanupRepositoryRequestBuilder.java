@@ -32,10 +32,15 @@
 package org.opensearch.action.admin.cluster.repositories.cleanup;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<
+/**
+ * Transport builder for cleaning up snapshot repositories
+ *
+ * @opensearch.internal
+ */
+public class CleanupRepositoryRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     CleanupRepositoryRequest,
     CleanupRepositoryResponse,
     CleanupRepositoryRequestBuilder> {

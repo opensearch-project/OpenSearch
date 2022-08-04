@@ -55,6 +55,8 @@ import java.util.function.Supplier;
  * This provides a base class for aggregations that are building percentiles or percentiles-like functionality (e.g. percentile ranks).
  * It provides a set of common fields/functionality for setting the available algorithms (TDigest and HDRHistogram),
  * as well as algorithm-specific settings via a {@link PercentilesConfig} object
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPercentilesAggregationBuilder<T>> extends
     ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, T> {
@@ -163,7 +165,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.valuesField = clone.valuesField;
     }
 
-    AbstractPercentilesAggregationBuilder(StreamInput in) throws IOException {
+    AbstractPercentilesAggregationBuilder(StreamInput in, ParseField valuesField) throws IOException {
         super(in);
         values = in.readDoubleArray();
         keyed = in.readBoolean();
@@ -175,6 +177,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             PercentilesMethod method = PercentilesMethod.readFromStream(in);
             percentilesConfig = PercentilesConfig.fromLegacy(method, compression, numberOfSignificantValueDigits);
         }
+        this.valuesField = valuesField;
     }
 
     @Override

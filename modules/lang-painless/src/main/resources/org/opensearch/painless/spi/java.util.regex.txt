@@ -58,7 +58,7 @@ class java.util.regex.Matcher {
   String replaceFirst(String)
   boolean requireEnd()
   Matcher reset()
-  # Note: Do not whitelist Matcher.reset(String), it subverts regex limiting
+  # Note: Do not allowlist Matcher.reset(String), it subverts regex limiting
   int start()
   int start(int)
   Matcher useAnchoringBounds(boolean)

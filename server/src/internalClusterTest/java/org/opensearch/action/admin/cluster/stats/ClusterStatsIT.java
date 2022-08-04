@@ -42,8 +42,6 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -53,6 +51,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -87,6 +86,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Map<String, Integer> expectedCounts = new HashMap<>();
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
@@ -98,7 +98,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numNodes; i++) {
             boolean isDataNode = randomBoolean();
             boolean isIngestNode = randomBoolean();
-            boolean isMasterNode = randomBoolean();
+            boolean isClusterManagerNode = randomBoolean();
             boolean isRemoteClusterClientNode = false;
             final Set<DiscoveryNodeRole> roles = new HashSet<>();
             if (isDataNode) {
@@ -107,8 +107,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             if (isIngestNode) {
                 roles.add(DiscoveryNodeRole.INGEST_ROLE);
             }
-            if (isMasterNode) {
-                roles.add(DiscoveryNodeRole.MASTER_ROLE);
+            if (isClusterManagerNode) {
+                roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
             }
             if (isRemoteClusterClientNode) {
                 roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
@@ -129,19 +129,41 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             if (isIngestNode) {
                 incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
             }
-            if (isMasterNode) {
+            if (isClusterManagerNode) {
                 incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), expectedCounts);
             }
             if (isRemoteClusterClientNode) {
                 incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
             }
-            if (!isDataNode && !isMasterNode && !isIngestNode && !isRemoteClusterClientNode) {
+            if (!isDataNode && !isClusterManagerNode && !isIngestNode && !isRemoteClusterClientNode) {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
             }
 
             response = client().admin().cluster().prepareClusterStats().get();
             assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
         }
+    }
+
+    // Validate assigning value "master" to setting "node.roles" can get correct count in Node Stats response after MASTER_ROLE deprecated.
+    public void testNodeCountsWithDeprecatedMasterRole() {
+        int total = 1;
+        Settings settings = Settings.builder()
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), Collections.singletonList(DiscoveryNodeRole.MASTER_ROLE.roleName()))
+            .build();
+        internalCluster().startNode(settings);
+        waitForNodes(total);
+
+        Map<String, Integer> expectedCounts = new HashMap<>();
+        expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 0);
+        expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 0);
+        expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 0);
+        expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
+
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
     }
 
     private static void incrementCountForRole(String role, Map<String, Integer> counts) {
@@ -254,12 +276,12 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testClusterStatusWhenStateNotRecovered() throws Exception {
-        internalCluster().startMasterOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
         if (randomBoolean()) {
-            internalCluster().startMasterOnlyNode();
+            internalCluster().startClusterManagerOnlyNode();
         } else {
             internalCluster().startDataOnlyNode();
         }
@@ -276,19 +298,13 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
-        client().admin()
-            .indices()
-            .prepareCreate("test1")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME, "{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}", XContentType.JSON)
-            .get();
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
         client().admin()
             .indices()
             .prepareCreate("test2")
-            .addMapping(
-                MapperService.SINGLE_MAPPING_NAME,
+            .setMapping(
                 "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"},"
-                    + "\"eggplant\":{\"type\":\"integer\"}}}}}",
-                XContentType.JSON
+                    + "\"eggplant\":{\"type\":\"integer\"}}}}}"
             )
             .get();
         response = client().admin().cluster().prepareClusterStats().get();

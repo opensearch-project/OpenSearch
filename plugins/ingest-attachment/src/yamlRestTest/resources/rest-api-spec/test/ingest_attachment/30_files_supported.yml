@@ -29,7 +29,7 @@
         id: 1
   - length: { _source.attachment: 6 }
   - match: { _source.attachment.content: "Test opensearch" }
-  - match: { _source.attachment.language: "pl" }
+  - match: { _source.attachment.language: "en" }
   - match: { _source.attachment.author: "OpenSearch" }
   - match: { _source.attachment.date: "2021-03-27T04:12:00Z" }
   - match: { _source.attachment.content_length: 16 }
@@ -67,7 +67,7 @@
         id: 1
   - length: { _source.attachment: 6 }
   - match: { _source.attachment.content: "Test opensearch" }
-  - match: { _source.attachment.language: "pl" }
+  - match: { _source.attachment.language: "en" }
   - match: { _source.attachment.author: "OpenSearch" }
   - match: { _source.attachment.date: "2021-03-27T04:12:00Z" }
   - match: { _source.attachment.content_length: 16 }

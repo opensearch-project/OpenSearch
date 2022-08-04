@@ -214,7 +214,6 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("polygon")
                 .startObject("properties")
                 .startObject("area")
                 .field("type", "geo_shape")
@@ -222,13 +221,9 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin()
-            .indices()
-            .prepareCreate("shapes")
-            .addMapping("polygon", mapping, XContentType.JSON);
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes").setMapping(mapping);
         mappingRequest.get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
@@ -249,7 +244,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
             );
         BytesReference data = BytesReference.bytes(jsonBuilder().startObject().field("area", polygon).endObject());
 
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Point in polygon
@@ -312,7 +307,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", inverse).endObject());
-        client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("2").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // re-check point on polygon hole
@@ -351,7 +346,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Create a polygon crossing longitude 180 with hole.
@@ -364,7 +359,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
-        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).get();
+        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         result = client().prepareSearch()
@@ -398,7 +393,6 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("country")
             .startObject("properties")
             .startObject("pin")
             .field("type", "geo_point");
@@ -409,11 +403,10 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
             .field("ignore_malformed", true)
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
-        client().admin().indices().prepareCreate("countries").setSettings(settings).addMapping("country", xContentBuilder).get();
-        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null, xContentBuilder.contentType()).get();
+        client().admin().indices().prepareCreate("countries").setSettings(settings).setMapping(xContentBuilder).get();
+        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());

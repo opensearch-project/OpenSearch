@@ -261,7 +261,7 @@ public class TemplateUpgradeServiceTests extends OpenSearchTestCase {
     }
 
     private static final Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
     );
 
     @SuppressWarnings("unchecked")
@@ -367,7 +367,7 @@ public class TemplateUpgradeServiceTests extends OpenSearchTestCase {
                         new DiscoveryNode("node1", "node1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, Version.CURRENT)
                     )
                     .localNodeId("node1")
-                    .masterNodeId("node1")
+                    .clusterManagerNodeId("node1")
                     .build()
             )
             .metadata(metadata)

@@ -921,14 +921,14 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             "node1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         DiscoveryNode discoveryNode2 = new DiscoveryNode(
             "node2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            MASTER_DATA_ROLES,
+            CLUSTER_MANAGER_DATA_ROLES,
             Version.CURRENT
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();
@@ -1072,13 +1072,13 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        logger.info("--> adding one master node, one data node");
+        logger.info("--> adding one cluster-manager node, one data node");
         DiscoveryNode discoveryNode1 = new DiscoveryNode(
             "",
             "node1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         DiscoveryNode discoveryNode2 = new DiscoveryNode(
@@ -1222,12 +1222,12 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .build();
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        DiscoveryNode masterNode = new DiscoveryNode(
-            "master",
-            "master",
+        DiscoveryNode clusterManagerNode = new DiscoveryNode(
+            "cluster-manager",
+            "cluster-manager",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         DiscoveryNode dataNode = new DiscoveryNode(
@@ -1240,7 +1240,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         );
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder().add(dataNode);
         if (randomBoolean()) {
-            discoveryNodesBuilder.add(masterNode);
+            discoveryNodesBuilder.add(clusterManagerNode);
         }
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
 

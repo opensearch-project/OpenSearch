@@ -72,6 +72,8 @@ import java.util.Objects;
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
  * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
  * shards after node or cluster restarts.
+ *
+ * @opensearch.internal
  */
 public class TransportNodesListGatewayStartedShards extends TransportNodesAction<
     TransportNodesListGatewayStartedShards.Request,
@@ -209,6 +211,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
+    /**
+     * The nodes request.
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BaseNodesRequest<Request> {
 
         private final ShardId shardId;
@@ -255,6 +262,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
+    /**
+     *  The nodes response.
+     *
+     * @opensearch.internal
+     */
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
 
         public NodesGatewayStartedShards(StreamInput in) throws IOException {
@@ -280,6 +292,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
     public static class NodeRequest extends BaseNodeRequest {
 
         private final ShardId shardId;
@@ -326,6 +343,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
+    /**
+     * The response.
+     *
+     * @opensearch.internal
+     */
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
         private final String allocationId;

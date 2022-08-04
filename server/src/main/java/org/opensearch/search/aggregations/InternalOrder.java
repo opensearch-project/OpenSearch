@@ -58,11 +58,15 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * Implementations for {@link Bucket} ordering strategies.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalOrder extends BucketOrder {
     // TODO merge the contents of this file into BucketOrder. The way it is now is relic.
     /**
      * {@link Bucket} ordering strategy to sort by a sub-aggregation.
+     *
+     * @opensearch.internal
      */
     public static class Aggregation extends InternalOrder {
         static final byte ID = 0;
@@ -131,6 +135,8 @@ public abstract class InternalOrder extends BucketOrder {
 
     /**
      * {@link Bucket} ordering strategy to sort by multiple criteria.
+     *
+     * @opensearch.internal
      */
     public static class CompoundOrder extends BucketOrder {
 
@@ -242,6 +248,8 @@ public abstract class InternalOrder extends BucketOrder {
      * {@link BucketOrder} implementation for simple, fixed orders like
      * {@link InternalOrder#COUNT_ASC}. Complex implementations should not
      * use this.
+     *
+     * @opensearch.internal
      */
     private static class SimpleOrder extends InternalOrder {
         private final byte id;
@@ -403,6 +411,8 @@ public abstract class InternalOrder extends BucketOrder {
 
     /**
      * Contains logic for reading/writing {@link BucketOrder} from/to streams.
+     *
+     * @opensearch.internal
      */
     public static class Streams {
 
@@ -491,6 +501,8 @@ public abstract class InternalOrder extends BucketOrder {
 
     /**
      * Contains logic for parsing a {@link BucketOrder} from a {@link XContentParser}.
+     *
+     * @opensearch.internal
      */
     public static class Parser {
 

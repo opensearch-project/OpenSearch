@@ -63,7 +63,7 @@ import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.WrapperQueryBuilder;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.join.ParentJoinPlugin;
+import org.opensearch.join.ParentJoinModulePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
@@ -99,7 +99,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinModulePlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -290,13 +290,9 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testToQueryInnerQueryType() throws IOException {
-        String[] searchTypes = new String[] { TYPE };
         QueryShardContext shardContext = createShardContext();
-        shardContext.setTypes(searchTypes);
         HasChildQueryBuilder hasChildQueryBuilder = hasChildQuery(CHILD_DOC, new IdsQueryBuilder().addIds("id"), ScoreMode.None);
         Query query = hasChildQueryBuilder.toQuery(shardContext);
-        // verify that the context types are still the same as the ones we previously set
-        assertThat(shardContext.getTypes(), equalTo(searchTypes));
         assertLateParsingQuery(query, CHILD_DOC, "id");
     }
 

@@ -60,15 +60,27 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * a REST table
+ *
+ * @opensearch.api
+ */
 public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
+        XContentType xContentType = getXContentType(request);
         if (xContentType != null) {
             return buildXContentBuilder(table, channel);
         }
         return buildTextPlainResponse(table, channel);
+    }
+
+    private static XContentType getXContentType(RestRequest request) {
+        if (request.hasParam("format")) {
+            return XContentType.fromFormat(request.param("format"));
+        }
+        return XContentType.fromMediaType(request.header("Accept"));
     }
 
     public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {

@@ -65,7 +65,7 @@ public class KeywordMarkerFilterFactoryTests extends OpenSearchTokenStreamTestCa
             .put("index.analysis.analyzer.my_keyword.filter", "my_keyword, porter_stem")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_keyword");
         assertThat(tokenFilter, instanceOf(KeywordMarkerTokenFilterFactory.class));
         TokenStream filter = tokenFilter.create(new WhitespaceTokenizer());
@@ -87,7 +87,7 @@ public class KeywordMarkerFilterFactoryTests extends OpenSearchTokenStreamTestCa
             .put("index.analysis.analyzer.my_keyword.filter", "my_keyword, porter_stem")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_keyword");
         assertThat(tokenFilter, instanceOf(KeywordMarkerTokenFilterFactory.class));
         TokenStream filter = tokenFilter.create(new WhitespaceTokenizer());
@@ -112,7 +112,7 @@ public class KeywordMarkerFilterFactoryTests extends OpenSearchTokenStreamTestCa
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin())
         );
         assertEquals("cannot specify both `keywords_pattern` and `keywords` or `keywords_path`", e.getMessage());
     }

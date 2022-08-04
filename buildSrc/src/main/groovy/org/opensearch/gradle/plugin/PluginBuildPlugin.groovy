@@ -123,7 +123,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             naming.clear()
             naming {
                 Tests {
-                    baseClass 'org.apache.lucene.util.LuceneTestCase'
+                    baseClass 'org.apache.lucene.tests.util.LuceneTestCase'
                 }
                 IT {
                     baseClass 'org.opensearch.test.OpenSearchIntegTestCase'

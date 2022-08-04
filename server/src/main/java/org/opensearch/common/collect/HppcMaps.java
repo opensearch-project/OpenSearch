@@ -39,6 +39,11 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import java.util.Iterator;
 
+/**
+ * High performance maps
+ *
+ * @opensearch.internal
+ */
 public final class HppcMaps {
 
     private HppcMaps() {}
@@ -142,7 +147,17 @@ public final class HppcMaps {
         };
     }
 
+    /**
+     * Object for the map
+     *
+     * @opensearch.internal
+     */
     public static final class Object {
+        /**
+         * Integer type for the map
+         *
+         * @opensearch.internal
+         */
         public static final class Integer {
             public static <V> ObjectIntHashMap<V> ensureNoNullKeys(int capacity, float loadFactor) {
                 return new ObjectIntHashMap<V>(capacity, loadFactor) {

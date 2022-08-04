@@ -43,6 +43,8 @@ import java.util.Objects;
 
 /**
  * Represents retention lease stats.
+ *
+ * @opensearch.internal
  */
 public final class RetentionLeaseStats implements ToXContentFragment, Writeable {
 

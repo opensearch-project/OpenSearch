@@ -61,6 +61,11 @@ import java.util.Map;
 
 import static org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
 
+/**
+ * Standard Lucene Highlighter implementation
+ *
+ * @opensearch.internal
+ */
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
 
@@ -116,7 +121,7 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
+        Analyzer analyzer = context.mapperService().documentMapper().mappers().indexAnalyzer();
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
 
         textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getQueryShardContext(), hitContext, fieldContext.forceSource);

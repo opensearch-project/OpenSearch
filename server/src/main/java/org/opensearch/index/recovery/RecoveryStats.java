@@ -45,6 +45,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Recovery related statistics, starting at the shard level and allowing aggregation to
  * indices and node level
+ *
+ * @opensearch.internal
  */
 public class RecoveryStats implements ToXContentFragment, Writeable {
 
@@ -125,6 +127,11 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         return builder;
     }
 
+    /**
+     * Fields for recovery statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String RECOVERY = "recovery";
         static final String CURRENT_AS_SOURCE = "current_as_source";

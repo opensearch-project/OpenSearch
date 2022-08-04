@@ -125,9 +125,21 @@ public abstract class TestCluster implements Closeable {
     public abstract int numDataNodes();
 
     /**
-     * Returns the number of data and master eligible nodes in the cluster.
+     * Returns the number of data and cluster-manager eligible nodes in the cluster.
      */
-    public abstract int numDataAndMasterNodes();
+    // TODO: Add abstract keyword after removing the deprecated numDataAndMasterNodes()
+    public int numDataAndClusterManagerNodes() {
+        return numDataAndMasterNodes();
+    }
+
+    /**
+     * Returns the number of data and cluster-manager eligible nodes in the cluster.
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #numDataAndClusterManagerNodes()}
+     */
+    @Deprecated
+    public int numDataAndMasterNodes() {
+        throw new UnsupportedOperationException("Must be overridden");
+    }
 
     /**
      * Returns the http addresses of the nodes within the cluster.

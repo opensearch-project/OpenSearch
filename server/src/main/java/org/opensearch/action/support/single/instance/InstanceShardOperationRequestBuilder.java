@@ -38,6 +38,11 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Request builder for a shard operation
+ *
+ * @opensearch.internal
+ */
 public abstract class InstanceShardOperationRequestBuilder<
     Request extends InstanceShardOperationRequest<Request>,
     Response extends ActionResponse,

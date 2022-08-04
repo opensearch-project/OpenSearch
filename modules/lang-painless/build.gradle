@@ -29,12 +29,15 @@
  */
 
 import org.opensearch.gradle.testclusters.DefaultTestClustersTask;
+import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
+
 apply plugin: 'opensearch.validate-rest-spec'
 apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'com.github.johnrengelman.shadow'
 
 opensearchplugin {
   description 'An easy, safe and fast scripting language for OpenSearch'
-  classname 'org.opensearch.painless.PainlessPlugin'
+  classname 'org.opensearch.painless.PainlessModulePlugin'
 }
 
 testClusters.all {
@@ -45,14 +48,39 @@ testClusters.all {
 }
 
 dependencies {
-  api 'org.antlr:antlr4-runtime:4.5.3'
-  api 'org.ow2.asm:asm-util:7.2'
-  api 'org.ow2.asm:asm-tree:7.2'
-  api 'org.ow2.asm:asm-commons:7.2'
-  api 'org.ow2.asm:asm-analysis:7.2'
-  api 'org.ow2.asm:asm:7.2'
+  api 'org.antlr:antlr4-runtime:4.9.3'
+  api "org.ow2.asm:asm-util:${versions.asm}"
+  api "org.ow2.asm:asm-tree:${versions.asm}"
+  api "org.ow2.asm:asm-commons:${versions.asm}"
+  api "org.ow2.asm:asm-analysis:${versions.asm}"
+  api "org.ow2.asm:asm:${versions.asm}"
   api project('spi')
 }
+
+test {
+  doFirst {
+    test.classpath -= project.files(project.tasks.named('shadowJar'))
+    test.classpath -= project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME)
+    test.classpath += project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).runtimeClasspath
+  }
+}
+
+shadowJar {
+  classifier = null
+  relocate 'org.objectweb', 'org.opensearch.repackage.org.objectweb'
+  dependencies {
+    include(dependency("org.ow2.asm:asm:${versions.asm}"))
+    include(dependency("org.ow2.asm:asm-util:${versions.asm}"))
+    include(dependency("org.ow2.asm:asm-tree:${versions.asm}"))
+    include(dependency("org.ow2.asm:asm-commons:${versions.asm}"))
+    include(dependency("org.ow2.asm:asm-analysis:${versions.asm}"))
+  }
+}
+
+tasks.validateNebulaPom.dependsOn tasks.generatePomFileForShadowPublication
+tasks.validateShadowPom.dependsOn tasks.generatePomFileForNebulaPublication
+tasks.publishNebulaPublicationToMavenLocal.dependsOn tasks.generatePomFileForShadowPublication
+tasks.publishShadowPublicationToMavenLocal.dependsOn tasks.generatePomFileForNebulaPublication
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
@@ -111,7 +139,7 @@ tasks.register("generateContextDoc", DefaultTestClustersTask) {
   useCluster testClusters.generateContextCluster
   doFirst {
     project.javaexec {
-      main = 'org.opensearch.painless.ContextDocGenerator'
+      mainClass = 'org.opensearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"
     }.assertNormalExitValue()
@@ -127,7 +155,7 @@ configurations {
 }
 
 dependencies {
-  regenerate 'org.antlr:antlr4:4.5.3'
+  regenerate 'org.antlr:antlr4:4.9.3'
 }
 
 String grammarPath = 'src/main/antlr'
@@ -144,7 +172,7 @@ tasks.register("cleanGenerated", Delete) {
 
 tasks.register("regenLexer", JavaExec) {
   dependsOn "cleanGenerated"
-  main = 'org.antlr.v4.Tool'
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'
@@ -158,7 +186,7 @@ tasks.register("regenLexer", JavaExec) {
 
 tasks.register("regenParser", JavaExec) {
   dependsOn "regenLexer"
-  main = 'org.antlr.v4.Tool'
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'

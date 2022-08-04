@@ -55,10 +55,14 @@ import java.util.function.LongUnaryOperator;
 
 /**
  * Base class for numeric field data.
+ *
+ * @opensearch.internal
  */
 public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumericFieldData> {
     /**
      * The type of number.
+     *
+     * @opensearch.internal
      */
     public enum NumericType {
         BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN),
@@ -129,6 +133,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
+        // todo: remove since deprecated
+        sortField.setOptimizeSortWithPoints(false);
         return sortField;
     }
 

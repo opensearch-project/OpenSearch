@@ -37,7 +37,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.Compiler.Loader;
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.symbol.ScriptScope;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -101,16 +101,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
+    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Allowlist>> contexts) {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
         defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
         Map<ScriptContext<?>, PainlessLookup> contextsToLookups = new HashMap<>();
 
-        for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
+        for (Map.Entry<ScriptContext<?>, List<Allowlist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue());
+            PainlessLookup lookup = PainlessLookupBuilder.buildFromAllowlists(entry.getValue());
             contextsToCompilers.put(
                 context,
                 new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)

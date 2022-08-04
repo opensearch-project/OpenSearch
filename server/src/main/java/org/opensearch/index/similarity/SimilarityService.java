@@ -34,6 +34,7 @@ package org.opensearch.index.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.misc.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TermStatistics;
@@ -42,7 +43,6 @@ import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
-import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
@@ -62,6 +62,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * Service for similarity computations
+ *
+ * @opensearch.internal
+ */
 public final class SimilarityService extends AbstractIndexComponent {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";
@@ -203,6 +208,11 @@ public final class SimilarityService extends AbstractIndexComponent {
         return defaultSimilarity;
     }
 
+    /**
+     * Similarity per field
+     *
+     * @opensearch.internal
+     */
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
 
         private final Similarity defaultSimilarity;

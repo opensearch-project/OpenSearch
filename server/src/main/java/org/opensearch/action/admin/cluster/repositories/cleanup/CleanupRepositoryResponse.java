@@ -43,6 +43,11 @@ import org.opensearch.repositories.RepositoryCleanupResult;
 
 import java.io.IOException;
 
+/**
+ * Transport response for cleaning up snapshot repositories
+ *
+ * @opensearch.internal
+ */
 public final class CleanupRepositoryResponse extends ActionResponse implements ToXContentObject {
 
     private static final ObjectParser<CleanupRepositoryResponse, Void> PARSER = new ObjectParser<>(

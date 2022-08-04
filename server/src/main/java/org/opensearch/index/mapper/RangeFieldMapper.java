@@ -36,6 +36,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.geo.ShapeRelation;
@@ -76,11 +77,20 @@ import static org.opensearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LT_FIELD;
 
-/** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
+/**
+ * A {@link FieldMapper} for indexing numeric and date ranges, and creating queries
+ *
+ * @opensearch.internal
+ */
 public class RangeFieldMapper extends ParametrizedFieldMapper {
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
+    /**
+     * Default parameters for range fields
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -93,6 +103,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         return (RangeFieldMapper) in;
     }
 
+    /**
+     * Builder for range fields
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
@@ -116,15 +131,37 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final RangeType type;
+        private final Version indexCreatedVersion;
+        private final boolean ignoreMalformedByDefault;
+        private final Parameter<Boolean> ignoreMalformed;
 
         public Builder(String name, RangeType type, Settings settings) {
-            this(name, type, COERCE_SETTING.get(settings));
+            this(
+                name,
+                type,
+                COERCE_SETTING.get(settings),
+                IGNORE_MALFORMED_SETTING.get(settings),
+                hasIndexCreated(settings) ? Version.indexCreated(settings) : null
+            );
         }
 
-        public Builder(String name, RangeType type, boolean coerceByDefault) {
+        public Builder(String name, RangeType type, boolean coerceByDefault, Version indexCreatedVersion) {
+            this(name, type, coerceByDefault, false /* ignoreMalformedByDefault */, indexCreatedVersion);
+        }
+
+        public Builder(
+            String name,
+            RangeType type,
+            boolean coerceByDefault,
+            boolean ignoreMalformedByDefault,
+            Version indexCreatedVersion
+        ) {
             super(name);
             this.type = type;
             this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.ignoreMalformedByDefault = ignoreMalformedByDefault;
+            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             if (this.type != RangeType.DATE) {
                 format.neverSerialize();
                 locale.neverSerialize();
@@ -142,7 +179,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, hasDocValues, store, coerce, format, locale, boost, meta);
+            return Arrays.asList(index, hasDocValues, store, coerce, format, locale, boost, meta, ignoreMalformed);
         }
 
         protected RangeFieldType setupFieldType(BuilderContext context) {
@@ -157,8 +194,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
                             + " type"
                     );
                 }
+
+                // The builder context may not have index created version, falling back to indexCreatedVersion
+                // property of this mapper builder.
                 DateFormatter dateTimeFormatter;
-                if (Joda.isJodaPattern(context.indexCreatedVersion(), format.getValue())) {
+                if (Joda.isJodaPattern(context.indexCreatedVersionOrDefault(indexCreatedVersion), format.getValue())) {
                     dateTimeFormatter = Joda.forPattern(format.getValue()).withLocale(locale.getValue());
                 } else {
                     dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
@@ -203,6 +243,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for range fields
+     *
+     * @opensearch.internal
+     */
     public static final class RangeFieldType extends MappedFieldType {
         protected final RangeType rangeType;
         protected final DateFormatter dateTimeFormatter;
@@ -371,6 +416,9 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
     private final Locale locale;
 
     private final boolean coerceByDefault;
+    private final Version indexCreatedVersion;
+    private final boolean ignoreMalformed;
+    private final boolean ignoreMalformedByDefault;
 
     private RangeFieldMapper(
         String simpleName,
@@ -389,6 +437,9 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         this.format = builder.format.getValue();
         this.locale = builder.locale.getValue();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.ignoreMalformed = builder.ignoreMalformed.getValue();
+        this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
     }
 
     boolean coerce() {
@@ -397,7 +448,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, coerceByDefault).init(this);
+        return new Builder(simpleName(), type, coerceByDefault, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 
     @Override
@@ -434,40 +485,65 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
                 boolean includeFrom = DEFAULT_INCLUDE_LOWER;
                 boolean includeTo = DEFAULT_INCLUDE_UPPER;
                 XContentParser.Token token;
+                boolean rangeIsMalformed = false;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         fieldName = parser.currentName();
                     } else {
-                        if (fieldName.equals(GT_FIELD.getPreferredName())) {
-                            includeFrom = false;
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                        try {
+                            if (fieldName.equals(GT_FIELD.getPreferredName())) {
+                                includeFrom = false;
+                                if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                                    from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                                }
+                            } else if (fieldName.equals(GTE_FIELD.getPreferredName())) {
+                                includeFrom = true;
+                                if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                                    from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                                }
+                            } else if (fieldName.equals(LT_FIELD.getPreferredName())) {
+                                includeTo = false;
+                                if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                                    to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                                }
+                            } else if (fieldName.equals(LTE_FIELD.getPreferredName())) {
+                                includeTo = true;
+                                if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                                    to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                                }
+                            } else {
+                                throw new MapperParsingException(
+                                    "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
+                                );
                             }
-                        } else if (fieldName.equals(GTE_FIELD.getPreferredName())) {
-                            includeFrom = true;
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                        } catch (final IllegalArgumentException e) {
+                            // We have to consume the JSON object in full
+                            if (ignoreMalformed) {
+                                rangeIsMalformed = true;
+                            } else {
+                                throw e;
                             }
-                        } else if (fieldName.equals(LT_FIELD.getPreferredName())) {
-                            includeTo = false;
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
-                            }
-                        } else if (fieldName.equals(LTE_FIELD.getPreferredName())) {
-                            includeTo = true;
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
-                            }
-                        } else {
-                            throw new MapperParsingException(
-                                "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
-                            );
                         }
                     }
                 }
+
+                if (rangeIsMalformed) {
+                    context.addIgnoredField(fieldType().name());
+                    return;
+                }
+
                 range = new Range(rangeType, from, to, includeFrom, includeTo);
             } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
-                range = parseIpRangeFromCidr(parser);
+                try {
+                    range = parseIpRangeFromCidr(parser);
+                } catch (IllegalArgumentException e) {
+                    if (ignoreMalformed) {
+                        context.addIgnoredField(fieldType().name());
+                        return;
+                    } else {
+                        throw e;
+                    }
+                }
             } else {
                 throw new MapperParsingException(
                     "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
@@ -498,7 +574,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    /** Class defining a range */
+    /**
+     * Class defining a range
+     *
+     * @opensearch.internal
+     */
     public static class Range {
         RangeType type;
         Object from;
@@ -557,6 +637,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Doc values field for binary ranges
+     *
+     * @opensearch.internal
+     */
     static class BinaryRangesDocValuesField extends CustomDocValuesField {
 
         private final Set<Range> ranges;

@@ -87,6 +87,8 @@ import java.util.function.Function;
  * </code></pre>
  *
  * @see org.opensearch.index.analysis.HunspellTokenFilterFactory
+ *
+ * @opensearch.internal
  */
 public class HunspellService {
 
@@ -144,7 +146,7 @@ public class HunspellService {
     }
 
     private Path resolveHunspellDirectory(Environment env) {
-        return env.configFile().resolve("hunspell");
+        return env.configDir().resolve("hunspell");
     }
 
     /**
@@ -218,7 +220,7 @@ public class HunspellService {
 
             affixStream = Files.newInputStream(affixFiles[0]);
 
-            try (Directory tmp = new NIOFSDirectory(env.tmpFile())) {
+            try (Directory tmp = new NIOFSDirectory(env.tmpDir())) {
                 return new Dictionary(tmp, "hunspell", affixStream, dicStreams, ignoreCase);
             }
 

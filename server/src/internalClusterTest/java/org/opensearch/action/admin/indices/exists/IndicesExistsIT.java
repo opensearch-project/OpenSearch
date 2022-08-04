@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.exists;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.discovery.MasterNotDiscoveredException;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -48,13 +48,13 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBui
 public class IndicesExistsIT extends OpenSearchIntegTestCase {
 
     public void testIndexExistsWithBlocksInPlace() throws IOException {
-        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
         Settings settings = Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), 99).build();
         String node = internalCluster().startNode(settings);
 
         assertRequestBuilderThrows(
-            client(node).admin().indices().prepareExists("test").setMasterNodeTimeout(TimeValue.timeValueSeconds(0)),
-            MasterNotDiscoveredException.class
+            client(node).admin().indices().prepareExists("test").setClusterManagerNodeTimeout(TimeValue.timeValueSeconds(0)),
+            ClusterManagerNotDiscoveredException.class
         );
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node)); // shut down node so that test properly cleans up

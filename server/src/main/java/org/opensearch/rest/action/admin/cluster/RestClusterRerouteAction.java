@@ -39,6 +39,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.xcontent.ObjectParser;
@@ -57,6 +58,11 @@ import java.util.Set;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to reroute documents
+ *
+ * @opensearch.api
+ */
 public class RestClusterRerouteAction extends BaseRestHandler {
     private static final ObjectParser<ClusterRerouteRequest, Void> PARSER = new ObjectParser<>("cluster_reroute");
     static {
@@ -77,6 +83,12 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     public RestClusterRerouteAction(SettingsFilter settingsFilter) {
         this.settingsFilter = settingsFilter;
     }
+
+    // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
+    // It's used to log deprecation when request parameter 'metric' contains 'master_node', or request parameter 'master_timeout' is used.
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterRerouteAction.class);
+    private static final String DEPRECATED_MESSAGE_MASTER_NODE =
+        "Assigning [master_node] to parameter [metric] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_node] instead.";
 
     @Override
     public List<Route> routes() {
@@ -104,6 +116,14 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         final String metric = request.param("metric");
         if (metric == null) {
             request.params().put("metric", DEFAULT_METRICS);
+        } else {
+            // TODO: Remove the statements in 'else' after removing MASTER_ROLE.
+            EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
+            // Because "_all" value will add all Metric into metrics set, for prevent deprecation message shown in that case,
+            // add the check of validating metrics set doesn't contain all enum elements.
+            if (!metrics.equals(EnumSet.allOf(ClusterState.Metric.class)) && metrics.contains(ClusterState.Metric.MASTER_NODE)) {
+                deprecationLogger.deprecate("cluster_reroute_metric_parameter_master_node_value", DEPRECATED_MESSAGE_MASTER_NODE);
+            }
         }
         return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestToXContentListener<>(channel));
     }
@@ -128,7 +148,10 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
         clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.setRetryFailed(request.paramAsBoolean("retry_failed", clusterRerouteRequest.isRetryFailed()));
-        clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
+        clusterRerouteRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterRerouteRequest.clusterManagerNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(clusterRerouteRequest, request, deprecationLogger, "cluster_reroute");
         request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, null));
         return clusterRerouteRequest;
     }

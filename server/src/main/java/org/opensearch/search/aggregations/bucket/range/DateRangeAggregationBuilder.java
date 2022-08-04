@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for date_range agg
+ *
+ * @opensearch.internal
+ */
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
     public static final String NAME = "date_range";
     public static final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(

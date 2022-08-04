@@ -39,18 +39,24 @@ import org.opensearch.env.OverrideNodeVersionCommand;
 
 // NodeToolCli does not extend LoggingAwareCommand, because LoggingAwareCommand performs logging initialization
 // after LoggingAwareCommand instance is constructed.
-// It's too late for us, because before UnsafeBootstrapMasterCommand is added to the list of subcommands
+// It's too late for us, because before UnsafeBootstrapClusterManagerCommand is added to the list of subcommands
 // log4j2 initialization will happen, because it has static reference to Logger class.
 // Even if we avoid making a static reference to Logger class, there is no nice way to avoid declaring
 // UNSAFE_BOOTSTRAP, which depends on ClusterService, which in turn has static Logger.
 // TODO execute CommandLoggingConfigurator.configureLoggingWithoutConfig() in the constructor of commands, not in beforeMain
+
+/**
+ * Command Line Interface tool for Nodes
+ *
+ * @opensearch.internal
+ */
 public class NodeToolCli extends MultiCommand {
 
     public NodeToolCli() {
         super("A CLI tool to do unsafe cluster and index manipulations on current node", () -> {});
         CommandLoggingConfigurator.configureLoggingWithoutConfig();
         subcommands.put("repurpose", new NodeRepurposeCommand());
-        subcommands.put("unsafe-bootstrap", new UnsafeBootstrapMasterCommand());
+        subcommands.put("unsafe-bootstrap", new UnsafeBootstrapClusterManagerCommand());
         subcommands.put("detach-cluster", new DetachClusterCommand());
         subcommands.put("override-version", new OverrideNodeVersionCommand());
         subcommands.put("remove-settings", new RemoveSettingsCommand());

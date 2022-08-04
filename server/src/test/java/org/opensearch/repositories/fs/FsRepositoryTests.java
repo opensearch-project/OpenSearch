@@ -31,7 +31,7 @@
 
 package org.opensearch.repositories.fs;
 
-import org.apache.lucene.analysis.MockAnalyzer;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -46,7 +46,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -68,6 +68,7 @@ import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.snapshots.Snapshot;
@@ -203,12 +204,12 @@ public class FsRepositoryTests extends OpenSearchTestCase {
             futureC.actionGet();
             assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size() - 2);
             assertEquals(secondState.getIndex().recoveredFileCount(), 2);
-            List<RecoveryState.FileDetail> recoveredFiles = secondState.getIndex()
+            List<ReplicationLuceneIndex.FileMetadata> recoveredFiles = secondState.getIndex()
                 .fileDetails()
                 .stream()
                 .filter(f -> f.reused() == false)
                 .collect(Collectors.toList());
-            Collections.sort(recoveredFiles, Comparator.comparing(RecoveryState.FileDetail::name));
+            Collections.sort(recoveredFiles, Comparator.comparing(ReplicationLuceneIndex.FileMetadata::name));
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
             assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));
         } finally {

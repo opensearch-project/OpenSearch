@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
- * Tests for the automatic queue resizing of the {@code QueueResizingOpenSearchThreadPoolExecutorTests}
+ * Tests for the automatic queue resizing of the {@code QueueResizingOpenSearchThreadPoolExecutor}
  * based on the time taken for each event.
  */
 public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTestCase {

@@ -66,6 +66,8 @@ import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 /**
  * Wrapper class for Lucene's SimpleQueryStringQueryParser that allows us to redefine
  * different types of queries.
+ *
+ * @opensearch.internal
  */
 public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
@@ -287,11 +289,12 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.
-                Term[] terms = new Term[plist.size()];
-                for (int i = 0; i < plist.size(); i++) {
-                    terms[i] = new Term(field, plist.get(i));
+                SynonymQuery.Builder sb = new SynonymQuery.Builder(field);
+                for (BytesRef bytesRef : plist) {
+                    sb.addTerm(new Term(field, bytesRef));
+
                 }
-                posQuery = new SynonymQuery(terms);
+                posQuery = sb.build();
             } else {
                 BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();
                 for (BytesRef token : plist) {
@@ -307,6 +310,8 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     /**
      * Class encapsulating the settings for the SimpleQueryString query, with
      * their default values
+     *
+     * @opensearch.internal
      */
     public static class Settings {
         /** Specifies whether lenient query parsing should be used. */

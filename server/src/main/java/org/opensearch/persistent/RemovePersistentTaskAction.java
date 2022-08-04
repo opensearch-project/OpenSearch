@@ -35,9 +35,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.opensearch.action.support.master.MasterNodeRequest;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -53,6 +53,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport action to remove a persistent task
+ *
+ * @opensearch.internal
+ */
 public class RemovePersistentTaskAction extends ActionType<PersistentTaskResponse> {
 
     public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
@@ -62,7 +67,12 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         super(NAME, PersistentTaskResponse::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
+    public static class Request extends ClusterManagerNodeRequest<Request> {
 
         private String taskId;
 
@@ -106,10 +116,12 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
-        RemovePersistentTaskAction.Request,
-        PersistentTaskResponse,
-        RemovePersistentTaskAction.RequestBuilder> {
+    /**
+     * The request builder.
+     *
+     * @opensearch.internal
+     */
+    public static class RequestBuilder extends ClusterManagerNodeOperationRequestBuilder<Request, PersistentTaskResponse, RequestBuilder> {
 
         protected RequestBuilder(OpenSearchClient client, RemovePersistentTaskAction action) {
             super(client, action, new Request());
@@ -122,7 +134,12 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
 
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
+    /**
+     * The transport action.
+     *
+     * @opensearch.internal
+     */
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 
@@ -164,7 +181,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
 
         @Override
-        protected final void masterOperation(
+        protected final void clusterManagerOperation(
             final Request request,
             ClusterState state,
             final ActionListener<PersistentTaskResponse> listener

@@ -38,6 +38,8 @@ import java.util.List;
 /**
  * A {@code range} aggregation. Defines multiple buckets, each associated with a pre-defined value range of a field,
  * and where the value of that fields in all documents in each bucket fall in the bucket's range.
+ *
+ * @opensearch.internal
  */
 public interface Range extends MultiBucketsAggregation {
 

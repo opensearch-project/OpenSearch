@@ -285,7 +285,7 @@
       indices.refresh: {}
 
   - do:
-      catch: /\[test\]\[_doc\]\[1\] didn't store _source/
+      catch: /\[test\]\[1\] didn't store _source/
       reindex:
         body:
           source:
@@ -306,9 +306,9 @@
             index: dest
 
 ---
-"unwhitelisted remote host fails":
+"unallowlisted remote host fails":
   - do:
-      catch: /\[badremote:9200\] not whitelisted in reindex.remote.whitelist/
+      catch: /\[badremote:9200\] not allowlisted in reindex.remote.allowlist/
       reindex:
         body:
           source:

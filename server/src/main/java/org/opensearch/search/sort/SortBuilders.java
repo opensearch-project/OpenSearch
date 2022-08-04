@@ -39,7 +39,7 @@ import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
 /**
  * A set of static factory methods for {@link SortBuilder}s.
  *
- *
+ * @opensearch.internal
  */
 public class SortBuilders {
 

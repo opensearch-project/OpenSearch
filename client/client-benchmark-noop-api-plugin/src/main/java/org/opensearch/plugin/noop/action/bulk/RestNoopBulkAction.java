@@ -67,9 +67,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
                 new Route(POST, "/_noop_bulk"),
                 new Route(PUT, "/_noop_bulk"),
                 new Route(POST, "/{index}/_noop_bulk"),
-                new Route(PUT, "/{index}/_noop_bulk"),
-                new Route(POST, "/{index}/{type}/_noop_bulk"),
-                new Route(PUT, "/{index}/{type}/_noop_bulk")
+                new Route(PUT, "/{index}/_noop_bulk")
             )
         );
     }
@@ -83,7 +81,6 @@ public class RestNoopBulkAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
-        String defaultType = request.param("type");
         String defaultRouting = request.param("routing");
         String defaultPipeline = request.param("pipeline");
         Boolean defaultRequireAlias = request.paramAsBoolean("require_alias", null);
@@ -97,7 +94,6 @@ public class RestNoopBulkAction extends BaseRestHandler {
         bulkRequest.add(
             request.requiredContent(),
             defaultIndex,
-            defaultType,
             defaultRouting,
             null,
             defaultPipeline,
@@ -117,7 +113,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         private final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(
             1,
             DocWriteRequest.OpType.UPDATE,
-            new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 0L, 1L, 1L, DocWriteResponse.Result.CREATED)
+            new UpdateResponse(new ShardId("mock", "", 1), "1", 0L, 1L, 1L, DocWriteResponse.Result.CREATED)
         );
 
         private final RestRequest request;

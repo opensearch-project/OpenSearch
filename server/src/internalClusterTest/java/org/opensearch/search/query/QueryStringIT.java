@@ -90,9 +90,9 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     public void testBasicAllQuery() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo bar baz"));
-        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f2", "Bar"));
-        reqs.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "foo bar baz"));
+        reqs.add(client().prepareIndex("test").setId("1").setSource("f1", "foo bar baz"));
+        reqs.add(client().prepareIndex("test").setId("2").setSource("f2", "Bar"));
+        reqs.add(client().prepareIndex("test").setId("3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
@@ -110,8 +110,8 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     public void testWithDate() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo", "f_date", "2015/09/02"));
-        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar", "f_date", "2015/09/01"));
+        reqs.add(client().prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02"));
+        reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo bar")).get();
@@ -134,10 +134,10 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
     public void testWithLotsOfTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(
-            client().prepareIndex("test", "_doc", "1").setSource("f1", "foo", "f_date", "2015/09/02", "f_float", "1.7", "f_ip", "127.0.0.1")
+            client().prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02", "f_float", "1.7", "f_ip", "127.0.0.1")
         );
         reqs.add(
-            client().prepareIndex("test", "_doc", "2").setSource("f1", "bar", "f_date", "2015/09/01", "f_float", "1.8", "f_ip", "127.0.0.2")
+            client().prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01", "f_float", "1.8", "f_ip", "127.0.0.2")
         );
         indexRandom(true, false, reqs);
 
@@ -161,7 +161,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
     public void testDocWithAllTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/opensearch/search/query/all-example-document.json");
-        reqs.add(client().prepareIndex("test", "_doc", "1").setSource(docBody, XContentType.JSON));
+        reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
@@ -198,9 +198,9 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     public void testKeywordWithWhitespace() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f2", "Foo Bar"));
-        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "bar"));
-        reqs.add(client().prepareIndex("test", "_doc", "3").setSource("f1", "foo bar"));
+        reqs.add(client().prepareIndex("test").setId("1").setSource("f2", "Foo Bar"));
+        reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar"));
+        reqs.add(client().prepareIndex("test").setId("3").setSource("f1", "foo bar"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
@@ -224,7 +224,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         ensureGreen("test_1");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test_1", "_doc", "1").setSource("f1", "foo", "f2", "eggplant"));
+        reqs.add(client().prepareIndex("test_1").setId("1").setSource("f1", "foo", "f2", "eggplant"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test_1")
@@ -239,8 +239,8 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     public void testPhraseQueryOnFieldWithNoPositions() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "_doc", "1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
-        reqs.add(client().prepareIndex("test", "_doc", "2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
+        reqs.add(client().prepareIndex("test").setId("1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
+        reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("\"eggplant parmesan\"").lenient(true)).get();
@@ -278,18 +278,16 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
     public void testLimitOnExpandedFieldsButIgnoreUnmappedFields() throws Exception {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject("_doc");
         builder.startObject("properties");
         for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
         }
         builder.endObject(); // properties
-        builder.endObject(); // type1
         builder.endObject();
 
-        assertAcked(prepareCreate("ignoreunmappedfields").addMapping("_doc", builder));
+        assertAcked(prepareCreate("ignoreunmappedfields").setMapping(builder));
 
-        client().prepareIndex("ignoreunmappedfields", "_doc", "1").setSource("field1", "foo bar baz").get();
+        client().prepareIndex("ignoreunmappedfields").setId("1").setSource("field1", "foo bar baz").get();
         refresh();
 
         QueryStringQueryBuilder qb = queryStringQuery("bar");
@@ -303,36 +301,28 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         {
-            builder.startObject("_doc");
-            {
-                builder.startObject("properties");
-                {
-                    for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
-                        builder.startObject("field_A" + i).field("type", "text").endObject();
-                        builder.startObject("field_B" + i).field("type", "text").endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
+            builder.startObject("properties");
+            for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
+                builder.startObject("field_A" + i).field("type", "text").endObject();
+                builder.startObject("field_B" + i).field("type", "text").endObject();
             }
             builder.endObject();
         }
+        builder.endObject();
 
         assertAcked(
             prepareCreate("testindex").setSettings(
                 Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 100)
-            ).addMapping("_doc", builder)
+            ).setMapping(builder)
         );
 
-        client().prepareIndex("testindex", "_doc", "1").setSource("field_A0", "foo bar baz").get();
+        client().prepareIndex("testindex").setId("1").setSource("field_A0", "foo bar baz").get();
         refresh();
 
         // single field shouldn't trigger the limit
         doAssertOneHitForQueryString("field_A0:foo");
         // expanding to the limit should work
         doAssertOneHitForQueryString("field_A\\*:foo");
-        // expanding two blocks to the limit still works
-        doAssertOneHitForQueryString("field_A\\*:foo field_B\\*:bar");
 
         // adding a non-existing field on top shouldn't overshoot the limit
         doAssertOneHitForQueryString("field_A\\*:foo unmapped:something");
@@ -375,9 +365,9 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     public void testFieldAlias() throws Exception {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
-        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
-        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
 
         SearchResponse response = client().prepareSearch("test").setQuery(queryStringQuery("value").field("f3_alias")).get();
@@ -389,9 +379,9 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     public void testFieldAliasWithEmbeddedFieldNames() throws Exception {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
-        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
-        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
 
         SearchResponse response = client().prepareSearch("test").setQuery(queryStringQuery("f3_alias:value AND f2:three")).get();
@@ -403,9 +393,9 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     public void testFieldAliasWithWildcardField() throws Exception {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
-        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
-        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
 
         SearchResponse response = client().prepareSearch("test").setQuery(queryStringQuery("value").field("f3_*")).get();
@@ -417,7 +407,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     public void testFieldAliasOnDisallowedFieldType() throws Exception {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
         indexRandom(true, false, indexRequests);
 
         // The wildcard field matches aliases for both a text and geo_point field.

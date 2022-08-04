@@ -43,7 +43,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -347,7 +347,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             final LeafBucketCollector leafCollector = new LeafBucketCollector() {
                                 @Override
                                 public void collect(int doc, long bucket) throws IOException {
-                                    queue.addIfCompetitive(indexSortSourcePrefix);
+                                    queue.addIfCompetitive(indexSortSourcePrefix, 1);
                                 }
                             };
                             final LeafBucketCollector queueCollector = queue.getLeafCollector(leafReaderContext, leafCollector);

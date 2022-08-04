@@ -61,8 +61,15 @@ import java.util.Objects;
  * matches and then is able to replay a given subset of buckets which represent
  * the survivors from a pruning process performed by the aggregator that owns
  * this collector.
+ *
+ * @opensearch.internal
  */
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
+    /**
+     * Entry in the bucket collector
+     *
+     * @opensearch.internal
+     */
     static class Entry {
         final LeafReaderContext context;
         final PackedLongValues docDeltas;

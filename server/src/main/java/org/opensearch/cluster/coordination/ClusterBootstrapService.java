@@ -69,11 +69,25 @@ import static org.opensearch.discovery.DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PR
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
+/**
+ * Service for bootstrapping the OpenSearch cluster
+ *
+ * @opensearch.internal
+ */
 public class ClusterBootstrapService {
 
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.listSetting(
         "cluster.initial_master_nodes",
         emptyList(),
+        Function.identity(),
+        Property.NodeScope,
+        Property.Deprecated
+    );
+    // The setting below is going to replace the above.
+    // To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+    public static final Setting<List<String>> INITIAL_CLUSTER_MANAGER_NODES_SETTING = Setting.listSetting(
+        "cluster.initial_cluster_manager_nodes",
+        INITIAL_MASTER_NODES_SETTING,
         Function.identity(),
         Property.NodeScope
     );
@@ -104,11 +118,15 @@ public class ClusterBootstrapService {
         BooleanSupplier isBootstrappedSupplier,
         Consumer<VotingConfiguration> votingConfigurationConsumer
     ) {
+        // TODO: Remove variable 'initialClusterManagerSettingName' after removing MASTER_ROLE.
+        String initialClusterManagerSettingName = INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(settings)
+            ? INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
+            : INITIAL_MASTER_NODES_SETTING.getKey();
         if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
-            if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
+            if (INITIAL_CLUSTER_MANAGER_NODES_SETTING.existsOrFallbackExists(settings)) {
                 throw new IllegalArgumentException(
                     "setting ["
-                        + INITIAL_MASTER_NODES_SETTING.getKey()
+                        + initialClusterManagerSettingName
                         + "] is not allowed when ["
                         + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()
                         + "] is set to ["
@@ -116,23 +134,23 @@ public class ClusterBootstrapService {
                         + "]"
                 );
             }
-            if (DiscoveryNode.isMasterNode(settings) == false) {
+            if (DiscoveryNode.isClusterManagerNode(settings) == false) {
                 throw new IllegalArgumentException(
                     "node with ["
                         + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()
                         + "] set to ["
                         + DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE
-                        + "] must be master-eligible"
+                        + "] must be cluster-manager-eligible"
                 );
             }
             bootstrapRequirements = Collections.singleton(Node.NODE_NAME_SETTING.get(settings));
             unconfiguredBootstrapTimeout = null;
         } else {
-            final List<String> initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
-            bootstrapRequirements = unmodifiableSet(new LinkedHashSet<>(initialMasterNodes));
-            if (bootstrapRequirements.size() != initialMasterNodes.size()) {
+            final List<String> initialClusterManagerNodes = INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings);
+            bootstrapRequirements = unmodifiableSet(new LinkedHashSet<>(initialClusterManagerNodes));
+            if (bootstrapRequirements.size() != initialClusterManagerNodes.size()) {
                 throw new IllegalArgumentException(
-                    "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodes
+                    "setting [" + initialClusterManagerSettingName + "] contains duplicates: " + initialClusterManagerNodes
                 );
             }
             unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
@@ -150,6 +168,7 @@ public class ClusterBootstrapService {
             LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,
             DISCOVERY_SEED_HOSTS_SETTING,
             LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+            INITIAL_CLUSTER_MANAGER_NODES_SETTING,
             INITIAL_MASTER_NODES_SETTING
         ).anyMatch(s -> s.exists(settings));
     }
@@ -157,7 +176,7 @@ public class ClusterBootstrapService {
     void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (bootstrappingPermitted.get()
-            && transportService.getLocalNode().isMasterNode()
+            && transportService.getLocalNode().isClusterManagerNode()
             && bootstrapRequirements.isEmpty() == false
             && isBootstrappedSupplier.getAsBoolean() == false
             && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
@@ -200,13 +219,13 @@ public class ClusterBootstrapService {
             return;
         }
 
-        if (transportService.getLocalNode().isMasterNode() == false) {
+        if (transportService.getLocalNode().isClusterManagerNode() == false) {
             return;
         }
 
         logger.info(
             "no discovery configuration found, will perform best-effort cluster bootstrapping after [{}] "
-                + "unless existing master is discovered",
+                + "unless existing cluster-manager is discovered",
             unconfiguredBootstrapTimeout
         );
 
@@ -238,7 +257,7 @@ public class ClusterBootstrapService {
     }
 
     private void startBootstrap(Set<DiscoveryNode> discoveryNodes, List<String> unsatisfiedRequirements) {
-        assert discoveryNodes.stream().allMatch(DiscoveryNode::isMasterNode) : discoveryNodes;
+        assert discoveryNodes.stream().allMatch(DiscoveryNode::isClusterManagerNode) : discoveryNodes;
         assert discoveryNodes.stream().noneMatch(Coordinator::isZen1Node) : discoveryNodes;
         assert unsatisfiedRequirements.size() < discoveryNodes.size() : discoveryNodes + " smaller than " + unsatisfiedRequirements;
         if (bootstrappingPermitted.compareAndSet(true, false)) {
@@ -258,7 +277,7 @@ public class ClusterBootstrapService {
     }
 
     private void doBootstrap(VotingConfiguration votingConfiguration) {
-        assert transportService.getLocalNode().isMasterNode();
+        assert transportService.getLocalNode().isClusterManagerNode();
 
         try {
             votingConfigurationConsumer.accept(votingConfiguration);

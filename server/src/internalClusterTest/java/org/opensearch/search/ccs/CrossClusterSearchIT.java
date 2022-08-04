@@ -71,7 +71,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
     private int indexDocs(Client client, String index) {
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index, "_doc").setSource("f", "v").get();
+            client.prepareIndex(index).setSource("f", "v").get();
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;

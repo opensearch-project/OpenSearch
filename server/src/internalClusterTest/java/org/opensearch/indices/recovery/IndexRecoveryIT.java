@@ -33,8 +33,8 @@
 package org.opensearch.indices.recovery;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.util.SetOnce;
-
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -75,6 +75,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
@@ -88,7 +89,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.analysis.AbstractTokenFilterFactory;
 import org.opensearch.index.analysis.TokenFilterFactory;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -101,6 +101,7 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.indices.analysis.AnalysisModule;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.recovery.RecoveryState.Stage;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.RecoverySettingsChunkSizePlugin;
@@ -114,11 +115,11 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.BackgroundIndexer;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.engine.MockEngineSupport;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.transport.MockTransportService;
@@ -151,12 +152,6 @@ import java.util.stream.StreamSupport;
 
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.action.DocWriteResponse.Result.CREATED;
-import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
-import static org.opensearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -167,12 +162,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.opensearch.action.DocWriteResponse.Result.CREATED;
+import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
+import static org.opensearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX_NAME = "test-idx-1";
-    private static final String INDEX_TYPE = "test-type-1";
     private static final String REPO_NAME = "test-repo-1";
     private static final String SNAP_NAME = "test-snap-1";
 
@@ -414,7 +413,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(10, 200);
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(INDEX_NAME, INDEX_TYPE)
+            docs[i] = client().prepareIndex(INDEX_NAME)
                 .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
         }
         indexRandom(randomBoolean(), docs);
@@ -776,7 +775,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
+        Repository repository = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class).repository(REPO_NAME);
         final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
@@ -828,7 +827,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
 
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(name, INDEX_TYPE)
+            docs[i] = client().prepareIndex(name)
                 .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
         }
 
@@ -838,7 +837,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         return client().admin().indices().prepareStats(name).execute().actionGet();
     }
 
-    private void validateIndexRecoveryState(RecoveryState.Index indexState) {
+    private void validateIndexRecoveryState(ReplicationLuceneIndex indexState) {
         assertThat(indexState.time(), greaterThanOrEqualTo(0L));
         assertThat(indexState.recoveredFilesPercent(), greaterThanOrEqualTo(0.0f));
         assertThat(indexState.recoveredFilesPercent(), lessThanOrEqualTo(100.0f));
@@ -853,7 +852,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "500ms")
             .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "10s")
             .build();
-        // start a master node
+        // start a cluster-manager node
         internalCluster().startNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
@@ -881,14 +880,14 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         // is a mix of file chunks and translog ops
         int threeFourths = (int) (numDocs * 0.75);
         for (int i = 0; i < threeFourths; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         flush(indexName);
         requests.clear();
 
         for (int i = threeFourths; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -1055,7 +1054,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "1s")
             .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "1s")
             .build();
-        // start a master node
+        // start a cluster-manager node
         internalCluster().startNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
@@ -1080,7 +1079,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -1212,8 +1211,8 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             )
             .build();
         TimeValue disconnectAfterDelay = TimeValue.timeValueMillis(randomIntBetween(0, 100));
-        // start a master node
-        String masterNodeName = internalCluster().startMasterOnlyNode(nodeSettings);
+        // start a cluster-manager node
+        String clusterManagerNodeName = internalCluster().startClusterManagerOnlyNode(nodeSettings);
 
         final String blueNodeName = internalCluster().startNode(
             Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build()
@@ -1234,15 +1233,15 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
         assertHitCount(client().prepareSearch(indexName).get(), numDocs);
 
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
+        MockTransportService clusterManagerTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            masterNodeName
+            clusterManagerNodeName
         );
         MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
@@ -1313,7 +1312,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         });
 
         for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
-            mockTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
+            mockTransportService.addSendBehavior(clusterManagerTransportService, (connection, requestId, action, request, options) -> {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
                 if ((primaryRelocation && finalized.get()) == false) {
                     assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
@@ -1377,7 +1376,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         final List<IndexRequestBuilder> requests = new ArrayList<>();
         final int replicatedDocCount = scaledRandomIntBetween(25, 250);
         while (requests.size() < replicatedDocCount) {
-            requests.add(client().prepareIndex(indexName, "_doc").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         if (randomBoolean()) {
@@ -1399,7 +1398,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
         final int numNewDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numNewDocs; i++) {
-            client().prepareIndex(indexName, "_doc").setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+            client().prepareIndex(indexName).setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }
         // Flush twice to update the safe commit's local checkpoint
         assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
@@ -1435,15 +1434,11 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 .put("index.number_of_shards", 1)
                 .build()
         );
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
-            .setType("_doc")
-            .setSource("test_field", "type=text,analyzer=test_analyzer")
-            .get();
+        client().admin().indices().preparePutMapping("test").setSource("test_field", "type=text,analyzer=test_analyzer").get();
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "_doc", "u" + i)
+            client().prepareIndex("test")
+                .setId("u" + i)
                 .setSource(singletonMap("test_field", Integer.toString(i)), XContentType.JSON)
                 .get();
         }
@@ -1471,8 +1466,8 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         assertHitCount(client().prepareSearch().get(), numDocs);
     }
 
-    /** Makes sure the new master does not repeatedly fetch index metadata from recovering replicas */
-    public void testOngoingRecoveryAndMasterFailOver() throws Exception {
+    /** Makes sure the new cluster-manager does not repeatedly fetch index metadata from recovering replicas */
+    public void testOngoingRecoveryAndClusterManagerFailOver() throws Exception {
         String indexName = "test";
         internalCluster().startNodes(2);
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
@@ -1516,7 +1511,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             );
             phase1ReadyBlocked.await();
             internalCluster().restartNode(
-                clusterService().state().nodes().getMasterNode().getName(),
+                clusterService().state().nodes().getClusterManagerNode().getName(),
                 new InternalTestCluster.RestartCallback()
             );
             internalCluster().ensureAtLeastNumDataNodes(3);
@@ -1562,7 +1557,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, numDocs).mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList())
+            IntStream.range(0, numDocs).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         client().admin().indices().prepareRefresh(indexName).get(); // avoid refresh when we are failing a shard
         String failingNode = randomFrom(nodes);
@@ -1604,9 +1599,9 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .getShardOrNull(new ShardId(resolveIndex(indexName), 0));
         final long lastSyncedGlobalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
         final long localCheckpointOfSafeCommit;
-        try (Engine.IndexCommitRef safeCommitRef = shard.acquireSafeIndexCommit()) {
+        try (GatedCloseable<IndexCommit> wrappedSafeCommit = shard.acquireSafeIndexCommit()) {
             localCheckpointOfSafeCommit = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-                safeCommitRef.getIndexCommit().getUserData().entrySet()
+                wrappedSafeCommit.get().getUserData().entrySet()
             ).localCheckpoint;
         }
         final long maxSeqNo = shard.seqNoStats().getMaxSeqNo();
@@ -1658,9 +1653,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -1731,9 +1724,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -1767,7 +1758,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         IntStream.range(0, between(1, 100))
-                            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                             .collect(toList())
                     );
 
@@ -1826,9 +1817,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -1912,7 +1901,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         IntStream.range(0, newDocCount)
-                            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                             .collect(toList())
                     );
 
@@ -1964,9 +1953,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
 
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
@@ -1985,9 +1972,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
 
         assertAcked(
@@ -2056,7 +2041,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, randomIntBetween(0, 10))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                 .collect(toList())
         );
 
@@ -2088,7 +2073,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, randomIntBetween(0, 10))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                 .collect(toList())
         );
 
@@ -2100,7 +2085,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     }
 
     public void testAllocateEmptyPrimaryResetsGlobalCheckpoint() throws Exception {
-        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         final Settings randomNodeDataPathSettings = internalCluster().dataPathSettings(randomFrom(dataNodes));
         final String indexName = "test";
@@ -2117,7 +2102,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 .get()
         );
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName, "type").setSource("foo", "bar"))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
             .collect(Collectors.toList());
         indexRandom(randomBoolean(), true, true, indexRequests);
         ensureGreen();
@@ -2179,7 +2164,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             indexers[i] = new Thread(() -> {
                 while (stopped.get() == false) {
                     try {
-                        IndexResponse response = client().prepareIndex(indexName, "_doc")
+                        IndexResponse response = client().prepareIndex(indexName)
                             .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
@@ -2200,7 +2185,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     }
 
     public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         assertAcked(
             client().admin()
                 .indices()
@@ -2233,7 +2218,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         );
         ensureGreen(indexName);
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("foo", "bar"))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
             .collect(Collectors.toList());
         indexRandom(randomBoolean(), true, true, indexRequests);
         assertThat(client().admin().indices().prepareFlush(indexName).get().getFailedShards(), equalTo(0));

@@ -348,7 +348,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
             .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)));
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("_doc", "created_date", "type=date,format=yyyy-MM-dd"));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("created_date", "type=date,format=yyyy-MM-dd"));
         ensureGreen("test");
         assertBusy(() -> {
             for (String node : internalCluster().nodesInclude("test")) {
@@ -358,9 +358,9 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 }
             }
         });
-        client().prepareIndex("test", "_doc").setId("1").setSource("created_date", "2020-01-01").get();
-        client().prepareIndex("test", "_doc").setId("2").setSource("created_date", "2020-01-02").get();
-        client().prepareIndex("test", "_doc").setId("3").setSource("created_date", "2020-01-03").get();
+        client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
+        client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
+        client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
         assertBusy(() -> {
             SearchResponse resp = client().prepareSearch("test")
                 .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
@@ -491,7 +491,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", numberOfShards).build());
 
         for (int i = 0; i < numberOfDocs; i++) {
-            IndexResponse indexResponse = client().prepareIndex(indexName, "_doc").setSource("number", randomInt()).get();
+            IndexResponse indexResponse = client().prepareIndex(indexName).setSource("number", randomInt()).get();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         client().admin().indices().prepareRefresh(indexName).get();

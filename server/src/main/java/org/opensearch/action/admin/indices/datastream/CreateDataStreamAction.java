@@ -40,7 +40,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -58,6 +58,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport action for creating a datastream
+ *
+ * @opensearch.internal
+ */
 public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     public static final CreateDataStreamAction INSTANCE = new CreateDataStreamAction();
@@ -67,6 +72,11 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
+    /**
+     * Request for Creating Data Stream
+     *
+     * @opensearch.internal
+     */
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private final String name;
@@ -119,7 +129,12 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+    /**
+     * Transport Action for Creating Data Stream
+     *
+     * @opensearch.internal
+     */
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
 
@@ -147,11 +162,11 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
             CreateDataStreamClusterStateUpdateRequest updateRequest = new CreateDataStreamClusterStateUpdateRequest(
                 request.name,
-                request.masterNodeTimeout(),
+                request.clusterManagerNodeTimeout(),
                 request.timeout()
             );
             metadataCreateDataStreamService.createDataStream(updateRequest, listener);

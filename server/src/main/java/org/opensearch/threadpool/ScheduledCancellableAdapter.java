@@ -38,6 +38,11 @@ import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * A cancellable adapter that is scheduled
+ *
+ * @opensearch.internal
+ */
 class ScheduledCancellableAdapter implements Scheduler.ScheduledCancellable {
     private final ScheduledFuture<?> scheduledFuture;
 

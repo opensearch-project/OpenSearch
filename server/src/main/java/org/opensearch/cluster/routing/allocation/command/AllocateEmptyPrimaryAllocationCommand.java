@@ -57,6 +57,8 @@ import java.util.Optional;
 /**
  * Allocates an unassigned empty primary shard to a specific node. Use with extreme care as this will result in data loss.
  * Allocation deciders are ignored.
+ *
+ * @opensearch.internal
  */
 public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocationCommand {
     public static final String NAME = "allocate_empty_primary";
@@ -96,6 +98,11 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         return new Builder().parse(parser).build();
     }
 
+    /**
+     * Builder for an empty primary allocation.
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateEmptyPrimaryAllocationCommand> {
 
         @Override

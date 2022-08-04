@@ -46,7 +46,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -61,6 +61,11 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * Merge Policy that prunes the recovery source
+ *
+ * @opensearch.internal
+ */
 final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
     RecoverySourcePruneMergePolicy(String recoverySourceField, Supplier<Query> retainSourceQuerySupplier, MergePolicy in) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
@@ -95,6 +100,11 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         }
     }
 
+    /**
+     * A codec reader that prunes the source using a filter
+     *
+     * @opensearch.internal
+     */
     private static class SourcePruningFilterCodecReader extends FilterCodecReader {
         private final BitSet recoverySourceToKeep;
         private final String recoverySourceField;
@@ -119,7 +129,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                             // we can't return null here lucenes DocIdMerger expects an instance
                             intersection = DocIdSetIterator.empty();
                         } else {
-                            intersection = ConjunctionDISI.intersectIterators(
+                            intersection = ConjunctionUtils.intersectIterators(
                                 Arrays.asList(numeric, new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length()))
                             );
                         }
@@ -161,6 +171,11 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             return null;
         }
 
+        /**
+         * A producer of filtered doc vlaues
+         *
+         * @opensearch.internal
+         */
         private static class FilterDocValuesProducer extends DocValuesProducer {
             private final DocValuesProducer in;
 
@@ -202,24 +217,19 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             public void close() throws IOException {
                 in.close();
             }
-
-            @Override
-            public long ramBytesUsed() {
-                return in.ramBytesUsed();
-            }
         }
 
+        /**
+         * A fields reader that provides a filtered stored field
+         *
+         * @opensearch.internal
+         */
         private abstract static class FilterStoredFieldsReader extends StoredFieldsReader {
 
             protected final StoredFieldsReader in;
 
             FilterStoredFieldsReader(StoredFieldsReader fieldsReader) {
                 this.in = fieldsReader;
-            }
-
-            @Override
-            public long ramBytesUsed() {
-                return in.ramBytesUsed();
             }
 
             @Override
@@ -241,6 +251,11 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             }
         }
 
+        /**
+         * A reader of pruned stored fields
+         *
+         * @opensearch.internal
+         */
         private static class RecoverySourcePruningStoredFieldsReader extends FilterStoredFieldsReader {
 
             private final BitSet recoverySourceToKeep;
@@ -281,6 +296,11 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         }
 
+        /**
+         * A visitor pattern for filtered stored fields
+         *
+         * @opensearch.internal
+         */
         private static class FilterStoredFieldVisitor extends StoredFieldVisitor {
             private final StoredFieldVisitor visitor;
 
@@ -294,7 +314,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             }
 
             @Override
-            public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
+            public void stringField(FieldInfo fieldInfo, String value) throws IOException {
                 visitor.stringField(fieldInfo, value);
             }
 

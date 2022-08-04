@@ -35,9 +35,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.opensearch.action.support.master.MasterNodeRequest;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -55,6 +55,11 @@ import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for updating persistent tasks
+ *
+ * @opensearch.internal
+ */
 public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskResponse> {
 
     public static final UpdatePersistentTaskStatusAction INSTANCE = new UpdatePersistentTaskStatusAction();
@@ -64,7 +69,12 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         super(NAME, PersistentTaskResponse::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    /**
+     * The action request.
+     *
+     * @opensearch.internal
+     */
+    public static class Request extends ClusterManagerNodeRequest<Request> {
 
         private String taskId;
         private long allocationId = -1L;
@@ -133,10 +143,12 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
-        UpdatePersistentTaskStatusAction.Request,
-        PersistentTaskResponse,
-        UpdatePersistentTaskStatusAction.RequestBuilder> {
+    /**
+     * The request builder.
+     *
+     * @opensearch.internal
+     */
+    public static class RequestBuilder extends ClusterManagerNodeOperationRequestBuilder<Request, PersistentTaskResponse, RequestBuilder> {
 
         protected RequestBuilder(OpenSearchClient client, UpdatePersistentTaskStatusAction action) {
             super(client, action, new Request());
@@ -153,7 +165,13 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
+    /**
+     * The transport action.
+     *
+     * @opensearch.internal
+     */
+
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 
@@ -195,7 +213,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
 
         @Override
-        protected final void masterOperation(
+        protected final void clusterManagerOperation(
             final Request request,
             final ClusterState state,
             final ActionListener<PersistentTaskResponse> listener

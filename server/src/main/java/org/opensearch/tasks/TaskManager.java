@@ -44,6 +44,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -85,6 +86,8 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
+ *
+ * @opensearch.internal
  */
 public class TaskManager implements ClusterStateApplier {
 
@@ -101,7 +104,9 @@ public class TaskManager implements ClusterStateApplier {
         Setting.Property.NodeScope
     );
 
-    /** Rest headers that are copied to the task */
+    /**
+     * Rest headers that are copied to the task
+     */
     private final List<String> taskHeaders;
     private final ThreadPool threadPool;
 
@@ -115,6 +120,7 @@ public class TaskManager implements ClusterStateApplier {
     private final Map<TaskId, String> banedParents = new ConcurrentHashMap<>();
 
     private TaskResultsService taskResultsService;
+    private final SetOnce<TaskResourceTrackingService> taskResourceTrackingService = new SetOnce<>();
 
     private volatile DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
@@ -147,6 +153,10 @@ public class TaskManager implements ClusterStateApplier {
         this.cancellationService.set(taskCancellationService);
     }
 
+    public void setTaskResourceTrackingService(TaskResourceTrackingService taskResourceTrackingService) {
+        this.taskResourceTrackingService.set(taskResourceTrackingService);
+    }
+
     /**
      * Registers a task without parent task
      */
@@ -170,6 +180,30 @@ public class TaskManager implements ClusterStateApplier {
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+        }
+
+        if (task.supportsResourceTracking()) {
+            boolean success = task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
+                @Override
+                protected void innerOnResponse(Task task) {
+                    // Stop tracking the task once the last thread has been marked inactive.
+                    if (taskResourceTrackingService.get() != null && task.supportsResourceTracking()) {
+                        taskResourceTrackingService.get().stopTracking(task);
+                    }
+                }
+
+                @Override
+                protected void innerOnFailure(Exception e) {
+                    ExceptionsHelper.reThrowIfNotNull(e);
+                }
+            });
+
+            if (success == false) {
+                logger.debug(
+                    "failed to register a completion listener as task resource tracking has already completed [taskId={}]",
+                    task.getId()
+                );
+            }
         }
 
         if (task instanceof CancellableTask) {
@@ -224,9 +258,14 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
+
+        // Decrement the task's self-thread as part of unregistration.
+        task.decrementResourceTrackingThreads();
+
         if (taskResourceConsumersEnabled && task.getResourceStats().isEmpty() == false) {
             taskResourceConsumer.forEach(consumer -> consumer.accept(task));
         }
+
         if (task instanceof CancellableTask) {
             CancellableTaskHolder holder = cancellableTasks.remove(task.getId());
             if (holder != null) {
@@ -386,6 +425,7 @@ public class TaskManager implements ClusterStateApplier {
      * Bans all tasks with the specified parent task from execution, cancels all tasks that are currently executing.
      * <p>
      * This method is called when a parent task that has children is cancelled.
+     *
      * @return a list of pending cancellable child tasks
      */
     public List<CancellableTask> setBan(TaskId parentTaskId, String reason) {
@@ -471,6 +511,18 @@ public class TaskManager implements ClusterStateApplier {
             }
         }
         throw new OpenSearchTimeoutException("Timed out waiting for completion of [{}]", task);
+    }
+
+    /**
+     * Takes actions when a task is registered and its execution starts
+     *
+     * @param task getting executed.
+     * @return AutoCloseable to free up resources (clean up thread context) when task execution block returns
+     */
+    public ThreadContext.StoredContext taskExecutionStarted(Task task) {
+        if (taskResourceTrackingService.get() == null) return () -> {};
+
+        return taskResourceTrackingService.get().startTracking(task);
     }
 
     private static class CancellableTaskHolder {

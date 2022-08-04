@@ -84,12 +84,14 @@ import java.util.stream.StreamSupport;
  * This class is responsible for tracking the replication group with its progress and safety markers (local and global checkpoints).
  *
  * The global checkpoint is the highest sequence number for which all lower (or equal) sequence number have been processed
- * on all shards that are currently active. Since shards count as "active" when the master starts
+ * on all shards that are currently active. Since shards count as "active" when the cluster-manager starts
  * them, and before this primary shard has been notified of this fact, we also include shards that have completed recovery. These shards
  * have received all old operations via the recovery mechanism and are kept up to date by the various replications actions. The set of
  * shards that are taken into account for the global checkpoint calculation are called the "in-sync shards".
  * <p>
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas (via {@link GlobalCheckpointSyncAction}).
+ *
+ * @opensearch.internal
  */
 public class ReplicationTracker extends AbstractIndexShardComponent implements LongSupplier {
 
@@ -133,11 +135,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * to eagerly. As consequence, some of the methods in this class are not allowed to be called while a handoff is in progress,
      * in particular {@link #markAllocationIdAsInSync}.
      *
-     * A notable exception to this is the method {@link #updateFromMaster}, which is still allowed to be called during a relocation handoff.
+     * A notable exception to this is the method {@link #updateFromClusterManager}, which is still allowed to be called during a relocation handoff.
      * The reason for this is that the handoff might fail and can be aborted (using {@link #abortRelocationHandoff}), in which case
      * it is important that the global checkpoint tracker does not miss any state updates that might happened during the handoff attempt.
      * This means, however, that the global checkpoint can still advance after the primary relocation handoff has been initiated, but only
-     * because the master could have failed some of the in-sync shard copies and marked them as stale. That is ok though, as this
+     * because the cluster-manager could have failed some of the in-sync shard copies and marked them as stale. That is ok though, as this
      * information is conveyed through cluster state updates, and the new primary relocation target will also eventually learn about those.
      */
     boolean handoffInProgress;
@@ -660,6 +662,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    /**
+     * The state of the lucene checkpoint
+     *
+     * @opensearch.internal
+     */
     public static class CheckpointState implements Writeable {
 
         /**
@@ -845,23 +852,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert pendingInSync.isEmpty() || (primaryMode && !handoffInProgress);
 
         // the computed global checkpoint is always up-to-date
-        assert !primaryMode
-            || globalCheckpoint == computeGlobalCheckpoint(
-                pendingInSync,
-                checkpoints.values(),
-                globalCheckpoint
-            ) : "global checkpoint is not up-to-date, expected: "
+        assert !primaryMode || globalCheckpoint == computeGlobalCheckpoint(pendingInSync, checkpoints.values(), globalCheckpoint)
+            : "global checkpoint is not up-to-date, expected: "
                 + computeGlobalCheckpoint(pendingInSync, checkpoints.values(), globalCheckpoint)
                 + " but was: "
                 + globalCheckpoint;
 
         // when in primary mode, the global checkpoint is at most the minimum local checkpoint on all in-sync shard copies
-        assert !primaryMode
-            || globalCheckpoint <= inSyncCheckpointStates(
-                checkpoints,
-                CheckpointState::getLocalCheckpoint,
-                LongStream::min
-            ) : "global checkpoint ["
+        assert !primaryMode || globalCheckpoint <= inSyncCheckpointStates(checkpoints, CheckpointState::getLocalCheckpoint, LongStream::min)
+            : "global checkpoint ["
                 + globalCheckpoint
                 + "] "
                 + "for primary mode allocation ID ["
@@ -877,11 +876,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             + " but replication group is "
             + replicationGroup;
 
-        assert replicationGroup == null
-            || replicationGroup.equals(calculateReplicationGroup()) : "cached replication group out of sync: expected: "
-                + calculateReplicationGroup()
-                + " but was: "
-                + replicationGroup;
+        assert replicationGroup == null || replicationGroup.equals(calculateReplicationGroup())
+            : "cached replication group out of sync: expected: " + calculateReplicationGroup() + " but was: " + replicationGroup;
 
         // all assigned shards from the routing table are tracked
         assert routingTable == null || checkpoints.keySet().containsAll(routingTable.getAllAllocationIds()) : "local checkpoints "
@@ -907,9 +903,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
                 if (checkpoints.get(shardRouting.allocationId().getId()).tracked) {
-                    assert retentionLeases.contains(
-                        getPeerRecoveryRetentionLeaseId(shardRouting)
-                    ) : "no retention lease for tracked shard [" + shardRouting + "] in " + retentionLeases;
+                    assert retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))
+                        : "no retention lease for tracked shard [" + shardRouting + "] in " + retentionLeases;
                     assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(
                         retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting)).source()
                     ) : "incorrect source ["
@@ -1177,27 +1172,25 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     /**
      * Notifies the tracker of the current allocation IDs in the cluster state.
-     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the cluster-manager
      * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
      * @param routingTable                the shard routing table
      */
-    public synchronized void updateFromMaster(
+    public synchronized void updateFromClusterManager(
         final long applyingClusterStateVersion,
         final Set<String> inSyncAllocationIds,
         final IndexShardRoutingTable routingTable
     ) {
         assert invariant();
         if (applyingClusterStateVersion > appliedClusterStateVersion) {
-            // check that the master does not fabricate new in-sync entries out of thin air once we are in primary mode
+            // check that the cluster-manager does not fabricate new in-sync entries out of thin air once we are in primary mode
             assert !primaryMode
-                || inSyncAllocationIds.stream()
-                    .allMatch(
-                        inSyncId -> checkpoints.containsKey(inSyncId) && checkpoints.get(inSyncId).inSync
-                    ) : "update from master in primary mode contains in-sync ids "
-                        + inSyncAllocationIds
-                        + " that have no matching entries in "
-                        + checkpoints;
-            // remove entries which don't exist on master
+                || inSyncAllocationIds.stream().allMatch(inSyncId -> checkpoints.containsKey(inSyncId) && checkpoints.get(inSyncId).inSync)
+                : "update from cluster-manager in primary mode contains in-sync ids "
+                    + inSyncAllocationIds
+                    + " that have no matching entries in "
+                    + checkpoints;
+            // remove entries which don't exist on cluster-manager
             Set<String> initializingAllocationIds = routingTable.getAllInitializingShards()
                 .stream()
                 .map(ShardRouting::allocationId)
@@ -1211,7 +1204,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 for (String initializingId : initializingAllocationIds) {
                     if (checkpoints.containsKey(initializingId) == false) {
                         final boolean inSync = inSyncAllocationIds.contains(initializingId);
-                        assert inSync == false : "update from master in primary mode has "
+                        assert inSync == false : "update from cluster-manager in primary mode has "
                             + initializingId
                             + " as in-sync but it does not exist locally";
                         final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -1244,6 +1237,22 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
         }
         assert invariant();
+    }
+
+    /**
+     * Notifies the tracker of the current allocation IDs in the cluster state.
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the cluster-manager
+     * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
+     * @param routingTable                the shard routing table
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateFromClusterManager(long, Set, IndexShardRoutingTable)}
+     */
+    @Deprecated
+    public synchronized void updateFromMaster(
+        final long applyingClusterStateVersion,
+        final Set<String> inSyncAllocationIds,
+        final IndexShardRoutingTable routingTable
+    ) {
+        updateFromClusterManager(applyingClusterStateVersion, inSyncAllocationIds, routingTable);
     }
 
     /**
@@ -1489,7 +1498,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             assert indexSettings.getIndexVersionCreated().before(LegacyESVersion.V_7_3_0);
             throw new IllegalStateException("primary context [" + primaryContext + "] does not contain " + shardAllocationId);
         }
-        final Runnable runAfter = getMasterUpdateOperationFromCurrentState();
+        final Runnable runAfter = getClusterManagerUpdateOperationFromCurrentState();
         primaryMode = true;
         // capture current state to possibly replay missed cluster state update
         appliedClusterStateVersion = primaryContext.clusterStateVersion();
@@ -1555,7 +1564,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
     }
 
-    private Runnable getMasterUpdateOperationFromCurrentState() {
+    private Runnable getClusterManagerUpdateOperationFromCurrentState() {
         assert primaryMode == false;
         final long lastAppliedClusterStateVersion = appliedClusterStateVersion;
         final Set<String> inSyncAllocationIds = new HashSet<>();
@@ -1565,7 +1574,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
         });
         final IndexShardRoutingTable lastAppliedRoutingTable = routingTable;
-        return () -> updateFromMaster(lastAppliedClusterStateVersion, inSyncAllocationIds, lastAppliedRoutingTable);
+        return () -> updateFromClusterManager(lastAppliedClusterStateVersion, inSyncAllocationIds, lastAppliedRoutingTable);
     }
 
     /**
@@ -1606,6 +1615,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Represents the sequence number component of the primary context. This is the knowledge on the primary of the in-sync and initializing
      * shards and their local checkpoints.
+     *
+     * @opensearch.internal
      */
     public static class PrimaryContext implements Writeable {
 

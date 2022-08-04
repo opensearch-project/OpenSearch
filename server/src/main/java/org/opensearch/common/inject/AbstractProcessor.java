@@ -53,6 +53,8 @@ import java.util.List;
  * handled element.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 abstract class AbstractProcessor implements ElementVisitor<Boolean> {
 

@@ -36,6 +36,8 @@ package org.opensearch.common.io.stream;
  * A {@link Writeable} object identified by its name.
  * To be used for arbitrary serializable objects (e.g. queries); when reading them, their name tells
  * which specific object needs to be created.
+ *
+ * @opensearch.internal
  */
 public interface NamedWriteable extends Writeable {
 

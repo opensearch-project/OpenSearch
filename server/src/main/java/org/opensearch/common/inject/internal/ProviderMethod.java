@@ -47,6 +47,8 @@ import java.util.Set;
  * A provider that invokes a method and returns its result.
  *
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 public class ProviderMethod<T> implements ProviderWithDependencies<T> {
     private final Key<T> key;

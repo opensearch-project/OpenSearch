@@ -63,7 +63,7 @@ public class ClusterDisruptionCleanSettingsIT extends OpenSearchIntegTestCase {
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
         // Don't use AbstractDisruptionTestCase.DEFAULT_SETTINGS as settings
         // (which can cause node disconnects on a slow CI machine)
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String node_1 = internalCluster().startDataOnlyNode();
 
         logger.info("--> creating index [test] with one shard and on replica");
@@ -80,9 +80,7 @@ public class ClusterDisruptionCleanSettingsIT extends OpenSearchIntegTestCase {
         final String node_2 = internalCluster().startDataOnlyNode();
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            indexRequestBuilderList.add(
-                client().prepareIndex().setIndex("test").setType("_doc").setSource("{\"int_field\":1}", XContentType.JSON)
-            );
+            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setSource("{\"int_field\":1}", XContentType.JSON));
         }
         indexRandom(true, indexRequestBuilderList);
 

@@ -1,9 +1,5 @@
 ---
 "Doc upsert":
-
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
   - do:
       update:
           index:    test_1
@@ -36,5 +32,3 @@
 
   - match:  { _source.foo:        bar }
   - match:  { _source.count:      1   }
-
-

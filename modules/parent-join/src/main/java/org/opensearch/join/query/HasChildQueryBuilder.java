@@ -37,6 +37,7 @@ import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
@@ -410,6 +411,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
         public Query rewrite(IndexReader reader) throws IOException {
             Query rewritten = super.rewrite(reader);
             if (rewritten != this) {
@@ -437,7 +443,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     // blow up since for this query to work we have to have a DirectoryReader otherwise
                     // we can't load global ordinals - for this to work we simply check if the reader has no leaves
                     // and rewrite to match nothing
-                    return new MatchNoDocsQuery();
+                    return Queries.newMatchNoDocsQueryWithoutRewrite("unable to load global ordinals with an empty directory reader");
                 }
                 throw new IllegalStateException(
                     "can't load global ordinals for reader of type: " + reader.getClass() + " must be a DirectoryReader"

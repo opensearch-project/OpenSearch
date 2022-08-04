@@ -36,7 +36,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -52,13 +51,16 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -96,6 +98,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -109,8 +112,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
-import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -119,6 +120,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
@@ -132,6 +135,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.cluster
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
+import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
 public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
@@ -203,14 +207,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         int x = target / source;
         assert source < target : source + " >= " + target;
         return source * x == target;
-    }
-
-    public void testNumberOfShards() {
-        {
-            final Version versionCreated = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT);
-            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
-            assertThat(MetadataCreateIndexService.getNumberOfShards(indexSettingsBuilder), equalTo(1));
-        }
     }
 
     public void testValidateShrinkIndex() {
@@ -583,7 +579,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     private DiscoveryNode newNode(String nodeId) {
         final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
         );
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }
@@ -602,7 +598,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 threadPool,
                 null,
                 new SystemIndices(Collections.emptyMap()),
-                false
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
             validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
 
@@ -683,7 +680,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 threadPool,
                 null,
                 new SystemIndices(Collections.singletonMap("foo", systemIndexDescriptors)),
-                false
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
             // Check deprecations
             assertFalse(checkerService.validateDotIndex(".test2", false));
@@ -711,20 +709,18 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             templateBuilder.putAlias(AliasMetadata.builder("alias1"));
             templateBuilder.putMapping("type", createMapping("mapping_from_template", "text"));
         });
-        request.mappings(singletonMap("type", createMapping("mapping_from_request", "text").string()));
+        request.mappings(createMapping("mapping_from_request", "text").string());
 
-        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
             request.mappings(),
-            Collections.singletonList(convertMappings(templateMetadata.getMappings())),
+            Collections.singletonList(templateMetadata.getMappings()),
             NamedXContentRegistry.EMPTY
         );
 
-        assertThat(parsedMappings, hasKey("type"));
-        Map<String, Object> mappingType = parsedMappings.get("type");
-        assertThat(mappingType, hasKey("type"));
-        Map<String, Object> type = (Map<String, Object>) mappingType.get("type");
-        assertThat(type, hasKey("properties"));
-        Map<String, Object> mappingsProperties = (Map<String, Object>) type.get("properties");
+        assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+        assertThat(doc, hasKey("properties"));
+        Map<String, Object> mappingsProperties = (Map<String, Object>) doc.get("properties");
         assertThat(mappingsProperties, hasKey("mapping_from_request"));
         assertThat(mappingsProperties, hasKey("mapping_from_template"));
     }
@@ -781,17 +777,17 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(
             builder -> builder.putAlias(AliasMetadata.builder("alias").searchRouting("fromTemplate").build())
-                .putMapping("type", templateMapping)
+                .putMapping("_doc", templateMapping)
                 .settings(Settings.builder().put("key1", "templateValue"))
         );
 
-        request.mappings(singletonMap("type", reqMapping.string()));
-        request.aliases(singleton(new Alias("alias").searchRouting("fromRequest")));
+        request.mappings(reqMapping.string());
+        request.aliases(Collections.singleton(new Alias("alias").searchRouting("fromRequest")));
         request.settings(Settings.builder().put("key1", "requestValue").build());
 
-        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
             request.mappings(),
-            Collections.singletonList(convertMappings(templateMetadata.mappings())),
+            Collections.singletonList(templateMetadata.mappings()),
             xContentRegistry()
         );
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(
@@ -816,12 +812,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         assertThat(resolvedAliases.get(0).getSearchRouting(), equalTo("fromRequest"));
         assertThat(aggregatedIndexSettings.get("key1"), equalTo("requestValue"));
-        assertThat(parsedMappings, hasKey("type"));
-        Map<String, Object> mappingType = parsedMappings.get("type");
-        assertThat(mappingType, hasKey("type"));
-        Map<String, Object> type = (Map<String, Object>) mappingType.get("type");
-        assertThat(type, hasKey("properties"));
-        Map<String, Object> mappingsProperties = (Map<String, Object>) type.get("properties");
+        assertThat(parsedMappings, hasKey("_doc"));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get("_doc");
+        assertThat(doc, hasKey("properties"));
+        Map<String, Object> mappingsProperties = (Map<String, Object>) doc.get("properties");
         assertThat(mappingsProperties, hasKey("test"));
         assertThat((Map<String, Object>) mappingsProperties.get("test"), hasValue("keyword"));
     }
@@ -1046,9 +1040,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             }
         });
 
-        Map<String, Map<String, Object>> mappings = parseV1Mappings(
-            singletonMap(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\":{}}"),
-            Collections.singletonList(convertMappings(templateMetadata.mappings())),
+        Map<String, Object> mappings = parseV1Mappings(
+            "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{}}",
+            Collections.singletonList(templateMetadata.mappings()),
             xContentRegistry()
         );
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
@@ -1062,12 +1056,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Map<String, Object>> mappings = parseV1Mappings(
-            emptyMap(),
-            Collections.singletonList(convertMappings(templateMetadata.mappings())),
-            xContentRegistry()
-        );
-        assertThat(mappings, Matchers.hasKey("type"));
+        Map<String, Object> mappings = parseV1Mappings("", Collections.singletonList(templateMetadata.mappings()), xContentRegistry());
+        assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
     public void testParseMappingsWithTypelessTemplate() throws Exception {
@@ -1078,12 +1068,54 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Map<String, Object>> mappings = parseV1Mappings(
-            emptyMap(),
-            Collections.singletonList(convertMappings(templateMetadata.mappings())),
-            xContentRegistry()
-        );
+        Map<String, Object> mappings = parseV1Mappings("", Collections.singletonList(templateMetadata.mappings()), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
+    }
+
+    public void testvalidateIndexSettings() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+            settings,
+            clusterService,
+            null,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+            new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            threadPool,
+            null,
+            new SystemIndices(Collections.emptyMap()),
+            true,
+            new AwarenessReplicaBalance(settings, clusterService.getClusterSettings())
+        );
+
+        List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
+        assertThat(validationErrors.size(), is(1));
+        assertThat(validationErrors.get(0), is("expected total copies needs to be a multiple of total awareness attributes [3]"));
+
+        settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+            .put(SETTING_NUMBER_OF_REPLICAS, 2)
+            .build();
+
+        validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
+        assertThat(validationErrors.size(), is(0));
+
+        threadPool.shutdown();
     }
 
     public void testBuildIndexMetadata() {
@@ -1100,16 +1132,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         List<AliasMetadata> aliases = singletonList(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata(
-            "test",
-            aliases,
-            () -> null,
-            () -> null,
-            indexSettings,
-            4,
-            sourceIndexMetadata,
-            false
-        );
+        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));
@@ -1217,10 +1240,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 threadPool,
                 null,
                 new SystemIndices(Collections.emptyMap()),
-                true
+                true,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
 
-            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(ilnSetting, true);
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(ilnSetting, true, Optional.empty());
             assertThat(validationErrors.size(), is(1));
             assertThat(validationErrors.get(0), is("expected [index.lifecycle.name] to be private but it was not"));
         }));
@@ -1262,7 +1286,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             final String mapping = Strings.toString(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject(fieldName)
                     .field("type", fieldType)

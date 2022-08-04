@@ -199,9 +199,9 @@ public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocatio
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(newNode("master", Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)))
-            .localNodeId("master")
-            .masterNodeId("master")
+            .add(newNode("cluster-manager", Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
+            .localNodeId("cluster-manager")
+            .clusterManagerNodeId("cluster-manager")
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -230,7 +230,7 @@ public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocatio
         if (randomBoolean()) {
             decision = decider.canAllocate(shardRouting, allocation);
         } else {
-            DiscoveryNode node = clusterState.getNodes().getMasterNode();
+            DiscoveryNode node = clusterState.getNodes().getClusterManagerNode();
             decision = decider.canAllocate(shardRouting, new RoutingNode(node.getId(), node), allocation);
         }
         return decision;

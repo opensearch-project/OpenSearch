@@ -130,15 +130,12 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject(VALUE_FIELD)
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -175,7 +172,7 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {
             for (double value : mockBucket.docValues) {
                 builders.add(
-                    client().prepareIndex("idx", "type")
+                    client().prepareIndex("idx")
                         .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, mockBucket.key).field(VALUE_FIELD, value).endObject())
                 );
             }
@@ -183,14 +180,14 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
 
         for (int i = -10; i < 10; i++) {
             builders.add(
-                client().prepareIndex("neg_idx", "type")
+                client().prepareIndex("neg_idx")
                     .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, i).field(VALUE_FIELD, 10).endObject())
             );
         }
 
         for (int i = 0; i < 12; i++) {
             builders.add(
-                client().prepareIndex("double_predict", "type")
+                client().prepareIndex("double_predict")
                     .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, i).field(VALUE_FIELD, 10).endObject())
             );
         }
@@ -1288,7 +1285,7 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             bulkBuilder.add(
-                client().prepareIndex("predict_non_empty", "type")
+                client().prepareIndex("predict_non_empty")
                     .setSource(
                         jsonBuilder().startObject().field(INTERVAL_FIELD, i).field(VALUE_FIELD, 10).field(VALUE_FIELD2, 10).endObject()
                     )
@@ -1297,7 +1294,7 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
         for (int i = 10; i < 20; i++) {
             // Extra so there is a bucket that only has second field
             bulkBuilder.add(
-                client().prepareIndex("predict_non_empty", "type")
+                client().prepareIndex("predict_non_empty")
                     .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, i).field(VALUE_FIELD2, 10).endObject())
             );
         }

@@ -47,6 +47,11 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Cluster Stats per index
+ *
+ * @opensearch.internal
+ */
 public class ClusterStatsIndices implements ToXContentFragment {
 
     private int indexCount;
@@ -144,6 +149,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return analysis;
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String COUNT = "count";
     }
@@ -167,6 +177,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Inner Shard Stats
+     *
+     * @opensearch.internal
+     */
     public static class ShardStats implements ToXContentFragment {
 
         int indices;
@@ -311,6 +326,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
             }
         }
 
+        /**
+         * Inner Fields used for creating XContent and parsing
+         *
+         * @opensearch.internal
+         */
         static final class Fields {
             static final String SHARDS = "shards";
             static final String TOTAL = "total";

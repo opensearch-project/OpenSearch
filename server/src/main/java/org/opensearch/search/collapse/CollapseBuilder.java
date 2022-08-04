@@ -56,6 +56,8 @@ import java.util.Objects;
 
 /**
  * A builder that enables field collapsing on search request.
+ *
+ * @opensearch.internal
  */
 public class CollapseBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");

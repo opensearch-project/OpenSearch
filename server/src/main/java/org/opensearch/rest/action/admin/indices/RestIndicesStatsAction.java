@@ -56,6 +56,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get indices stats
+ *
+ * @opensearch.api
+ */
 public class RestIndicesStatsAction extends BaseRestHandler {
 
     @Override
@@ -102,7 +107,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             + "options changed";
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
-        indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
 
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
         // short cut, if no metrics have been specified in URI
@@ -137,10 +141,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         if (request.hasParam("groups")) {
             indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
-        }
-
-        if (request.hasParam("types")) {
-            indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
         }
 
         if (indicesStatsRequest.completion() && (request.hasParam("fields") || request.hasParam("completion_fields"))) {

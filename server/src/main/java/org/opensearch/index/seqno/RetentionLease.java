@@ -49,6 +49,8 @@ import java.util.Objects;
  * that all operations with sequence number at least that retaining sequence number will be retained during merge operations (which could
  * otherwise merge away operations that have been soft deleted). Each retention lease contains a unique identifier, the retaining sequence
  * number, the timestamp of when the lease was created or renewed, and the source of the retention lease (e.g., "ccr").
+ *
+ * @opensearch.internal
  */
 public final class RetentionLease implements ToXContentObject, Writeable {
 

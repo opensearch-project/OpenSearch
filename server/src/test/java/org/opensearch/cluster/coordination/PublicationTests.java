@@ -447,7 +447,7 @@ public class PublicationTests extends OpenSearchTestCase {
             );
     }
 
-    public void testPublishingToMastersFirst() {
+    public void testPublishingToClusterManagersFirst() {
         VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
@@ -462,7 +462,7 @@ public class PublicationTests extends OpenSearchTestCase {
 
         List<DiscoveryNode> publicationTargets = new ArrayList<>(publication.pendingPublications.keySet());
         List<DiscoveryNode> sortedPublicationTargets = new ArrayList<>(publicationTargets);
-        Collections.sort(sortedPublicationTargets, Comparator.comparing(n -> n.isMasterNode() == false));
+        Collections.sort(sortedPublicationTargets, Comparator.comparing(n -> n.isClusterManagerNode() == false));
         assertEquals(sortedPublicationTargets, publicationTargets);
     }
 

@@ -50,6 +50,9 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.net.Authenticator;
+import java.net.PasswordAuthentication;
+import java.net.Proxy;
 import java.net.URI;
 import java.util.Map;
 
@@ -142,13 +145,7 @@ public class GoogleCloudStorageService {
      */
     private Storage createClient(GoogleCloudStorageClientSettings clientSettings, GoogleCloudStorageOperationsStats stats)
         throws IOException {
-        final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
-            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-            // requires java.lang.RuntimePermission "setFactory"
-            // Pin the TLS trust certificates.
-            builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
-            return builder.build();
-        });
+        final HttpTransport httpTransport = createHttpTransport(clientSettings);
 
         final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
 
@@ -173,6 +170,28 @@ public class GoogleCloudStorageService {
 
         final StorageOptions storageOptions = createStorageOptions(clientSettings, httpTransportOptions);
         return storageOptions.getService();
+    }
+
+    private HttpTransport createHttpTransport(final GoogleCloudStorageClientSettings clientSettings) throws IOException {
+        return SocketAccess.doPrivilegedIOException(() -> {
+            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
+            // requires java.lang.RuntimePermission "setFactory"
+            // Pin the TLS trust certificates.
+            builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
+            final ProxySettings proxySettings = clientSettings.getProxySettings();
+            if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+                if (proxySettings.isAuthenticated()) {
+                    Authenticator.setDefault(new Authenticator() {
+                        @Override
+                        protected PasswordAuthentication getPasswordAuthentication() {
+                            return new PasswordAuthentication(proxySettings.getUsername(), proxySettings.getPassword().toCharArray());
+                        }
+                    });
+                }
+                builder.setProxy(new Proxy(proxySettings.getType(), proxySettings.getAddress()));
+            }
+            return builder.build();
+        });
     }
 
     StorageOptions createStorageOptions(

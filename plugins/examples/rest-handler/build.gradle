@@ -56,4 +56,3 @@ javaRestTest {
   dependsOn exampleFixture
   nonInputProperties.systemProperty 'external.address', "${-> exampleFixture.addressAndPort}"
 }
-

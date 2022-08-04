@@ -32,13 +32,15 @@
 
 package org.opensearch.action.admin.cluster.allocation;
 
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for requests to explain the allocation of a shard in the cluster
+ *
+ * @opensearch.internal
  */
-public class ClusterAllocationExplainRequestBuilder extends MasterNodeOperationRequestBuilder<
+public class ClusterAllocationExplainRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     ClusterAllocationExplainRequest,
     ClusterAllocationExplainResponse,
     ClusterAllocationExplainRequestBuilder> {

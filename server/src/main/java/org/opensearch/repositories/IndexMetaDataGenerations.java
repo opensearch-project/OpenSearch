@@ -49,6 +49,8 @@ import java.util.stream.Collectors;
  * {@link org.opensearch.repositories.blobstore.BlobStoreRepository#finalizeSnapshot} the identifier for an instance of
  * {@link IndexMetadata} should be computed and then used to check if it already exists in the repository via
  * {@link #getIndexMetaBlobId(String)}.
+ *
+ * @opensearch.internal
  */
 public final class IndexMetaDataGenerations {
 
@@ -66,11 +68,8 @@ public final class IndexMetaDataGenerations {
     final Map<String, String> identifiers;
 
     IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
-        assert identifiers.keySet()
-            .equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet())) : "identifier mappings "
-                + identifiers
-                + " don't track the same blob ids as the lookup map "
-                + lookup;
+        assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet()))
+            : "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
         assert lookup.values().stream().noneMatch(Map::isEmpty) : "Lookup contained empty map [" + lookup + "]";
         this.lookup = Collections.unmodifiableMap(lookup);
         this.identifiers = Collections.unmodifiableMap(identifiers);

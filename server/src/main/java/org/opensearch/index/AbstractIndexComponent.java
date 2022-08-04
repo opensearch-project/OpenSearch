@@ -36,6 +36,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.Loggers;
 
+/**
+ * A base class for new index components
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractIndexComponent implements IndexComponent {
 
     protected final Logger logger;

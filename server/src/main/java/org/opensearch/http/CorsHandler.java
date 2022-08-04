@@ -84,6 +84,8 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
  *
  * It modifies the original netty code to operate on OpenSearch http request/response abstractions.
  * Additionally, it removes CORS features that are not used by OpenSearch.
+ *
+ * @opensearch.internal
  */
 public class CorsHandler {
 
@@ -259,6 +261,11 @@ public class CorsHandler {
         response.addHeader(ACCESS_CONTROL_MAX_AGE, Long.toString(config.maxAge));
     }
 
+    /**
+     * The cors handler configuration
+     *
+     * @opensearch.internal
+     */
     public static class Config {
 
         private final boolean enabled;

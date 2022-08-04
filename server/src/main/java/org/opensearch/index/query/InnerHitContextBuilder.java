@@ -49,6 +49,8 @@ import java.util.Optional;
 
 /**
  * A builder for {@link InnerHitsContext.InnerHitSubContext}
+ *
+ * @opensearch.internal
  */
 public abstract class InnerHitContextBuilder {
     protected final QueryBuilder query;
@@ -109,13 +111,13 @@ public abstract class InnerHitContextBuilder {
         }
         if (innerHitBuilder.getDocValueFields() != null) {
             FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(
-                queryShardContext.getMapperService(),
+                queryShardContext::simpleMatchToIndexNames,
+                queryShardContext.getIndexSettings().getMaxDocvalueFields(),
                 innerHitBuilder.getDocValueFields()
             );
             innerHitsContext.docValuesContext(docValuesContext);
         }
         if (innerHitBuilder.getFetchFields() != null) {
-            String indexName = queryShardContext.index().getName();
             FetchFieldsContext fieldsContext = new FetchFieldsContext(innerHitBuilder.getFetchFields());
             innerHitsContext.fetchFieldsContext(fieldsContext);
         }

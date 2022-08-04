@@ -37,7 +37,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -56,8 +56,10 @@ import java.io.IOException;
 
 /**
  * Put index template action.
+ *
+ * @opensearch.internal
  */
-public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<PutIndexTemplateRequest, AcknowledgedResponse> {
+public class TransportPutIndexTemplateAction extends TransportClusterManagerNodeAction<PutIndexTemplateRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutIndexTemplateAction.class);
 
@@ -104,7 +106,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutIndexTemplateRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -123,7 +125,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                 .mappings(request.mappings())
                 .aliases(request.aliases())
                 .create(request.create())
-                .masterTimeout(request.masterNodeTimeout())
+                .clusterManagerTimeout(request.clusterManagerNodeTimeout())
                 .version(request.version()),
 
             new MetadataIndexTemplateService.PutListener() {

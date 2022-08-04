@@ -52,7 +52,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.opensearch.script.SimilarityScript;
 import org.opensearch.script.SimilarityWeightScript;
@@ -74,8 +74,7 @@ public class ScriptedSimilarityTests extends OpenSearchTestCase {
 
     private void doTestSameNormsAsBM25(boolean discountOverlaps) {
         ScriptedSimilarity sim1 = new ScriptedSimilarity("foobar", null, "foobaz", null, discountOverlaps);
-        BM25Similarity sim2 = new BM25Similarity();
-        sim2.setDiscountOverlaps(discountOverlaps);
+        BM25Similarity sim2 = new BM25Similarity(discountOverlaps);
         for (int iter = 0; iter < 100; ++iter) {
             final int length = TestUtil.nextInt(random(), 1, 100);
             final int position = random().nextInt(length);

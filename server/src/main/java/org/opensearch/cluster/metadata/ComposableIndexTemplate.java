@@ -64,6 +64,8 @@ import static org.opensearch.common.collect.Map.of;
  * An index template is comprised of a set of index patterns, an optional template, and a list of
  * ids corresponding to component templates that should be composed in order when creating a new
  * index.
+ *
+ * @opensearch.internal
  */
 public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
@@ -287,6 +289,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         return Strings.toString(this);
     }
 
+    /**
+     * Template for data stream.
+     *
+     * @opensearch.internal
+     */
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
         private static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");

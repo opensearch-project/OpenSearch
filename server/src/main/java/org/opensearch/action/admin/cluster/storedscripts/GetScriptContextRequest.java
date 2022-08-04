@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Transport context for getting stored scripts
+ *
+ * @opensearch.internal
+ */
 public class GetScriptContextRequest extends ActionRequest {
     public GetScriptContextRequest() {
         super();

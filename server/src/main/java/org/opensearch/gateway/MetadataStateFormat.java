@@ -34,6 +34,7 @@ package org.opensearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -74,6 +75,8 @@ import java.util.stream.Collectors;
  * MetadataStateFormat is a base class to write checksummed
  * XContent based files to one or more directories in a standardized directory structure.
  * @param <T> the type of the XContent base data-structure
+ *
+ * @opensearch.internal
  */
 public abstract class MetadataStateFormat<T> {
     public static final XContentType FORMAT = XContentType.SMILE;
@@ -117,7 +120,7 @@ public abstract class MetadataStateFormat<T> {
         throws WriteStateException {
         try {
             deleteFileIfExists(stateLocation, stateDir, tmpFileName);
-            try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
+            try (IndexOutput out = EndiannessReverserUtil.createOutput(stateDir, tmpFileName, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(FORMAT.index());
                 try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
@@ -306,7 +309,7 @@ public abstract class MetadataStateFormat<T> {
      */
     public final T read(NamedXContentRegistry namedXContentRegistry, Path file) throws IOException {
         try (Directory dir = newDirectory(file.getParent())) {
-            try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
+            try (IndexInput indexInput = EndiannessReverserUtil.openInput(dir, file.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);

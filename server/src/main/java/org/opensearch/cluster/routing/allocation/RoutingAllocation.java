@@ -60,6 +60,8 @@ import static java.util.Collections.unmodifiableSet;
  * The {@link RoutingAllocation} keep the state of the current allocation
  * of shards and holds the {@link AllocationDeciders} which are responsible
  *  for the current routing state.
+ *
+ *  @opensearch.internal
  */
 public class RoutingAllocation {
 
@@ -313,6 +315,11 @@ public class RoutingAllocation {
         this.hasPendingAsyncFetch = true;
     }
 
+    /**
+     * Debug mode.
+     *
+     * @opensearch.internal
+     */
     public enum DebugMode {
         /**
          * debug mode is off

@@ -48,6 +48,8 @@ import java.util.List;
 /**
  * A mapper that indexes the field names of a document under <code>_field_names</code>. This mapper is typically useful in order
  * to have fast <code>exists</code> and <code>missing</code> queries/filters.
+ *
+ * @opensearch.internal
  */
 public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
@@ -62,6 +64,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         return new Builder(indexVersionCreated).init(this);
     }
 
+    /**
+     * Parameter defaults
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final String NAME = FieldNamesFieldMapper.NAME;
 
@@ -85,6 +92,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for the `enabled` "
             + "setting will be removed in a future major version. Please remove it from your mappings and templates.";
 
+    /**
+     * Builder for the FieldNames field mapper
+     *
+     * @opensearch.internal
+     */
     static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam(
@@ -120,6 +132,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         c -> new Builder(c.indexVersionCreated())
     );
 
+    /**
+     * Field type for FieldNames field mapper
+     *
+     * @opensearch.internal
+     */
     public static final class FieldNamesFieldType extends TermBasedFieldType {
 
         private final boolean enabled;

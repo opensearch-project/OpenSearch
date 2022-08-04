@@ -33,7 +33,7 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -93,13 +93,13 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     }
                     globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
                 }
-                engine.syncTranslog();
+                engine.translogManager().syncTranslog();
                 globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
                 engine.flush();
                 readOnlyEngine = new ReadOnlyEngine(
                     engine.engineConfig,
                     engine.getSeqNoStats(globalCheckpoint.get()),
-                    engine.getTranslogStats(),
+                    engine.translogManager().getTranslogStats(),
                     false,
                     Function.identity(),
                     true
@@ -107,12 +107,13 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 lastSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 lastDocIds = getDocIds(engine, true);
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(readOnlyEngine.getPersistedLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
-                        engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
+                        engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
                     }
                     if (rarely()) {
                         engine.flush();
@@ -131,6 +132,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 IOUtils.close(external, internal);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(readOnlyEngine.getPersistedLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
                 try (Engine.GetResult getResult = readOnlyEngine.get(get, readOnlyEngine::acquireSearcher)) {
@@ -139,9 +141,12 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             // Close and reopen the main engine
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
-                recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+                TranslogHandler translogHandler = createTranslogHandler(config.getIndexSettings(), recoveringEngine);
+                recoveringEngine.translogManager()
+                    .recoverFromTranslog(translogHandler, recoveringEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(readOnlyEngine.getPersistedLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
             }
@@ -178,7 +183,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     );
                     maxSeqNo = engine.getProcessedLocalCheckpoint();
                 }
-                engine.syncTranslog();
+                engine.translogManager().syncTranslog();
                 globalCheckpoint.set(engine.getPersistedLocalCheckpoint() - 1);
                 engine.flushAndClose();
 
@@ -274,12 +279,13 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     }
                     globalCheckpoint.set(i);
                 }
-                engine.syncTranslog();
+                engine.translogManager().syncTranslog();
                 engine.flushAndClose();
             }
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true)) {
-                final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
-                readOnlyEngine.recoverFromTranslog(translogHandler, randomNonNegativeLong());
+                final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings(), readOnlyEngine);
+                readOnlyEngine.translogManager()
+                    .recoverFromTranslog(translogHandler, readOnlyEngine.getProcessedLocalCheckpoint(), randomNonNegativeLong());
 
                 assertThat(translogHandler.appliedOperations(), equalTo(0L));
             }
@@ -324,23 +330,26 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 }
 
                 assertThat(
-                    engine.getTranslogStats().estimatedNumberOfOperations(),
+                    engine.translogManager().getTranslogStats().estimatedNumberOfOperations(),
                     equalTo(softDeletesEnabled ? uncommittedDocs : numDocs)
                 );
-                assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(uncommittedDocs));
-                assertThat(engine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
-                assertThat(engine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
-                assertThat(engine.getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
+                assertThat(engine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(uncommittedDocs));
+                assertThat(engine.translogManager().getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
+                assertThat(engine.translogManager().getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
+                assertThat(engine.translogManager().getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
 
                 engine.flush(true, true);
             }
 
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true)) {
-                assertThat(readOnlyEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
-                assertThat(readOnlyEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
-                assertThat(readOnlyEngine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
-                assertThat(readOnlyEngine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
-                assertThat(readOnlyEngine.getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
+                assertThat(
+                    readOnlyEngine.translogManager().getTranslogStats().estimatedNumberOfOperations(),
+                    equalTo(softDeletesEnabled ? 0 : numDocs)
+                );
+                assertThat(readOnlyEngine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(0));
+                assertThat(readOnlyEngine.translogManager().getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
+                assertThat(readOnlyEngine.translogManager().getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
+                assertThat(readOnlyEngine.translogManager().getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
             }
         }
     }

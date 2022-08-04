@@ -72,6 +72,8 @@ import static java.util.Collections.emptyMap;
  * OpenSearch doesn't have any automatic mechanism to share these components between indexes. If any component is heavy enough to warrant
  * such sharing then it is the Plugin's responsibility to do it in their {@link AnalysisProvider} implementation. We recommend against doing
  * this unless absolutely necessary because it can be difficult to get the caching right given things like behavior changes across versions.
+ *
+ * @opensearch.api
  */
 public interface AnalysisPlugin {
     /**

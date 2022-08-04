@@ -44,6 +44,11 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.util.Collections;
 import java.util.function.Supplier;
 
+/**
+ * Index specific field mapper
+ *
+ * @opensearch.internal
+ */
 public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_index";
@@ -52,6 +57,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> new IndexFieldMapper());
 
+    /**
+     * Field type for Index field mapper
+     *
+     * @opensearch.internal
+     */
     static final class IndexFieldType extends ConstantFieldType {
 
         static final IndexFieldType INSTANCE = new IndexFieldType();

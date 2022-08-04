@@ -35,7 +35,7 @@ package org.opensearch.painless;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.ScriptContext;
 
 import java.util.ArrayList;
@@ -51,8 +51,8 @@ public class BasicStatementTests extends ScriptTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
-        contexts.put(OneArg.CONTEXT, Whitelist.BASE_WHITELISTS);
+        Map<ScriptContext<?>, List<Allowlist>> contexts = newDefaultContexts();
+        contexts.put(OneArg.CONTEXT, Allowlist.BASE_ALLOWLISTS);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
 

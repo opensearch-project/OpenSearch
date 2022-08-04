@@ -60,6 +60,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * specifier (private, default, protected, public).
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 @Target({ METHOD, CONSTRUCTOR, FIELD })
 @Retention(RUNTIME)

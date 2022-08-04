@@ -41,6 +41,8 @@ import java.util.List;
  * begins accepting network requests in
  * {@link Node#validateNodeBeforeAcceptingRequests(org.opensearch.bootstrap.BootstrapContext, BoundTransportAddress, List)}.
  * This exception is a checked exception that is declared as thrown from this method for the purpose of bubbling up to the user.
+ *
+ * @opensearch.internal
  */
 public class NodeValidationException extends Exception {
 

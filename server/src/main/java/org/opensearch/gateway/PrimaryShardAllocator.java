@@ -74,6 +74,8 @@ import java.util.stream.Stream;
  * (see {@link org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator}),
  * nor does it allocate primaries when a primary shard failed and there is a valid replica
  * copy that can immediately be promoted to primary, as this takes place in {@link RoutingNodes#failShard}.
+ *
+ * @opensearch.internal
  */
 public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**
@@ -368,11 +370,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
 
             if (allocationId != null) {
-                assert nodeShardState.storeException() == null
-                    || nodeShardState
-                        .storeException() instanceof ShardLockObtainFailedException : "only allow store that can be opened or that throws a ShardLockObtainFailedException while being opened but got a "
-                            + "store throwing "
-                            + nodeShardState.storeException();
+                assert nodeShardState.storeException() == null || nodeShardState.storeException() instanceof ShardLockObtainFailedException
+                    : "only allow store that can be opened or that throws a ShardLockObtainFailedException while being opened but got a "
+                        + "store throwing "
+                        + nodeShardState.storeException();
                 numberOfAllocationsFound++;
                 if (matchAnyShard || inSyncAllocationIds.contains(nodeShardState.allocationId())) {
                     nodeShardStates.add(nodeShardState);

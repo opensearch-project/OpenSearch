@@ -47,8 +47,13 @@ public class ExceptionIT extends OpenSearchRestTestCase {
     private void logClusterNodes() throws IOException {
         ObjectPath objectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "_nodes")));
         Map<String, ?> nodes = objectPath.evaluate("nodes");
-        String master = EntityUtils.toString(client().performRequest(new Request("GET", "_cat/master?h=id")).getEntity()).trim();
-        logger.info("cluster discovered: master id='{}'", master);
+        // As of 2.0, 'GET _cat/master' API is deprecated to promote inclusive language.
+        // Allow the deprecation warning for the node running an older version.
+        // TODO: Replace the API with 'GET _cat/cluster_manager' when dropping compatibility with 1.x versions.
+        Request catRequest = new Request("GET", "_cat/master?h=id");
+        catRequest.setOptions(expectWarningsOnce("[GET /_cat/master] is deprecated! Use [GET /_cat/cluster_manager] instead."));
+        String clusterManager = EntityUtils.toString(client().performRequest(catRequest).getEntity()).trim();
+        logger.info("cluster discovered: cluster-manager id='{}'", clusterManager);
         for (String id : nodes.keySet()) {
             logger.info("{}: id='{}', name='{}', version={}",
                 objectPath.evaluate("nodes." + id + ".http.publish_address"),

@@ -35,6 +35,7 @@ package org.opensearch.index.engine;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,7 +56,7 @@ class InternalTestEngine extends InternalEngine {
         int maxDocs,
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier
     ) {
-        super(engineConfig, maxDocs, localCheckpointTrackerSupplier);
+        super(engineConfig, maxDocs, localCheckpointTrackerSupplier, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER);
     }
 
     @Override

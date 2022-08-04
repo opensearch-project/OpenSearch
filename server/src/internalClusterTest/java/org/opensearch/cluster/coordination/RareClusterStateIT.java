@@ -53,7 +53,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.Discovery;
@@ -106,9 +105,9 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         // close to have some unassigned started shards shards..
         client().admin().indices().prepareClose(index).get();
 
-        final String masterName = internalCluster().getMasterName();
-        final ClusterService clusterService = internalCluster().clusterService(masterName);
-        final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, masterName);
+        final String clusterManagerName = internalCluster().getClusterManagerName();
+        final ClusterService clusterService = internalCluster().clusterService(clusterManagerName);
+        final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, clusterManagerName);
         clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -160,31 +159,31 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
     ) throws Exception {
         // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
         // request.
-        final Coordinator masterCoordinator = (Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class);
+        final Coordinator clusterManagerCoordinator = (Coordinator) internalCluster().getCurrentClusterManagerNodeInstance(Discovery.class);
         assertBusy(() -> {
-            assertFalse(masterCoordinator.publicationInProgress());
-            final long applierVersion = masterCoordinator.getApplierState().version();
+            assertFalse(clusterManagerCoordinator.publicationInProgress());
+            final long applierVersion = clusterManagerCoordinator.getApplierState().version();
             for (Discovery instance : internalCluster().getInstances(Discovery.class)) {
                 assertEquals(((Coordinator) instance).getApplierState().version(), applierVersion);
             }
         });
         ActionFuture<Res> future = req.execute();
-        assertBusy(() -> assertTrue(masterCoordinator.cancelCommittedPublication()));
+        assertBusy(() -> assertTrue(clusterManagerCoordinator.cancelCommittedPublication()));
         return future;
     }
 
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).addMapping("type").get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen("test");
 
-        // block none master node.
+        // block none cluster-manager node.
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(dataNode, random());
         internalCluster().setDisruptionScheme(disruption);
         logger.info("--> indexing a doc");
-        index("test", "type", "1");
+        index("test", MapperService.SINGLE_MAPPING_NAME, "1");
         refresh();
         disruption.startDisrupting();
         logger.info("--> delete index and recreate it");
@@ -203,9 +202,11 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         ensureGreen(TimeValue.timeValueMinutes(30), "test");
         // due to publish_timeout of 0, wait for data node to have cluster state fully applied
         assertBusy(() -> {
-            long masterClusterStateVersion = internalCluster().clusterService(internalCluster().getMasterName()).state().version();
+            long clusterManagerClusterStateVersion = internalCluster().clusterService(internalCluster().getClusterManagerName())
+                .state()
+                .version();
             long dataClusterStateVersion = internalCluster().clusterService(dataNode).state().version();
-            assertThat(masterClusterStateVersion, equalTo(dataClusterStateVersion));
+            assertThat(clusterManagerClusterStateVersion, equalTo(dataClusterStateVersion));
         });
         assertHitCount(client().prepareSearch("test").get(), 0);
     }
@@ -213,7 +214,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
     public void testDelayedMappingPropagationOnPrimary() throws Exception {
         // Here we want to test that things go well if there is a first request
         // that adds mappings but before mappings are propagated to all nodes
-        // another index request introduces the same mapping. The master node
+        // another index request introduces the same mapping. The cluster-manager node
         // will reply immediately since it did not change the cluster state
         // but the change might not be on the node that performed the indexing
         // operation yet
@@ -221,37 +222,37 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(2);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
-        final String master = internalCluster().getMasterName();
-        assertThat(nodeNames, hasItem(master));
+        final String clusterManager = internalCluster().getClusterManagerName();
+        assertThat(nodeNames, hasItem(clusterManager));
         String otherNode = null;
         for (String node : nodeNames) {
-            if (node.equals(master) == false) {
+            if (node.equals(clusterManager) == false) {
                 otherNode = node;
                 break;
             }
         }
         assertNotNull(otherNode);
 
-        // Don't allocate the shard on the master node
+        // Don't allocate the shard on the cluster-manager node
         assertAcked(
             prepareCreate("index").setSettings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.routing.allocation.exclude._name", master)
+                    .put("index.routing.allocation.exclude._name", clusterManager)
             ).get()
         );
         ensureGreen();
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(master, state.nodes().getMasterNode().getName());
+        assertEquals(clusterManager, state.nodes().getClusterManagerNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(1));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
-                // primary must not be on the master node
-                assertFalse(state.nodes().getMasterNodeId().equals(shard.currentNodeId()));
+                // primary must not be on the cluster-manager node
+                assertFalse(state.nodes().getClusterManagerNodeId().equals(shard.currentNodeId()));
             } else {
                 fail(); // only primaries
             }
@@ -264,19 +265,12 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // Add a new mapping...
         ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long")
+            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
         );
 
-        // ...and wait for mappings to be available on master
+        // ...and wait for mappings to be available on cluster-manager
         assertBusy(() -> {
-            ImmutableOpenMap<String, MappingMetadata> indexMappings = client().admin()
-                .indices()
-                .prepareGetMappings("index")
-                .get()
-                .getMappings()
-                .get("index");
-            assertNotNull(indexMappings);
-            MappingMetadata typeMappings = indexMappings.get("type");
+            MappingMetadata typeMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(typeMappings);
             Object properties;
             try {
@@ -291,7 +285,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // this request does not change the cluster state, because mapping is already created,
         // we don't await and cancel committed publication
-        ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index", "type", "1").setSource("field", 42).execute();
+        ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
 
         // Wait a bit to make sure that the reason why we did not get a response
         // is that cluster state processing is blocked and not just that it takes
@@ -316,24 +310,24 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(2);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
-        final String master = internalCluster().getMasterName();
-        assertThat(nodeNames, hasItem(master));
+        final String clusterManager = internalCluster().getClusterManagerName();
+        assertThat(nodeNames, hasItem(clusterManager));
         String otherNode = null;
         for (String node : nodeNames) {
-            if (node.equals(master) == false) {
+            if (node.equals(clusterManager) == false) {
                 otherNode = node;
                 break;
             }
         }
         assertNotNull(otherNode);
 
-        // Force allocation of the primary on the master node by first only allocating on the master
+        // Force allocation of the primary on the cluster-manager node by first only allocating on the cluster-manager
         // and then allowing all nodes so that the replica gets allocated on the other node
         prepareCreate("index").setSettings(
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name", master)
+                .put("index.routing.allocation.include._name", clusterManager)
         ).get();
         client().admin()
             .indices()
@@ -344,13 +338,13 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(master, state.nodes().getMasterNode().getName());
+        assertEquals(clusterManager, state.nodes().getClusterManagerNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(2));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
-                // primary must be on the master
-                assertEquals(state.nodes().getMasterNodeId(), shard.currentNodeId());
+                // primary must be on the cluster-manager
+                assertEquals(state.nodes().getClusterManagerNodeId(), shard.currentNodeId());
             } else {
                 assertTrue(shard.active());
             }
@@ -361,24 +355,24 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long")
+            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
         );
 
         final Index index = resolveIndex("index");
-        // Wait for mappings to be available on master
+        // Wait for mappings to be available on cluster-manager
         assertBusy(() -> {
-            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, master);
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, clusterManager);
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();
-            DocumentMapper mapper = mapperService.documentMapper("type");
+            DocumentMapper mapper = mapperService.documentMapper();
             assertNotNull(mapper);
             assertNotNull(mapper.mappers().getMapper("field"));
         });
 
-        final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index", "type", "1").setSource("field", 42).execute();
+        final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
 
-        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "1").get().isExists()));
+        assertBusy(() -> assertTrue(client().prepareGet("index", "1").get().isExists()));
 
         // index another document, this time using dynamic mappings.
         // The ack timeout of 0 on dynamic mapping updates makes it possible for the document to be indexed on the primary, even
@@ -386,21 +380,21 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         // this request does not change the cluster state, because the mapping is dynamic,
         // we need to await and cancel committed publication
         ActionFuture<IndexResponse> dynamicMappingsFut = executeAndCancelCommittedPublication(
-            client().prepareIndex("index", "type", "2").setSource("field2", 42)
+            client().prepareIndex("index").setId("2").setSource("field2", 42)
         );
 
-        // ...and wait for second mapping to be available on master
+        // ...and wait for second mapping to be available on cluster-manager
         assertBusy(() -> {
-            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, master);
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, clusterManager);
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();
-            DocumentMapper mapper = mapperService.documentMapper("type");
+            DocumentMapper mapper = mapperService.documentMapper();
             assertNotNull(mapper);
             assertNotNull(mapper.mappers().getMapper("field2"));
         });
 
-        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "2").get().isExists()));
+        assertBusy(() -> assertTrue(client().prepareGet("index", "2").get().isExists()));
 
         // The mappings have not been propagated to the replica yet as a consequence the document count not be indexed
         // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled

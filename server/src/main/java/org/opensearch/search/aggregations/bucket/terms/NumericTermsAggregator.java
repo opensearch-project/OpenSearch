@@ -70,6 +70,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
+/**
+ * Aggregate all docs that contain numeric terms
+ *
+ * @opensearch.internal
+ */
 public class NumericTermsAggregator extends TermsAggregator {
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;

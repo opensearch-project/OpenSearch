@@ -44,6 +44,8 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * Tracks the state of sliced subtasks and provides unified status information for a sliced BulkByScrollRequest.
+ *
+ * @opensearch.internal
  */
 public class LeaderBulkByScrollTaskState {
 
@@ -154,6 +156,11 @@ public class LeaderBulkByScrollTaskState {
         }
     }
 
+    /**
+     * Result
+     *
+     * @opensearch.internal
+     */
     private static final class Result {
         final BulkByScrollResponse response;
         final int sliceId;

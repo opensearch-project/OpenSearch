@@ -50,6 +50,11 @@ import java.util.function.Supplier;
 import static org.opensearch.search.aggregations.bucket.terms.InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME;
 import static org.opensearch.search.aggregations.bucket.terms.InternalTerms.SUM_OF_OTHER_DOC_COUNTS;
 
+/**
+ * A terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTerms.ParsedBucket> implements Terms {
 
     protected long docCountErrorUpperBound;
@@ -104,6 +109,11 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
         objectParser.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value, SUM_OF_OTHER_DOC_COUNTS);
     }
 
+    /**
+     * Base parsed bucket
+     *
+     * @opensearch.internal
+     */
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Terms.Bucket {
 
         boolean showDocCountError = false;
@@ -139,13 +149,16 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
             XContentParser.Token token;
             String currentFieldName = parser.currentName();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                // field value could be list, e.g. multi_terms aggregation.
+                if ((token.isValue() || token == XContentParser.Token.START_ARRAY)
+                    && CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
+                    keyConsumer.accept(parser, bucket);
+                }
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if (CommonFields.KEY_AS_STRING.getPreferredName().equals(currentFieldName)) {
                         bucket.setKeyAsString(parser.text());
-                    } else if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
-                        keyConsumer.accept(parser, bucket);
                     } else if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
                         bucket.setDocCount(parser.longValue());
                     } else if (DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName().equals(currentFieldName)) {

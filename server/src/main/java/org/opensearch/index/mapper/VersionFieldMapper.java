@@ -42,7 +42,11 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 
-/** Mapper for the _version field. */
+/**
+ * Mapper for the _version field.
+ *
+ * @opensearch.internal
+ */
 public class VersionFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_version";
@@ -50,6 +54,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> new VersionFieldMapper());
 
+    /**
+     * Field type for internal version field
+     *
+     * @opensearch.internal
+     */
     static final class VersionFieldType extends MappedFieldType {
 
         public static final VersionFieldType INSTANCE = new VersionFieldType();

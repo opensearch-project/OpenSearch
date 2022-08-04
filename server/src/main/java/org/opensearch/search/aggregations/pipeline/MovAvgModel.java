@@ -43,6 +43,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
+/**
+ * Base moving average model class
+ *
+ * @opensearch.internal
+ */
 public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment {
 
     /**
@@ -153,6 +158,8 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment 
 
     /**
      * Abstract class which also provides some concrete parsing functionality.
+     *
+     * @opensearch.internal
      */
     public abstract static class AbstractModelParser {
         /**

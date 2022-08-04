@@ -56,6 +56,7 @@ public class ReaperPlugin implements Plugin<Project> {
             .resolve(".gradle")
             .resolve("reaper")
             .resolve("build-" + ProcessHandle.current().pid());
+
         ReaperService service = project.getExtensions()
             .create("reaper", ReaperService.class, project, project.getBuildDir().toPath(), inputDir);
 

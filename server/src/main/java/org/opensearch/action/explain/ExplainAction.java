@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Entry point for the explain feature.
+ *
+ * @opensearch.internal
  */
 public class ExplainAction extends ActionType<ExplainResponse> {
 

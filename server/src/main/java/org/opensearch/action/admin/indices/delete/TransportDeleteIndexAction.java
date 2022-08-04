@@ -39,7 +39,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -60,8 +60,10 @@ import java.util.Set;
 
 /**
  * Delete index action.
+ *
+ * @opensearch.internal
  */
-public class TransportDeleteIndexAction extends TransportMasterNodeAction<DeleteIndexRequest, AcknowledgedResponse> {
+public class TransportDeleteIndexAction extends TransportClusterManagerNodeAction<DeleteIndexRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
 
@@ -113,7 +115,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteIndexRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -125,7 +127,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
         }
 
         DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
+            .masterNodeTimeout(request.clusterManagerNodeTimeout())
             .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
 
         deleteIndexService.deleteIndices(deleteRequest, new ActionListener<ClusterStateUpdateResponse>() {

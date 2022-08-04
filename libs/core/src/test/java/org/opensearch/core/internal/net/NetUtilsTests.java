@@ -33,15 +33,16 @@
 package org.opensearch.core.internal.net;
 
 import org.apache.lucene.util.Constants;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.lang.Runtime.Version;
 
 public class NetUtilsTests extends OpenSearchTestCase {
 
     public void testExtendedSocketOptions() {
         assumeTrue("JDK possibly not supported", Constants.JVM_NAME.contains("HotSpot") || Constants.JVM_NAME.contains("OpenJDK"));
-        assumeTrue("JDK version not supported", JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0);
+        assumeTrue("JDK version not supported", Runtime.version().compareTo(Version.parse("11")) >= 0);
         assumeTrue("Platform possibly not supported", IOUtils.LINUX || IOUtils.MAC_OS_X);
         assertNotNull(NetUtils.getTcpKeepIdleSocketOptionOrNull());
         assertNotNull(NetUtils.getTcpKeepIntervalSocketOptionOrNull());

@@ -37,6 +37,9 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.Token;
 import org.apache.lucene.queryparser.classic.XQueryParser;
@@ -52,9 +55,6 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.lucene.search.Queries;
@@ -70,7 +70,6 @@ import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -91,6 +90,8 @@ import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields
  * queries based on the mapping information.
  * This class uses {@link MultiMatchQuery} to build the text query around operators and {@link XQueryParser}
  * to assemble the result logically.
+ *
+ * @opensearch.internal
  */
 public class QueryStringQueryParser extends XQueryParser {
     private static final String EXISTS_FIELD = "_exists_";
@@ -110,7 +111,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private ZoneId timeZone;
     private Fuzziness fuzziness = Fuzziness.AUTO;
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
-    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
+    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod = MultiTermQuery.CONSTANT_SCORE_REWRITE;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
     /**
@@ -527,9 +528,11 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
-        FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
-        QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
-        return query;
+        if (fuzzyRewriteMethod != null) {
+            return new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
+        } else {
+            return new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
+        }
     }
 
     @Override
@@ -646,11 +649,11 @@ public class QueryStringQueryParser extends XQueryParser {
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.
-                Term[] terms = new Term[plist.size()];
-                for (int i = 0; i < plist.size(); i++) {
-                    terms[i] = new Term(field, plist.get(i));
+                SynonymQuery.Builder sb = new SynonymQuery.Builder(field);
+                for (String synonym : plist) {
+                    sb.addTerm(new Term(field, synonym));
                 }
-                posQuery = new SynonymQuery(terms);
+                posQuery = sb.build();
             } else {
                 List<BooleanClause> innerClauses = new ArrayList<>();
                 for (String token : plist) {

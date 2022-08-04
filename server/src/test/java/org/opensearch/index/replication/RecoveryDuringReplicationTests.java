@@ -69,16 +69,14 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.common.ReplicationListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -143,7 +141,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             shards.startAll();
             final int docs = randomIntBetween(0, 16);
             for (int i = 0; i < docs; i++) {
-                shards.index(new IndexRequest("index", "type", Integer.toString(i)).source("{}", XContentType.JSON));
+                shards.index(new IndexRequest("index").id(Integer.toString(i)).source("{}", XContentType.JSON));
             }
 
             shards.flush();
@@ -159,7 +157,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                 1,
                 randomNonNegativeLong(),
                 false,
-                new SourceToParse("index", "type", "replica", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse("index", "replica", new BytesArray("{}"), XContentType.JSON)
             );
             shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
@@ -173,7 +171,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                 promotedReplica.applyIndexOperationOnPrimary(
                     Versions.MATCH_ANY,
                     VersionType.INTERNAL,
-                    new SourceToParse("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
+                    new SourceToParse("index", "primary", new BytesArray("{}"), XContentType.JSON),
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     0,
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -210,10 +208,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                 final int rollbackDocs = randomIntBetween(1, 5);
                 logger.info("--> indexing {} rollback docs", rollbackDocs);
                 for (int i = 0; i < rollbackDocs; i++) {
-                    final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i).source(
-                        "{}",
-                        XContentType.JSON
-                    );
+                    final IndexRequest indexRequest = new IndexRequest(index.getName()).id("rollback_" + i).source("{}", XContentType.JSON);
                     final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                     indexOnReplica(bulkShardRequest, shards, replica);
                 }
@@ -331,7 +326,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             int staleDocs = scaledRandomIntBetween(1, 10);
             logger.info("--> indexing {} stale docs", staleDocs);
             for (int i = 0; i < staleDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "stale_" + i).source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("stale_" + i).source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 indexOnReplica(bulkShardRequest, shards, replica);
             }
@@ -361,19 +356,14 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
     }
 
     public void testResyncAfterPrimaryPromotion() throws Exception {
-        Map<String, String> mappings = Collections.singletonMap(
-            "type",
-            "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}"
-        );
+        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             int initialDocs = randomInt(10);
 
             for (int i = 0; i < initialDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "initial_doc_" + i).source(
-                    "{ \"f\": \"normal\"}",
-                    XContentType.JSON
-                );
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("initial_doc_" + i)
+                    .source("{ \"f\": \"normal\"}", XContentType.JSON);
                 shards.index(indexRequest);
             }
 
@@ -390,10 +380,8 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             final int extraDocs = randomInt(5);
             logger.info("--> indexing {} extra docs", extraDocs);
             for (int i = 0; i < extraDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_doc_" + i).source(
-                    "{ \"f\": \"normal\"}",
-                    XContentType.JSON
-                );
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_doc_" + i)
+                    .source("{ \"f\": \"normal\"}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 indexOnReplica(bulkShardRequest, shards, newPrimary);
             }
@@ -401,10 +389,8 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             final int extraDocsToBeTrimmed = randomIntBetween(0, 10);
             logger.info("--> indexing {} extra docs to be trimmed", extraDocsToBeTrimmed);
             for (int i = 0; i < extraDocsToBeTrimmed; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_trimmed_" + i).source(
-                    "{ \"f\": \"trimmed\"}",
-                    XContentType.JSON
-                );
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_trimmed_" + i)
+                    .source("{ \"f\": \"trimmed\"}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 // have to replicate to another replica != newPrimary one - the subject to trim
                 indexOnReplica(bulkShardRequest, shards, justReplica);
@@ -472,7 +458,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                 final String id = "pending_" + i;
                 threadPool.generic().submit(() -> {
                     try {
-                        shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                        shards.index(new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON));
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     } finally {
@@ -563,7 +549,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                         replicaEngineFactory.latchIndexers(1);
                         threadPool.generic().submit(() -> {
                             try {
-                                shards.index(new IndexRequest(index.getName(), "type", "pending").source("{}", XContentType.JSON));
+                                shards.index(new IndexRequest(index.getName()).id("pending").source("{}", XContentType.JSON));
                             } catch (final Exception e) {
                                 throw new RuntimeException(e);
                             } finally {
@@ -575,7 +561,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                             replicaEngineFactory.awaitIndexersLatch();
                             // unblock indexing for the next doc
                             replicaEngineFactory.allowIndexing();
-                            shards.index(new IndexRequest(index.getName(), "type", "completed").source("{}", XContentType.JSON));
+                            shards.index(new IndexRequest(index.getName()).id("completed").source("{}", XContentType.JSON));
                             pendingDocActiveWithExtraDocIndexed.countDown();
                         } catch (final Exception e) {
                             throw new AssertionError(e);
@@ -615,7 +601,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             // wait for the translog phase to complete and the recovery to block global checkpoint advancement
             assertBusy(() -> assertTrue(shards.getPrimary().pendingInSync()));
             {
-                shards.index(new IndexRequest(index.getName(), "type", "last").source("{}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id("last").source("{}", XContentType.JSON));
                 final long expectedDocs = docs + 3L;
                 assertThat(shards.getPrimary().getLocalCheckpoint(), equalTo(expectedDocs - 1));
                 // recovery is now in the process of being completed, therefore the global checkpoint can not have advanced on the primary
@@ -650,7 +636,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             long maxTimestampOnReplica2 = -1;
             List<IndexRequest> replicationRequests = new ArrayList<>();
             for (int numDocs = between(1, 10), i = 0; i < numDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
                 indexRequest.process(Version.CURRENT, null, index.getName());
                 final IndexRequest copyRequest;
                 if (randomBoolean()) {
@@ -708,13 +694,13 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                             int nextId = docId.incrementAndGet();
                             if (appendOnly) {
                                 String id = randomBoolean() ? Integer.toString(nextId) : null;
-                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                                shards.index(new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON));
                             } else if (frequently()) {
                                 String id = Integer.toString(frequently() ? nextId : between(0, nextId));
-                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                                shards.index(new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON));
                             } else {
                                 String id = Integer.toString(between(0, nextId));
-                                shards.delete(new DeleteRequest(index.getName(), "type", id));
+                                shards.delete(new DeleteRequest(index.getName()).id(id));
                             }
                             if (randomInt(100) < 10) {
                                 shards.getPrimary().flush(new FlushRequest());
@@ -749,7 +735,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             int inFlightOps = scaledRandomIntBetween(10, 200);
             for (int i = 0; i < inFlightOps; i++) {
                 String id = "extra-" + i;
-                IndexRequest primaryRequest = new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON);
+                IndexRequest primaryRequest = new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON);
                 BulkShardRequest replicationRequest = indexOnPrimary(primaryRequest, shards.getPrimary());
                 for (IndexShard replica : shards.getReplicas()) {
                     if (randomBoolean()) {
@@ -823,7 +809,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             CountDownLatch releaseRecovery,
             IndexShard shard,
             DiscoveryNode sourceNode,
-            PeerRecoveryTargetService.RecoveryListener listener,
+            ReplicationListener listener,
             Logger logger
         ) {
             super(shard, sourceNode, listener);

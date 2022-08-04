@@ -108,7 +108,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate("idx")
                 .setSettings(org.opensearch.common.collect.Map.of("number_of_shards", 1, "number_of_replicas", 0))
-                .addMapping("type", STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword")
+                .setMapping(STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword")
                 .get()
         );
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -120,7 +120,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             builders.add(
-                client().prepareIndex("idx", "type")
+                client().prepareIndex("idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(STRING_FIELD, randomFrom(randomStrings))

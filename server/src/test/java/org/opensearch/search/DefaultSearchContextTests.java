@@ -32,8 +32,10 @@
 
 package org.opensearch.search;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -50,6 +52,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.IndexCache;
@@ -65,6 +68,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.LegacyReaderContext;
+import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -76,7 +80,12 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -84,12 +93,32 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DefaultSearchContextTests extends OpenSearchTestCase {
+    private final ExecutorService executor;
+
+    @ParametersFactory
+    public static Collection<Object[]> concurrency() {
+        return Arrays.asList(new Integer[] { 0 }, new Integer[] { 5 });
+    }
+
+    public DefaultSearchContextTests(int concurrency) {
+        this.executor = (concurrency > 0) ? Executors.newFixedThreadPool(concurrency) : null;
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+
+        if (executor != null) {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
 
     public void testPreProcess() throws Exception {
         TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
@@ -97,7 +126,6 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
-        when(shardSearchRequest.types()).thenReturn(new String[] {});
 
         ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
         IndexShard indexShard = mock(IndexShard.class);
@@ -108,10 +136,12 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         int maxResultWindow = randomIntBetween(50, 100);
         int maxRescoreWindow = randomIntBetween(50, 100);
         int maxSlicesPerScroll = randomIntBetween(50, 100);
+        int maxSlicesPerPit = randomIntBetween(50, 100);
         Settings settings = Settings.builder()
             .put("index.max_result_window", maxResultWindow)
             .put("index.max_slices_per_scroll", maxSlicesPerScroll)
             .put("index.max_rescore_window", maxRescoreWindow)
+            .put("index.max_slices_per_pit", maxSlicesPerPit)
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
@@ -123,7 +153,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class))).thenReturn(queryShardContext);
+        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class), anyBoolean())).thenReturn(
+            queryShardContext
+        );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -179,7 +211,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false,
+                executor
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -219,7 +253,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false,
+                executor
             );
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
@@ -268,13 +304,13 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             );
 
             readerContext.close();
-            readerContext = new ReaderContext(
+            readerContext = new LegacyReaderContext(
                 newContextId(),
                 indexService,
                 indexShard,
                 searcherSupplier.get(),
-                randomNonNegativeLong(),
-                false
+                shardSearchRequest,
+                randomNonNegativeLong()
             );
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(
@@ -287,7 +323,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false,
+                executor
             );
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
@@ -324,11 +362,17 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false,
+                executor
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
+            // make sure getPreciseRelativeTimeInMillis is same as System.nanoTime()
+            long timeToleranceInMs = 10;
+            long currTime = TimeValue.nsecToMSec(System.nanoTime());
+            assertTrue(Math.abs(context3.getRelativeTimeInMillis(false) - currTime) <= timeToleranceInMs);
 
             when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
             when(queryShardContext.fieldMapper(anyString())).thenReturn(mock(MappedFieldType.class));
@@ -353,7 +397,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false,
+                executor
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
@@ -362,6 +408,52 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             assertTrue(query1 instanceof MatchNoDocsQuery || query2 instanceof MatchNoDocsQuery);
 
             readerContext.close();
+
+            ReaderContext pitReaderContext = new PitReaderContext(
+                newContextId(),
+                indexService,
+                indexShard,
+                searcherSupplier.get(),
+                1000,
+                true
+            );
+            DefaultSearchContext context5 = new DefaultSearchContext(
+                pitReaderContext,
+                shardSearchRequest,
+                target,
+                null,
+                bigArrays,
+                null,
+                timeout,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor
+            );
+            int numSlicesForPit = maxSlicesPerPit + randomIntBetween(1, 100);
+            when(sliceBuilder.getMax()).thenReturn(numSlicesForPit);
+            context5.sliceBuilder(sliceBuilder);
+
+            OpenSearchRejectedExecutionException exception1 = expectThrows(
+                OpenSearchRejectedExecutionException.class,
+                () -> context5.preProcess(false)
+            );
+            assertThat(
+                exception1.getMessage(),
+                equalTo(
+                    "The number of slices ["
+                        + numSlicesForPit
+                        + "] is too large. It must "
+                        + "be less than ["
+                        + maxSlicesPerPit
+                        + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_SLICES_PER_PIT.getKey()
+                        + "] index level setting."
+                )
+            );
+            pitReaderContext.close();
+
             threadPool.shutdown();
         }
     }
@@ -381,7 +473,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
 
         IndexService indexService = mock(IndexService.class);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class))).thenReturn(queryShardContext);
+        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class), anyBoolean())).thenReturn(
+            queryShardContext
+        );
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
@@ -430,7 +524,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false,
+                executor
             );
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});

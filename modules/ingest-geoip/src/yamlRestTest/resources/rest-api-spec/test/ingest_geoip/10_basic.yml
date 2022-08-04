@@ -5,10 +5,10 @@
     - do:
         cluster.state: {}
 
-    - set: {master_node: master}
+    - set: { cluster_manager_node: cluster_manager }
 
     - do:
         nodes.info: {}
 
-    - contains:  { nodes.$master.modules: { name: ingest-geoip } }
-    - contains:  { nodes.$master.ingest.processors: { type: geoip } }
+    - contains:  { nodes.$cluster_manager.modules: { name: ingest-geoip } }
+    - contains:  { nodes.$cluster_manager.ingest.processors: { type: geoip } }

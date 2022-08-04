@@ -37,6 +37,11 @@ import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for deleting an index
+ *
+ * @opensearch.internal
+ */
 public class DeleteIndexRequestBuilder extends AcknowledgedRequestBuilder<
     DeleteIndexRequest,
     AcknowledgedResponse,

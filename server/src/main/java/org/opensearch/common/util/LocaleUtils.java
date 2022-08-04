@@ -38,6 +38,8 @@ import java.util.MissingResourceException;
 
 /**
  * Utilities for for dealing with {@link Locale} objects
+ *
+ * @opensearch.internal
  */
 public class LocaleUtils {
 

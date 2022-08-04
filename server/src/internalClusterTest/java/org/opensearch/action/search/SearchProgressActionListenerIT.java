@@ -213,7 +213,7 @@ public class SearchProgressActionListenerIT extends OpenSearchSingleNodeTestCase
         for (int i = 0; i < numIndices; i++) {
             String indexName = String.format(Locale.ROOT, "index-%03d", i);
             assertAcked(client.admin().indices().prepareCreate(indexName).get());
-            client.prepareIndex(indexName, "doc", Integer.toString(i)).setSource("number", i, "foo", "bar").get();
+            client.prepareIndex(indexName).setId(Integer.toString(i)).setSource("number", i, "foo", "bar").get();
         }
         client.admin().indices().prepareRefresh("index-*").get();
         ClusterSearchShardsResponse resp = client.admin().cluster().prepareSearchShards("index-*").get();

@@ -31,7 +31,6 @@
 
 package org.opensearch.index.store;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -40,7 +39,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
@@ -52,7 +50,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -61,9 +58,12 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
+import org.hamcrest.Matchers;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
@@ -82,9 +82,8 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
-import org.hamcrest.Matchers;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -103,7 +102,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -115,6 +113,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.opensearch.test.VersionUtils.randomVersion;
 
 public class StoreTests extends OpenSearchTestCase {
 
@@ -237,10 +236,10 @@ public class StoreTests extends OpenSearchTestCase {
             BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
             output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         }
-        output.writeInt(CodecUtil.FOOTER_MAGIC);
-        output.writeInt(0);
+        CodecUtil.writeBEInt(output, CodecUtil.FOOTER_MAGIC);
+        CodecUtil.writeBEInt(output, 0);
         String checksum = Store.digestToString(output.getChecksum());
-        output.writeLong(output.getChecksum() + 1); // write a wrong checksum to the file
+        CodecUtil.writeBELong(output, output.getChecksum() + 1); // write a wrong checksum to the file
         output.close();
 
         IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
@@ -365,14 +364,14 @@ public class StoreTests extends OpenSearchTestCase {
         Store.MetadataSnapshot metadata;
         // check before we committed
         try {
-            store.getMetadata(null);
+            store.getMetadata();
             fail("no index present - expected exception");
         } catch (IndexNotFoundException ex) {
             // expected
         }
         writer.commit();
         writer.close();
-        metadata = store.getMetadata(null);
+        metadata = store.getMetadata();
         assertThat(metadata.asMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
@@ -502,9 +501,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(file)
-                && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file)
-                && file.startsWith("extra") == false) {
+            if (IndexWriter.WRITE_LOCK_NAME.equals(file) == false && file.startsWith("extra") == false) {
                 assertTrue(
                     file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length,
                     metadata.asMap().containsKey(file)
@@ -555,7 +552,7 @@ public class StoreTests extends OpenSearchTestCase {
             }
             writer.commit();
             writer.close();
-            first = store.getMetadata(null);
+            first = store.getMetadata();
             assertDeleteContent(store, store.directory());
             store.close();
         }
@@ -584,7 +581,7 @@ public class StoreTests extends OpenSearchTestCase {
             }
             writer.commit();
             writer.close();
-            second = store.getMetadata(null);
+            second = store.getMetadata();
         }
         Store.RecoveryDiff diff = first.recoveryDiff(second);
         assertThat(first.size(), equalTo(second.size()));
@@ -613,7 +610,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(numDocs))));
         writer.commit();
         writer.close();
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = store.getMetadata();
         StoreFileMetadata delFile = null;
         for (StoreFileMetadata md : metadata) {
             if (md.name().endsWith(".liv")) {
@@ -648,7 +645,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.addDocument(docs.get(0));
         writer.close();
 
-        Store.MetadataSnapshot newCommitMetadata = store.getMetadata(null);
+        Store.MetadataSnapshot newCommitMetadata = store.getMetadata();
         Store.RecoveryDiff newCommitDiff = newCommitMetadata.recoveryDiff(metadata);
         if (delFile != null) {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetadata.size() - 5)); // segments_N, del file, cfs, cfe, si for the
@@ -713,7 +710,7 @@ public class StoreTests extends OpenSearchTestCase {
             writer.addDocument(doc);
         }
 
-        Store.MetadataSnapshot firstMeta = store.getMetadata(null);
+        Store.MetadataSnapshot firstMeta = store.getMetadata();
 
         if (random().nextBoolean()) {
             for (int i = 0; i < docs; i++) {
@@ -734,7 +731,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot secondMeta = store.getMetadata(null);
+        Store.MetadataSnapshot secondMeta = store.getMetadata();
 
         if (randomBoolean()) {
             store.cleanupAndVerify("test", firstMeta);
@@ -1003,7 +1000,7 @@ public class StoreTests extends OpenSearchTestCase {
 
         try {
             if (randomBoolean()) {
-                store.getMetadata(null);
+                store.getMetadata();
             } else {
                 store.readLastCommittedSegmentsInfo();
             }
@@ -1140,5 +1137,55 @@ public class StoreTests extends OpenSearchTestCase {
                 assertEquals(FilterDirectory.unwrap(store.directory()).getPendingDeletions(), store.directory().getPendingDeletions());
             }
         }
+    }
+
+    public void testGetMetadataWithSegmentInfos() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        Store.MetadataSnapshot metadataSnapshot = store.getMetadata(segmentInfos);
+        // loose check for equality
+        assertEquals(segmentInfos.getSegmentsFileName(), metadataSnapshot.getSegmentsFile().name());
+        store.close();
+    }
+
+    public void testcleanupAndPreserveLatestCommitPoint() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(
+            TestUtil.getDefaultCodec()
+        );
+        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        IndexWriter writer = new IndexWriter(store.directory(), indexWriterConfig);
+        int docs = 1 + random().nextInt(100);
+        writer.commit();
+        Document doc = new Document();
+        doc.add(new TextField("id", "" + docs++, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        doc.add(
+            new TextField(
+                "body",
+                TestUtil.randomRealisticUnicodeString(random()),
+                random().nextBoolean() ? Field.Store.YES : Field.Store.NO
+            )
+        );
+        doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
+        writer.addDocument(doc);
+        writer.commit();
+        writer.close();
+
+        Store.MetadataSnapshot commitMetadata = store.getMetadata();
+
+        Store.MetadataSnapshot refreshMetadata = Store.MetadataSnapshot.EMPTY;
+
+        store.cleanupAndPreserveLatestCommitPoint("test", refreshMetadata);
+
+        // we want to ensure commitMetadata files are preserved after calling cleanup
+        for (String existingFile : store.directory().listAll()) {
+            assert (commitMetadata.contains(existingFile) == true);
+        }
+
+        deleteContent(store.directory());
+        IOUtils.close(store);
     }
 }

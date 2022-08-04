@@ -60,6 +60,8 @@ import java.util.Objects;
 /**
  * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
  * fields are unsupported, and will throw at the factory layer.
+ *
+ * @opensearch.internal
  */
 public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<HistogramAggregationBuilder> {
     public static final String NAME = "histogram";
@@ -225,12 +227,12 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Get the current minimum bound that is set on this builder. */
     public double minBound() {
-        return extendedBounds.getMin();
+        return DoubleBounds.getEffectiveMin(extendedBounds);
     }
 
     /** Get the current maximum bound that is set on this builder. */
     public double maxBound() {
-        return extendedBounds.getMax();
+        return DoubleBounds.getEffectiveMax(extendedBounds);
     }
 
     protected DoubleBounds extendedBounds() {

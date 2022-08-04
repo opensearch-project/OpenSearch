@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,7 +55,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
 
     public void testUpdateWhileReindexing() throws Exception {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
-        indexRandom(true, client().prepareIndex("test", "test", "test").setSource("test", value.get()));
+        indexRandom(true, client().prepareIndex("test").setId("test").setSource("test", value.get()));
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicBoolean keepUpdating = new AtomicBoolean(true);
@@ -76,10 +76,11 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
 
         try {
             for (int i = 0; i < MAX_MUTATIONS; i++) {
-                GetResponse get = client().prepareGet("test", "test", "test").get();
+                GetResponse get = client().prepareGet("test", "test").get();
                 assertEquals(value.get(), get.getSource().get("test"));
                 value.set(randomSimpleString(random()));
-                IndexRequestBuilder index = client().prepareIndex("test", "test", "test")
+                IndexRequestBuilder index = client().prepareIndex("test")
+                    .setId("test")
                     .setSource("test", value.get())
                     .setRefreshPolicy(IMMEDIATE);
                 /*
@@ -106,7 +107,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                             get.getVersion(),
                             attempts
                         );
-                        get = client().prepareGet("test", "test", "test").get();
+                        get = client().prepareGet("test", "test").get();
                     }
                 }
             }

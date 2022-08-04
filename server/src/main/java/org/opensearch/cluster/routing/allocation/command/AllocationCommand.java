@@ -45,6 +45,8 @@ import java.util.Optional;
  * A command to move shards in some way.
  *
  * Commands are registered in {@link NetworkModule}.
+ *
+ * @opensearch.internal
  */
 public interface AllocationCommand extends NamedWriteable, ToXContentObject {
 

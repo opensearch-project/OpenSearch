@@ -53,6 +53,11 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
+/**
+ * Aggregate all docs into a bucket defined by a script
+ *
+ * @opensearch.internal
+ */
 public class BucketScriptPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final GapPolicy gapPolicy;

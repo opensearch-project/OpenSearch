@@ -38,7 +38,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.index.mapper.MapperExtrasPlugin;
+import org.opensearch.index.mapper.MapperExtrasModulePlugin;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.RankFeatureQueryBuilder.ScoreFunction;
 import org.opensearch.plugins.Plugin;
@@ -62,8 +62,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             "_doc",
             new CompressedXContent(
                 Strings.toString(
-                    PutMappingRequest.buildFromSimplifiedDef(
-                        "_doc",
+                    PutMappingRequest.simpleMapping(
                         "my_feature_field",
                         "type=rank_feature",
                         "my_negative_feature_field",
@@ -79,7 +78,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(MapperExtrasPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(MapperExtrasModulePlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

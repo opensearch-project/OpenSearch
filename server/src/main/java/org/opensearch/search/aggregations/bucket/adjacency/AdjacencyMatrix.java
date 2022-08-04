@@ -40,6 +40,8 @@ import java.util.List;
  * A multi bucket aggregation where the buckets are defined by a set of filters
  * (a bucket is produced per filter plus a bucket for each non-empty filter
  * intersection so A, B and A&amp;B).
+ *
+ * @opensearch.internal
  */
 public interface AdjacencyMatrix extends MultiBucketsAggregation {
 

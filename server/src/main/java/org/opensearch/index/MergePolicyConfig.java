@@ -121,6 +121,8 @@ import org.opensearch.common.unit.ByteSizeValue;
  * indices segments API to see the segments that an index has, and
  * possibly either increase the <code>max_merged_segment</code> or issue an optimize
  * call for the index (try and aim to issue it on a low traffic time).
+ *
+ * @opensearch.internal
  */
 
 public final class MergePolicyConfig {

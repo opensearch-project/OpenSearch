@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Transport request for remote monitoring
+ *
+ * @opensearch.internal
+ */
 public final class RemoteInfoRequest extends ActionRequest {
 
     public RemoteInfoRequest() {}

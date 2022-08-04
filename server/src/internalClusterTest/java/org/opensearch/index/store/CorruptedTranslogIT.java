@@ -88,7 +88,7 @@ public class CorruptedTranslogIT extends OpenSearchIntegTestCase {
         // Index some documents
         IndexRequestBuilder[] builders = new IndexRequestBuilder[scaledRandomIntBetween(100, 1000)];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("foo", "bar");
+            builders[i] = client().prepareIndex("test").setSource("foo", "bar");
         }
 
         indexRandom(false, false, false, Arrays.asList(builders));

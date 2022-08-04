@@ -32,16 +32,21 @@
 
 package org.opensearch.discovery;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class MasterNotDiscoveredException extends OpenSearchException {
+/**
+ * Exception when the cluster-manager is not discovered
+ *
+ * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link ClusterManagerNotDiscoveredException}
+ */
+@Deprecated
+public class MasterNotDiscoveredException extends ClusterManagerNotDiscoveredException {
 
     public MasterNotDiscoveredException() {
-        super("");
+        super();
     }
 
     public MasterNotDiscoveredException(Throwable cause) {
@@ -50,11 +55,6 @@ public class MasterNotDiscoveredException extends OpenSearchException {
 
     public MasterNotDiscoveredException(String message) {
         super(message);
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.SERVICE_UNAVAILABLE;
     }
 
     public MasterNotDiscoveredException(StreamInput in) throws IOException {

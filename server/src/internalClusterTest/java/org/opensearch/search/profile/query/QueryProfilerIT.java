@@ -32,9 +32,13 @@
 
 package org.opensearch.search.profile.query;
 
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.search.*;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.SearchType;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -44,7 +48,11 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.util.*;
+import java.util.List;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.greaterThan;
@@ -67,7 +75,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         List<String> stringFields = Arrays.asList("field1");
@@ -121,7 +129,8 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i))
+            docs[i] = client().prepareIndex("test")
+                .setId(String.valueOf(i))
                 .setSource("id", String.valueOf(i), "field1", English.intToEnglish(i), "field2", i);
         }
 
@@ -199,7 +208,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -239,7 +248,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -299,7 +308,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -342,7 +351,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -382,7 +391,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -422,7 +431,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -462,7 +471,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -501,7 +510,8 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i))
+            docs[i] = client().prepareIndex("test")
+                .setId(String.valueOf(i))
                 .setSource("field1", English.intToEnglish(i) + " " + English.intToEnglish(i + 1), "field2", i);
         }
 
@@ -516,7 +526,6 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         SearchResponse resp = client().prepareSearch()
             .setQuery(q)
             .setIndices("test")
-            .setTypes("type1")
             .setProfile(true)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .get();
@@ -557,7 +566,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);

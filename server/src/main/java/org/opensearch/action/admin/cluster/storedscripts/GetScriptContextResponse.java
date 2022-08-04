@@ -54,6 +54,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Transport context response for getting stored scripts
+ *
+ * @opensearch.internal
+ */
 public class GetScriptContextResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField CONTEXTS = new ParseField("contexts");

@@ -66,11 +66,17 @@ import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBui
 /**
  * Aggregation for adjacency matrices.
  *
+ * @opensearch.internal
  */
 public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
 
+    /**
+     * A keyed filter
+     *
+     * @opensearch.internal
+     */
     protected static class KeyedFilter implements Writeable, ToXContentFragment {
         private final String key;
         private final QueryBuilder filter;
@@ -222,7 +228,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
             List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
             for (int i = 0; i < keys.length; i++) {
                 long bucketOrd = bucketOrd(owningBucketOrds[owningBucketOrdIdx], i);
-                int docCount = bucketDocCount(bucketOrd);
+                long docCount = bucketDocCount(bucketOrd);
                 // Empty buckets are not returned because this aggregation will commonly be used under a
                 // a date-histogram where we will look for transactions over time and can expect many
                 // empty buckets.
@@ -239,7 +245,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
             for (int i = 0; i < keys.length; i++) {
                 for (int j = i + 1; j < keys.length; j++) {
                     long bucketOrd = bucketOrd(owningBucketOrds[owningBucketOrdIdx], pos);
-                    int docCount = bucketDocCount(bucketOrd);
+                    long docCount = bucketDocCount(bucketOrd);
                     // Empty buckets are not returned due to potential for very sparse matrices
                     if (docCount > 0) {
                         String intersectKey = keys[i] + separator + keys[j];

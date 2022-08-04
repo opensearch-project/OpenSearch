@@ -1,4 +1,4 @@
-# whitelist for annotation tests
+# allowlist for annotation tests
 
 class org.opensearch.painless.AnnotationTestObject @no_import {
   void deprecatedMethod() @deprecated[message="use another method"]

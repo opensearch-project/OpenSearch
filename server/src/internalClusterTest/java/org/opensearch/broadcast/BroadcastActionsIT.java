@@ -40,7 +40,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 
 import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -57,16 +57,16 @@ public class BroadcastActionsIT extends OpenSearchIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         logger.info("Running Cluster Health");
-        client().index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        client().index(indexRequest("test").id("1").source(source("1", "test"))).actionGet();
         flush();
-        client().index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
+        client().index(indexRequest("test").id("2").source(source("2", "test"))).actionGet();
         refresh();
 
         logger.info("Count");
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "type1")).get();
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get();
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));

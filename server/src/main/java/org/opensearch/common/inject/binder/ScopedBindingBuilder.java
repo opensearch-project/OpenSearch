@@ -37,6 +37,8 @@ import java.lang.annotation.Annotation;
  * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
  *
  * @author crazybob@google.com (Bob Lee)
+ *
+ * @opensearch.internal
  */
 public interface ScopedBindingBuilder {
 

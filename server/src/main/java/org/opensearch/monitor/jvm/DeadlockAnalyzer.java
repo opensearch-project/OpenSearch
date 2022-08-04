@@ -45,6 +45,11 @@ import java.util.Set;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 
+/**
+ * Analyzes Operating System deadlocks
+ *
+ * @opensearch.internal
+ */
 public class DeadlockAnalyzer {
 
     private static final Deadlock NULL_RESULT[] = new Deadlock[0];
@@ -135,6 +140,11 @@ public class DeadlockAnalyzer {
         return unmodifiableMap(threadInfoMap);
     }
 
+    /**
+     * The deadlock being analyzed.
+     *
+     * @opensearch.internal
+     */
     public static class Deadlock {
         private final ThreadInfo members[];
         private final String description;

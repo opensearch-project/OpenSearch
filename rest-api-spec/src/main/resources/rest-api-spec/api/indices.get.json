@@ -22,10 +22,6 @@
       ]
     },
     "params":{
-      "include_type_name":{
-        "type":"boolean",
-        "description":"Whether to add the type name to the response (default: false)"
-      },
       "local":{
         "type":"boolean",
         "description":"Return local information, do not retrieve the state from master node (default: false)"
@@ -61,7 +57,15 @@
       },
       "master_timeout":{
         "type":"time",
-        "description":"Specify timeout for connection to master"
+        "description":"Specify timeout for connection to master",
+        "deprecated":{
+          "version":"2.0.0",
+          "description":"To promote inclusive language, use 'cluster_manager_timeout' instead."
+        }
+      },
+      "cluster_manager_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to cluster-manager node"
       }
     }
   }

@@ -35,6 +35,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
@@ -49,7 +50,14 @@ import java.util.Set;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to update cluster settings
+ *
+ * @opensearch.api
+ */
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterUpdateSettingsAction.class);
 
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
@@ -68,9 +76,10 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
-        clusterUpdateSettingsRequest.masterNodeTimeout(
-            request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout())
+        clusterUpdateSettingsRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterUpdateSettingsRequest.clusterManagerNodeTimeout())
         );
+        parseDeprecatedMasterTimeoutParameter(clusterUpdateSettingsRequest, request, deprecationLogger, getName());
         Map<String, Object> source;
         try (XContentParser parser = request.contentParser()) {
             source = parser.map();

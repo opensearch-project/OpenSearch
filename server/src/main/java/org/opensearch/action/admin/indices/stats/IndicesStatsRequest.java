@@ -45,6 +45,8 @@ import java.io.IOException;
  * <p>
  * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
+ *
+ * @opensearch.internal
  */
 public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
@@ -88,23 +90,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     public IndicesStatsRequest flags(CommonStatsFlags flags) {
         this.flags = flags;
         return this;
-    }
-
-    /**
-     * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public IndicesStatsRequest types(String... types) {
-        flags.types(types);
-        return this;
-    }
-
-    /**
-     * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public String[] types() {
-        return this.flags.types();
     }
 
     /**

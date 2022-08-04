@@ -50,6 +50,8 @@ import java.util.function.LongSupplier;
  * Whether changes are made and what exactly is modified is up to the implementation.
  *
  * Processors may get called concurrently and thus need to be thread-safe.
+ *
+ * @opensearch.internal
  */
 public interface Processor {
 

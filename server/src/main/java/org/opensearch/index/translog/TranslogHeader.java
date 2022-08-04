@@ -53,6 +53,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM
 
 /**
  * Each translog file is started with a translog header then followed by translog operations.
+ *
+ * @opensearch.internal
  */
 final class TranslogHeader {
     public static final String TRANSLOG_CODEC = "translog";

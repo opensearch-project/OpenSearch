@@ -35,6 +35,8 @@ import static org.opensearch.search.aggregations.MultiBucketConsumerService.Mult
 
 /**
  * The aggregation context that is part of the search context.
+ *
+ * @opensearch.internal
  */
 public class SearchContextAggregations {
 

@@ -32,6 +32,8 @@
 package org.opensearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.AnalyzerWrapper;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenOffsetFilter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
@@ -48,7 +50,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.text.Text;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.query.QueryShardContext;
@@ -67,6 +68,11 @@ import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
+/**
+ * Uses lucene's unified highlighter implementation
+ *
+ * @opensearch.internal
+ */
 public class UnifiedHighlighter implements Highlighter {
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
@@ -129,21 +135,33 @@ public class UnifiedHighlighter implements Highlighter {
         return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
     }
 
+    public AnalyzerWrapper getLimitedOffsetAnalyzer(Analyzer analyzer, int limit) {
+        return new AnalyzerWrapper(analyzer.getReuseStrategy()) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return analyzer;
+            }
+
+            @Override
+            protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
+                return new TokenStreamComponents(components.getSource(), new LimitTokenOffsetFilter(components.getTokenStream(), limit));
+            }
+
+        };
+
+    }
+
     CustomUnifiedHighlighter buildHighlighter(FieldHighlightContext fieldContext) throws IOException {
         Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
         int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
-        int keywordIgnoreAbove = Integer.MAX_VALUE;
-        if (fieldContext.fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) fieldContext.context.mapperService()
-                .documentMapper()
-                .mappers()
-                .getMapper(fieldContext.fieldName);
-            keywordIgnoreAbove = mapper.ignoreAbove();
-        }
+        Integer fieldMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzerOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
+        if (fieldMaxAnalyzedOffset != null) {
+            analyzer = getLimitedOffsetAnalyzer(analyzer, fieldMaxAnalyzedOffset);
+        }
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -178,8 +196,8 @@ public class UnifiedHighlighter implements Highlighter {
             fieldContext.field.fieldOptions().noMatchSize(),
             higlighterNumberOfFragments,
             fieldMatcher(fieldContext),
-            keywordIgnoreAbove,
-            maxAnalyzedOffset
+            maxAnalyzedOffset,
+            fieldMaxAnalyzedOffset
         );
     }
 

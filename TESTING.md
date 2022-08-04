@@ -245,7 +245,7 @@ The YAML REST tests support all the options provided by the randomized runner, p
 
 -   `tests.rest.suite`: comma separated paths of the test suites to be run (by default loaded from /rest-api-spec/test). It is possible to run only a subset of the tests providing a sub-folder or even a single yaml file (the default /rest-api-spec/test prefix is optional when files are loaded from classpath) e.g. `-Dtests.rest.suite=index,get,create/10_with_id`
 
--   `tests.rest.blacklist`: comma separated globs that identify tests that are blacklisted and need to be skipped e.g. `-Dtests.rest.blacklist=index/**/Index document,get/10_basic/**`
+-   `tests.rest.denylist`: comma separated globs that identify tests that are denylisted and need to be skipped e.g. `-Dtests.rest.denylist=index/**/Index document,get/10_basic/**`
 
 Java REST tests can be run with the "javaRestTest" task.
 
@@ -395,7 +395,7 @@ The branch needs to be available on the remote that the BWC makes of the reposit
 
 Example:
 
-Say you need to make a change to `master` and have a BWC layer in `5.x`. You will need to: . Create a branch called `index_req_change` off your remote `${remote}`. This will contain your change. . Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer. . Push both branches to your remote repository. . Run the tests with `./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x`.
+Say you need to make a change to `main` and have a BWC layer in `5.x`. You will need to: . Create a branch called `index_req_change` off your remote `${remote}`. This will contain your change. . Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer. . Push both branches to your remote repository. . Run the tests with `./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x`.
 
 ### Skip fetching latest
 

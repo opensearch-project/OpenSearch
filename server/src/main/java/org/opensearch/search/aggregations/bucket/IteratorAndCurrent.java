@@ -36,6 +36,11 @@ import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 
 import java.util.Iterator;
 
+/**
+ * Utility class for keeping track of a current item in an iterator
+ *
+ * @opensearch.internal
+ */
 public class IteratorAndCurrent<B extends InternalMultiBucketAggregation.InternalBucket> implements Iterator<B> {
     private final Iterator<B> iterator;
     private B current;

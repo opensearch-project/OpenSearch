@@ -38,6 +38,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
 
+/**
+ * Aggregates HTTP requests
+ *
+ * @opensearch.internal
+ */
 public class HttpPipeliningAggregator<Listener> {
 
     private final int maxEventsHeld;

@@ -28,9 +28,6 @@ setup:
 
 ---
 "Unified highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
   - do:
       catch: bad_request
       search:
@@ -39,12 +36,20 @@ setup:
           body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
 
+---
+"Unified highlighter on a field WITHOUT OFFSETS using max_analyzer_offset should SUCCEED":
+  - skip:
+        version: " - 2.1.99"
+        reason: only starting supporting the parameter max_analyzer_offset on version 2.2
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test1
+          body: {"query" : {"match" : {"field1" : "quick"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {"max_analyzer_offset": 10}}}}
+  - match: {hits.hits.0.highlight.field1.0: "The <em>quick</em> brown fox went to the forest and saw another fox."}
 
 ---
 "Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
   - do:
       catch: bad_request
       search:
@@ -56,9 +61,6 @@ setup:
 
 ---
 "Unified highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should SUCCEED":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highligt.max_analyzed_offset setting has been added in 7.0.0
   - do:
       search:
           rest_total_hits_as_int: true
@@ -69,9 +71,6 @@ setup:
 
 ---
 "Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
   - do:
       catch: bad_request
       search:

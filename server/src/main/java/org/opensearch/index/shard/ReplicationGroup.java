@@ -42,6 +42,8 @@ import java.util.Set;
 
 /**
  * Replication group for a shard. Used by a primary shard to coordinate replication and recoveries.
+ *
+ * @opensearch.internal
  */
 public class ReplicationGroup {
     private final IndexShardRoutingTable routingTable;
@@ -85,9 +87,8 @@ public class ReplicationGroup {
                         replicationTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
-                        assert inSyncAllocationIds.contains(
-                            relocationTarget.allocationId().getId()
-                        ) == false : "in-sync shard copy but not tracked: " + shard;
+                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false
+                            : "in-sync shard copy but not tracked: " + shard;
                     }
                 }
             }

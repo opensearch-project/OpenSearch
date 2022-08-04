@@ -139,7 +139,9 @@ import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.opensearch.search.aggregations.bucket.sampler.ParsedSampler;
 import org.opensearch.search.aggregations.bucket.terms.LongRareTerms;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.ParsedLongRareTerms;
+import org.opensearch.search.aggregations.bucket.terms.ParsedMultiTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedStringRareTerms;
@@ -1915,6 +1917,10 @@ public class RestHighLevelClient implements Closeable {
         ActionListener<Resp> listener,
         Set<Integer> ignores
     ) {
+        if (listener == null) {
+            throw new IllegalArgumentException("The listener is required and cannot be null");
+        }
+
         Request req;
         try {
             req = requestConverter.apply(request);
@@ -2067,7 +2073,7 @@ public class RestHighLevelClient implements Closeable {
         if (entity.getContentType() == null) {
             throw new IllegalStateException("OpenSearch didn't return the [Content-Type] header, unable to parse response body");
         }
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
@@ -2140,6 +2146,7 @@ public class RestHighLevelClient implements Closeable {
         map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
+        map.put(MultiTermsAggregationBuilder.NAME, (p, c) -> ParsedMultiTerms.fromXContent(p, (String) c));
         List<NamedXContentRegistry.Entry> entries = map.entrySet()
             .stream()
             .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))

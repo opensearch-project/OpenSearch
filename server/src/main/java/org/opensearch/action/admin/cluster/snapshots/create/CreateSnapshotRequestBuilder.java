@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.snapshots.create;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
@@ -42,8 +42,10 @@ import java.util.Map;
 
 /**
  * Create snapshot request builder
+ *
+ * @opensearch.internal
  */
-public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
+public class CreateSnapshotRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     CreateSnapshotRequest,
     CreateSnapshotResponse,
     CreateSnapshotRequestBuilder> {

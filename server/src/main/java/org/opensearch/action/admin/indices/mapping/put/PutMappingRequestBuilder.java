@@ -44,6 +44,8 @@ import java.util.Map;
 
 /**
  * Builder for a put mapping request
+ *
+ * @opensearch.internal
  */
 public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
     PutMappingRequest,
@@ -75,14 +77,6 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
     }
 
     /**
-     * The type of the mappings.
-     */
-    public PutMappingRequestBuilder setType(String type) {
-        request.type(type);
-        return this;
-    }
-
-    /**
      * The mapping source definition.
      */
     public PutMappingRequestBuilder setSource(XContentBuilder mappingBuilder) {
@@ -110,7 +104,7 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public PutMappingRequestBuilder setSource(Object... source) {
+    public PutMappingRequestBuilder setSource(String... source) {
         request.source(source);
         return this;
     }

@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.delete;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
@@ -44,6 +44,11 @@ import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for deleting a composable index template
+ *
+ * @opensearch.internal
+ */
 public class DeleteComposableIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteComposableIndexTemplateAction INSTANCE = new DeleteComposableIndexTemplateAction();
@@ -53,7 +58,12 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    /**
+     * Inner Request class for deleting composable index template
+     *
+     * @opensearch.internal
+     */
+    public static class Request extends ClusterManagerNodeRequest<Request> {
 
         private String name;
 

@@ -32,6 +32,11 @@
 
 package org.opensearch.index.mapper;
 
+/**
+ * JSON Path for a document / field
+ *
+ * @opensearch.internal
+ */
 public final class ContentPath {
 
     private static final char DELIMITER = '.';

@@ -147,6 +147,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -166,6 +167,8 @@ import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapsh
  * </p>
  * For in depth documentation on how exactly implementations of this class interact with the snapshot functionality please refer to the
  * documentation of the package {@link org.opensearch.repositories.blobstore}.
+ *
+ * @opensearch.internal
  */
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
@@ -234,12 +237,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     /**
+     * Setting to set batch size of stale snapshot shard blobs that will be deleted by snapshot workers as part of snapshot deletion.
+     * For optimal performance the value of the setting should be equal to or close to repository's max # of keys that can be deleted in single operation
+     * Most cloud storage support upto 1000 key(s) deletion in single operation, thus keeping default value to be 1000.
+     */
+    public static final Setting<Integer> MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE = Setting.intSetting(
+        "max_snapshot_shard_blob_delete_batch_size",
+        1000, // the default maximum batch size of stale snapshot shard blobs deletion
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Setting to disable writing the {@code index.latest} blob which enables the contents of this repository to be used with a
      * url-repository.
      */
     public static final Setting<Boolean> SUPPORT_URL_REPO = Setting.boolSetting("support_url_repo", true, Setting.Property.NodeScope);
 
     protected final boolean supportURLRepo;
+
+    private final int maxShardBlobDeleteBatch;
 
     private final boolean compress;
 
@@ -318,7 +334,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     <li>All repositories that are read-only, i.e. for which {@link #isReadOnly()} returns {@code true} because there are no
      *     guarantees that another cluster is not writing to the repository at the same time</li>
      *     <li>The node finds itself in a mixed-version cluster containing nodes older than
-     *     {@link RepositoryMetadata#REPO_GEN_IN_CS_VERSION} where the master node does not update the value of
+     *     {@link RepositoryMetadata#REPO_GEN_IN_CS_VERSION} where the cluster-manager node does not update the value of
      *     {@link RepositoryMetadata#generation()} when writing a new {@code index-N} blob</li>
      *     <li>The value of {@link RepositoryMetadata#generation()} for this repository is {@link RepositoryData#UNKNOWN_REPO_GEN}
      *     indicating that no consistent repository generation is tracked in the cluster state yet.</li>
@@ -356,6 +372,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         readOnly = metadata.settings().getAsBoolean("readonly", false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
+        maxShardBlobDeleteBatch = MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
     }
 
     @Override
@@ -726,8 +743,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 protected void doRun() throws Exception {
                     final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
                     final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
-                    // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
-                    // delete an index that was created by another master node after writing this index-N blob.
+                    // Cache the indices that were found before writing out the new index-N blob so that a stuck cluster-manager will never
+                    // delete an index that was created by another cluster-manager node after writing this index-N blob.
                     final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
                     doDeleteShardSnapshots(
                         snapshotIds,
@@ -900,15 +917,57 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onResponse(null);
             return;
         }
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-            try {
-                deleteFromContainer(blobContainer(), filesToDelete);
-                l.onResponse(null);
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("{} Failed to delete some blobs during snapshot delete", snapshotIds), e);
-                throw e;
+
+        try {
+            AtomicInteger counter = new AtomicInteger();
+            Collection<List<String>> subList = filesToDelete.stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxShardBlobDeleteBatch))
+                .values();
+            final BlockingQueue<List<String>> staleFilesToDeleteInBatch = new LinkedBlockingQueue<>(subList);
+
+            final GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(
+                ActionListener.wrap(r -> { listener.onResponse(null); }, listener::onFailure),
+                staleFilesToDeleteInBatch.size()
+            );
+
+            // Start as many workers as fit into the snapshot pool at once at the most
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), staleFilesToDeleteInBatch.size());
+            for (int i = 0; i < workers; ++i) {
+                executeStaleShardDelete(staleFilesToDeleteInBatch, groupedListener);
             }
-        }));
+
+        } catch (Exception e) {
+            // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
+            // Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
+            // bubbling up and breaking the snapshot functionality.
+            assert false : e;
+            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale shard blobs", snapshotIds), e);
+            listener.onFailure(e);
+        }
+    }
+
+    private void executeStaleShardDelete(BlockingQueue<List<String>> staleFilesToDeleteInBatch, GroupedActionListener<Void> listener)
+        throws InterruptedException {
+        List<String> filesToDelete = staleFilesToDeleteInBatch.poll(0L, TimeUnit.MILLISECONDS);
+        if (filesToDelete != null) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+                try {
+                    deleteFromContainer(blobContainer(), filesToDelete);
+                    l.onResponse(null);
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "[{}] Failed to delete following blobs during snapshot delete : {}",
+                            metadata.name(),
+                            filesToDelete
+                        ),
+                        e
+                    );
+                    l.onFailure(e);
+                }
+                executeStaleShardDelete(staleFilesToDeleteInBatch, listener);
+            }));
+        }
     }
 
     // updates the shard state metadata for shards of a snapshot that is to be deleted. Also computes the files to be cleaned up.
@@ -1371,9 +1430,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }, onUpdateFailure), 2 + indices.size());
 
-            // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
-            // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
-            // index or global metadata will be compatible with the segments written in this snapshot as well.
+            // We ignore all FileAlreadyExistsException when writing metadata since otherwise a cluster-manager failover
+            // while in this method will mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because
+            // any updated version of the index or global metadata will be compatible with the segments written in this snapshot as well.
             // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
             // that decrements the generation it points at
 
@@ -1546,7 +1605,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return seed;
             }
         } catch (Exception exp) {
-            throw new RepositoryVerificationException(metadata.name(), "path " + basePath() + " is not accessible on master node", exp);
+            throw new RepositoryVerificationException(
+                metadata.name(),
+                "path " + basePath() + " is not accessible on cluster-manager node",
+                exp
+            );
         }
     }
 
@@ -1909,13 +1972,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             meta.pendingGeneration()
                         );
                     }
-                    assert expectedGen == RepositoryData.EMPTY_REPO_GEN
-                        || uninitializedMeta
-                        || expectedGen == meta.generation() : "Expected non-empty generation ["
-                            + expectedGen
-                            + "] does not match generation tracked in ["
-                            + meta
-                            + "]";
+                    assert expectedGen == RepositoryData.EMPTY_REPO_GEN || uninitializedMeta || expectedGen == meta.generation()
+                        : "Expected non-empty generation [" + expectedGen + "] does not match generation tracked in [" + meta + "]";
                     // If we run into the empty repo generation for the expected gen, the repo is assumed to have been cleared of
                     // all contents by an external process so we reset the safe generation to the empty generation.
                     final long safeGeneration = expectedGen == RepositoryData.EMPTY_REPO_GEN
@@ -2787,15 +2845,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (NoSuchFileException e) {
                 throw new RepositoryVerificationException(
                     metadata.name(),
-                    "a file written by master to the store ["
+                    "a file written by cluster-manager to the store ["
                         + blobStore()
                         + "] cannot be accessed on the node ["
                         + localNode
                         + "]. "
                         + "This might indicate that the store ["
                         + blobStore()
-                        + "] is not shared between this node and the master node or "
-                        + "that permissions on the store don't allow reading files written by the master node",
+                        + "] is not shared between this node and the cluster-manager node or "
+                        + "that permissions on the store don't allow reading files written by the cluster-manager node",
                     e
                 );
             } catch (Exception e) {

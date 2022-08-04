@@ -43,6 +43,8 @@ import java.util.List;
 
 /**
  * An listener for search, fetch and context events.
+ *
+ * @opensearch.internal
  */
 public interface SearchOperationListener {
 
@@ -128,6 +130,19 @@ public interface SearchOperationListener {
      * @param transportRequest the request that is going to use the search context
      */
     default void validateReaderContext(ReaderContext readerContext, TransportRequest transportRequest) {}
+
+    /**
+     * Executed when a new Point-In-Time {@link ReaderContext} was created
+     * @param readerContext the created reader context
+     */
+    default void onNewPitContext(ReaderContext readerContext) {}
+
+    /**
+     * Executed when a Point-In-Time search {@link SearchContext} is freed.
+     * This happens on deletion of a Point-In-Time or on it's keep-alive is expiring.
+     * @param readerContext the freed search context
+     */
+    default void onFreePitContext(ReaderContext readerContext) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -262,6 +277,37 @@ public interface SearchOperationListener {
                 }
             }
             ExceptionsHelper.reThrowIfNotNull(exception);
+        }
+
+        /**
+         * Executed when a new Point-In-Time {@link ReaderContext} was created
+         * @param readerContext the created reader context
+         */
+        @Override
+        public void onNewPitContext(ReaderContext readerContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onNewPitContext(readerContext);
+                } catch (Exception e) {
+                    logger.warn("onNewPitContext listener failed", e);
+                }
+            }
+        }
+
+        /**
+         * Executed when a Point-In-Time search {@link SearchContext} is freed.
+         * This happens on deletion of a Point-In-Time or on it's keep-alive is expiring.
+         * @param readerContext the freed search context
+         */
+        @Override
+        public void onFreePitContext(ReaderContext readerContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onFreePitContext(readerContext);
+                } catch (Exception e) {
+                    logger.warn("onFreePitContext listener failed", e);
+                }
+            }
         }
     }
 }

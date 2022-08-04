@@ -33,6 +33,8 @@ package org.opensearch.search.aggregations.metrics;
 
 /**
  * An aggregation that computes the minimum of the values in the current bucket.
+ *
+ * @opensearch.internal
  */
 public interface Min extends NumericMetricsAggregation.SingleValue {
 

@@ -44,6 +44,11 @@ import org.opensearch.transport.Transport;
 
 import java.util.function.BiFunction;
 
+/**
+ * Async action for a search scroll query then fetch
+ *
+ * @opensearch.internal
+ */
 final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction<ScrollQueryFetchSearchResult> {
 
     private final SearchTask task;

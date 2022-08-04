@@ -35,10 +35,8 @@ package org.opensearch.rest.action.document;
 import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions;
@@ -57,9 +55,10 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 /**
  * This class parses the json request and translates it into a
  * TermVectorsRequest.
+ *
+ * @opensearch.api
  */
 public class RestTermVectorsAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestTermVectorsAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in term vector requests is deprecated.";
 
     @Override
@@ -69,12 +68,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
                 new Route(GET, "/{index}/_termvectors"),
                 new Route(POST, "/{index}/_termvectors"),
                 new Route(GET, "/{index}/_termvectors/{id}"),
-                new Route(POST, "/{index}/_termvectors/{id}"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_termvectors"),
-                new Route(POST, "/{index}/{type}/_termvectors"),
-                new Route(GET, "/{index}/{type}/{id}/_termvectors"),
-                new Route(POST, "/{index}/{type}/{id}/_termvectors")
+                new Route(POST, "/{index}/_termvectors/{id}")
             )
         );
     }
@@ -86,14 +80,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        TermVectorsRequest termVectorsRequest;
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecate("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
-            termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
-        } else {
-            termVectorsRequest = new TermVectorsRequest(request.param("index"), MapperService.SINGLE_MAPPING_NAME, request.param("id"));
-        }
-
+        TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
         if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {
                 TermVectorsRequest.parseRequest(termVectorsRequest, parser);

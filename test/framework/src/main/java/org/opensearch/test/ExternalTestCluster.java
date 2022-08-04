@@ -90,7 +90,7 @@ public final class ExternalTestCluster extends TestCluster {
     private final String clusterName;
 
     private final int numDataNodes;
-    private final int numMasterAndDataNodes;
+    private final int numClusterManagerAndDataNodes;
 
     public ExternalTestCluster(
         Path tempDir,
@@ -141,19 +141,19 @@ public final class ExternalTestCluster extends TestCluster {
                 .get();
             httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
             int dataNodes = 0;
-            int masterAndDataNodes = 0;
+            int clusterManagerAndDataNodes = 0;
             for (int i = 0; i < nodeInfos.getNodes().size(); i++) {
                 NodeInfo nodeInfo = nodeInfos.getNodes().get(i);
                 httpAddresses[i] = nodeInfo.getInfo(HttpInfo.class).address().publishAddress().address();
                 if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
                     dataNodes++;
-                    masterAndDataNodes++;
-                } else if (DiscoveryNode.isMasterNode(nodeInfo.getSettings())) {
-                    masterAndDataNodes++;
+                    clusterManagerAndDataNodes++;
+                } else if (DiscoveryNode.isClusterManagerNode(nodeInfo.getSettings())) {
+                    clusterManagerAndDataNodes++;
                 }
             }
             this.numDataNodes = dataNodes;
-            this.numMasterAndDataNodes = masterAndDataNodes;
+            this.numClusterManagerAndDataNodes = clusterManagerAndDataNodes;
             this.client = client;
             this.node = node;
 
@@ -190,8 +190,8 @@ public final class ExternalTestCluster extends TestCluster {
     }
 
     @Override
-    public int numDataAndMasterNodes() {
-        return numMasterAndDataNodes;
+    public int numDataAndClusterManagerNodes() {
+        return numClusterManagerAndDataNodes;
     }
 
     @Override

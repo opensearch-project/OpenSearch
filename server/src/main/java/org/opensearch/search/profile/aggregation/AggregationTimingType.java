@@ -34,6 +34,11 @@ package org.opensearch.search.profile.aggregation;
 
 import java.util.Locale;
 
+/**
+ * Timing levels for aggregations
+ *
+ * @opensearch.internal
+ */
 public enum AggregationTimingType {
     INITIALIZE,
     BUILD_LEAF_COLLECTOR,

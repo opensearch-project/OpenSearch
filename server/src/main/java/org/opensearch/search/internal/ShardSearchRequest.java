@@ -73,6 +73,7 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -82,6 +83,8 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
  * Shard level request that represents a search.
  * It provides all the methods that the {@link SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
+ *
+ * @opensearch.internal
  */
 public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
@@ -91,7 +94,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final int numberOfShards;
     private final SearchType searchType;
     private final Scroll scroll;
-    private final String[] types;
     private final float indexBoost;
     private final Boolean requestCache;
     private final long nowInMillis;
@@ -156,7 +158,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             numberOfShards,
             searchRequest.searchType(),
             searchRequest.source(),
-            searchRequest.types(),
             searchRequest.requestCache(),
             aliasFilter,
             indexBoost,
@@ -174,14 +175,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         assert searchRequest.allowPartialSearchResults() != null;
     }
 
-    public ShardSearchRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter) {
+    public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
         this(
             OriginalIndices.NONE,
             shardId,
             -1,
             SearchType.QUERY_THEN_FETCH,
             null,
-            types,
             null,
             aliasFilter,
             1.0f,
@@ -202,7 +202,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         int numberOfShards,
         SearchType searchType,
         SearchSourceBuilder source,
-        String[] types,
         Boolean requestCache,
         AliasFilter aliasFilter,
         float indexBoost,
@@ -219,7 +218,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
-        this.types = types;
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
@@ -244,7 +242,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            // types no longer relevant so ignore
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException("types are no longer supported in ids query but found [" + Arrays.toString(types) + "]");
+            }
+        }
         aliasFilter = new AliasFilter(in);
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
@@ -285,7 +289,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.numberOfShards = clone.numberOfShards;
         this.scroll = clone.scroll;
         this.source = clone.source;
-        this.types = clone.types;
         this.aliasFilter = clone.aliasFilter;
         this.indexBoost = clone.indexBoost;
         this.nowInMillis = clone.nowInMillis;
@@ -318,7 +321,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         aliasFilter.writeTo(out);
         out.writeFloat(indexBoost);
         if (asKey == false) {
@@ -365,10 +371,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public ShardId shardId() {
         return shardId;
-    }
-
-    public String[] types() {
-        return types;
     }
 
     public SearchSourceBuilder source() {

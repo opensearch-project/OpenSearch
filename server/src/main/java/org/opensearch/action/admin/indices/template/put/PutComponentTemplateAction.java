@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.put;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
@@ -48,6 +48,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * An action for putting a single component template into the cluster state
+ *
+ * @opensearch.internal
  */
 public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse> {
 
@@ -60,8 +62,10 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
 
     /**
      * A request for putting a single component template into the cluster state
+     *
+     * @opensearch.internal
      */
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends ClusterManagerNodeRequest<Request> {
         private final String name;
         @Nullable
         private String cause;

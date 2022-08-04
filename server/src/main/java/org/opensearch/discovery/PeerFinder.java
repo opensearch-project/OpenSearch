@@ -65,6 +65,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * finds peers
+ *
+ * @opensearch.internal
+ */
 public abstract class PeerFinder {
 
     private static final Logger logger = LogManager.getLogger(PeerFinder.class);
@@ -169,7 +174,7 @@ public abstract class PeerFinder {
             final List<DiscoveryNode> knownPeers;
             if (active) {
                 assert leader.isPresent() == false : leader;
-                if (peersRequest.getSourceNode().isMasterNode()) {
+                if (peersRequest.getSourceNode().isClusterManagerNode()) {
                     startProbe(peersRequest.getSourceNode().getAddress());
                 }
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);
@@ -208,7 +213,7 @@ public abstract class PeerFinder {
      * Invoked on receipt of a PeersResponse from a node that believes it's an active leader, which this node should therefore try and join.
      * Note that invocations of this method are not synchronised. By the time it is called we may have been deactivated.
      */
-    protected abstract void onActiveMasterFound(DiscoveryNode masterNode, long term);
+    protected abstract void onActiveClusterManagerFound(DiscoveryNode clusterManagerNode, long term);
 
     /**
      * Invoked when the set of found peers changes. Note that invocations of this method are not fully synchronised, so we only guarantee
@@ -223,13 +228,23 @@ public abstract class PeerFinder {
         return lastResolvedAddresses;
     }
 
+    /**
+     * Transport address connector interface.
+     *
+     * @opensearch.internal
+     */
     public interface TransportAddressConnector {
         /**
-         * Identify the node at the given address and, if it is a master node and not the local node then establish a full connection to it.
+         * Identify the node at the given address and, if it is a cluster-manager node and not the local node then establish a full connection to it.
          */
         void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
     }
 
+    /**
+     * Resolves the configured unicast host.
+     *
+     * @opensearch.internal
+     */
     public interface ConfiguredHostsResolver {
         /**
          * Attempt to resolve the configured unicast hosts list to a list of transport addresses.
@@ -275,8 +290,8 @@ public abstract class PeerFinder {
             return peersRemoved;
         }
 
-        logger.trace("probing master nodes from cluster state: {}", lastAcceptedNodes);
-        for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getMasterNodes().values()) {
+        logger.trace("probing cluster-manager nodes from cluster state: {}", lastAcceptedNodes);
+        for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getClusterManagerNodes().values()) {
             startProbe(discoveryNodeObjectCursor.value.getAddress());
         }
 
@@ -381,7 +396,7 @@ public abstract class PeerFinder {
             transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<DiscoveryNode>() {
                 @Override
                 public void onResponse(DiscoveryNode remoteNode) {
-                    assert remoteNode.isMasterNode() : remoteNode + " is not master-eligible";
+                    assert remoteNode.isClusterManagerNode() : remoteNode + " is not cluster-manager-eligible";
                     assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
                     synchronized (mutex) {
                         if (active == false) {
@@ -442,14 +457,14 @@ public abstract class PeerFinder {
 
                         peersRequestInFlight = false;
 
-                        response.getMasterNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
+                        response.getClusterManagerNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
                         response.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(PeerFinder.this::startProbe);
                     }
 
-                    if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
+                    if (response.getClusterManagerNode().equals(Optional.of(discoveryNode))) {
                         // Must not hold lock here to avoid deadlock
                         assert holdsLock() == false : "PeerFinder mutex is held in error";
-                        onActiveMasterFound(discoveryNode, response.getTerm());
+                        onActiveClusterManagerFound(discoveryNode, response.getTerm());
                     }
                 }
 

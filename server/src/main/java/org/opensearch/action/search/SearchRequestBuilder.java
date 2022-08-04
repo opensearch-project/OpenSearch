@@ -57,6 +57,8 @@ import java.util.List;
 
 /**
  * A search action request builder.
+ *
+ * @opensearch.internal
  */
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
@@ -69,17 +71,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setIndices(String... indices) {
         request.indices(indices);
-        return this;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     * @deprecated Types are going away, prefer filtering on a field.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTypes(String... types) {
-        request.types(types);
         return this;
     }
 

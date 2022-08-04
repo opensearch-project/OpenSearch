@@ -113,7 +113,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
@@ -122,7 +122,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "other1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
@@ -131,7 +131,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "other2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
@@ -163,7 +163,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
                 IllegalArgumentException.class,
                 () -> makeRequestWithNodeDescriptions("not-a-node").resolveVotingConfigExclusions(clusterState)
             ).getMessage(),
-            equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes")
+            equalTo("add voting config exclusions request for [not-a-node] matched no cluster-manager-eligible nodes")
         );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
@@ -238,7 +238,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node1Exclusion = new VotingConfigExclusion(node1);
@@ -248,7 +248,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
@@ -258,7 +258,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId3",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
 
@@ -298,7 +298,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node1Exclusion = new VotingConfigExclusion(node1);
@@ -308,7 +308,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
@@ -318,7 +318,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId3",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
 
@@ -348,7 +348,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
 
@@ -357,7 +357,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
@@ -367,7 +367,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "nodeId3",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
 
@@ -399,7 +399,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
@@ -408,7 +408,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "other1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
@@ -417,7 +417,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             "other2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final VotingConfigExclusion otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
@@ -448,6 +448,64 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
             )
         );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
+    }
+
+    // As of 2.0, MASTER_ROLE is deprecated to promote inclusive language.
+    // Validate node with MASTER_ROLE can be resolved by resolveVotingConfigExclusions() like before.
+    // The following 3 tests assign nodes by description, id and name respectively.
+    public void testResolveByNodeDescriptionWithDeprecatedMasterRole() {
+        final DiscoveryNode localNode = new DiscoveryNode(
+            "local",
+            "local",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .nodes(new Builder().add(localNode).localNodeId(localNode.getId()))
+            .build();
+
+        assertThat(makeRequestWithNodeDescriptions("_local").resolveVotingConfigExclusions(clusterState), contains(localNodeExclusion));
+        allowedWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
+    }
+
+    public void testResolveByNodeIdWithDeprecatedMasterRole() {
+        final DiscoveryNode node = new DiscoveryNode(
+            "nodeName",
+            "nodeId",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        final VotingConfigExclusion nodeExclusion = new VotingConfigExclusion(node);
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder().add(node)).build();
+
+        assertThat(
+            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { "nodeId" }, Strings.EMPTY_ARRAY, TimeValue.ZERO)
+                .resolveVotingConfigExclusions(clusterState),
+            contains(nodeExclusion)
+        );
+    }
+
+    public void testResolveByNodeNameWithDeprecatedMasterRole() {
+        final DiscoveryNode node = new DiscoveryNode(
+            "nodeName",
+            "nodeId",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        final VotingConfigExclusion nodeExclusion = new VotingConfigExclusion(node);
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder().add(node)).build();
+
+        assertThat(new AddVotingConfigExclusionsRequest("nodeName").resolveVotingConfigExclusions(clusterState), contains(nodeExclusion));
     }
 
     private static AddVotingConfigExclusionsRequest makeRequestWithNodeDescriptions(String... nodeDescriptions) {

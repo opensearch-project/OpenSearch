@@ -64,6 +64,8 @@ import java.util.function.Consumer;
  * Used to publish secure setting hashes in the cluster state and to validate those hashes against the local values of those same settings.
  * This is colloquially referred to as the secure setting consistency check. It will publish and verify hashes only for the collection
  * of settings passed in the constructor. The settings have to have the {@link Setting.Property#Consistent} property.
+ *
+ * @opensearch.internal
  */
 public final class ConsistentSettingsService {
     private static final Logger logger = LogManager.getLogger(ConsistentSettingsService.class);
@@ -87,7 +89,7 @@ public final class ConsistentSettingsService {
 
     /**
      * Returns a {@link LocalNodeMasterListener} that will publish hashes of all the settings passed in the constructor. These hashes are
-     * published by the master node only. Note that this is not designed for {@link SecureSettings} implementations that are mutable.
+     * published by the cluster-manager node only. Note that this is not designed for {@link SecureSettings} implementations that are mutable.
      */
     public LocalNodeMasterListener newHashPublisher() {
         // eagerly compute hashes to be published
@@ -116,12 +118,12 @@ public final class ConsistentSettingsService {
                     concreteSecureSetting.getKey()
                 );
             } else if (publishedSaltAndHash == null && localHash != null) {
-                // setting missing on master but present locally
+                // setting missing on cluster-manager but present locally
                 logger.warn(
                     "no published hash for the consistent secure setting [{}] but it exists on the local node",
                     concreteSecureSetting.getKey()
                 );
-                if (state.nodes().isLocalNodeElectedMaster()) {
+                if (state.nodes().isLocalNodeElectedClusterManager()) {
                     throw new IllegalStateException(
                         "Master node cannot validate consistent setting. No published hash for ["
                             + concreteSecureSetting.getKey()
@@ -160,7 +162,7 @@ public final class ConsistentSettingsService {
                         concreteSecureSetting.getKey(),
                         computedSaltedHash
                     );
-                    if (state.nodes().isLocalNodeElectedMaster()) {
+                    if (state.nodes().isLocalNodeElectedClusterManager()) {
                         throw new IllegalStateException(
                             "Master node cannot validate consistent setting. The published hash ["
                                 + publishedHash

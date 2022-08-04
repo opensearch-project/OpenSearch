@@ -50,6 +50,8 @@ import java.util.Objects;
  * <li>avg - Use the average of all values as sort value. Only applicable for number based array fields.</li>
  * <li>median - Use the median of all values as sort value. Only applicable for number based array fields.</li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public enum SortMode implements Writeable {
     /** pick the lowest value **/

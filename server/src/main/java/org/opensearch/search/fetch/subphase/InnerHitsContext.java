@@ -35,7 +35,7 @@ package org.opensearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
@@ -45,7 +45,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.SubSearchContext;
@@ -59,6 +58,8 @@ import java.util.Objects;
 
 /**
  * Context used for inner hits retrieval
+ *
+ * @opensearch.internal
  */
 public final class InnerHitsContext {
     private final Map<String, InnerHitSubContext> innerHits;
@@ -98,8 +99,7 @@ public final class InnerHitsContext {
         private InnerHitsContext childInnerHits;
         private Weight innerHitQueryWeight;
 
-        // TODO: when types are complete removed just use String instead for the id:
-        private Uid rootId;
+        private String id;
         private SourceLookup rootLookup;
 
         protected InnerHitSubContext(String name, SearchContext context) {
@@ -141,12 +141,12 @@ public final class InnerHitsContext {
          *
          * Since this ID is available on the context, inner hits can avoid re-loading the root _id.
          */
-        public Uid getRootId() {
-            return rootId;
+        public String getId() {
+            return id;
         }
 
-        public void setRootId(Uid rootId) {
-            this.rootId = rootId;
+        public void setId(String id) {
+            this.id = id;
         }
 
         /**
@@ -189,7 +189,7 @@ public final class InnerHitsContext {
 
         try {
             Bits acceptDocs = ctx.reader().getLiveDocs();
-            DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(
+            DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
                 Arrays.asList(innerHitQueryScorer.iterator(), scorer.iterator())
             );
             for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {

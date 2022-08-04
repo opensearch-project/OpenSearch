@@ -35,14 +35,14 @@ package org.apache.lucene.search.uhighlight;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
@@ -77,8 +77,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
     private final FieldHighlighter fieldHighlighter;
-    private final int keywordIgnoreAbove;
     private final int maxAnalyzedOffset;
+    private final Integer fieldMaxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -97,9 +97,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * @param noMatchSize The size of the text that should be returned when no highlighting can be performed.
      * @param maxPassages the maximum number of passes to highlight
      * @param fieldMatcher decides which terms should be highlighted
-     * @param keywordIgnoreAbove if the field's value is longer than this we'll skip it
      * @param maxAnalyzedOffset if the field is more than this long we'll refuse to use the ANALYZED
      *                          offset source for it because it'd be super slow
+     * @param fieldMaxAnalyzedOffset this is used to limit the length of input that will be ANALYZED, this allows bigger fields to be partially highligthed
      */
     public CustomUnifiedHighlighter(
         IndexSearcher searcher,
@@ -114,8 +114,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         int noMatchSize,
         int maxPassages,
         Predicate<String> fieldMatcher,
-        int keywordIgnoreAbove,
-        int maxAnalyzedOffset
+        int maxAnalyzedOffset,
+        Integer fieldMaxAnalyzedOffset
     ) throws IOException {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
@@ -126,9 +126,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.field = field;
         this.noMatchSize = noMatchSize;
         this.setFieldMatcher(fieldMatcher);
-        this.keywordIgnoreAbove = keywordIgnoreAbove;
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
+        this.fieldMaxAnalyzedOffset = fieldMaxAnalyzedOffset;
     }
 
     /**
@@ -144,10 +144,21 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if (fieldValueLength > keywordIgnoreAbove) {
-            return null; // skip highlighting keyword terms that were ignored during indexing
+
+        if (fieldMaxAnalyzedOffset != null && fieldMaxAnalyzedOffset > maxAnalyzedOffset) {
+            throw new IllegalArgumentException(
+                "max_analyzer_offset has exceeded ["
+                    + maxAnalyzedOffset
+                    + "] - maximum allowed to be analyzed for highlighting. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
+                    + "] index level setting. "
+                    + "For large texts, indexing with offsets or term vectors is recommended!"
+            );
         }
-        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
+        // if fieldMaxAnalyzedOffset is not defined
+        // and if this happens we should fallback to the previous behavior
+        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset && fieldMaxAnalyzedOffset == null)) {
             throw new IllegalArgumentException(
                 "The length of ["
                     + field
@@ -266,4 +277,12 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         return offsetSource;
     }
 
+    /** Customize the highlighting flags to use by field. */
+    @Override
+    protected Set<HighlightFlag> getFlags(String field) {
+        final Set<HighlightFlag> flags = super.getFlags(field);
+        // Change the defaults introduced by https://issues.apache.org/jira/browse/LUCENE-9431
+        flags.remove(HighlightFlag.WEIGHT_MATCHES);
+        return flags;
+    }
 }

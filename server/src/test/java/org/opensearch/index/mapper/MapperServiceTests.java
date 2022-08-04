@@ -33,7 +33,6 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
@@ -41,7 +40,6 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -66,7 +64,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -80,32 +77,6 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         return Arrays.asList(InternalSettingsPlugin.class, ReloadableFilterPlugin.class);
     }
 
-    public void testTypeNameStartsWithIllegalDot() {
-        String index = "test-index";
-        String type = ".test-type";
-        String field = "field";
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { client().admin().indices().prepareCreate(index).addMapping(type, field, "type=text").execute().actionGet(); }
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("mapping type name [.test-type] must not start with a '.'"));
-    }
-
-    public void testTypeNameTooLong() {
-        String index = "text-index";
-        String field = "field";
-        String type = new String(new char[256]).replace("\0", "a");
-
-        MapperException e = expectThrows(
-            MapperException.class,
-            () -> { client().admin().indices().prepareCreate(index).addMapping(type, field, "type=text").execute().actionGet(); }
-        );
-        assertTrue(
-            e.getMessage(),
-            e.getMessage().contains("mapping type name [" + type + "] is too long; limit is length 255 but was [256]")
-        );
-    }
-
     public void testTypeValidation() {
         InvalidTypeNameException e = expectThrows(InvalidTypeNameException.class, () -> MapperService.validateTypeName("_type"));
         assertEquals("mapping type name [_type] can't start with '_' unless it is called [_doc]", e.getMessage());
@@ -114,34 +85,6 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals("mapping type name [_document] can't start with '_' unless it is called [_doc]", e.getMessage());
 
         MapperService.validateTypeName("_doc"); // no exception
-    }
-
-    public void testIndexIntoDefaultMapping() throws Throwable {
-        // 1. test implicit index creation
-        ExecutionException e = expectThrows(
-            ExecutionException.class,
-            () -> client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "1").setSource("{}", XContentType.JSON).execute().get()
-        );
-        Throwable throwable = ExceptionsHelper.unwrapCause(e.getCause());
-        if (throwable instanceof IllegalArgumentException) {
-            assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
-        } else {
-            throw e;
-        }
-
-        // 2. already existing index
-        IndexService indexService = createIndex("index2");
-        e = expectThrows(
-            ExecutionException.class,
-            () -> { client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "2").setSource().execute().get(); }
-        );
-        throwable = ExceptionsHelper.unwrapCause(e.getCause());
-        if (throwable instanceof IllegalArgumentException) {
-            assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
-        } else {
-            throw e;
-        }
-        assertNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
     }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
@@ -231,7 +174,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test-index")
-                .addMapping("type", "{\"type\":{}}", XContentType.JSON)
+                .setMapping("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{}}")
                 .setSettings(Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2))
                 .execute()
                 .actionGet();
@@ -243,7 +186,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test-index")
-                .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+                .setMapping("{\"_routing\":{\"required\":true}}")
                 .setSettings(Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2))
                 .execute()
                 .actionGet()
@@ -357,16 +300,6 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             ).mapperService().merge("type", new CompressedXContent(mapping), updateOrPreflight());
         });
         assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded", e.getMessage());
-    }
-
-    public void testDefaultMappingIsRejectedOn7() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
-        );
-        assertEquals(MapperService.DEFAULT_MAPPING_ERROR_MESSAGE, e.getMessage());
     }
 
     public void testFieldNameLengthLimit() throws Throwable {

@@ -37,6 +37,8 @@ import java.io.UncheckedIOException;
 
 /**
  * This exception is thrown when there is a problem of writing state to disk.
+ *
+ * @opensearch.internal
  */
 public class WriteStateException extends IOException {
     private final boolean dirty;

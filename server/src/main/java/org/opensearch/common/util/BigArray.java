@@ -35,7 +35,11 @@ package org.opensearch.common.util;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.lease.Releasable;
 
-/** Base abstraction of an array. */
+/**
+ * Base abstraction of an array.
+ *
+ * @opensearch.internal
+ */
 public interface BigArray extends Releasable, Accountable {
 
     /** Return the length of this array. */

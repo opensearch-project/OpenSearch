@@ -62,14 +62,26 @@ import java.util.function.Function;
 
 /**
  * Base field mapper class for all spatial field types
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
 
+    /**
+     * String parameter names for the base geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Names {
         public static final ParseField IGNORE_MALFORMED = new ParseField("ignore_malformed");
         public static final ParseField IGNORE_Z_VALUE = new ParseField("ignore_z_value");
     }
 
+    /**
+     * Default parameters for the base geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
@@ -84,6 +96,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     /**
      * Interface representing an preprocessor in geometry indexing pipeline
+     *
+     * @opensearch.internal
      */
     public interface Indexer<Parsed, Processed> {
         Processed prepareForIndexing(Parsed geometry);
@@ -95,6 +109,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     /**
      * Interface representing parser in geometry indexing pipeline.
+     *
+     * @opensearch.internal
      */
     public abstract static class Parser<Parsed> {
         /**
@@ -141,6 +157,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
+    /**
+     * Builder for the base geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractGeometryFieldType> extends FieldMapper.Builder<T> {
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
@@ -198,6 +219,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
+    /**
+     * Base type parser for geometry field mappers
+     *
+     * @opensearch.internal
+     */
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
         protected abstract T newBuilder(String name, Map<String, Object> params);
 
@@ -241,6 +267,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
+    /**
+     * Base field type for all geometry fields
+     *
+     * @opensearch.internal
+     */
     public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
 
         protected Indexer<Parsed, Processed> geometryIndexer;

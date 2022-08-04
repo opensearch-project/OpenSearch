@@ -35,7 +35,7 @@ package org.opensearch.search.basic;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
@@ -50,7 +50,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
@@ -85,11 +84,9 @@ public class SearchWithRandomExceptionsIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("test")
                 .field("type", "keyword")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -121,14 +118,15 @@ public class SearchWithRandomExceptionsIT extends OpenSearchIntegTestCase {
             .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
             .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build());
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(mapping));
         ensureSearchable();
         final int numDocs = between(10, 100);
         int numCreated = 0;
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs; i++) {
             try {
-                IndexResponse indexResponse = client().prepareIndex("test", "type", "" + i)
+                IndexResponse indexResponse = client().prepareIndex("test")
+                    .setId("" + i)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test", English.intToEnglish(i))
                     .get();

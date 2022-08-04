@@ -33,6 +33,8 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.ToXContentFragment;
@@ -46,8 +48,18 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * The foundation OpenSearch mapper
+ *
+ * @opensearch.internal
+ */
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
+    /**
+     * The builder context used in field mappings
+     *
+     * @opensearch.internal
+     */
     public static class BuilderContext {
         private final Settings indexSettings;
         private final ContentPath contentPath;
@@ -69,8 +81,21 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         public Version indexCreatedVersion() {
             return Version.indexCreated(indexSettings);
         }
+
+        public Version indexCreatedVersionOrDefault(@Nullable Version defaultValue) {
+            if (defaultValue == null || hasIndexCreated(indexSettings)) {
+                return indexCreatedVersion();
+            } else {
+                return defaultValue;
+            }
+        }
     }
 
+    /**
+     * Base mapper builder
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder<T extends Builder> {
 
         public String name;
@@ -89,8 +114,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         public abstract Mapper build(BuilderContext context);
     }
 
+    /**
+     * Type parser for the mapper
+     *
+     * @opensearch.internal
+     */
     public interface TypeParser {
 
+        /**
+         * Parser context for the type parser
+         *
+         * @opensearch.internal
+         */
         class ParserContext {
 
             private final Function<String, SimilarityProvider> similarityLookupService;
@@ -185,6 +220,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return new MultiFieldParserContext(in);
             }
 
+            /**
+             * Base mutiple field parser context
+             *
+             * @opensearch.internal
+             */
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(
@@ -240,4 +280,12 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract void validate(MappingLookup mappers);
 
+    /**
+     * Check if settings have IndexMetadata.SETTING_INDEX_VERSION_CREATED setting.
+     * @param settings settings
+     * @return "true" if settings have IndexMetadata.SETTING_INDEX_VERSION_CREATED setting, "false" otherwise
+     */
+    protected static boolean hasIndexCreated(Settings settings) {
+        return settings.hasValue(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+    }
 }

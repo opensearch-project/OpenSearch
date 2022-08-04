@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if data is not serializable
+ *
+ * @opensearch.internal
+ */
 public class NotSerializableTransportException extends TransportException {
 
     public NotSerializableTransportException(Throwable t) {

@@ -44,6 +44,11 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
+/**
+ * The resource monitoring service
+ *
+ * @opensearch.internal
+ */
 public class MonitorService extends AbstractLifecycleComponent {
 
     private final JvmGcMonitorService jvmGcMonitorService;

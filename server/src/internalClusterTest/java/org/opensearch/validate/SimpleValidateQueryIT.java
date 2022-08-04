@@ -39,6 +39,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -61,6 +62,7 @@ import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
+import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
@@ -77,11 +79,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("type1")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject("foo")
                     .field("type", "text")
@@ -179,11 +180,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("type1")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject("foo")
                     .field("type", "text")
@@ -238,11 +238,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
             assertThat(response.getQueryExplanation().size(), equalTo(1));
             assertThat(
                 response.getQueryExplanation().get(0).getExplanation(),
-                equalTo(
-                    "(MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\") "
-                        + "| foo:foo | baz:foo)"
-                )
+                containsString("MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\")")
             );
+            assertThat(response.getQueryExplanation().get(0).getExplanation(), containsString("foo:foo"));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(), containsString("baz:foo"));
             assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         }
     }
@@ -255,7 +254,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plus(1, ChronoUnit.MONTHS));
         String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minus(1, ChronoUnit.MONTHS));
 
-        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+        client().prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
 
         refresh();
 
@@ -298,7 +297,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
 
     public void testExplainFilteredAlias() {
         assertAcked(
-            prepareCreate("test").addMapping("test", "field", "type=text")
+            prepareCreate("test").setMapping("field", "type=text")
                 .addAlias(new Alias("alias").filter(QueryBuilders.termQuery("field", "value1")))
         );
         ensureGreen();
@@ -319,13 +318,13 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping("type1", "field", "type=text,analyzer=whitespace")
+            .setMapping("field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
             .get();
-        client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
-        client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();
-        client().prepareIndex("test", "type1", "3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test", "type1", "4").setSource("field", "the lazy dog quacks like a duck").get();
+        client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
+        client().prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
+        client().prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
+        client().prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
         refresh();
 
         // prefix queries
@@ -357,7 +356,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         assertExplanation(QueryBuilders.fuzzyQuery("field", "jump"), containsString("(field:jumps)^0.75"), true);
 
         // more like this queries
-        Item[] items = new Item[] { new Item(null, null, "1") };
+        Item[] items = new Item[] { new Item(null, "1") };
         assertExplanation(
             QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, items)
                 .include(true)
@@ -381,15 +380,15 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping("type1", "field", "type=text,analyzer=whitespace")
+            .setMapping("field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
             .get();
         // We are relying on specific routing behaviors for the result to be right, so
         // we cannot randomize the number of shards or change ids here.
-        client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
-        client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();
-        client().prepareIndex("test", "type1", "3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test", "type1", "4").setSource("field", "the lazy dog quacks like a duck").get();
+        client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
+        client().prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
+        client().prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
+        client().prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
         refresh();
 
         // prefix queries
@@ -447,7 +446,6 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         ValidateQueryResponse response = client().admin()
             .indices()
             .prepareValidateQuery("test")
-            .setTypes("type1")
             .setQuery(queryBuilder)
             .setExplain(true)
             .setRewrite(withRewrite)
@@ -468,7 +466,6 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         ValidateQueryResponse response = client().admin()
             .indices()
             .prepareValidateQuery("test")
-            .setTypes("type1")
             .setQuery(queryBuilder)
             .setExplain(true)
             .setRewrite(withRewrite)
@@ -487,21 +484,116 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("twitter")
-            .addMapping("_doc", "user", "type=integer", "followers", "type=integer")
+            .setMapping("user", "type=integer", "followers", "type=integer")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
             .get();
-        client().prepareIndex("twitter", "_doc", "1").setSource("followers", new int[] { 1, 2, 3 }).get();
+        client().prepareIndex("twitter").setId("1").setSource("followers", new int[] { 1, 2, 3 }).get();
         refresh();
 
-        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "_doc", "1", "followers"));
+        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "1", "followers"));
         ValidateQueryResponse response = client().admin()
             .indices()
             .prepareValidateQuery("twitter")
-            .setTypes("_doc")
             .setQuery(termsLookupQuery)
             .setExplain(true)
             .execute()
             .actionGet();
         assertThat(response.isValid(), is(true));
+    }
+
+    // Issue: https://github.com/opensearch-project/OpenSearch/issues/2036
+    public void testValidateDateRangeInQueryString() throws IOException {
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setSource(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject(MapperService.SINGLE_MAPPING_NAME)
+                        .startObject("properties")
+                        .startObject("name")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+
+        client().prepareIndex("test").setId("1").setSource("name", "username", "timestamp", 200).get();
+        refresh();
+
+        ValidateQueryResponse response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(rangeQuery("timestamp").gte(0).lte(100))
+                    .must(queryStringQuery("username").allowLeadingWildcard(false))
+            )
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(true));
+
+        // Use wildcard and date outside the range
+        response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(rangeQuery("timestamp").gte(0).lte(100))
+                    .must(queryStringQuery("*erna*").allowLeadingWildcard(false))
+            )
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(false));
+
+        // Use wildcard and date inside the range
+        response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(rangeQuery("timestamp").gte(0).lte(1000))
+                    .must(queryStringQuery("*erna*").allowLeadingWildcard(false))
+            )
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(false));
+
+        // Use wildcard and date inside the range (allow leading wildcard)
+        response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(QueryBuilders.boolQuery().must(rangeQuery("timestamp").gte(0).lte(1000)).must(queryStringQuery("*erna*")))
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(true));
+
+        // Use invalid date range
+        response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(QueryBuilders.boolQuery().must(rangeQuery("timestamp").gte("aaa").lte(100)))
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(false));
+
     }
 }

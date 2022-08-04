@@ -38,6 +38,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+/**
+ * Pool of disk io buffers
+ *
+ * @opensearch.internal
+ */
 public class DiskIoBufferPool {
 
     public static final int BUFFER_SIZE = StrictMath.toIntExact(

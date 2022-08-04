@@ -62,6 +62,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  * references as well as mutable state. That makes it impractical to send tasks over transport channels
  * and use in APIs. Instead, immutable and writeable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
+ *
+ * @opensearch.internal
  */
 public final class TaskInfo implements Writeable, ToXContentFragment {
     private final TaskId taskId;
@@ -86,6 +88,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     private final Map<String, String> headers;
 
+    private final TaskResourceStats resourceStats;
+
     public TaskInfo(
         TaskId taskId,
         String type,
@@ -97,7 +101,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         boolean cancellable,
         boolean cancelled,
         TaskId parentTaskId,
-        Map<String, String> headers
+        Map<String, String> headers,
+        TaskResourceStats resourceStats
     ) {
         if (cancellable == false && cancelled == true) {
             throw new IllegalArgumentException("task cannot be cancelled");
@@ -113,11 +118,13 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         this.cancelled = cancelled;
         this.parentTaskId = parentTaskId;
         this.headers = headers;
+        this.resourceStats = resourceStats;
     }
 
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("unchecked")
     public TaskInfo(StreamInput in) throws IOException {
         taskId = TaskId.readFromStream(in);
         type = in.readString();
@@ -137,6 +144,11 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
+            resourceStats = in.readOptionalWriteable(TaskResourceStats::new);
+        } else {
+            resourceStats = null;
+        }
     }
 
     @Override
@@ -154,6 +166,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(Version.V_2_1_0)) {
+            out.writeOptionalWriteable(resourceStats);
+        }
     }
 
     public TaskId getTaskId() {
@@ -226,6 +241,13 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         return headers;
     }
 
+    /**
+     * Returns the task resource information
+     */
+    public TaskResourceStats getResourceStats() {
+        return resourceStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node", taskId.getNodeId());
@@ -253,6 +275,11 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             builder.field(attribute.getKey(), attribute.getValue());
         }
         builder.endObject();
+        if (resourceStats != null) {
+            builder.startObject("resource_stats");
+            resourceStats.toXContent(builder, params);
+            builder.endObject();
+        }
         return builder;
     }
 
@@ -278,6 +305,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             // This might happen if we are reading an old version of task info
             headers = Collections.emptyMap();
         }
+        @SuppressWarnings("unchecked")
+        TaskResourceStats resourceStats = (TaskResourceStats) a[i++];
         RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
         TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
         return new TaskInfo(
@@ -291,7 +320,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancellable,
             cancelled,
             parentTaskId,
-            headers
+            headers,
+            resourceStats
         );
     });
     static {
@@ -309,6 +339,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField("cancelled"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TaskResourceStats.fromXContent(p), new ParseField("resource_stats"));
     }
 
     @Override
@@ -333,7 +364,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             && Objects.equals(cancellable, other.cancellable)
             && Objects.equals(cancelled, other.cancelled)
             && Objects.equals(status, other.status)
-            && Objects.equals(headers, other.headers);
+            && Objects.equals(headers, other.headers)
+            && Objects.equals(resourceStats, other.resourceStats);
     }
 
     @Override
@@ -349,7 +381,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancellable,
             cancelled,
             status,
-            headers
+            headers,
+            resourceStats
         );
     }
 }

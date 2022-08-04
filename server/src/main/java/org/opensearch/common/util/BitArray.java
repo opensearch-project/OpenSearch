@@ -40,6 +40,8 @@ import org.opensearch.common.lease.Releasables;
  * created from {@link BigArrays}.
  * The underlying long array grows lazily based on the biggest index
  * that needs to be set.
+ *
+ * @opensearch.internal
  */
 public final class BitArray implements Releasable {
     private final BigArrays bigArrays;

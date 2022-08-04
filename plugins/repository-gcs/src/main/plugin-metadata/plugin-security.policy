@@ -40,4 +40,7 @@ grant {
 
   // gcs client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
+
+  // gcs client set Authenticator for proxy username/password
+  permission java.net.NetPermission "setDefaultAuthenticator";
 };

@@ -35,6 +35,11 @@ package org.opensearch.transport;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Future for transport operations
+ *
+ * @opensearch.internal
+ */
 public interface TransportFuture<V> extends Future<V> {
 
     /**

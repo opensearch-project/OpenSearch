@@ -41,7 +41,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
@@ -75,6 +75,8 @@ import static org.opensearch.node.Node.NODE_NAME_SETTING;
 
 /**
  * A module for loading classes for node discovery.
+ *
+ * @opensearch.internal
  */
 public class DiscoveryModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
@@ -119,7 +121,7 @@ public class DiscoveryModule {
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
-        MasterService masterService,
+        ClusterManagerService clusterManagerService,
         ClusterApplier clusterApplier,
         ClusterSettings clusterSettings,
         List<DiscoveryPlugin> plugins,
@@ -195,7 +197,7 @@ public class DiscoveryModule {
                 transportService,
                 namedWriteableRegistry,
                 allocationService,
-                masterService,
+                clusterManagerService,
                 gatewayMetaState::getPersistedState,
                 seedHostsProvider,
                 clusterApplier,

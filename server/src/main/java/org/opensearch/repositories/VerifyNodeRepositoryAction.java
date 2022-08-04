@@ -59,6 +59,11 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Action to verify a node repository
+ *
+ * @opensearch.internal
+ */
 public class VerifyNodeRepositoryAction {
 
     private static final Logger logger = LogManager.getLogger(VerifyNodeRepositoryAction.class);
@@ -91,7 +96,7 @@ public class VerifyNodeRepositoryAction {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
         final DiscoveryNode localNode = discoNodes.getLocalNode();
 
-        final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.getMasterAndDataNodes().values();
+        final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.getClusterManagerAndDataNodes().values();
         final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
@@ -156,6 +161,11 @@ public class VerifyNodeRepositoryAction {
         repository.verify(verificationToken, localNode);
     }
 
+    /**
+     * Request to verify a node repository.
+     *
+     * @opensearch.internal
+     */
     public static class VerifyNodeRepositoryRequest extends TransportRequest {
 
         private String repository;

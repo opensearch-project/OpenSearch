@@ -44,6 +44,8 @@ import java.io.IOException;
  * A {@code SizeUnit} does not maintain size information, but only
  * helps organize and use size representations that may be maintained
  * separately across various contexts.
+ *
+ * @opensearch.internal
  */
 public enum ByteSizeUnit implements Writeable {
     BYTES {

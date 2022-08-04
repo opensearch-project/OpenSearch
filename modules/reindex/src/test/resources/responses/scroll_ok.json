@@ -13,7 +13,6 @@
     "max_score" : null,
     "hits" : [ {
       "_index" : "test",
-      "_type" : "test",
       "_id" : "AVToMiDL50DjIiBO3yKA",
       "_version" : 1,
       "_score" : null,

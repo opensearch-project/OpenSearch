@@ -593,6 +593,11 @@ public final class GeoJson {
         });
     }
 
+    /**
+     * A node for a geo coordinate
+     *
+     * @opensearch.internal
+     */
     private static class CoordinateNode implements ToXContentObject {
         public final Point coordinate;
         public final List<CoordinateNode> children;

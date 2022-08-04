@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Thrown when snapshot creation fails completely
+ *
+ * @opensearch.internal
  */
 public class SnapshotCreationException extends SnapshotException {
 

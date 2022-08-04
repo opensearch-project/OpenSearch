@@ -65,7 +65,7 @@ public class VersionUtils {
         Map<Integer, List<Version>> majorVersions = Version.getDeclaredVersions(versionClass)
             .stream()
             .collect(Collectors.groupingBy(v -> (int) v.major));
-        // this breaks b/c 5.x is still in version list but master doesn't care about it!
+        // this breaks b/c 5.x is still in version list but cluster-manager doesn't care about it!
         // assert majorVersions.size() == 2;
         List<List<Version>> oldVersions = new ArrayList<>(0);
         List<List<Version>> previousMajor = new ArrayList<>(0);
@@ -85,11 +85,11 @@ public class VersionUtils {
         List<Version> unreleasedVersions = new ArrayList<>();
         final List<List<Version>> stableVersions;
         if (currentMajor.size() == 1) {
-            // on master branch
+            // on main branch
             stableVersions = previousMajor;
             // remove current
             moveLastToUnreleased(currentMajor, unreleasedVersions);
-        } else if (current.major != 1 && current.major != 2) {
+        } else if (current.major != 1) {
             // on a stable or release branch, ie N.x
             stableVersions = currentMajor;
             // remove the next maintenance bugfix
@@ -108,9 +108,11 @@ public class VersionUtils {
             List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
             if (lastMinorLine.get(lastMinorLine.size() - 1) instanceof LegacyESVersion == false) {
                 // if the last minor line is Legacy there are no more staged releases; do nothing
+                // otherwise the last minor line is (by definition) staged and unreleased
                 Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+                // no more staged legacy bugfixes so skip;
                 if (lastMinor instanceof LegacyESVersion == false && lastMinor.revision == 0) {
-                    // no more staged legacy versions
+                    // this is not a legacy version; remove the staged bugfix
                     if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
                         // a minor is being staged, which is also unreleased
                         moveLastToUnreleased(stableVersions, unreleasedVersions);
@@ -210,11 +212,11 @@ public class VersionUtils {
     }
 
     /**
-     * Get the released version before {@code version}.
+     * Get the version before {@code version}.
      */
     public static Version getPreviousVersion(Version version) {
-        for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = RELEASED_VERSIONS.get(i);
+        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
+            Version v = ALL_VERSIONS.get(i);
             if (v.before(version)) {
                 return v;
             }
@@ -223,7 +225,7 @@ public class VersionUtils {
     }
 
     /**
-     * Get the released version before {@link Version#CURRENT}.
+     * Get the version before {@link Version#CURRENT}.
      */
     public static Version getPreviousVersion() {
         Version version = getPreviousVersion(Version.CURRENT);

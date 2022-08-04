@@ -48,6 +48,12 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -59,12 +65,6 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -85,6 +85,7 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.opensearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.opensearch.index.query.IntervalBuilder;
+import org.opensearch.index.query.IntervalMode;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -101,13 +102,22 @@ import java.util.Objects;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
-/** A {@link FieldMapper} for full-text fields. */
+/**
+ * A {@link FieldMapper} for full-text fields.
+ *
+ * @opensearch.internal
+ */
 public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
 
+    /**
+     * Default paramters for text fields
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final double FIELDDATA_MIN_FREQUENCY = 0;
         public static final double FIELDDATA_MAX_FREQUENCY = Integer.MAX_VALUE;
@@ -137,6 +147,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         return ((TextFieldMapper) in).builder;
     }
 
+    /**
+     * Prefix configuration
+     *
+     * @opensearch.internal
+     */
     private static final class PrefixConfig implements ToXContent {
         final int minChars;
         final int maxChars;
@@ -194,6 +209,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         return new PrefixConfig(minChars, maxChars);
     }
 
+    /**
+     * Frequency filter for field data
+     *
+     * @opensearch.internal
+     */
     private static final class FielddataFrequencyFilter implements ToXContent {
         final double minFreq;
         final double maxFreq;
@@ -251,6 +271,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
+    /**
+     * Builder for text fields
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Version indexCreatedVersion;
@@ -451,6 +476,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
 
+    /**
+     * A phrase wrapped field analyzer
+     *
+     * @opensearch.internal
+     */
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 
         private final Analyzer delegate;
@@ -471,6 +501,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * A prefix wrapped analyzer
+     *
+     * @opensearch.internal
+     */
     private static class PrefixWrappedAnalyzer extends AnalyzerWrapper {
 
         private final int minChars;
@@ -496,6 +531,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for phrase fields
+     *
+     * @opensearch.internal
+     */
     static final class PhraseFieldType extends StringFieldType {
 
         final TextFieldType parent;
@@ -528,6 +568,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for prefix fields
+     *
+     * @opensearch.internal
+     */
     static final class PrefixFieldType extends StringFieldType {
 
         final int minChars;
@@ -581,8 +626,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 automata.add(Automata.makeAnyChar());
             }
             Automaton automaton = Operations.concatenate(automata);
-            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
-            query.setRewriteMethod(method);
+            AutomatonQuery query = AutomatonQueries.createAutomatonQuery(new Term(name(), value + "*"), automaton, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField.name(), value)), BooleanClause.Occur.SHOULD)
                 .build();
@@ -622,6 +666,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field mapper for phrase fields
+     *
+     * @opensearch.internal
+     */
     private static final class PhraseFieldMapper extends FieldMapper {
 
         PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType) {
@@ -644,6 +693,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field mapper for prefix fields
+     *
+     * @opensearch.internal
+     */
     private static final class PrefixFieldMapper extends FieldMapper {
 
         protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
@@ -675,6 +729,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for text fields
+     *
+     * @opensearch.internal
+     */
     public static class TextFieldType extends StringFieldType {
 
         private boolean fielddata;
@@ -789,7 +848,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer, boolean prefix)
+        public IntervalsSource intervals(String text, int maxGaps, IntervalMode mode, NamedAnalyzer analyzer, boolean prefix)
             throws IOException {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
@@ -805,7 +864,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 return Intervals.prefix(normalizedTerm);
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? getTextSearchInfo().getSearchAnalyzer() : analyzer);
-            return builder.analyzeText(text, maxGaps, ordered);
+            return builder.analyzeText(text, maxGaps, mode);
         }
 
         @Override
@@ -1066,8 +1125,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         if (terms.length == 1) {
-            Term[] newTerms = Arrays.stream(terms[0]).map(term -> new Term(prefixField, term.bytes())).toArray(Term[]::new);
-            return new SynonymQuery(newTerms);
+            SynonymQuery.Builder sb = new SynonymQuery.Builder(prefixField);
+            Arrays.stream(terms[0]).map(term -> new Term(prefixField, term.bytes())).forEach(sb::addTerm);
+            return sb.build();
         }
 
         SpanNearQuery.Builder spanQuery = new SpanNearQuery.Builder(field, true);

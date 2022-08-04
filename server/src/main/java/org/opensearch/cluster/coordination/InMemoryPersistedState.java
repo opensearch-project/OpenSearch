@@ -33,6 +33,11 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterState;
 
+/**
+ * Persist state in memory
+ *
+ * @opensearch.internal
+ */
 public class InMemoryPersistedState implements CoordinationState.PersistedState {
 
     private long currentTerm;

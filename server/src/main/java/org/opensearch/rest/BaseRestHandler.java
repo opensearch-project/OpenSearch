@@ -36,9 +36,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.plugins.ActionPlugin;
@@ -64,6 +67,8 @@ import java.util.stream.Collectors;
  * the transport requests executed by the associated client. While the context is fully copied over, not all the headers
  * are copied, but a selected few. It is possible to control what headers are copied over by returning them in
  * {@link ActionPlugin#getRestHeaders()}.
+ *
+ * @opensearch.api
  */
 public abstract class BaseRestHandler implements RestHandler {
 
@@ -79,13 +84,6 @@ public abstract class BaseRestHandler implements RestHandler {
      */
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
-
-    /**
-     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: Support for this parameter will be removed after the transition period to typeless APIs.
-     */
-    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
-    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     public final long getUsageCount() {
         return usageCount.sum();
@@ -207,6 +205,39 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the two parameters 'master_timeout' and 'cluster_manager_timeout' are not assigned together.
+     * The method is temporarily added in 2.0 duing applying inclusive language. Remove the method along with MASTER_ROLE.
+     * @param mnr the action request
+     * @param request the REST request to handle
+     * @param logger the logger that logs deprecation notices
+     * @param logMsgKeyPrefix the key prefix of a deprecation message to avoid duplicate messages.
+     */
+    public static void parseDeprecatedMasterTimeoutParameter(
+        ClusterManagerNodeRequest mnr,
+        RestRequest request,
+        DeprecationLogger logger,
+        String logMsgKeyPrefix
+    ) {
+        final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+            "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
+        final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
+            "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
+        if (request.hasParam("master_timeout")) {
+            logger.deprecate(logMsgKeyPrefix + "_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            if (request.hasParam("cluster_manager_timeout")) {
+                throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
+            }
+            mnr.clusterManagerNodeTimeout(request.paramAsTime("master_timeout", mnr.clusterManagerNodeTimeout()));
+        }
+    }
+
+    /**
+     * A wrapper for the base handler.
+     *
+     * @opensearch.internal
+     */
     public static class Wrapper extends BaseRestHandler {
 
         protected final BaseRestHandler delegate;

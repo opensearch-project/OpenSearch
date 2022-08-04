@@ -33,7 +33,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.cluster.service.ClusterApplierService;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.Nullable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
@@ -46,6 +46,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
+/**
+ * Base future class.
+ *
+ * @opensearch.internal
+ */
 public abstract class BaseFuture<V> implements Future<V> {
 
     private static final String BLOCKING_OP_REASON = "Blocking operation";
@@ -104,7 +109,7 @@ public abstract class BaseFuture<V> implements Future<V> {
         return Transports.assertNotTransportThread(BLOCKING_OP_REASON)
             && ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON)
             && ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON)
-            && MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
+            && ClusterManagerService.assertNotClusterManagerUpdateThread(BLOCKING_OP_REASON);
     }
 
     @Override

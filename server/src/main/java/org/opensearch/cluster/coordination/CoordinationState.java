@@ -53,6 +53,8 @@ import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 /**
  * The core class of the cluster state coordination algorithm, directly implementing the
  * <a href="https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla">formal model</a>
+ *
+ * @opensearch.internal
  */
 public class CoordinationState {
 
@@ -305,7 +307,7 @@ public class CoordinationState {
         boolean prevElectionWon = electionWon;
         electionWon = isElectionQuorum(joinVotes);
         assert !prevElectionWon || electionWon : // we cannot go from won to not won
-        "locaNode= " + localNode + ", join=" + join + ", joinVotes=" + joinVotes;
+            "locaNode= " + localNode + ", join=" + join + ", joinVotes=" + joinVotes;
         logger.debug(
             "handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}",
             join,
@@ -378,8 +380,8 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
 
-        assert clusterState.getLastCommittedConfiguration()
-            .equals(getLastCommittedConfiguration()) : "last committed configuration should not change";
+        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
+            : "last committed configuration should not change";
 
         lastPublishedVersion = clusterState.version();
         lastPublishedConfiguration = clusterState.getLastAcceptedConfiguration();
@@ -411,7 +413,7 @@ public class CoordinationState {
         }
         if (clusterState.term() == getLastAcceptedTerm() && clusterState.version() <= getLastAcceptedVersion()) {
             if (clusterState.term() == ZEN1_BWC_TERM
-                && clusterState.nodes().getMasterNode().equals(getLastAcceptedState().nodes().getMasterNode()) == false) {
+                && clusterState.nodes().getClusterManagerNode().equals(getLastAcceptedState().nodes().getClusterManagerNode()) == false) {
                 logger.debug(
                     "handling publish request in compatibility mode despite version mismatch (expected: >[{}], actual: [{}])",
                     getLastAcceptedVersion(),
@@ -567,6 +569,8 @@ public class CoordinationState {
 
     /**
      * Pluggable persistence layer for {@link CoordinationState}.
+     *
+     * @opensearch.internal
      */
     public interface PersistedState extends Closeable {
 
@@ -610,7 +614,8 @@ public class CoordinationState {
                 metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
                 metadataBuilder.coordinationMetadata(coordinationMetadata);
             }
-            // if we receive a commit from a Zen1 master that has not recovered its state yet, the cluster uuid might not been known yet.
+            // if we receive a commit from a Zen1 cluster-manager that has not recovered its state yet,
+            // the cluster uuid might not been known yet.
             assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
                 || lastAcceptedState.term() == ZEN1_BWC_TERM : "received cluster state with empty cluster uuid but not Zen1 BWC term: "
                     + lastAcceptedState;
@@ -622,7 +627,8 @@ public class CoordinationState {
                 metadataBuilder.clusterUUIDCommitted(true);
 
                 if (lastAcceptedState.term() != ZEN1_BWC_TERM) {
-                    // Zen1 masters never publish a committed cluster UUID so if we logged this it'd happen on on every update. Let's just
+                    // Zen1 cluster-managers never publish a committed cluster UUID so if we logged this it'd happen on on every update.
+                    // Let's just
                     // not log it at all in a 6.8/7.x rolling upgrade.
                     logger.info("cluster UUID set to [{}]", lastAcceptedState.metadata().clusterUUID());
                 }
@@ -637,6 +643,8 @@ public class CoordinationState {
 
     /**
      * A collection of votes, used to calculate quorums. Optionally records the Joins as well.
+     *
+     * @opensearch.internal
      */
     public static class VoteCollection {
 
@@ -644,7 +652,7 @@ public class CoordinationState {
         private final Set<Join> joins;
 
         public boolean addVote(DiscoveryNode sourceNode) {
-            return sourceNode.isMasterNode() && nodes.put(sourceNode.getId(), sourceNode) == null;
+            return sourceNode.isClusterManagerNode() && nodes.put(sourceNode.getId(), sourceNode) == null;
         }
 
         public boolean addJoinVote(Join join) {

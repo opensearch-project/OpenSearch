@@ -50,6 +50,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Script cache and compilation rate limiter.
+ *
+ * @opensearch.internal
  */
 public class ScriptCache {
 
@@ -262,6 +264,11 @@ public class ScriptCache {
         }
     }
 
+    /**
+     * Tracking compilation rate
+     *
+     * @opensearch.internal
+     */
     public static class CompilationRate {
         public final int count;
         public final TimeValue time;

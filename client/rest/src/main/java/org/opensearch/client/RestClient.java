@@ -36,6 +36,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.HttpEntityWrapper;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -125,12 +126,35 @@ public class RestClient implements Closeable {
     final List<Header> defaultHeaders;
     private final String pathPrefix;
     private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
-    private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
+    private final ConcurrentMap<HttpHost, DeadHostState> denylist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
+    private final Optional<Boolean> chunkedEnabled;
+
+    RestClient(
+        CloseableHttpAsyncClient client,
+        Header[] defaultHeaders,
+        List<Node> nodes,
+        String pathPrefix,
+        FailureListener failureListener,
+        NodeSelector nodeSelector,
+        boolean strictDeprecationMode,
+        boolean compressionEnabled,
+        boolean chunkedEnabled
+    ) {
+        this.client = client;
+        this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
+        this.failureListener = failureListener;
+        this.pathPrefix = pathPrefix;
+        this.nodeSelector = nodeSelector;
+        this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
+        this.compressionEnabled = compressionEnabled;
+        this.chunkedEnabled = Optional.of(chunkedEnabled);
+        setNodes(nodes);
+    }
 
     RestClient(
         CloseableHttpAsyncClient client,
@@ -149,6 +173,7 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
+        this.chunkedEnabled = Optional.empty();
         setNodes(nodes);
     }
 
@@ -246,7 +271,7 @@ public class RestClient implements Closeable {
             authCache.put(node.getHost(), new BasicScheme());
         }
         this.nodeTuple = new NodeTuple<>(Collections.unmodifiableList(new ArrayList<>(nodesByHost.values())), authCache);
-        this.blacklist.clear();
+        this.denylist.clear();
     }
 
     /**
@@ -448,7 +473,7 @@ public class RestClient implements Closeable {
      */
     private NodeTuple<Iterator<Node>> nextNodes() throws IOException {
         NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
-        Iterable<Node> hosts = selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
+        Iterable<Node> hosts = selectNodes(nodeTuple, denylist, lastNodeIndex, nodeSelector);
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
@@ -458,17 +483,17 @@ public class RestClient implements Closeable {
      */
     static Iterable<Node> selectNodes(
         NodeTuple<List<Node>> nodeTuple,
-        Map<HttpHost, DeadHostState> blacklist,
+        Map<HttpHost, DeadHostState> denylist,
         AtomicInteger lastNodeIndex,
         NodeSelector nodeSelector
     ) throws IOException {
         /*
          * Sort the nodes into living and dead lists.
          */
-        List<Node> livingNodes = new ArrayList<>(Math.max(0, nodeTuple.nodes.size() - blacklist.size()));
-        List<DeadNode> deadNodes = new ArrayList<>(blacklist.size());
+        List<Node> livingNodes = new ArrayList<>(Math.max(0, nodeTuple.nodes.size() - denylist.size()));
+        List<DeadNode> deadNodes = new ArrayList<>(denylist.size());
         for (Node node : nodeTuple.nodes) {
-            DeadHostState deadness = blacklist.get(node.getHost());
+            DeadHostState deadness = denylist.get(node.getHost());
             if (deadness == null || deadness.shallBeRetried()) {
                 livingNodes.add(node);
             } else {
@@ -526,9 +551,9 @@ public class RestClient implements Closeable {
      * Receives as an argument the host that was used for the successful request.
      */
     private void onResponse(Node node) {
-        DeadHostState removedHost = this.blacklist.remove(node.getHost());
+        DeadHostState removedHost = this.denylist.remove(node.getHost());
         if (logger.isDebugEnabled() && removedHost != null) {
-            logger.debug("removed [" + node + "] from blacklist");
+            logger.debug("removed [" + node + "] from denylist");
         }
     }
 
@@ -538,19 +563,19 @@ public class RestClient implements Closeable {
      */
     private void onFailure(Node node) {
         while (true) {
-            DeadHostState previousDeadHostState = blacklist.putIfAbsent(
+            DeadHostState previousDeadHostState = denylist.putIfAbsent(
                 node.getHost(),
                 new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER)
             );
             if (previousDeadHostState == null) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("added [" + node + "] to blacklist");
+                    logger.debug("added [" + node + "] to denylist");
                 }
                 break;
             }
-            if (blacklist.replace(node.getHost(), previousDeadHostState, new DeadHostState(previousDeadHostState))) {
+            if (denylist.replace(node.getHost(), previousDeadHostState, new DeadHostState(previousDeadHostState))) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("updated [" + node + "] already in blacklist");
+                    logger.debug("updated [" + node + "] already in denylist");
                 }
                 break;
             }
@@ -583,36 +608,42 @@ public class RestClient implements Closeable {
         }
     }
 
-    private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity, boolean compressionEnabled) {
+    private HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity) {
         switch (method.toUpperCase(Locale.ROOT)) {
             case HttpDeleteWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpDeleteWithEntity(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpDeleteWithEntity(uri), entity);
             case HttpGetWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpGetWithEntity(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpGetWithEntity(uri), entity);
             case HttpHead.METHOD_NAME:
-                return addRequestBody(new HttpHead(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpHead(uri), entity);
             case HttpOptions.METHOD_NAME:
-                return addRequestBody(new HttpOptions(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpOptions(uri), entity);
             case HttpPatch.METHOD_NAME:
-                return addRequestBody(new HttpPatch(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpPatch(uri), entity);
             case HttpPost.METHOD_NAME:
                 HttpPost httpPost = new HttpPost(uri);
-                addRequestBody(httpPost, entity, compressionEnabled);
+                addRequestBody(httpPost, entity);
                 return httpPost;
             case HttpPut.METHOD_NAME:
-                return addRequestBody(new HttpPut(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpPut(uri), entity);
             case HttpTrace.METHOD_NAME:
-                return addRequestBody(new HttpTrace(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpTrace(uri), entity);
             default:
                 throw new UnsupportedOperationException("http method not supported: " + method);
         }
     }
 
-    private static HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity, boolean compressionEnabled) {
+    private HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity) {
         if (entity != null) {
             if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
                 if (compressionEnabled) {
-                    entity = new ContentCompressingEntity(entity);
+                    if (chunkedEnabled.isPresent()) {
+                        entity = new ContentCompressingEntity(entity, chunkedEnabled.get());
+                    } else {
+                        entity = new ContentCompressingEntity(entity);
+                    }
+                } else if (chunkedEnabled.isPresent()) {
+                    entity = new ContentHttpEntity(entity, chunkedEnabled.get());
                 }
                 ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(entity);
             } else {
@@ -718,8 +749,8 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Contains a reference to a blacklisted node and the time until it is
-     * revived. We use this so we can do a single pass over the blacklist.
+     * Contains a reference to a denylisted node and the time until it is
+     * revived. We use this so we can do a single pass over the denylist.
      */
     private static class DeadNode implements Comparable<DeadNode> {
         final Node node;
@@ -782,7 +813,7 @@ public class RestClient implements Closeable {
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
-            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled);
+            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
             this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
             setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
@@ -936,6 +967,7 @@ public class RestClient implements Closeable {
      * A gzip compressing entity that also implements {@code getContent()}.
      */
     public static class ContentCompressingEntity extends GzipCompressingEntity {
+        private Optional<Boolean> chunkedEnabled;
 
         /**
          * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
@@ -944,6 +976,18 @@ public class RestClient implements Closeable {
          */
         public ContentCompressingEntity(HttpEntity entity) {
             super(entity);
+            this.chunkedEnabled = Optional.empty();
+        }
+
+        /**
+         * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         * @param chunkedEnabled force enable/disable chunked transfer-encoding.
+         */
+        public ContentCompressingEntity(HttpEntity entity, boolean chunkedEnabled) {
+            super(entity);
+            this.chunkedEnabled = Optional.of(chunkedEnabled);
         }
 
         @Override
@@ -953,6 +997,80 @@ public class RestClient implements Closeable {
                 wrappedEntity.writeTo(gzipOut);
             }
             return out.asInput();
+        }
+
+        /**
+         * A gzip compressing entity doesn't work with chunked encoding with sigv4
+         *
+         * @return false
+         */
+        @Override
+        public boolean isChunked() {
+            return chunkedEnabled.orElseGet(super::isChunked);
+        }
+
+        /**
+         * A gzip entity requires content length in http headers.
+         *
+         * @return content length of gzip entity
+         */
+        @Override
+        public long getContentLength() {
+            if (chunkedEnabled.isPresent()) {
+                if (chunkedEnabled.get()) {
+                    return -1L;
+                } else {
+                    long size;
+                    try (InputStream is = getContent()) {
+                        size = is.readAllBytes().length;
+                    } catch (IOException ex) {
+                        size = -1L;
+                    }
+
+                    return size;
+                }
+            } else {
+                return super.getContentLength();
+            }
+        }
+    }
+
+    /**
+     * An entity that lets the caller specify the return value of {@code isChunked()}.
+     */
+    public static class ContentHttpEntity extends HttpEntityWrapper {
+        private Optional<Boolean> chunkedEnabled;
+
+        /**
+         * Creates a {@link ContentHttpEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         */
+        public ContentHttpEntity(HttpEntity entity) {
+            super(entity);
+            this.chunkedEnabled = Optional.empty();
+        }
+
+        /**
+         * Creates a {@link ContentHttpEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         * @param chunkedEnabled force enable/disable chunked transfer-encoding.
+         */
+        public ContentHttpEntity(HttpEntity entity, boolean chunkedEnabled) {
+            super(entity);
+            this.chunkedEnabled = Optional.of(chunkedEnabled);
+        }
+
+        /**
+         * A chunked entity requires transfer-encoding:chunked in http headers
+         * which requires isChunked to be true
+         *
+         * @return true
+         */
+        @Override
+        public boolean isChunked() {
+            return chunkedEnabled.orElseGet(super::isChunked);
         }
     }
 

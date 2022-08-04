@@ -34,14 +34,16 @@ package org.opensearch.action.admin.indices.shards;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 
 /**
  * Request builder for {@link IndicesShardStoresRequest}
+ *
+ * @opensearch.internal
  */
-public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+public class IndicesShardStoreRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     IndicesShardStoresRequest,
     IndicesShardStoresResponse,
     IndicesShardStoreRequestBuilder> {

@@ -35,6 +35,11 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.suggest.DirectSpellcheckerSettings;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
+/**
+ * Context used during term suggestion
+ *
+ * @opensearch.internal
+ */
 final class TermSuggestionContext extends SuggestionContext {
 
     private final DirectSpellcheckerSettings settings = new DirectSpellcheckerSettings();

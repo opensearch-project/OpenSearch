@@ -32,15 +32,15 @@ apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'Lucene expressions integration for OpenSearch'
-  classname 'org.opensearch.script.expression.ExpressionPlugin'
+  classname 'org.opensearch.script.expression.ExpressionModulePlugin'
 }
 
 dependencies {
   api "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  api 'org.antlr:antlr4-runtime:4.5.1-1'
-  api 'org.ow2.asm:asm:5.0.4'
-  api 'org.ow2.asm:asm-commons:5.0.4'
-  api 'org.ow2.asm:asm-tree:5.0.4'
+  api 'org.antlr:antlr4-runtime:4.9.3'
+  api "org.ow2.asm:asm:${versions.asm}"
+  api "org.ow2.asm:asm-commons:${versions.asm}"
+  api "org.ow2.asm:asm-tree:${versions.asm}"
 }
 restResources {
   restApi {
@@ -52,4 +52,3 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /asm-.*/, to: 'asm'
 }
-

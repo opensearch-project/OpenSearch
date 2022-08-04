@@ -32,8 +32,8 @@
 
 package org.opensearch.recovery;
 
-import org.apache.lucene.util.English;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.English;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -43,7 +43,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
-import org.opensearch.indices.recovery.RecoveryFileChunkRequest;
+import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.node.RecoverySettingsChunkSizePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -108,7 +108,7 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
         // create the index and prevent allocation on any other nodes than the lucky one
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
         assertAcked(
-            prepareCreate("test").addMapping("type1", "field1", "type=text", "the_id", "type=text")
+            prepareCreate("test").setMapping("field1", "type=text", "the_id", "type=text")
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -122,7 +122,7 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> builder = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            builder.add(client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(i), "the_id", id));
+            builder.add(client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i), "the_id", id));
         }
         indexRandom(true, builder);
         for (int i = 0; i < numDocs; i++) {
@@ -146,7 +146,7 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
                 internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
                 (connection, requestId, action, request, options) -> {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                        FileChunkRequest req = (FileChunkRequest) request;
                         logger.info("file chunk [{}] lastChunk: {}", req, req.lastChunk());
                         if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
                             latch.countDown();

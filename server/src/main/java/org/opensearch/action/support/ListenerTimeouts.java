@@ -41,6 +41,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+/**
+ * Supports timeouts on listeners
+ *
+ * @opensearch.internal
+ */
 public class ListenerTimeouts {
 
     /**
@@ -91,6 +96,11 @@ public class ListenerTimeouts {
         return wrappedListener;
     }
 
+    /**
+     * Listener that can time out
+     *
+     * @opensearch.internal
+     */
     private static class TimeoutableListener<Response> implements ActionListener<Response>, Runnable {
 
         private final AtomicBoolean isDone = new AtomicBoolean(false);

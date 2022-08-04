@@ -36,6 +36,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import groovy.util.Node;
 import groovy.util.NodeList;
+
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.precommit.PomValidationPrecommitPlugin;
 import org.opensearch.gradle.util.Util;
@@ -55,6 +56,9 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.concurrent.Callable;
 
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure;
@@ -125,13 +129,16 @@ public class PublishPlugin implements Plugin<Project> {
             // Add git origin info to generated POM files
             publication.getPom().withXml(PublishPlugin::addScmInfo);
 
-            // have to defer this until archivesBaseName is set
-            project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
+            if (!publication.getName().toLowerCase().contains("zip")) {
 
-            // publish sources and javadoc for Java projects.
-            if (project.getPluginManager().hasPlugin("opensearch.java")) {
-                publication.artifact(project.getTasks().getByName("sourcesJar"));
-                publication.artifact(project.getTasks().getByName("javadocJar"));
+                // have to defer this until archivesBaseName is set
+                project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
+
+                // publish sources and javadoc for Java projects.
+                if (project.getPluginManager().hasPlugin("opensearch.java")) {
+                    publication.artifact(project.getTasks().getByName("sourcesJar"));
+                    publication.artifact(project.getTasks().getByName("javadocJar"));
+                }
             }
 
             generatePomTask.configure(
@@ -143,9 +150,49 @@ public class PublishPlugin implements Plugin<Project> {
 
     private static void addScmInfo(XmlProvider xml) {
         Node root = xml.asNode();
-        root.appendNode("url", Util.urlFromOrigin(BuildParams.getGitOrigin()));
-        Node scmNode = root.appendNode("scm");
-        scmNode.appendNode("url", BuildParams.getGitOrigin());
+        Node url = null, scm = null;
+
+        for (final Object child : root.children()) {
+            if (child instanceof Node) {
+                final Node node = (Node) child;
+                final Object name = node.name();
+
+                try {
+                    // For Gradle 6.8 and below, the class is groovy.xml.QName
+                    // For Gradle 7.4 and above, the class is groovy.namespace.QName
+                    if (name != null && name.getClass().getSimpleName().equals("QName")) {
+                        final MethodHandle handle = MethodHandles.publicLookup()
+                            .findVirtual(name.getClass(), "matches", MethodType.methodType(boolean.class, Object.class))
+                            .bindTo(name);
+
+                        if ((boolean) handle.invoke("url")) {
+                            url = node;
+                        } else if ((boolean) handle.invoke("scm")) {
+                            scm = node;
+                        }
+                    }
+                } catch (final Throwable ex) {
+                    // Not a suitable QName type we could use ...
+                }
+
+                if ("url".equals(name)) {
+                    url = node;
+                } else if ("scm".equals(name)) {
+                    scm = node;
+                }
+            }
+        }
+
+        // Only include URL section if it is not provided in the POM already
+        if (url == null) {
+            root.appendNode("url", Util.urlFromOrigin(BuildParams.getGitOrigin()));
+        }
+
+        // Only include SCM section if it is not provided in the POM already
+        if (scm == null) {
+            Node scmNode = root.appendNode("scm");
+            scmNode.appendNode("url", BuildParams.getGitOrigin());
+        }
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */

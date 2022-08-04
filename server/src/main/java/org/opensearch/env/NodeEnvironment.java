@@ -107,8 +107,15 @@ import static java.util.Collections.unmodifiableSet;
 
 /**
  * A component that holds all data paths for a single node.
+ *
+ * @opensearch.internal
  */
 public final class NodeEnvironment implements Closeable {
+    /**
+     * A node path.
+     *
+     * @opensearch.internal
+     */
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -212,6 +219,11 @@ public final class NodeEnvironment implements Closeable {
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
+    /**
+     * The node lock.
+     *
+     * @opensearch.internal
+     */
     public static class NodeLock implements Releasable {
 
         private final int nodeId;
@@ -289,7 +301,7 @@ public final class NodeEnvironment implements Closeable {
         NodeLock nodeLock = null;
 
         try {
-            sharedDataPath = environment.sharedDataFile();
+            sharedDataPath = environment.sharedDataDir();
             IOException lastException = null;
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
 
@@ -342,12 +354,12 @@ public final class NodeEnvironment implements Closeable {
             applySegmentInfosTrace(settings);
             assertCanWrite();
 
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+            if (DiscoveryNode.isClusterManagerNode(settings) || DiscoveryNode.isDataNode(settings)) {
                 ensureAtomicMoveSupported(nodePaths);
             }
 
             if (DiscoveryNode.isDataNode(settings) == false) {
-                if (DiscoveryNode.isMasterNode(settings) == false) {
+                if (DiscoveryNode.isClusterManagerNode(settings) == false) {
                     ensureNoIndexMetadata(nodePaths);
                 }
 
@@ -563,30 +575,25 @@ public final class NodeEnvironment implements Closeable {
     }
 
     private static boolean assertPathsDoNotExist(final Path[] paths) {
-        Set<Path> existingPaths = Stream.of(paths)
-            .filter(FileSystemUtils::exists)
-            .filter(
-                leftOver -> {
-                    // Relaxed assertion for the special case where only the empty state directory exists after deleting
-                    // the shard directory because it was created again as a result of a metadata read action concurrently.
-                    try (DirectoryStream<Path> children = Files.newDirectoryStream(leftOver)) {
-                        Iterator<Path> iter = children.iterator();
-                        if (iter.hasNext() == false) {
-                            return true;
-                        }
-                        Path maybeState = iter.next();
-                        if (iter.hasNext() || maybeState.equals(leftOver.resolve(MetadataStateFormat.STATE_DIR_NAME)) == false) {
-                            return true;
-                        }
-                        try (DirectoryStream<Path> stateChildren = Files.newDirectoryStream(maybeState)) {
-                            return stateChildren.iterator().hasNext();
-                        }
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+        Set<Path> existingPaths = Stream.of(paths).filter(FileSystemUtils::exists).filter(leftOver -> {
+            // Relaxed assertion for the special case where only the empty state directory exists after deleting
+            // the shard directory because it was created again as a result of a metadata read action concurrently.
+            try (DirectoryStream<Path> children = Files.newDirectoryStream(leftOver)) {
+                Iterator<Path> iter = children.iterator();
+                if (iter.hasNext() == false) {
+                    return true;
                 }
-            )
-            .collect(Collectors.toSet());
+                Path maybeState = iter.next();
+                if (iter.hasNext() || maybeState.equals(leftOver.resolve(MetadataStateFormat.STATE_DIR_NAME)) == false) {
+                    return true;
+                }
+                try (DirectoryStream<Path> stateChildren = Files.newDirectoryStream(maybeState)) {
+                    return stateChildren.iterator().hasNext();
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }).collect(Collectors.toSet());
         assert existingPaths.size() == 0 : "Paths exist that should have been deleted: " + existingPaths;
         return existingPaths.size() == 0;
     }
@@ -1143,7 +1150,7 @@ public final class NodeEnvironment implements Closeable {
                 Locale.ROOT,
                 "node does not have the %s and %s roles but has index metadata: %s. Use 'opensearch-node repurpose' tool to clean up",
                 DiscoveryNodeRole.DATA_ROLE.roleName(),
-                DiscoveryNodeRole.MASTER_ROLE.roleName(),
+                DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(),
                 indexMetadataPaths
             );
             throw new IllegalStateException(message);

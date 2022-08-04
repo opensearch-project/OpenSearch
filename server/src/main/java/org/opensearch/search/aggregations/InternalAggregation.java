@@ -58,10 +58,14 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
     /**
      * Builds {@link ReduceContext}.
+     *
+     * @opensearch.internal
      */
     public interface ReduceContextBuilder {
         /**
@@ -75,6 +79,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         ReduceContext forFinalReduction();
     }
 
+    /**
+     * The reduce context
+     *
+     * @opensearch.internal
+     */
     public static class ReduceContext {
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
@@ -226,7 +235,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         out.writeString(name);
         out.writeGenericValue(metadata);
         if (out.getVersion().before(LegacyESVersion.V_7_8_0)) {
-            assert pipelineAggregatorsForBwcSerialization != null : "serializing to pre-7.8.0 versions should have called mergePipelineTreeForBWCSerialization";
+            assert pipelineAggregatorsForBwcSerialization != null
+                : "serializing to pre-7.8.0 versions should have called mergePipelineTreeForBWCSerialization";
             out.writeNamedWriteableList(pipelineAggregatorsForBwcSerialization);
         }
         doWriteTo(out);

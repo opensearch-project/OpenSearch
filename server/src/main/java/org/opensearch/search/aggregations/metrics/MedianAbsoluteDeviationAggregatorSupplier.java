@@ -39,6 +39,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregator supplier interface for median_absolute_deviation agg
+ *
+ * @opensearch.internal
+ */
 public interface MedianAbsoluteDeviationAggregatorSupplier {
     Aggregator build(
         String name,

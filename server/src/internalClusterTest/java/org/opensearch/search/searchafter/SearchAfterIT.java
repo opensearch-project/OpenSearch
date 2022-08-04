@@ -32,15 +32,21 @@
 
 package org.opensearch.search.searchafter;
 
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.SearchHit;
+import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
@@ -59,15 +65,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterIT extends OpenSearchIntegTestCase {
     private static final String INDEX_NAME = "test";
-    private static final String TYPE_NAME = "type1";
     private static final int NUM_DOCS = 100;
 
     public void testsShouldFail() throws Exception {
-        assertAcked(
-            client().admin().indices().prepareCreate("test").addMapping("type1", "field1", "type=long", "field2", "type=keyword").get()
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=long", "field2", "type=keyword").get());
         ensureGreen();
-        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
@@ -158,13 +161,65 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testWithNullStrings() throws InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", "field2", "type=keyword").get());
+    public void testPitWithSearchAfter() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=long", "field2", "type=keyword").get());
         ensureGreen();
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "0").setSource("field1", 0),
-            client().prepareIndex("test", "type1", "1").setSource("field1", 100, "field2", "toto")
+            client().prepareIndex("test").setId("0").setSource("field1", 0),
+            client().prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto"),
+            client().prepareIndex("test").setId("2").setSource("field1", 101),
+            client().prepareIndex("test").setId("3").setSource("field1", 99)
+        );
+
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "test" });
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
+        SearchResponse sr = client().prepareSearch()
+            .addSort("field1", SortOrder.ASC)
+            .setQuery(matchAllQuery())
+            .searchAfter(new Object[] { 99 })
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+            .get();
+        assertEquals(2, sr.getHits().getHits().length);
+        sr = client().prepareSearch()
+            .addSort("field1", SortOrder.ASC)
+            .setQuery(matchAllQuery())
+            .searchAfter(new Object[] { 100 })
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+            .get();
+        assertEquals(1, sr.getHits().getHits().length);
+        sr = client().prepareSearch()
+            .addSort("field1", SortOrder.ASC)
+            .setQuery(matchAllQuery())
+            .searchAfter(new Object[] { 0 })
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+            .get();
+        assertEquals(3, sr.getHits().getHits().length);
+        /**
+         * Add new data and assert PIT results remain the same and normal search results gets refreshed
+         */
+        indexRandom(true, client().prepareIndex("test").setId("4").setSource("field1", 102));
+        sr = client().prepareSearch()
+            .addSort("field1", SortOrder.ASC)
+            .setQuery(matchAllQuery())
+            .searchAfter(new Object[] { 0 })
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+            .get();
+        assertEquals(3, sr.getHits().getHits().length);
+        sr = client().prepareSearch().addSort("field1", SortOrder.ASC).setQuery(matchAllQuery()).searchAfter(new Object[] { 0 }).get();
+        assertEquals(4, sr.getHits().getHits().length);
+        client().admin().indices().prepareDelete("test").get();
+    }
+
+    public void testWithNullStrings() throws InterruptedException {
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field2", "type=keyword").get());
+        ensureGreen();
+        indexRandom(
+            true,
+            client().prepareIndex("test").setId("0").setSource("field1", 0),
+            client().prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto")
         );
         SearchResponse searchResponse = client().prepareSearch("test")
             .addSort("field1", SortOrder.ASC)
@@ -219,7 +274,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
         if (reqSize == 0) {
             reqSize = 1;
         }
-        assertSearchFromWithSortValues(INDEX_NAME, TYPE_NAME, documents, reqSize);
+        assertSearchFromWithSortValues(INDEX_NAME, documents, reqSize);
     }
 
     private static class ListComparator implements Comparator<List> {
@@ -250,10 +305,10 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
 
     private ListComparator LST_COMPARATOR = new ListComparator();
 
-    private void assertSearchFromWithSortValues(String indexName, String typeName, List<List> documents, int reqSize) throws Exception {
+    private void assertSearchFromWithSortValues(String indexName, List<List> documents, int reqSize) throws Exception {
         int numFields = documents.get(0).size();
         {
-            createIndexMappingsFromObjectType(indexName, typeName, documents.get(0));
+            createIndexMappingsFromObjectType(indexName, documents.get(0));
             List<IndexRequestBuilder> requests = new ArrayList<>();
             for (int i = 0; i < documents.size(); i++) {
                 XContentBuilder builder = jsonBuilder();
@@ -263,7 +318,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
                     builder.field("field" + Integer.toString(j), documents.get(i).get(j));
                 }
                 builder.endObject();
-                requests.add(client().prepareIndex(INDEX_NAME, TYPE_NAME, Integer.toString(i)).setSource(builder));
+                requests.add(client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
             }
             indexRandom(true, requests);
         }
@@ -289,7 +344,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
         }
     }
 
-    private void createIndexMappingsFromObjectType(String indexName, String typeName, List<Object> types) {
+    private void createIndexMappingsFromObjectType(String indexName, List<Object> types) {
         CreateIndexRequestBuilder indexRequestBuilder = client().admin().indices().prepareCreate(indexName);
         List<String> mappings = new ArrayList<>();
         int numFields = types.size();
@@ -323,7 +378,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
                 fail("Can't match type [" + type + "]");
             }
         }
-        indexRequestBuilder.addMapping(typeName, mappings.toArray()).get();
+        indexRequestBuilder.setMapping(mappings.toArray(new String[0])).get();
         ensureGreen();
     }
 

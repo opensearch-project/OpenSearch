@@ -36,7 +36,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.opensearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -47,6 +47,8 @@ import java.util.Objects;
 /**
  * An action for simulating the complete composed settings of the specified
  * index template name, or index template configuration
+ *
+ * @opensearch.internal
  */
 public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResponse> {
 
@@ -57,7 +59,12 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         super(NAME, SimulateIndexTemplateResponse::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    /**
+     * Request for simulating a template action
+     *
+     * @opensearch.internal
+     */
+    public static class Request extends ClusterManagerNodeReadRequest<Request> {
 
         @Nullable
         private String templateName;

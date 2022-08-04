@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.opensearch.bootstrap.jvm.DenyJvmVersionsParser;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
@@ -59,11 +60,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -72,6 +72,8 @@ import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
  * opensearch.enforce.bootstrap.checks} is set to {@true}. In this case we assume the node is running in production and
  * all bootstrap checks must pass.
+ *
+ * @opensearch.internal
  */
 final class BootstrapChecks {
 
@@ -223,10 +225,30 @@ final class BootstrapChecks {
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
-        checks.add(new G1GCCheck());
+        checks.add(new JavaVersionCheck());
         checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
         return Collections.unmodifiableList(checks);
+    }
+
+    static class JavaVersionCheck implements BootstrapCheck {
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            return DenyJvmVersionsParser.getDeniedJvmVersions()
+                .stream()
+                .filter(p -> p.test(getVersion()))
+                .findAny()
+                .map(
+                    p -> BootstrapCheckResult.failure(
+                        String.format(Locale.ROOT, "The current JVM version %s is not recommended for use: %s", getVersion(), p.getReason())
+                    )
+                )
+                .orElseGet(() -> BootstrapCheckResult.success());
+        }
+
+        Runtime.Version getVersion() {
+            return Runtime.version();
+        }
     }
 
     static class HeapSizeCheck implements BootstrapCheck {
@@ -682,60 +704,6 @@ final class BootstrapChecks {
 
     }
 
-    /**
-     * Bootstrap check for versions of HotSpot that are known to have issues that can lead to index corruption when G1GC is enabled.
-     */
-    static class G1GCCheck implements BootstrapCheck {
-
-        @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            if ("Oracle Corporation".equals(jvmVendor()) && isJava8() && isG1GCEnabled()) {
-                final String jvmVersion = jvmVersion();
-                // HotSpot versions on Java 8 match this regular expression; note that this changes with Java 9 after JEP-223
-                final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)-b\\d+");
-                final Matcher matcher = pattern.matcher(jvmVersion);
-                final boolean matches = matcher.matches();
-                assert matches : jvmVersion;
-                final int major = Integer.parseInt(matcher.group(1));
-                final int update = Integer.parseInt(matcher.group(2));
-                // HotSpot versions for Java 8 have major version 25, the bad versions are all versions prior to update 40
-                if (major == 25 && update < 40) {
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "JVM version [%s] can cause data corruption when used with G1GC; upgrade to at least Java 8u40",
-                        jvmVersion
-                    );
-                    return BootstrapCheckResult.failure(message);
-                }
-            }
-            return BootstrapCheckResult.success();
-        }
-
-        // visible for testing
-        String jvmVendor() {
-            return Constants.JVM_VENDOR;
-        }
-
-        // visible for testing
-        boolean isG1GCEnabled() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return JvmInfo.jvmInfo().useG1GC().equals("true");
-        }
-
-        // visible for testing
-        String jvmVersion() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return Constants.JVM_VERSION;
-        }
-
-        // visible for testing
-        boolean isJava8() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return JavaVersion.current().equals(JavaVersion.parse("1.8"));
-        }
-
-    }
-
     static class AllPermissionCheck implements BootstrapCheck {
 
         @Override
@@ -773,10 +741,12 @@ final class BootstrapChecks {
             return BootstrapCheckResult.failure(
                 String.format(
                     Locale.ROOT,
-                    "the default discovery settings are unsuitable for production use; at least one of [%s] must be configured",
-                    Stream.of(DISCOVERY_SEED_HOSTS_SETTING, DISCOVERY_SEED_PROVIDERS_SETTING, INITIAL_MASTER_NODES_SETTING)
+                    // TODO: Remove ' / %s' from the error message after removing MASTER_ROLE, and update unit test.
+                    "the default discovery settings are unsuitable for production use; at least one of [%s / %s] must be configured",
+                    Stream.of(DISCOVERY_SEED_HOSTS_SETTING, DISCOVERY_SEED_PROVIDERS_SETTING, INITIAL_CLUSTER_MANAGER_NODES_SETTING)
                         .map(Setting::getKey)
-                        .collect(Collectors.joining(", "))
+                        .collect(Collectors.joining(", ")),
+                    INITIAL_MASTER_NODES_SETTING.getKey()
                 )
             );
         }

@@ -37,21 +37,19 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentLocation;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchParseException;
@@ -78,7 +76,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankEvalResponseTests extends OpenSearchTestCase {
 
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
-        new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
+        new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES)),
         new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
         new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98)),
         new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),
@@ -188,9 +186,9 @@ public class RankEvalResponseTests extends OpenSearchTestCase {
                 + "        \"coffee_query\": {"
                 + "            \"metric_score\": 0.1,"
                 + "            \"unrated_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}],"
-                + "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"123\",\"_score\":1.0},"
+                + "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_id\":\"123\",\"_score\":1.0},"
                 + "                       \"rating\":5},"
-                + "                      {\"hit\":{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"456\",\"_score\":1.0},"
+                + "                      {\"hit\":{\"_index\":\"index\",\"_id\":\"456\",\"_score\":1.0},"
                 + "                       \"rating\":null}"
                 + "                     ]"
                 + "        }"
@@ -210,13 +208,7 @@ public class RankEvalResponseTests extends OpenSearchTestCase {
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = new SearchHit(
-            docId,
-            docId + "",
-            new Text(MapperService.SINGLE_MAPPING_NAME),
-            Collections.emptyMap(),
-            Collections.emptyMap()
-        );
+        SearchHit hit = new SearchHit(docId, docId + "", Collections.emptyMap(), Collections.emptyMap());
         hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         hit.score(1.0f);
         return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());

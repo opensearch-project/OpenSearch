@@ -36,7 +36,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.NoopCircuitBreaker;

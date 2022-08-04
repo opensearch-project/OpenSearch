@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -51,7 +51,12 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportDeleteComposableIndexTemplateAction extends TransportMasterNodeAction<
+/**
+ * Transport action for deleting a composable index template
+ *
+ * @opensearch.internal
+ */
+public class TransportDeleteComposableIndexTemplateAction extends TransportClusterManagerNodeAction<
     DeleteComposableIndexTemplateAction.Request,
     AcknowledgedResponse> {
 
@@ -97,11 +102,11 @@ public class TransportDeleteComposableIndexTemplateAction extends TransportMaste
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final DeleteComposableIndexTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        indexTemplateService.removeIndexTemplateV2(request.name(), request.masterNodeTimeout(), listener);
+        indexTemplateService.removeIndexTemplateV2(request.name(), request.clusterManagerNodeTimeout(), listener);
     }
 }

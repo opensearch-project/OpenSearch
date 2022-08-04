@@ -32,7 +32,10 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.Version;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.repositories.IndexId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -57,10 +60,25 @@ public class RecoverySourceTests extends OpenSearchTestCase {
         assertEquals(RecoverySource.Type.PEER.ordinal(), 2);
         assertEquals(RecoverySource.Type.SNAPSHOT.ordinal(), 3);
         assertEquals(RecoverySource.Type.LOCAL_SHARDS.ordinal(), 4);
+        assertEquals(RecoverySource.Type.REMOTE_STORE.ordinal(), 5);
         // check exhaustiveness
         for (RecoverySource.Type type : RecoverySource.Type.values()) {
             assertThat(type.ordinal(), greaterThanOrEqualTo(0));
-            assertThat(type.ordinal(), lessThanOrEqualTo(4));
+            assertThat(type.ordinal(), lessThanOrEqualTo(5));
         }
+    }
+
+    public void testSerializationRemoteStoreRecoverySource() throws IOException {
+        RecoverySource recoverySource = new RecoverySource.RemoteStoreRecoverySource(
+            UUIDs.randomBase64UUID(),
+            Version.CURRENT,
+            new IndexId("some_index", UUIDs.randomBase64UUID(random()))
+        );
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        recoverySource.writeTo(out);
+        RecoverySource serializedRecoverySource = RecoverySource.readFrom(out.bytes().streamInput());
+        assertEquals(recoverySource.getType(), serializedRecoverySource.getType());
+        assertEquals(recoverySource, serializedRecoverySource);
     }
 }

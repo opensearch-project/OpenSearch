@@ -43,6 +43,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedTransferQueue;
 
+/**
+ * Thread safe collection base class.
+ *
+ * @opensearch.internal
+ */
 public abstract class ConcurrentCollections {
 
     static final int aggressiveConcurrencyLevel;

@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A composite result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposite.ParsedBucket> implements CompositeAggregation {
     private static final ObjectParser<ParsedComposite, Void> PARSER = new ObjectParser<>(
         ParsedComposite.class.getSimpleName(),
@@ -101,6 +106,11 @@ public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposit
         return CompositeAggregation.toXContentFragment(this, builder, params);
     }
 
+    /**
+     * Parsed bucket for the parsed composite agg
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements CompositeAggregation.Bucket {
         private Map<String, Object> key;
 

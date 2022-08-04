@@ -43,10 +43,8 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
 
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("name")
                     .field("type", "text")
@@ -55,12 +53,11 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
         );
         ensureGreen();
 
-        client().prepareIndex("test", "type", "1").setSource("name", "name").get();
+        client().prepareIndex("test").setId("1").setSource("name", "name").get();
         client().admin().indices().prepareRefresh("test").get();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();

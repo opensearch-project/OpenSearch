@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for nested agg
+ *
+ * @opensearch.internal
+ */
 public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedAggregationBuilder> {
     public static final String NAME = "nested";
 

@@ -85,18 +85,18 @@ public class GceDiscoverTests extends OpenSearchIntegTestCase {
     }
 
     public void testJoin() {
-        // start master node
-        final String masterNode = internalCluster().startMasterOnlyNode();
-        registerGceNode(masterNode);
+        // start cluster-manager node
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        registerGceNode(clusterManagerNode);
 
-        ClusterStateResponse clusterStateResponse = client(masterNode).admin()
+        ClusterStateResponse clusterStateResponse = client(clusterManagerNode).admin()
             .cluster()
             .prepareState()
-            .setMasterNodeTimeout("1s")
+            .setClusterManagerNodeTimeout("1s")
             .clear()
             .setNodes(true)
             .get();
-        assertNotNull(clusterStateResponse.getState().nodes().getMasterNodeId());
+        assertNotNull(clusterStateResponse.getState().nodes().getClusterManagerNodeId());
 
         // start another node
         final String secondNode = internalCluster().startNode();
@@ -104,12 +104,12 @@ public class GceDiscoverTests extends OpenSearchIntegTestCase {
         clusterStateResponse = client(secondNode).admin()
             .cluster()
             .prepareState()
-            .setMasterNodeTimeout("1s")
+            .setClusterManagerNodeTimeout("1s")
             .clear()
             .setNodes(true)
             .setLocal(true)
             .get();
-        assertNotNull(clusterStateResponse.getState().nodes().getMasterNodeId());
+        assertNotNull(clusterStateResponse.getState().nodes().getClusterManagerNodeId());
 
         // wait for the cluster to form
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());

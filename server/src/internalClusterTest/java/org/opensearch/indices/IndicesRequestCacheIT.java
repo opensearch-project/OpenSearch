@@ -73,14 +73,14 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             client.admin()
                 .indices()
                 .prepareCreate("index")
-                .addMapping("type", "f", "type=date")
+                .setMapping("f", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .get()
         );
         indexRandom(
             true,
-            client.prepareIndex("index", "type").setSource("f", "2014-03-10T00:00:00.000Z"),
-            client.prepareIndex("index", "type").setSource("f", "2014-05-13T00:00:00.000Z")
+            client.prepareIndex("index").setSource("f", "2014-03-10T00:00:00.000Z"),
+            client.prepareIndex("index").setSource("f", "2014-05-13T00:00:00.000Z")
         );
         ensureSearchable("index");
 
@@ -137,7 +137,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             client.admin()
                 .indices()
                 .prepareCreate("index")
-                .addMapping("type", "s", "type=date")
+                .setMapping("s", "type=date")
                 .setSettings(
                     Settings.builder()
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
@@ -149,15 +149,15 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
         );
         indexRandom(
             true,
-            client.prepareIndex("index", "type", "1").setRouting("1").setSource("s", "2016-03-19"),
-            client.prepareIndex("index", "type", "2").setRouting("1").setSource("s", "2016-03-20"),
-            client.prepareIndex("index", "type", "3").setRouting("1").setSource("s", "2016-03-21"),
-            client.prepareIndex("index", "type", "4").setRouting("2").setSource("s", "2016-03-22"),
-            client.prepareIndex("index", "type", "5").setRouting("2").setSource("s", "2016-03-23"),
-            client.prepareIndex("index", "type", "6").setRouting("2").setSource("s", "2016-03-24"),
-            client.prepareIndex("index", "type", "7").setRouting("3").setSource("s", "2016-03-25"),
-            client.prepareIndex("index", "type", "8").setRouting("3").setSource("s", "2016-03-26"),
-            client.prepareIndex("index", "type", "9").setRouting("3").setSource("s", "2016-03-27")
+            client.prepareIndex("index").setId("1").setRouting("1").setSource("s", "2016-03-19"),
+            client.prepareIndex("index").setId("2").setRouting("1").setSource("s", "2016-03-20"),
+            client.prepareIndex("index").setId("3").setRouting("1").setSource("s", "2016-03-21"),
+            client.prepareIndex("index").setId("4").setRouting("2").setSource("s", "2016-03-22"),
+            client.prepareIndex("index").setId("5").setRouting("2").setSource("s", "2016-03-23"),
+            client.prepareIndex("index").setId("6").setRouting("2").setSource("s", "2016-03-24"),
+            client.prepareIndex("index").setId("7").setRouting("3").setSource("s", "2016-03-25"),
+            client.prepareIndex("index").setId("8").setRouting("3").setSource("s", "2016-03-26"),
+            client.prepareIndex("index").setId("9").setRouting("3").setSource("s", "2016-03-27")
         );
         ensureSearchable("index");
         assertCacheState(client, "index", 0, 0);
@@ -208,7 +208,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             client.admin()
                 .indices()
                 .prepareCreate("index")
-                .addMapping("type", "s", "type=date")
+                .setMapping("s", "type=date")
                 .setSettings(
                     Settings.builder()
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
@@ -219,15 +219,15 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
         );
         indexRandom(
             true,
-            client.prepareIndex("index", "type", "1").setSource("s", "2016-03-19"),
-            client.prepareIndex("index", "type", "2").setSource("s", "2016-03-20"),
-            client.prepareIndex("index", "type", "3").setSource("s", "2016-03-21"),
-            client.prepareIndex("index", "type", "4").setSource("s", "2016-03-22"),
-            client.prepareIndex("index", "type", "5").setSource("s", "2016-03-23"),
-            client.prepareIndex("index", "type", "6").setSource("s", "2016-03-24"),
-            client.prepareIndex("index", "type", "7").setSource("other", "value"),
-            client.prepareIndex("index", "type", "8").setSource("s", "2016-03-26"),
-            client.prepareIndex("index", "type", "9").setSource("s", "2016-03-27")
+            client.prepareIndex("index").setId("1").setSource("s", "2016-03-19"),
+            client.prepareIndex("index").setId("2").setSource("s", "2016-03-20"),
+            client.prepareIndex("index").setId("3").setSource("s", "2016-03-21"),
+            client.prepareIndex("index").setId("4").setSource("s", "2016-03-22"),
+            client.prepareIndex("index").setId("5").setSource("s", "2016-03-23"),
+            client.prepareIndex("index").setId("6").setSource("s", "2016-03-24"),
+            client.prepareIndex("index").setId("7").setSource("other", "value"),
+            client.prepareIndex("index").setId("8").setSource("s", "2016-03-26"),
+            client.prepareIndex("index").setId("9").setSource("s", "2016-03-27")
         );
         ensureSearchable("index");
         assertCacheState(client, "index", 0, 0);
@@ -274,7 +274,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             client.admin()
                 .indices()
                 .prepareCreate("index")
-                .addMapping("type", "d", "type=date")
+                .setMapping("d", "type=date")
                 .setSettings(
                     Settings.builder()
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
@@ -285,15 +285,15 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
         );
         indexRandom(
             true,
-            client.prepareIndex("index", "type", "1").setSource("d", "2014-01-01T00:00:00"),
-            client.prepareIndex("index", "type", "2").setSource("d", "2014-02-01T00:00:00"),
-            client.prepareIndex("index", "type", "3").setSource("d", "2014-03-01T00:00:00"),
-            client.prepareIndex("index", "type", "4").setSource("d", "2014-04-01T00:00:00"),
-            client.prepareIndex("index", "type", "5").setSource("d", "2014-05-01T00:00:00"),
-            client.prepareIndex("index", "type", "6").setSource("d", "2014-06-01T00:00:00"),
-            client.prepareIndex("index", "type", "7").setSource("d", "2014-07-01T00:00:00"),
-            client.prepareIndex("index", "type", "8").setSource("d", "2014-08-01T00:00:00"),
-            client.prepareIndex("index", "type", "9").setSource("d", "2014-09-01T00:00:00")
+            client.prepareIndex("index").setId("1").setSource("d", "2014-01-01T00:00:00"),
+            client.prepareIndex("index").setId("2").setSource("d", "2014-02-01T00:00:00"),
+            client.prepareIndex("index").setId("3").setSource("d", "2014-03-01T00:00:00"),
+            client.prepareIndex("index").setId("4").setSource("d", "2014-04-01T00:00:00"),
+            client.prepareIndex("index").setId("5").setSource("d", "2014-05-01T00:00:00"),
+            client.prepareIndex("index").setId("6").setSource("d", "2014-06-01T00:00:00"),
+            client.prepareIndex("index").setId("7").setSource("d", "2014-07-01T00:00:00"),
+            client.prepareIndex("index").setId("8").setSource("d", "2014-08-01T00:00:00"),
+            client.prepareIndex("index").setId("9").setSource("d", "2014-09-01T00:00:00")
         );
         ensureSearchable("index");
         assertCacheState(client, "index", 0, 0);
@@ -345,22 +345,22 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        assertAcked(client.admin().indices().prepareCreate("index-1").addMapping("type", "d", "type=date").setSettings(settings).get());
-        assertAcked(client.admin().indices().prepareCreate("index-2").addMapping("type", "d", "type=date").setSettings(settings).get());
-        assertAcked(client.admin().indices().prepareCreate("index-3").addMapping("type", "d", "type=date").setSettings(settings).get());
+        assertAcked(client.admin().indices().prepareCreate("index-1").setMapping("d", "type=date").setSettings(settings).get());
+        assertAcked(client.admin().indices().prepareCreate("index-2").setMapping("d", "type=date").setSettings(settings).get());
+        assertAcked(client.admin().indices().prepareCreate("index-3").setMapping("d", "type=date").setSettings(settings).get());
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");
         indexRandom(
             true,
-            client.prepareIndex("index-1", "type", "1").setSource("d", formatter.format(now)),
-            client.prepareIndex("index-1", "type", "2").setSource("d", formatter.format(now.minusDays(1))),
-            client.prepareIndex("index-1", "type", "3").setSource("d", formatter.format(now.minusDays(2))),
-            client.prepareIndex("index-2", "type", "4").setSource("d", formatter.format(now.minusDays(3))),
-            client.prepareIndex("index-2", "type", "5").setSource("d", formatter.format(now.minusDays(4))),
-            client.prepareIndex("index-2", "type", "6").setSource("d", formatter.format(now.minusDays(5))),
-            client.prepareIndex("index-3", "type", "7").setSource("d", formatter.format(now.minusDays(6))),
-            client.prepareIndex("index-3", "type", "8").setSource("d", formatter.format(now.minusDays(7))),
-            client.prepareIndex("index-3", "type", "9").setSource("d", formatter.format(now.minusDays(8)))
+            client.prepareIndex("index-1").setId("1").setSource("d", formatter.format(now)),
+            client.prepareIndex("index-1").setId("2").setSource("d", formatter.format(now.minusDays(1))),
+            client.prepareIndex("index-1").setId("3").setSource("d", formatter.format(now.minusDays(2))),
+            client.prepareIndex("index-2").setId("4").setSource("d", formatter.format(now.minusDays(3))),
+            client.prepareIndex("index-2").setId("5").setSource("d", formatter.format(now.minusDays(4))),
+            client.prepareIndex("index-2").setId("6").setSource("d", formatter.format(now.minusDays(5))),
+            client.prepareIndex("index-3").setId("7").setSource("d", formatter.format(now.minusDays(6))),
+            client.prepareIndex("index-3").setId("8").setSource("d", formatter.format(now.minusDays(7))),
+            client.prepareIndex("index-3").setId("9").setSource("d", formatter.format(now.minusDays(8)))
         );
         ensureSearchable("index-1", "index-2", "index-3");
         assertCacheState(client, "index-1", 0, 0);
@@ -426,18 +426,18 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             .put("index.number_of_routing_shards", 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date").setSettings(settings).get());
+        assertAcked(client.admin().indices().prepareCreate("index").setMapping("s", "type=date").setSettings(settings).get());
         indexRandom(
             true,
-            client.prepareIndex("index", "type", "1").setRouting("1").setSource("s", "2016-03-19"),
-            client.prepareIndex("index", "type", "2").setRouting("1").setSource("s", "2016-03-20"),
-            client.prepareIndex("index", "type", "3").setRouting("1").setSource("s", "2016-03-21"),
-            client.prepareIndex("index", "type", "4").setRouting("2").setSource("s", "2016-03-22"),
-            client.prepareIndex("index", "type", "5").setRouting("2").setSource("s", "2016-03-23"),
-            client.prepareIndex("index", "type", "6").setRouting("2").setSource("s", "2016-03-24"),
-            client.prepareIndex("index", "type", "7").setRouting("3").setSource("s", "2016-03-25"),
-            client.prepareIndex("index", "type", "8").setRouting("3").setSource("s", "2016-03-26"),
-            client.prepareIndex("index", "type", "9").setRouting("3").setSource("s", "2016-03-27")
+            client.prepareIndex("index").setId("1").setRouting("1").setSource("s", "2016-03-19"),
+            client.prepareIndex("index").setId("2").setRouting("1").setSource("s", "2016-03-20"),
+            client.prepareIndex("index").setId("3").setRouting("1").setSource("s", "2016-03-21"),
+            client.prepareIndex("index").setId("4").setRouting("2").setSource("s", "2016-03-22"),
+            client.prepareIndex("index").setId("5").setRouting("2").setSource("s", "2016-03-23"),
+            client.prepareIndex("index").setId("6").setRouting("2").setSource("s", "2016-03-24"),
+            client.prepareIndex("index").setId("7").setRouting("3").setSource("s", "2016-03-25"),
+            client.prepareIndex("index").setId("8").setRouting("3").setSource("s", "2016-03-26"),
+            client.prepareIndex("index").setId("9").setRouting("3").setSource("s", "2016-03-27")
         );
         ensureSearchable("index");
         assertCacheState(client, "index", 0, 0);
@@ -529,16 +529,13 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             client.admin()
                 .indices()
                 .prepareCreate("index")
-                .addMapping("type", "created_at", "type=date")
+                .setMapping("created_at", "type=date")
                 .setSettings(settings)
                 .addAlias(new Alias("last_week").filter(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")))
                 .get()
         );
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        client.prepareIndex("index", "type", "1")
-            .setRouting("1")
-            .setSource("created_at", DateTimeFormatter.ISO_LOCAL_DATE.format(now))
-            .get();
+        client.prepareIndex("index").setId("1").setRouting("1").setSource("created_at", DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
@@ -581,7 +578,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             client.admin()
                 .indices()
                 .prepareCreate("index")
-                .addMapping("_doc", "k", "type=keyword")
+                .setMapping("k", "type=keyword")
                 .setSettings(
                     Settings.builder()
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
@@ -590,7 +587,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
                 )
                 .get()
         );
-        indexRandom(true, client.prepareIndex("index", "_doc").setSource("k", "hello"));
+        indexRandom(true, client.prepareIndex("index").setSource("k", "hello"));
         ensureSearchable("index");
 
         int expectedHits = 0;

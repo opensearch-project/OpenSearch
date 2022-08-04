@@ -49,4 +49,3 @@ public class SmokeTestPluginsClientYamlTestSuiteIT extends OpenSearchClientYamlS
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

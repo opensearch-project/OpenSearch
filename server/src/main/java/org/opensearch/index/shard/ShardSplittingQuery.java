@@ -45,6 +45,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -71,6 +72,8 @@ import java.util.function.Predicate;
  * A query that selects all docs that do NOT belong in the current shards this query is executed on.
  * It can be used to split a shard into N shards marking every document that doesn't belong into the shard
  * as deleted. See {@link org.apache.lucene.index.IndexWriter#deleteDocuments(Query...)}
+ *
+ * @opensearch.internal
  */
 final class ShardSplittingQuery extends Query {
     private final IndexMetadata indexMetadata;
@@ -257,13 +260,10 @@ final class ShardSplittingQuery extends Query {
         }
 
         @Override
-        public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
-            spare.bytes = value;
-            spare.offset = 0;
-            spare.length = value.length;
+        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
             switch (fieldInfo.name) {
                 case RoutingFieldMapper.NAME:
-                    routing = spare.utf8ToString();
+                    routing = value;
                     break;
                 default:
                     throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
@@ -296,6 +296,8 @@ final class ShardSplittingQuery extends Query {
     /**
      * This two phase iterator visits every live doc and selects all docs that don't belong into this
      * shard based on their id and routing value. This is only used in a routing partitioned index.
+     *
+     * @opensearch.internal
      */
     private static final class RoutingPartitionedDocIdSetIterator extends TwoPhaseIterator {
         private final Visitor visitor;
@@ -318,6 +320,8 @@ final class ShardSplittingQuery extends Query {
 
     /**
      * This TwoPhaseIterator marks all nested docs of matching parents as matches as well.
+     *
+     * @opensearch.internal
      */
     private static final class NestedRoutingPartitionedDocIdSetIterator extends TwoPhaseIterator {
         private final Visitor visitor;
@@ -358,7 +362,7 @@ final class ShardSplittingQuery extends Query {
      */
     private static BitSetProducer newParentDocBitSetProducer(Version indexVersionCreated) {
         return context -> {
-            Query query = Queries.newNonNestedFilter(indexVersionCreated);
+            Query query = Queries.newNonNestedFilter();
             final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
             final IndexSearcher searcher = new IndexSearcher(topLevelContext);
             searcher.setQueryCache(null);
@@ -366,5 +370,10 @@ final class ShardSplittingQuery extends Query {
             Scorer s = weight.scorer(context);
             return s == null ? null : BitSet.of(s.iterator(), context.reader().maxDoc());
         };
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        visitor.visitLeaf(this);
     }
 }

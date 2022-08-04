@@ -172,7 +172,9 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
     private enum NodeSelector {
         LOCAL("_local"),
         ELECTED_MASTER("_master"),
+        // TODO: Remove this element after removing DiscoveryNodeRole.MASTER_ROLE
         MASTER_ELIGIBLE("master:true"),
+        CLUSTER_MANAGER_ELIGIBLE("cluster_manager:true"),
         DATA("data:true"),
         CUSTOM_ATTRIBUTE("attr:value");
 
@@ -224,7 +226,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             discoveryNodes.add(node);
         }
         discoBuilder.localNodeId(randomFrom(discoveryNodes).getId());
-        discoBuilder.masterNodeId(randomFrom(discoveryNodes).getId());
+        discoBuilder.clusterManagerNodeId(randomFrom(discoveryNodes).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(clusterService.getClusterName());
         stateBuilder.nodes(discoBuilder);
         ClusterState clusterState = stateBuilder.build();

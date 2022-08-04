@@ -78,7 +78,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(PercolatorPlugin.class, CustomScriptPlugin.class);
+        return Arrays.asList(PercolatorModulePlugin.class, CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -96,8 +96,9 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testPercolateScriptQuery() throws IOException {
-        client().admin().indices().prepareCreate("index").addMapping("type", "query", "type=percolator").get();
-        client().prepareIndex("index", "type", "1")
+        client().admin().indices().prepareCreate("index").setMapping("query", "type=percolator").get();
+        client().prepareIndex("index")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -149,9 +150,10 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 .prepareCreate("test")
                 // to avoid normal document from being cached by BitsetFilterCache
                 .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false))
-                .addMapping("employee", mapping)
+                .setMapping(mapping)
         );
-        client().prepareIndex("test", "employee", "q1")
+        client().prepareIndex("test")
+            .setId("q1")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -236,9 +238,10 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("employee", mapping));
+        createIndex("test", client().admin().indices().prepareCreate("test").setMapping(mapping));
         Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "use_fielddata_please", Collections.emptyMap());
-        client().prepareIndex("test", "employee", "q1")
+        client().prepareIndex("test")
+            .setId("q1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", QueryBuilders.nestedQuery("employees", QueryBuilders.scriptQuery(script), ScoreMode.Avg))
@@ -279,7 +282,8 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
     public void testMapUnmappedFieldAsText() throws IOException {
         Settings.Builder settings = Settings.builder().put("index.percolator.map_unmapped_fields_as_text", true);
         createIndex("test", settings.build(), "query", "query", "type=percolator");
-        client().prepareIndex("test", "query", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject())
             .get();
         client().admin().indices().prepareRefresh().get();
@@ -310,10 +314,12 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             "type=percolator"
         );
 
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from("now-1h").to("now+1h")).endObject())
             .get();
-        client().prepareIndex("test", "_doc", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -325,7 +331,8 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             .get();
 
         Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "1==1", Collections.emptyMap());
-        client().prepareIndex("test", "_doc", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", boolQuery().filter(scriptQuery(script)).filter(rangeQuery("field2").from("now-1h").to("now+1h")))

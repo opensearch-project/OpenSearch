@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.post;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -75,7 +75,13 @@ import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findC
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
-public class TransportSimulateIndexTemplateAction extends TransportMasterNodeReadAction<
+/**
+ * Transport Action for handling simulating an index template either by name (looking it up in the
+ * cluster state), or by a provided template configuration
+ *
+ * @opensearch.internal
+ */
+public class TransportSimulateIndexTemplateAction extends TransportClusterManagerNodeReadAction<
     SimulateIndexTemplateRequest,
     SimulateIndexTemplateResponse> {
 
@@ -121,7 +127,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         SimulateIndexTemplateRequest request,
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener
@@ -252,8 +258,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 
         // empty request mapping as the user can't specify any explicit mappings via the simulate api
-        List<Map<String, Map<String, Object>>> mappings = MetadataCreateIndexService.collectV2Mappings(
-            Collections.emptyMap(),
+        List<Map<String, Object>> mappings = MetadataCreateIndexService.collectV2Mappings(
+            "{}",
             simulatedState,
             matchingTemplate,
             xContentRegistry,
@@ -264,11 +270,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             indexMetadata,
             tempIndexService -> {
                 MapperService mapperService = tempIndexService.mapperService();
-                for (Map<String, Map<String, Object>> mapping : mappings) {
-                    if (!mapping.isEmpty()) {
-                        assert mapping.size() == 1 : mapping;
-                        Map.Entry<String, Map<String, Object>> entry = mapping.entrySet().iterator().next();
-                        mapperService.merge(entry.getKey(), entry.getValue(), MapperService.MergeReason.INDEX_TEMPLATE);
+                for (Map<String, Object> mapping : mappings) {
+                    if (mapping.isEmpty() == false) {
+                        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
                     }
                 }
 

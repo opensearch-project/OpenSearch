@@ -72,11 +72,18 @@ import java.util.Map;
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
  * source shard to the target shard.
+ *
+ * @opensearch.internal
  */
 public class PeerRecoverySourceService extends AbstractLifecycleComponent implements IndexEventListener, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
+    /**
+     * The internal actions
+     *
+     * @opensearch.internal
+     */
     public static class Actions {
         public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
         public static final String REESTABLISH_RECOVERY = "internal:index/shard/recovery/reestablish_recovery";
@@ -260,8 +267,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             if (removed != null) {
                 shard.recoveryStats().decCurrentAsSource();
                 removed.cancel();
-                assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet())
-                    .contains(removed) : "Remote recovery was not properly tracked [" + removed + "]";
+                assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet()).contains(removed)
+                    : "Remote recovery was not properly tracked [" + removed + "]";
                 nodeToHandlers.computeIfPresent(removed.targetNode(), (k, handlersForNode) -> {
                     handlersForNode.remove(removed);
                     if (handlersForNode.isEmpty()) {

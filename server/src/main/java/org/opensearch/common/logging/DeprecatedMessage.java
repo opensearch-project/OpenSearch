@@ -43,6 +43,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * A logger message used by {@link DeprecationLogger}.
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
+ *
+ * @opensearch.internal
  */
 public class DeprecatedMessage extends OpenSearchLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";

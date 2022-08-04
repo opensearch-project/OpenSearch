@@ -48,6 +48,11 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 
+/**
+ * Shard level search stats
+ *
+ * @opensearch.internal
+ */
 public final class ShardSearchStats implements SearchOperationListener {
 
     private final StatsHolder totalStats = new StatsHolder();
@@ -182,6 +187,11 @@ public final class ShardSearchStats implements SearchOperationListener {
         totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - readerContext.getStartTimeInNano()));
     }
 
+    /**
+     * Holder of statistics values
+     *
+     * @opensearch.internal
+     */
     static final class StatsHolder {
         final MeanMetric queryMetric = new MeanMetric();
         final MeanMetric fetchMetric = new MeanMetric();

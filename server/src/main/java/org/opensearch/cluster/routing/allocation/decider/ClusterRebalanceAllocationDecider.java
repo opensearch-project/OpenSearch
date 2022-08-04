@@ -59,6 +59,8 @@ import org.opensearch.common.settings.Settings;
  * <li>{@code always} - Re-balancing is allowed once a shard replication group
  * is active</li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
@@ -76,6 +78,8 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     /**
      * An enum representation for the configured re-balance type.
+     *
+     * @opensearch.internal
      */
     public enum ClusterRebalanceType {
         /**

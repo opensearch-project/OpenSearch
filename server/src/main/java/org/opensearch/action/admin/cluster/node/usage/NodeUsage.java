@@ -43,6 +43,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Concrete class for collecting OpenSearch telemetry
+ *
+ * @opensearch.internal
+ */
 public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
 
     private final long timestamp;

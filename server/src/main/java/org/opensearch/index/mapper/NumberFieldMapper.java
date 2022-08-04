@@ -37,14 +37,14 @@ import com.fasterxml.jackson.core.exc.InputCoercionException;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -77,7 +77,11 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-/** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
+/**
+ * A {@link FieldMapper} for numeric types: byte, short, int, long, float and double.
+ *
+ * @opensearch.internal
+ */
 public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
@@ -86,6 +90,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         return (NumberFieldMapper) in;
     }
 
+    /**
+     * Builder for the number field mappers
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -152,6 +161,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Type of number
+     *
+     * @opensearch.internal
+     */
     public enum NumberType {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
@@ -960,6 +974,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for numeric fields
+     *
+     * @opensearch.internal
+     */
     public static class NumberFieldType extends SimpleMappedFieldType {
 
         private final NumberType type;

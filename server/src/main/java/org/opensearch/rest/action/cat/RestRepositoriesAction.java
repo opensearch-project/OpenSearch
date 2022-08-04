@@ -37,6 +37,7 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -48,8 +49,12 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Cat API class to display information about snapshot repositories
+ *
+ * @opensearch.api
  */
 public class RestRepositoriesAction extends AbstractCatAction {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestRepositoriesAction.class);
 
     @Override
     public List<Route> routes() {
@@ -57,10 +62,13 @@ public class RestRepositoriesAction extends AbstractCatAction {
     }
 
     @Override
-    protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
+    public RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
-        getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
+        getRepositoriesRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.clusterManagerNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin()
             .cluster()

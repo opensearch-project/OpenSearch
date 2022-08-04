@@ -32,43 +32,22 @@
 
 package org.opensearch.action.support.master;
 
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 /**
- * Base request for master based read operations that allows to read the cluster state from the local node if needed
+ * Base request for cluster-manager based read operations that allows to read the cluster state from the local node if needed
+ *
+ * @opensearch.internal
+ * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link ClusterManagerNodeReadRequest}
  */
-public abstract class MasterNodeReadRequest<Request extends MasterNodeReadRequest<Request>> extends MasterNodeRequest<Request> {
-
-    protected boolean local = false;
-
+@Deprecated
+public abstract class MasterNodeReadRequest<Request extends MasterNodeReadRequest<Request>> extends ClusterManagerNodeReadRequest<Request> {
     protected MasterNodeReadRequest() {}
 
     protected MasterNodeReadRequest(StreamInput in) throws IOException {
         super(in);
-        local = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(local);
-    }
-
-    @SuppressWarnings("unchecked")
-    public final Request local(boolean local) {
-        this.local = local;
-        return (Request) this;
-    }
-
-    /**
-     * Return local information, do not retrieve the state from master node (default: false).
-     * @return <code>true</code> if local information is to be returned;
-     * <code>false</code> if information is to be retrieved from master node (default).
-     */
-    public final boolean local() {
-        return local;
     }
 }

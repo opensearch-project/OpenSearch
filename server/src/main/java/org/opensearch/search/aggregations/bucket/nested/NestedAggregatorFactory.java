@@ -45,6 +45,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for nested agg
+ *
+ * @opensearch.internal
+ */
 public class NestedAggregatorFactory extends AggregatorFactory {
 
     private final ObjectMapper parentObjectMapper;
@@ -77,6 +82,11 @@ public class NestedAggregatorFactory extends AggregatorFactory {
         return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, searchContext, parent, cardinality, metadata);
     }
 
+    /**
+     * Unmapped class for nested agg
+     *
+     * @opensearch.internal
+     */
     private static final class Unmapped extends NonCollectingAggregator {
 
         Unmapped(String name, SearchContext context, Aggregator parent, AggregatorFactories factories, Map<String, Object> metadata)

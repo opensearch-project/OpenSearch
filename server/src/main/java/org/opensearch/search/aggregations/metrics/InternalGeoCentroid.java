@@ -48,6 +48,8 @@ import java.util.Objects;
 
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
+ *
+ * @opensearch.internal
  */
 public class InternalGeoCentroid extends InternalAggregation implements GeoCentroid {
     private final GeoPoint centroid;
@@ -175,6 +177,11 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         }
     }
 
+    /**
+     * Fields for geo centroid
+     *
+     * @opensearch.internal
+     */
     static class Fields {
         static final ParseField CENTROID = new ParseField("location");
         static final ParseField COUNT = new ParseField("count");

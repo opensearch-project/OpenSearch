@@ -52,6 +52,8 @@ import org.opensearch.transport.TransportInterceptor;
 
 /**
  * Plugin for extending network and transport related classes
+ *
+ * @opensearch.api
  */
 public interface NetworkPlugin {
 

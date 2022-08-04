@@ -36,22 +36,20 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.Uid;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
@@ -59,6 +57,8 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
 
 /**
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
+ *
+ * @opensearch.internal
  */
 public class FieldsVisitor extends StoredFieldVisitor {
     private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(IdFieldMapper.NAME, RoutingFieldMapper.NAME));
@@ -67,7 +67,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     private final String sourceFieldName;
     private final Set<String> requiredFields;
     protected BytesReference source;
-    protected String type, id;
+    protected String id;
     protected Map<String, List<Object>> fieldsValues;
 
     public FieldsVisitor(boolean loadSource) {
@@ -97,13 +97,9 @@ public class FieldsVisitor extends StoredFieldVisitor {
         return requiredFields.isEmpty() ? Status.STOP : Status.NO;
     }
 
-    public void postProcess(MapperService mapperService) {
-        final DocumentMapper mapper = mapperService.documentMapper();
-        if (mapper != null) {
-            type = mapper.type();
-        }
+    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            MappedFieldType fieldType = mapperService.fieldType(entry.getKey());
+            MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
             if (fieldType == null) {
                 throw new IllegalStateException("Field [" + entry.getKey() + "] exists in the index but not in mappings");
             }
@@ -130,10 +126,9 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     @Override
-    public void stringField(FieldInfo fieldInfo, byte[] bytes) {
+    public void stringField(FieldInfo fieldInfo, String value) {
         assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
         assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
-        final String value = new String(bytes, StandardCharsets.UTF_8);
         addValue(fieldInfo.name, value);
     }
 
@@ -167,13 +162,8 @@ public class FieldsVisitor extends StoredFieldVisitor {
         return source;
     }
 
-    public Uid uid() {
-        if (id == null) {
-            return null;
-        } else if (type == null) {
-            throw new IllegalStateException("Call postProcess before getting the uid");
-        }
-        return new Uid(type, id);
+    public String id() {
+        return id;
     }
 
     public String routing() {
@@ -195,7 +185,6 @@ public class FieldsVisitor extends StoredFieldVisitor {
     public void reset() {
         if (fieldsValues != null) fieldsValues.clear();
         source = null;
-        type = null;
         id = null;
 
         requiredFields.addAll(BASE_REQUIRED_FIELDS);

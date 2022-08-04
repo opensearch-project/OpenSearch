@@ -42,6 +42,8 @@ import java.util.Locale;
 
 /**
  * Geo distance calculation.
+ *
+ * @opensearch.internal
  */
 public enum GeoDistance implements Writeable {
     PLANE,

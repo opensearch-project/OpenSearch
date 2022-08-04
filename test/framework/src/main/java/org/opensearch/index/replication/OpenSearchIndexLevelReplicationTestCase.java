@@ -85,6 +85,7 @@ import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseSyncAction;
@@ -108,7 +109,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
@@ -128,7 +128,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
     protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
-    protected final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
+    protected final String indexMapping = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": {} }";
 
     protected ReplicationGroup createGroup(int replicas) throws IOException {
         return createGroup(replicas, Settings.EMPTY);
@@ -143,11 +143,11 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         return buildIndexMetadata(replicas, indexMapping);
     }
 
-    protected IndexMetadata buildIndexMetadata(int replicas, Map<String, String> mappings) throws IOException {
+    protected IndexMetadata buildIndexMetadata(int replicas, String mappings) throws IOException {
         return buildIndexMetadata(replicas, Settings.EMPTY, mappings);
     }
 
-    protected IndexMetadata buildIndexMetadata(int replicas, Settings indexSettings, Map<String, String> mappings) throws IOException {
+    protected IndexMetadata buildIndexMetadata(int replicas, Settings indexSettings, String mappings) throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas)
@@ -155,10 +155,11 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(indexSettings)
             .build();
-        IndexMetadata.Builder metadata = IndexMetadata.builder(index.getName()).settings(settings).primaryTerm(0, randomIntBetween(1, 100));
-        for (Map.Entry<String, String> typeMapping : mappings.entrySet()) {
-            metadata.putMapping(typeMapping.getKey(), typeMapping.getValue());
-        }
+        IndexMetadata.Builder metadata = IndexMetadata.builder(index.getName())
+            .settings(settings)
+            .putMapping(mappings)
+            .primaryTerm(0, randomIntBetween(1, 100));
+
         return metadata.build();
     }
 
@@ -217,7 +218,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         protected ReplicationGroup(final IndexMetadata indexMetadata) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
+            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer, null);
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
             updateAllocationIDsOnPrimary();
@@ -246,7 +247,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public int indexDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id(Integer.toString(docId.incrementAndGet()))
                     .source("{}", XContentType.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
@@ -260,7 +261,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public int appendDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
                     throw response.getFailure().getCause();
@@ -344,17 +345,16 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 null,
                 getEngineFactory(replicaRouting),
                 () -> {},
-                retentionLeaseSyncer
+                retentionLeaseSyncer,
+                null
             );
             addReplica(replica);
             return replica;
         }
 
         public synchronized void addReplica(IndexShard replica) throws IOException {
-            assert shardRoutings().stream()
-                .anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) == false : "replica with aId ["
-                    + replica.routingEntry().allocationId()
-                    + "] already exists";
+            assert shardRoutings().stream().anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) == false
+                : "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
             replicas.add(replica);
             if (replicationTargets != null) {
                 replicationTargets.addReplica(replica);
@@ -387,7 +387,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 getEngineConfigFactory(new IndexSettings(indexMetadata, indexMetadata.getSettings())),
                 () -> {},
                 retentionLeaseSyncer,
-                EMPTY_EVENT_LISTENER
+                EMPTY_EVENT_LISTENER,
+                null
             );
             replicas.add(newReplica);
             if (replicationTargets != null) {
@@ -909,7 +910,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-            MappingUpdatePerformer noopMappingUpdater = (update, shardId, type, listener1) -> {};
+            MappingUpdatePerformer noopMappingUpdater = (update, shardId, listener1) -> {};
             TransportShardBulkAction.performOnPrimary(
                 request,
                 primary,

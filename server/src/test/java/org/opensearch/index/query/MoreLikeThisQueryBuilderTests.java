@@ -112,14 +112,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     private Item generateRandomItem() {
         String index = randomBoolean() ? getIndex().getName() : null;
         // indexed item or artificial document
-        Item item;
-
-        if (randomBoolean()) {
-            item = randomBoolean() ? new Item(index, randomAlphaOfLength(10)) : new Item(index, randomArtificialDoc());
-        } else {
-            String type = "doc";
-            item = randomBoolean() ? new Item(index, type, randomAlphaOfLength(10)) : new Item(index, type, randomArtificialDoc());
-        }
+        Item item = randomBoolean() ? new Item(index, randomAlphaOfLength(10)) : new Item(index, randomArtificialDoc());
 
         // if no field is specified MLT uses all mapped fields for this item
         if (randomBoolean()) {
@@ -247,7 +240,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             MultiTermVectorsItemResponse[] responses = new MultiTermVectorsItemResponse[mtvRequest.size()];
             int i = 0;
             for (TermVectorsRequest request : mtvRequest) {
-                TermVectorsResponse response = new TermVectorsResponse(request.index(), request.type(), request.id());
+                TermVectorsResponse response = new TermVectorsResponse(request.index(), request.id());
                 response.setExists(true);
                 Fields generatedFields;
                 if (request.doc() != null) {
@@ -449,11 +442,9 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             + "    \"fields\" : [ \"title\", \"description\" ],\n"
             + "    \"like\" : [ \"and potentially some more text here as well\", {\n"
             + "      \"_index\" : \"imdb\",\n"
-            + "      \"_type\" : \"movies\",\n"
             + "      \"_id\" : \"1\"\n"
             + "    }, {\n"
             + "      \"_index\" : \"imdb\",\n"
-            + "      \"_type\" : \"movies\",\n"
             + "      \"_id\" : \"2\"\n"
             + "    } ],\n"
             + "    \"max_query_terms\" : 12,\n"
@@ -481,12 +472,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, instanceOf(MoreLikeThisQueryBuilder.class));
-
-        MoreLikeThisQueryBuilder mltQuery = (MoreLikeThisQueryBuilder) query;
-        if (mltQuery.isTypeless() == false && !assertedWarnings.contains(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE)) {
-            assertWarnings(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
-            assertedWarnings.add(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
-        }
         return query;
     }
 

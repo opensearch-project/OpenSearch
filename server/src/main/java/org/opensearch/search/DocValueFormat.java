@@ -63,7 +63,11 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-/** A formatter for values as returned by the fielddata/doc-values APIs. */
+/**
+ * A formatter for values as returned by the fielddata/doc-values APIs.
+ *
+ * @opensearch.internal
+ */
 public interface DocValueFormat extends NamedWriteable {
     long MASK_2_63 = 0x8000000000000000L;
     BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
@@ -197,6 +201,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
     }
 
+    /**
+     * Date time doc value format
+     *
+     * @opensearch.internal
+     */
     final class DateTime implements DocValueFormat {
 
         public static final String NAME = "date_time";
@@ -402,6 +411,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
+    /**
+     * Decimal doc value format
+     *
+     * @opensearch.internal
+     */
     final class Decimal implements DocValueFormat {
 
         public static final String NAME = "decimal";

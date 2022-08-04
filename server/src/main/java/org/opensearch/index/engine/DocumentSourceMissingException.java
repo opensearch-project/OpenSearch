@@ -37,10 +37,15 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if a document source is missing
+ *
+ * @opensearch.internal
+ */
 public class DocumentSourceMissingException extends EngineException {
 
-    public DocumentSourceMissingException(ShardId shardId, String type, String id) {
-        super(shardId, "[" + type + "][" + id + "]: document source missing");
+    public DocumentSourceMissingException(ShardId shardId, String id) {
+        super(shardId, "[" + id + "]: document source missing");
     }
 
     public DocumentSourceMissingException(StreamInput in) throws IOException {

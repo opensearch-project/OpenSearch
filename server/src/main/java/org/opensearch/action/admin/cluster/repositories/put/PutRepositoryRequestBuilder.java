@@ -42,6 +42,8 @@ import java.util.Map;
 
 /**
  * Register repository request builder
+ *
+ * @opensearch.internal
  */
 public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
     PutRepositoryRequest,

@@ -37,6 +37,8 @@ import org.opensearch.common.inject.spi.Message;
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
+ *
+ * @opensearch.internal
  */
 class MessageProcessor extends AbstractProcessor {
 

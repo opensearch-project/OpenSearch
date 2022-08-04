@@ -51,7 +51,7 @@ public class GetIndexTemplatesRequest implements Validatable {
 
     private final List<String> names;
 
-    private TimeValue masterNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
     private boolean local = false;
 
     /**
@@ -84,23 +84,47 @@ public class GetIndexTemplatesRequest implements Validatable {
     }
 
     /**
-     * @return the timeout for waiting for the master node to respond
+     * @return the timeout for waiting for the cluster-manager node to respond
      */
-    public TimeValue getMasterNodeTimeout() {
-        return masterNodeTimeout;
-    }
-
-    public void setMasterNodeTimeout(@Nullable TimeValue masterNodeTimeout) {
-        this.masterNodeTimeout = masterNodeTimeout;
-    }
-
-    public void setMasterNodeTimeout(String masterNodeTimeout) {
-        final TimeValue timeValue = TimeValue.parseTimeValue(masterNodeTimeout, getClass().getSimpleName() + ".masterNodeTimeout");
-        setMasterNodeTimeout(timeValue);
+    public TimeValue getClusterManagerNodeTimeout() {
+        return clusterManagerNodeTimeout;
     }
 
     /**
-     * @return true if this request is to read from the local cluster state, rather than the master node - false otherwise
+     * @return the timeout for waiting for the cluster-manager node to respond
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getMasterNodeTimeout()}
+     */
+    @Deprecated
+    public TimeValue getMasterNodeTimeout() {
+        return getClusterManagerNodeTimeout();
+    }
+
+    public void setClusterManagerNodeTimeout(@Nullable TimeValue clusterManagerNodeTimeout) {
+        this.clusterManagerNodeTimeout = clusterManagerNodeTimeout;
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #setClusterManagerNodeTimeout(TimeValue)} */
+    @Deprecated
+    public void setMasterNodeTimeout(@Nullable TimeValue clusterManagerNodeTimeout) {
+        setClusterManagerNodeTimeout(clusterManagerNodeTimeout);
+    }
+
+    public void setClusterManagerNodeTimeout(String clusterManagerNodeTimeout) {
+        final TimeValue timeValue = TimeValue.parseTimeValue(
+            clusterManagerNodeTimeout,
+            getClass().getSimpleName() + ".clusterManagerNodeTimeout"
+        );
+        setClusterManagerNodeTimeout(timeValue);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #setClusterManagerNodeTimeout(String)} */
+    @Deprecated
+    public void setMasterNodeTimeout(String clusterManagerNodeTimeout) {
+        setClusterManagerNodeTimeout(clusterManagerNodeTimeout);
+    }
+
+    /**
+     * @return true if this request is to read from the local cluster state, rather than the cluster-manager node - false otherwise
      */
     public boolean isLocal() {
         return local;

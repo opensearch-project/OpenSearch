@@ -41,6 +41,8 @@ import org.opensearch.client.OpenSearchClient;
  * {@link #setMaxNumSegments(int)} allows to control the number of segments to force
  * merge down to. By default, will cause the force merge process to merge down
  * to half the configured number of segments.
+ *
+ * @opensearch.internal
  */
 public class ForceMergeRequestBuilder extends BroadcastOperationRequestBuilder<
     ForceMergeRequest,

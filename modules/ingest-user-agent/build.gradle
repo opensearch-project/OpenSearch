@@ -31,7 +31,7 @@ apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
   description 'Ingest processor that extracts information from a user agent'
-  classname 'org.opensearch.ingest.useragent.IngestUserAgentPlugin'
+  classname 'org.opensearch.ingest.useragent.IngestUserAgentModulePlugin'
 }
 
 restResources {
@@ -43,4 +43,3 @@ restResources {
 testClusters.all {
   extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
 }
-

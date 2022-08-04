@@ -33,9 +33,9 @@ public class SortFromPluginIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type", "1").setSource("field", 2).get();
-        client().prepareIndex("test", "type", "2").setSource("field", 1).get();
-        client().prepareIndex("test", "type", "3").setSource("field", 0).get();
+        client().prepareIndex("test").setId("1").setSource("field", 2).get();
+        client().prepareIndex("test").setId("2").setSource("field", 1).get();
+        client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
 
@@ -54,9 +54,9 @@ public class SortFromPluginIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type", "1").setSource("field", 2).get();
-        client().prepareIndex("test", "type", "2").setSource("field", 1).get();
-        client().prepareIndex("test", "type", "3").setSource("field", 0).get();
+        client().prepareIndex("test").setId("1").setSource("field", 2).get();
+        client().prepareIndex("test").setId("2").setSource("field", 1).get();
+        client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
 
