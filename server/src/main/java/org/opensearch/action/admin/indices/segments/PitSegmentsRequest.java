@@ -23,7 +23,6 @@ import java.util.List;
  * Transport request for retrieving PITs segment information
  */
 public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
-
     boolean verbose = false;
     private List<String> pitIds;
 
@@ -54,7 +53,7 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
      * Sets the <code>verbose</code> option.
      * @see #isVerbose()
      */
-    public void isVerbose(boolean v) {
+    public void setVerbose(boolean v) {
         verbose = v;
     }
 
@@ -67,7 +66,6 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
             out.writeStringArray(pitIds.toArray(new String[pitIds.size()]));
         }
         out.writeBoolean(verbose);
-
     }
 
     public Collection<String> getPitIds() {
