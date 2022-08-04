@@ -18,4 +18,33 @@ package org.opensearch.cluster;
 @Deprecated
 public interface LocalNodeMasterListener extends LocalNodeClusterManagerListener {
 
+    /**
+     * Called when local node is elected to be the cluster-manager.
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #onClusterManager()}
+     */
+    @Deprecated
+    void onMaster();
+
+    /**
+     * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #offClusterManager()}
+     */
+    @Deprecated
+    void offMaster();
+
+    /**
+     * Called when local node is elected to be the cluster-manager.
+     */
+    @Override
+    default void onClusterManager() {
+        onMaster();
+    }
+
+    /**
+     * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
+     */
+    @Override
+    default void offClusterManager() {
+        offMaster();
+    }
 }
