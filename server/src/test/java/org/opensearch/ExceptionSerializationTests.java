@@ -80,6 +80,7 @@ import org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexTemplateMissingException;
@@ -858,6 +859,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(159, NodeHealthCheckFailureException.class);
         ids.put(160, NoSeedNodeLeftException.class);
         ids.put(161, ReplicationFailedException.class);
+        ids.put(162, PrimaryShardClosedException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {
