@@ -26,12 +26,16 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionService;
+import org.opensearch.cluster.metadata.DecommissionedAttributeMetadata;
+import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.http.HttpStats;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -51,7 +55,7 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
     private final DecommissionService decommissionService;
     private final TransportAddVotingConfigExclusionsAction exclusionsAction;
 
-    private volatile List<String> decommissionedNodesID;
+    private final TimeValue decommissionedNodeRequestCheckInterval;
 
     @Inject
     public TransportPutDecommissionAction(
@@ -74,6 +78,8 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         );
         this.decommissionService = decommissionService;
         this.exclusionsAction = exclusionsAction;
+        // TODO Decide on the frequency
+        this.decommissionedNodeRequestCheckInterval = TimeValue.timeValueMillis(3000);
     }
 
     @Override
@@ -117,9 +123,8 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
             throw new NotClusterManagerException("abdicated");
         }
 
-
-        List<DiscoveryNode> decommissionedNodes = getDecommissionedNodes(request.getDecommissionAttribute(), state);
-        checkHttpStatsForDecomissionedNodes(decommissionedNodes, listener);
+        List<DiscoveryNode> decommissionedNodes = getDecommissionedNodes(state);
+        checkHttpStatsForDecommissionedNodes(decommissionedNodes, listener);
 
         decommissionService.registerDecommissionAttribute(
             request,
@@ -130,7 +135,7 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         );
     }
 
-    private void checkHttpStatsForDecomissionedNodes(List<DiscoveryNode> decommissionedNodes, ActionListener<PutDecommissionResponse> listener) {
+    private void checkHttpStatsForDecommissionedNodes(List<DiscoveryNode> decommissionedNodes, ActionListener<PutDecommissionResponse> listener) {
         ActionListener<NodesStatsResponse> nodesStatsResponseActionListener = new ActionListener<NodesStatsResponse>() {
             @Override
             public void onResponse(NodesStatsResponse nodesStatsResponse) {
@@ -145,9 +150,7 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
                 }
                 if (hasActiveConnections) {
                     // Slow down the next call to get the Http stats from the decommissioned nodes.
-                    delay(1000L);
-                    // Check again for active connections. Repeat the process till we have no more active requests open.
-                    waitForGracefulDecommission(decommissionedNodes, this);
+                    scheduleDecommissionNodesRequestCheck(decommissionedNodes, this);
                 }
             }
 
@@ -159,13 +162,19 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         waitForGracefulDecommission(decommissionedNodes, nodesStatsResponseActionListener);
     }
 
-    private void delay(long delayMillis) {
-        try {
-            Thread.sleep(delayMillis);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            return;
-        }
+    private void scheduleDecommissionNodesRequestCheck(List<DiscoveryNode> decommissionedNodes, ActionListener<NodesStatsResponse> listener) {
+        transportService.getThreadPool().schedule(new Runnable() {
+            @Override
+            public void run() {
+                // Check again for active connections. Repeat the process till we have no more active requests open.
+                waitForGracefulDecommission(decommissionedNodes, listener);
+            }
+
+            @Override
+            public String toString() {
+                return TransportPutDecommissionAction.class.getName() + "::checkHttpStatsForDecommissionedNodes";
+            }
+        }, decommissionedNodeRequestCheckInterval, org.opensearch.threadpool.ThreadPool.Names.SAME);
     }
 
     private void waitForGracefulDecommission(List<DiscoveryNode> decommissionedNodes, ActionListener<NodesStatsResponse> listener) {
@@ -217,15 +226,20 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private List<DiscoveryNode> getDecommissionedNodes(DecommissionAttribute decommissionedAttribute, ClusterState currentState) {
-        final DiscoveryNodes currentNodes = currentState.nodes();
+    public List<DiscoveryNode> getDecommissionedNodes(ClusterState clusterState) {
         List<DiscoveryNode> decommissionedNodes = new ArrayList<>();
-        currentNodes.forEach(node -> {
-            if (node.getAttributes().containsKey("zone")
-                && node.getAttributes().get("zone").equals(decommissionedAttribute.attributeValues().get(0))) {
-                decommissionedNodes.add(node);
+        DiscoveryNode[] discoveryNodes = clusterState.nodes().getNodes().values().toArray(DiscoveryNode.class);
+        DecommissionedAttributesMetadata decommissionedAttributes = clusterState.metadata().custom(DecommissionedAttributesMetadata.TYPE);
+        DecommissionedAttributeMetadata metadata = decommissionedAttributes.decommissionedAttribute("awareness");
+        assert metadata != null : "No nodes to decommission";
+        DecommissionAttribute decommissionAttribute = metadata.decommissionedAttribute();
+        for (DiscoveryNode discoveryNode : discoveryNodes) {
+            for (String zone : decommissionAttribute.attributeValues()) {
+                if (zone.equals(discoveryNode.getAttributes().get(decommissionAttribute.attributeName()))) {
+                    decommissionedNodes.add(discoveryNode);
+                }
             }
-        });
+        }
         return decommissionedNodes;
     }
 
