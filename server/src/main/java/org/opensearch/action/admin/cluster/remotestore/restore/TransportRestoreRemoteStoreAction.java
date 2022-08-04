@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -78,7 +79,7 @@ public final class TransportRestoreRemoteStoreAction extends TransportClusterMan
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final RestoreRemoteStoreRequest request,
         final ClusterState state,
         final ActionListener<RestoreRemoteStoreResponse> listener
@@ -87,10 +88,11 @@ public final class TransportRestoreRemoteStoreAction extends TransportClusterMan
             request,
             ActionListener.delegateFailure(listener, (delegatedListener, restoreCompletionResponse) -> {
                 if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                    RemoteStoreRestoreClusterStateListener.createAndRegisterListener(
+                    RestoreClusterStateListener.createAndRegisterListener(
                         clusterService,
                         restoreCompletionResponse,
-                        delegatedListener
+                        delegatedListener,
+                        RestoreRemoteStoreResponse::new
                     );
                 } else {
                     delegatedListener.onResponse(new RestoreRemoteStoreResponse(restoreCompletionResponse.getRestoreInfo()));
