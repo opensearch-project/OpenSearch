@@ -551,7 +551,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // There is no need to sync as well the translog on replicas.
             new ReplicaResult();
         }
-        return new WriteReplicaResult<>(request, location, null, replica, logger);
+        return new ReplicaResult();
     }
 
     @Override

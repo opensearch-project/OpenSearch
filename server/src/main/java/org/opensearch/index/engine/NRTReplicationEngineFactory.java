@@ -28,7 +28,8 @@ public class NRTReplicationEngineFactory implements EngineFactory {
             if (config.getIndexSettings().isRemoteStoreEnabled()) {
                 engine = new NRTNoOpReplicationEngine(config);
             } else {
-                engine = new NRTReplicationEngine(config);
+                // TODO - revert this
+                engine = new NRTNoOpReplicationEngine(config);
             }
         } else {
             engine = new InternalEngine(config);
