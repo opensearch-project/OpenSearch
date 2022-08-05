@@ -69,7 +69,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -133,20 +132,23 @@ public class TaskManager implements ClusterStateApplier {
     private volatile boolean taskResourceConsumersEnabled;
     private final Set<Consumer<Task>> taskResourceConsumer;
 
-    public TaskManager(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, Set<String> taskHeaders) {
+    public static TaskManager createTaskManagerWithClusterSettings(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders
+    ) {
+        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders);
+        clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_CONSUMERS_ENABLED, taskManager::setTaskResourceConsumersEnabled);
+        return taskManager;
+    }
+
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
-        this.taskResourceConsumer = new HashSet<Consumer<Task>>() {
-            {
-                add(new TopNSearchTasksLogger(settings));
-            }
-        };
-
-        if (clusterSettings != null) {
-            clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_CONSUMERS_ENABLED, this::setTaskResourceConsumersEnabled);
-        }
+        this.taskResourceConsumer = Set.of(new TopNSearchTasksLogger(settings));
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -271,7 +273,7 @@ public class TaskManager implements ClusterStateApplier {
         // Decrement the task's self-thread as part of unregistration.
         task.decrementResourceTrackingThreads();
 
-        if (taskResourceConsumersEnabled && task.getResourceStats().isEmpty() == false) {
+        if (taskResourceConsumersEnabled) {
             for (Consumer<Task> taskConsumer : taskResourceConsumer) {
                 try {
                     taskConsumer.accept(task);

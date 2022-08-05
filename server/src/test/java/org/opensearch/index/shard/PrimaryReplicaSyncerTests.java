@@ -46,7 +46,6 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.network.NetworkModule;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.ToXContent;
@@ -76,12 +75,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
     public void testSyncerSendsOffCorrectDocuments() throws Exception {
         IndexShard shard = newStartedShard(true);
-        TaskManager taskManager = new TaskManager(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            Collections.emptySet()
-        );
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         List<ResyncReplicationRequest> resyncRequests = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {
@@ -171,12 +165,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
         };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(
-            new TaskManager(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                Collections.emptySet()
-            ),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
             syncAction
         );
         syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately

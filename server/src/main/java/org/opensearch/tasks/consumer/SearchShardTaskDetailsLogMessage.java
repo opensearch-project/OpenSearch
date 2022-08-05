@@ -17,6 +17,8 @@ import java.util.Map;
 /**
  * Search shard task information that will be extracted from Task and converted into
  * format that will be logged
+ *
+ * @opensearch.internal
  */
 public final class SearchShardTaskDetailsLogMessage extends OpenSearchLogMessage {
     SearchShardTaskDetailsLogMessage(SearchShardTask task) {

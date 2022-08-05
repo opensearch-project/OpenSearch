@@ -44,7 +44,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -134,12 +133,7 @@ public class PersistentTasksNodeServiceTests extends OpenSearchTestCase {
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
             persistentTasksService,
             registry,
-            new TaskManager(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                Collections.emptySet()
-            ),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
             executor
         );
 
@@ -254,12 +248,7 @@ public class PersistentTasksNodeServiceTests extends OpenSearchTestCase {
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
             persistentTasksService,
             registry,
-            new TaskManager(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                Collections.emptySet()
-            ),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
             executor
         );
 
@@ -316,12 +305,7 @@ public class PersistentTasksNodeServiceTests extends OpenSearchTestCase {
 
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
-        TaskManager taskManager = new TaskManager(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            Collections.emptySet()
-        );
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService, registry, taskManager, executor);
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
@@ -410,12 +394,7 @@ public class PersistentTasksNodeServiceTests extends OpenSearchTestCase {
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
             persistentTasksService,
             registry,
-            new TaskManager(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                Collections.emptySet()
-            ),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
             executor
         );
 

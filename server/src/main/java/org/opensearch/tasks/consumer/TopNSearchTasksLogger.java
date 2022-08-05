@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -26,6 +25,8 @@ import java.util.function.Consumer;
 
 /**
  * A simple listener that logs resource information of high memory consuming search tasks
+ *
+ * @opensearch.internal
  */
 public class TopNSearchTasksLogger implements Consumer<Task> {
     public static final String TASK_DETAILS_LOG_PREFIX = "task.detailslog";
@@ -59,7 +60,6 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
         this.topQueriesSize = LOG_TOP_QUERIES_SIZE_SETTING.get(settings);
         this.topQueriesLogFrequencyInNanos = LOG_TOP_QUERIES_FREQUENCY_SETTING.get(settings).getNanos();
         this.topQueries = new PriorityQueue<>(topQueriesSize, Comparator.comparingLong(Tuple::v1));
-        Loggers.setLevel(SEARCH_TASK_DETAILS_LOGGER, "info");
     }
 
     /**

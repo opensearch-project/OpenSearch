@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.MemoizedSupplier;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.CancellableTask;
@@ -48,7 +49,7 @@ import java.util.function.Supplier;
  */
 public class SearchShardTask extends CancellableTask {
     // generating metadata in a lazy way since source can be quite big
-    private final Supplier<String> metadataSupplier;
+    private final MemoizedSupplier<String> metadataSupplier;
 
     public SearchShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, () -> "");
@@ -64,14 +65,9 @@ public class SearchShardTask extends CancellableTask {
         Supplier<String> metadataSupplier
     ) {
         super(id, type, action, description, parentTaskId, headers);
-        this.metadataSupplier = metadataSupplier;
+        this.metadataSupplier = new MemoizedSupplier<>(metadataSupplier);
     }
 
-    /**
-     * Currently this method is invoked only once during unregister of task, to log the query information when the
-     * task is top resource consumer. In future if this method is going to be called more than once, the optimal
-     * approach is to memoize the result as lazily loading will result in more work if invoked more than once.
-     */
     public String getTaskMetadata() {
         return metadataSupplier.get();
     }

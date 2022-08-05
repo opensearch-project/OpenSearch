@@ -9,9 +9,4 @@
 /**
  * Support for adding consumers to consume task related information.
  */
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.tasks.consumer;

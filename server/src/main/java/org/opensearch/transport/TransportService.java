@@ -252,7 +252,11 @@ public class TransportService extends AbstractLifecycleComponent
         ThreadPool threadPool,
         Set<String> taskHeaders
     ) {
-        return new TaskManager(settings, clusterSettings, threadPool, taskHeaders);
+        if (clusterSettings != null) {
+            return TaskManager.createTaskManagerWithClusterSettings(settings, clusterSettings, threadPool, taskHeaders);
+        } else {
+            return new TaskManager(settings, threadPool, taskHeaders);
+        }
     }
 
     /**
