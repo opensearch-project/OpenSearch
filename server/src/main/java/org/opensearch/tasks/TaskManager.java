@@ -51,6 +51,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -58,6 +60,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -75,6 +78,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -91,6 +95,15 @@ public class TaskManager implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
+
+    public static final String TASK_RESOURCE_CONSUMERS_ATTRIBUTES = "task_resource_consumers.enabled";
+
+    public static final Setting<Boolean> TASK_RESOURCE_CONSUMERS_ENABLED = Setting.boolSetting(
+        TASK_RESOURCE_CONSUMERS_ATTRIBUTES,
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Rest headers that are copied to the task
@@ -116,10 +129,26 @@ public class TaskManager implements ClusterStateApplier {
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
+    private volatile boolean taskResourceConsumersEnabled;
+    private final Set<Consumer<Task>> taskResourceConsumer;
+
+    public static TaskManager createTaskManagerWithClusterSettings(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders
+    ) {
+        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders);
+        clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_CONSUMERS_ENABLED, taskManager::setTaskResourceConsumersEnabled);
+        return taskManager;
+    }
+
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
+        this.taskResourceConsumer = Set.of(new TopNSearchTasksLogger(settings));
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -133,6 +162,10 @@ public class TaskManager implements ClusterStateApplier {
 
     public void setTaskResourceTrackingService(TaskResourceTrackingService taskResourceTrackingService) {
         this.taskResourceTrackingService.set(taskResourceTrackingService);
+    }
+
+    public void setTaskResourceConsumersEnabled(boolean taskResourceConsumersEnabled) {
+        this.taskResourceConsumersEnabled = taskResourceConsumersEnabled;
     }
 
     /**
@@ -239,6 +272,16 @@ public class TaskManager implements ClusterStateApplier {
 
         // Decrement the task's self-thread as part of unregistration.
         task.decrementResourceTrackingThreads();
+
+        if (taskResourceConsumersEnabled) {
+            for (Consumer<Task> taskConsumer : taskResourceConsumer) {
+                try {
+                    taskConsumer.accept(task);
+                } catch (Exception e) {
+                    logger.error("error encountered when updating the consumer", e);
+                }
+            }
+        }
 
         if (task instanceof CancellableTask) {
             CancellableTaskHolder holder = cancellableTasks.remove(task.getId());
