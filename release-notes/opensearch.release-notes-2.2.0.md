@@ -37,10 +37,6 @@
 * Ignore backport / autocut / dependentbot branches for gradle checks ([#3816](https://github.com/opensearch-project/opensearch/pull/3816)) ([#3825](https://github.com/opensearch-project/opensearch/pull/3825))
 * Setup branch push coverage and fix coverage uploads ([#3793](https://github.com/opensearch-project/opensearch/pull/3793)) ([#3811](https://github.com/opensearch-project/opensearch/pull/3811))
 * Enable XML test reports for Jenkins integration ([#3799](https://github.com/opensearch-project/opensearch/pull/3799)) ([#3803](https://github.com/opensearch-project/opensearch/pull/3803))
-* Move gradle-check code to its own scripts and upload codecov ([#3742](https://github.com/opensearch-project/opensearch/pull/3742)) ([#3745](https://github.com/opensearch-project/opensearch/pull/3745))
-* Optimize Gradle builds by enabling local build caching ([#3718](https://github.com/opensearch-project/opensearch/pull/3718)) ([#3735](https://github.com/opensearch-project/opensearch/pull/3735))
-* Update github action gradle-check to use pull_request_target for accessing token ([#3728](https://github.com/opensearch-project/opensearch/pull/3728)) ([#3729](https://github.com/opensearch-project/opensearch/pull/3729))
-* Add gradle check test for github workflows ([#3717](https://github.com/opensearch-project/opensearch/pull/3717)) ([#3722](https://github.com/opensearch-project/opensearch/pull/3722))
 
 ### Maintenance
 
