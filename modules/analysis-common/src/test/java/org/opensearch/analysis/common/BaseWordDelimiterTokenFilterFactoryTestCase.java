@@ -60,7 +60,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSe
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", type)
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
@@ -78,7 +78,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSe
                 .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "false")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
@@ -96,7 +96,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSe
                 .put("index.analysis.filter.my_word_delimiter.generate_number_parts", "false")
                 .put("index.analysis.filter.my_word_delimiter.catenate_numbers", "true")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
@@ -115,7 +115,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSe
                 .put("index.analysis.filter.my_word_delimiter.generate_number_parts", "false")
                 .put("index.analysis.filter.my_word_delimiter.catenate_all", "true")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
@@ -132,7 +132,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSe
                 .put("index.analysis.filter.my_word_delimiter.type", type)
                 .put("index.analysis.filter.my_word_delimiter.split_on_case_change", "false")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot";
@@ -149,7 +149,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSe
                 .put("index.analysis.filter.my_word_delimiter.type", type)
                 .put("index.analysis.filter.my_word_delimiter.preserve_original", "true")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
@@ -186,7 +186,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSe
                 .put("index.analysis.filter.my_word_delimiter.type", type)
                 .put("index.analysis.filter.my_word_delimiter.stem_english_possessive", "false")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";

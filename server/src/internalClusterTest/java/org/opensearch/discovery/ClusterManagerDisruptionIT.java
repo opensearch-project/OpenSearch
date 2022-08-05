@@ -43,7 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.disruption.BlockMasterServiceOnMaster;
+import org.opensearch.test.disruption.BlockClusterManagerServiceOnClusterManager;
 import org.opensearch.test.disruption.IntermittentLongGCDisruption;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -316,7 +316,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
                 .setTransientSettings(Settings.builder().put("indices.mapping.dynamic_timeout", "1ms"))
         );
 
-        ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
+        ServiceDisruptionScheme disruption = new BlockClusterManagerServiceOnClusterManager(random());
         setDisruptionScheme(disruption);
 
         disruption.startDisrupting();

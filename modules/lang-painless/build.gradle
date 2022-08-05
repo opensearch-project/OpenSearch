@@ -37,7 +37,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 
 opensearchplugin {
   description 'An easy, safe and fast scripting language for OpenSearch'
-  classname 'org.opensearch.painless.PainlessPlugin'
+  classname 'org.opensearch.painless.PainlessModulePlugin'
 }
 
 testClusters.all {

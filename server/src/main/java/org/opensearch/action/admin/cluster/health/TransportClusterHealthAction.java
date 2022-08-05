@@ -118,14 +118,17 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
     }
 
     @Override
-    protected final void masterOperation(ClusterHealthRequest request, ClusterState state, ActionListener<ClusterHealthResponse> listener)
-        throws Exception {
+    protected final void clusterManagerOperation(
+        ClusterHealthRequest request,
+        ClusterState state,
+        ActionListener<ClusterHealthResponse> listener
+    ) throws Exception {
         logger.warn("attempt to execute a cluster health operation without a task");
         throw new UnsupportedOperationException("task parameter is required for this operation");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final Task task,
         final ClusterHealthRequest request,
         final ClusterState unusedState,
@@ -316,9 +319,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ClusterHealthResponse response = clusterHealth(
             request,
             clusterState,
-            clusterService.getMasterService().numberOfPendingTasks(),
+            clusterService.getClusterManagerService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(),
-            clusterService.getMasterService().getMaxTaskWaitTime()
+            clusterService.getClusterManagerService().getMaxTaskWaitTime()
         );
         return prepareResponse(request, response, clusterState, indexNameExpressionResolver) == waitCount;
     }
@@ -338,9 +341,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ClusterHealthResponse response = clusterHealth(
             request,
             clusterState,
-            clusterService.getMasterService().numberOfPendingTasks(),
+            clusterService.getClusterManagerService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(),
-            clusterService.getMasterService().getMaxTaskWaitTime()
+            clusterService.getClusterManagerService().getMaxTaskWaitTime()
         );
         int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
         boolean valid = (readyCounter == waitFor);

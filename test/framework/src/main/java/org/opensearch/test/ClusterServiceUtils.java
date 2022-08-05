@@ -46,6 +46,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -61,28 +62,40 @@ import static junit.framework.TestCase.fail;
 
 public class ClusterServiceUtils {
 
-    public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
-        MasterService masterService = new MasterService(
+    public static ClusterManagerService createClusterManagerService(ThreadPool threadPool, ClusterState initialClusterState) {
+        ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_cluster_manager_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+        clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             clusterStateRef.set(event.state());
             publishListener.onResponse(null);
         });
-        masterService.setClusterStateSupplier(clusterStateRef::get);
-        masterService.start();
-        return masterService;
+        clusterManagerService.setClusterStateSupplier(clusterStateRef::get);
+        clusterManagerService.start();
+        return clusterManagerService;
     }
 
-    public static MasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
+    public static ClusterManagerService createClusterManagerService(ThreadPool threadPool, DiscoveryNode localNode) {
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).clusterManagerNodeId(localNode.getId()))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
-        return createMasterService(threadPool, initialClusterState);
+        return createClusterManagerService(threadPool, initialClusterState);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #createClusterManagerService(ThreadPool, ClusterState)} */
+    @Deprecated
+    public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
+        return createClusterManagerService(threadPool, initialClusterState);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #createClusterManagerService(ThreadPool, DiscoveryNode)} */
+    @Deprecated
+    public static MasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
+        return createClusterManagerService(threadPool, localNode);
     }
 
     public static void setState(ClusterApplierService executor, ClusterState clusterState) {
@@ -114,7 +127,7 @@ public class ClusterServiceUtils {
         }
     }
 
-    public static void setState(MasterService executor, ClusterState clusterState) {
+    public static void setState(ClusterManagerService executor, ClusterState clusterState) {
         CountDownLatch latch = new CountDownLatch(1);
         executor.submitStateUpdateTask("test setting state", new ClusterStateUpdateTask() {
             @Override
@@ -164,8 +177,9 @@ public class ClusterServiceUtils {
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
-        clusterService.getMasterService().setClusterStatePublisher(createClusterStatePublisher(clusterService.getClusterApplierService()));
-        clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
+        clusterService.getClusterManagerService()
+            .setClusterStatePublisher(createClusterStatePublisher(clusterService.getClusterApplierService()));
+        clusterService.getClusterManagerService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
         clusterService.start();
         return clusterService;
     }

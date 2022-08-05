@@ -52,7 +52,7 @@ public class NGramTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase 
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_ngram.type", "ngram")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_ngram");
         String source = "foo";
@@ -69,7 +69,7 @@ public class NGramTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase 
                 .put("index.analysis.filter.my_ngram.type", "ngram")
                 .put("index.analysis.filter.my_ngram.preserve_original", true)
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_ngram");
         String source = "foo";

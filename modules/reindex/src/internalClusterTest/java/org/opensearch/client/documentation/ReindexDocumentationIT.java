@@ -46,7 +46,7 @@ import org.opensearch.index.reindex.CancelTests;
 import org.opensearch.index.reindex.DeleteByQueryAction;
 import org.opensearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.opensearch.index.reindex.ReindexAction;
-import org.opensearch.index.reindex.ReindexPlugin;
+import org.opensearch.index.reindex.ReindexModulePlugin;
 import org.opensearch.index.reindex.ReindexRequestBuilder;
 import org.opensearch.index.reindex.RethrottleAction;
 import org.opensearch.index.reindex.RethrottleRequestBuilder;
@@ -88,7 +88,7 @@ public class ReindexDocumentationIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class);
+        return Arrays.asList(ReindexModulePlugin.class, ReindexCancellationPlugin.class);
     }
 
     @Before
