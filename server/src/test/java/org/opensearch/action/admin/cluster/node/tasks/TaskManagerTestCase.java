@@ -53,6 +53,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
@@ -218,11 +219,16 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
                 Collections.emptySet()
             ) {
                 @Override
-                protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+                protected TaskManager createTaskManager(
+                    Settings settings,
+                    ClusterSettings clusterSettings,
+                    ThreadPool threadPool,
+                    Set<String> taskHeaders
+                ) {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
                         return new MockTaskManager(settings, threadPool, taskHeaders);
                     } else {
-                        return super.createTaskManager(settings, threadPool, taskHeaders);
+                        return super.createTaskManager(settings, clusterSettings, threadPool, taskHeaders);
                     }
                 }
             };
