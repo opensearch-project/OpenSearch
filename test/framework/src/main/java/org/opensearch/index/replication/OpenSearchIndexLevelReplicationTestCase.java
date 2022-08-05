@@ -76,6 +76,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
@@ -191,6 +192,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         private final AtomicInteger docId = new AtomicInteger();
         boolean closed = false;
         private volatile ReplicationTargets replicationTargets;
+        private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         private final PrimaryReplicaSyncer primaryReplicaSyncer = new PrimaryReplicaSyncer(
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
