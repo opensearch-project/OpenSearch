@@ -96,15 +96,11 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
         if (request.getPitIds().isEmpty()) {
             pitService.getAllPits(ActionListener.wrap(response -> {
                 request.setPitIds(response.getPitInfos().stream().map(ListPitInfo::getPitId).collect(Collectors.toList()));
-                getDoExecute(task, request, listener);
+                super.doExecute(task, request, listener);
             }, listener::onFailure));
         } else {
-            getDoExecute(task, request, listener);
+            super.doExecute(task, request, listener);
         }
-    }
-
-    private void getDoExecute(Task task, PitSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
-        super.doExecute(task, request, listener);
     }
 
     /**
@@ -120,6 +116,7 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
             SearchContextId searchContext = decode(namedWriteableRegistry, pitId);
             for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
                 final SearchContextIdForNode perNode = entry.getValue();
+                // check if node is part of local cluster
                 if (Strings.isEmpty(perNode.getClusterAlias())) {
                     final ShardId shardId = entry.getKey();
                     iterators.add(
@@ -182,7 +179,7 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
     }
 
     @Override
-    public List<ShardRouting> getShardsFromInputStream(StreamInput in) throws IOException {
+    public List<ShardRouting> getShardRoutingsFromInputStream(StreamInput in) throws IOException {
         return in.readList(PitAwareShardRouting::new);
     }
 
@@ -193,12 +190,17 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
      */
     @Override
     protected ShardSegments shardOperation(PitSegmentsRequest request, ShardRouting shardRouting) {
-        PitAwareShardRouting pitAwareShardRouting = (PitAwareShardRouting) shardRouting;
-        SearchContextIdForNode searchContextIdForNode = decode(namedWriteableRegistry, pitAwareShardRouting.getPitId()).shards()
-            .get(shardRouting.shardId());
-        PitReaderContext pitReaderContext = searchService.getPitReaderContext(searchContextIdForNode.getSearchContextId());
-        if (pitReaderContext == null) return new ShardSegments(shardRouting, new ArrayList<>());
-        return new ShardSegments(pitReaderContext.getShardRouting(), pitReaderContext.getSegments());
+        if (shardRouting instanceof PitAwareShardRouting) {
+            PitAwareShardRouting pitAwareShardRouting = (PitAwareShardRouting) shardRouting;
+            SearchContextIdForNode searchContextIdForNode = decode(namedWriteableRegistry, pitAwareShardRouting.getPitId()).shards()
+                .get(shardRouting.shardId());
+            PitReaderContext pitReaderContext = searchService.getPitReaderContext(searchContextIdForNode.getSearchContextId());
+            if (pitReaderContext == null) {
+                return new ShardSegments(shardRouting, new ArrayList<>());
+            }
+            return new ShardSegments(pitReaderContext.getShardRouting(), pitReaderContext.getSegments());
+        }
+        return new ShardSegments(shardRouting, new ArrayList<>());
     }
 
     /**

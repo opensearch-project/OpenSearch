@@ -535,7 +535,7 @@ public abstract class TransportBroadcastByNodeAction<
     /**
      * This method reads ShardRouting from input stream
      */
-    public List<ShardRouting> getShardsFromInputStream(StreamInput in) throws IOException {
+    public List<ShardRouting> getShardRoutingsFromInputStream(StreamInput in) throws IOException {
         return in.readList(ShardRouting::new);
     }
 
@@ -554,7 +554,7 @@ public abstract class TransportBroadcastByNodeAction<
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             indicesLevelRequest = readRequestFrom(in);
-            shards = getShardsFromInputStream(in);
+            shards = getShardRoutingsFromInputStream(in);
             nodeId = in.readString();
         }
 
