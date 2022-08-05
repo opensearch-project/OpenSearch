@@ -25,7 +25,6 @@
  * under the License.
  */
 
-// Generated from /Users/gkart/github/OpenSearch/modules/lang-painless/src/main/antlr/PainlessLexer.g4 by ANTLR 4.9.3
 // ANTLR GENERATED CODE: DO NOT EDIT
 /*
  * Modifications Copyright OpenSearch Contributors. See

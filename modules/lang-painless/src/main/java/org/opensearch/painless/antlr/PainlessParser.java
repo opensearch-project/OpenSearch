@@ -25,12 +25,12 @@
  * under the License.
  */
 
-// Generated from /Users/gkart/github/OpenSearch/modules/lang-painless/src/main/antlr/PainlessParser.g4 by ANTLR 4.9.3
 // ANTLR GENERATED CODE: DO NOT EDIT
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
+
 package org.opensearch.painless.antlr;
 
 import org.antlr.v4.runtime.FailedPredicateException;
@@ -55,7 +55,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import java.util.List;
 
 @SuppressWarnings({ "all", "warnings", "unchecked", "unused", "cast" })
-public class PainlessParser extends Parser {
+class PainlessParser extends Parser {
     static {
         RuntimeMetaData.checkVersion("4.9.3", RuntimeMetaData.VERSION);
     }

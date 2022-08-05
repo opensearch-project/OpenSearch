@@ -25,7 +25,6 @@
  * under the License.
  */
 
-// Generated from /Users/gkart/github/OpenSearch/modules/lang-painless/src/main/antlr/PainlessParser.g4 by ANTLR 4.9.3
 // ANTLR GENERATED CODE: DO NOT EDIT
 /*
  * Modifications Copyright OpenSearch Contributors. See
@@ -44,7 +43,7 @@ import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
  * @param <T> The return type of the visit operation. Use {@link Void} for
  * operations with no return type.
  */
-public class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements PainlessParserVisitor<T> {
+class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements PainlessParserVisitor<T> {
     /**
      * {@inheritDoc}
      *
