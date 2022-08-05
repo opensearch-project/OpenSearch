@@ -107,7 +107,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 lastSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 lastDocIds = getDocIds(engine, true);
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
-                assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(readOnlyEngine.getPersistedLocalCheckpoint()));
+                assertThat(
+                    ((ReadOnlyEngine) readOnlyEngine).getProcessedLocalCheckpoint(),
+                    equalTo(readOnlyEngine.getPersistedLocalCheckpoint())
+                );
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
                 for (int i = 0; i < numDocs; i++) {
@@ -132,7 +135,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 IOUtils.close(external, internal);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
-                assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(readOnlyEngine.getPersistedLocalCheckpoint()));
+                assertThat(
+                    ((ReadOnlyEngine) readOnlyEngine).getProcessedLocalCheckpoint(),
+                    equalTo(readOnlyEngine.getPersistedLocalCheckpoint())
+                );
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
                 try (Engine.GetResult getResult = readOnlyEngine.get(get, readOnlyEngine::acquireSearcher)) {
@@ -146,7 +152,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     .recoverFromTranslog(translogHandler, recoveringEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
-                assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(readOnlyEngine.getPersistedLocalCheckpoint()));
+                assertThat(
+                    ((ReadOnlyEngine) readOnlyEngine).getProcessedLocalCheckpoint(),
+                    equalTo(readOnlyEngine.getPersistedLocalCheckpoint())
+                );
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
             }
