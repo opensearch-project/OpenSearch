@@ -123,7 +123,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers, this::getMetadataSupplier);
     }
 
     public String getDescription() {
@@ -137,4 +137,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
         return sb.toString();
     }
 
+    public String getMetadataSupplier() {
+        return shardSearchRequest().getMetadataSupplier();
+    }
 }
