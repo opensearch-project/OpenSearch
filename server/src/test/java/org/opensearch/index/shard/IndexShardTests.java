@@ -3524,8 +3524,7 @@ public class IndexShardTests extends IndexShardTestCase {
     /**
      * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
-     *
-     * @param checkpointPublisher Segment Replication Checkpoint Publisher to publish checkpoint
+     * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
      */
     private IndexShard newShard(SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 0);
