@@ -19,6 +19,7 @@
 
 ### Bug Fixes
 
+* OpenSearch crashes on closed client connection before search reply when total ops higher compared to expected ([#4143](https://github.com/opensearch-project/opensearch/pull/4143)) ([#4145](https://github.com/opensearch-project/opensearch/pull/4145))
 * Binding empty instance of SegmentReplicationCheckpointPublisher when Feature Flag is off in IndicesModule.java file. ([#4119](https://github.com/opensearch-project/opensearch/pull/4119))
 * Fix the bug that masterOperation(with task param) is bypassed ([#4103](https://github.com/opensearch-project/opensearch/pull/4103)) ([#4115](https://github.com/opensearch-project/opensearch/pull/4115))
 * Fixing flaky org.opensearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT.testHighWatermarkNotExceeded test case ([#4012](https://github.com/opensearch-project/opensearch/pull/4012)) ([#4014](https://github.com/opensearch-project/opensearch/pull/4014))
