@@ -1245,7 +1245,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
         baseConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
         baseConfig.put("node.attr.testattr", "test");
         if (StringUtils.isNotBlank(zone)) {
-            baseConfig.put("node.attr.availabilityzone", zone);
+            baseConfig.put("cluster.routing.allocation.awareness.attributes", "zone");
+            baseConfig.put("node.attr.zone", zone);
         }
         baseConfig.put("node.portsfile", "true");
         baseConfig.put("http.port", httpPort);
