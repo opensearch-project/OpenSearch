@@ -10,9 +10,11 @@ package org.opensearch.index.translog.transfer.listener;
 
 import org.opensearch.index.translog.transfer.TransferSnapshot;
 
+import java.io.IOException;
+
 public interface TranslogTransferListener {
 
-    void onUploadComplete(TransferSnapshot transferSnapshot);
+    void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException;
 
-    void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex);
+    void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException;
 }

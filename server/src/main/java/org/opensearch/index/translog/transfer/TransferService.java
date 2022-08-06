@@ -13,6 +13,6 @@ import org.opensearch.index.translog.FileSnapshot;
 
 public interface TransferService {
 
-    void uploadFile(final FileSnapshot fileSnapshot, RemotePathProvider remotePathProvider, ActionListener<FileSnapshot> listener);
+    void uploadFile(final FileSnapshot fileSnapshot, Iterable<String> remotePath, ActionListener<FileSnapshot> listener);
 
 }

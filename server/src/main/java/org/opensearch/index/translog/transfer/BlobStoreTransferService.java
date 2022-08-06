@@ -36,8 +36,9 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadFile(final FileSnapshot fileSnapshot, RemotePathProvider remotePathProvider, ActionListener<FileSnapshot> listener) {
-        BlobPath blobPath = blobPath(remotePathProvider);
+    public void uploadFile(final FileSnapshot fileSnapshot, Iterable<String> remoteTransferPath, ActionListener<FileSnapshot> listener) {
+        assert remoteTransferPath instanceof BlobPath;
+        BlobPath blobPath = (BlobPath) remoteTransferPath;
         threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(ActionRunnable.wrap(listener, l -> {
             try {
                 blobStore.blobContainer(blobPath)
@@ -54,9 +55,5 @@ public class BlobStoreTransferService implements TransferService {
             }
         }));
 
-    }
-
-    private BlobPath blobPath(RemotePathProvider remotePathProvider) {
-        return new BlobPath();
     }
 }

@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.collect.Set;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.FileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
@@ -18,8 +19,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class FileTransferTracker implements FileTransferListener {
 
     private final Map<String, TransferState> fileTransferTracker;
+    private final ShardId shardId;
 
-    public FileTransferTracker() {
+    public FileTransferTracker(ShardId shardId) {
+        this.shardId = shardId;
         this.fileTransferTracker = new ConcurrentHashMap<>();
     }
 

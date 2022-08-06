@@ -18,10 +18,12 @@ import org.opensearch.index.translog.FileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * The class responsible for orchestrating the transfer via a {@link TransferService}
@@ -29,8 +31,7 @@ import java.util.concurrent.TimeUnit;
 public class TranslogTransferManager {
 
     private final TransferService transferService;
-    private final RemotePathProvider remotePathProvider;
-    private final TranslogTransferListener translogTransferListener;
+    private final Iterable<String> remoteTransferPath;
     private final FileTransferListener fileTransferListener;
     private static final long TRANSFER_TIMEOUT = 10;
 
@@ -38,19 +39,16 @@ public class TranslogTransferManager {
 
     public TranslogTransferManager(
         TransferService transferService,
-        RemotePathProvider remotePathProvider,
-        TranslogTransferListener translogTransferListener,
+        Iterable<String> remoteTransferPath,
         FileTransferListener fileTransferListener
     ) {
         this.transferService = transferService;
-        this.remotePathProvider = remotePathProvider;
-        this.translogTransferListener = translogTransferListener;
+        this.remoteTransferPath = remoteTransferPath;
         this.fileTransferListener = fileTransferListener;
     }
 
-    boolean uploadTranslog(TransferSnapshotProvider transferSnapshotProvider) {
-        final TransferSnapshotProvider.TranslogCheckpointTransferSnapshot translogCheckpointTransferSnapshot = transferSnapshotProvider
-            .get();
+    public boolean uploadTranslog(TransferSnapshot translogCheckpointTransferSnapshot, TranslogTransferListener translogTransferListener)
+        throws IOException {
         List<Exception> exceptionList = new ArrayList<>(translogCheckpointTransferSnapshot.getTransferSize());
         try {
             final CountDownLatch latch = new CountDownLatch(translogCheckpointTransferSnapshot.getTransferSize());
@@ -64,12 +62,18 @@ public class TranslogTransferManager {
                 latch
             );
             translogCheckpointTransferSnapshot.getTranslogFileSnapshots()
-                .forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remotePathProvider, latchedActionListener));
+                .forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remoteTransferPath, latchedActionListener));
             translogCheckpointTransferSnapshot.getCheckpointFileSnapshots()
-                .forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remotePathProvider, latchedActionListener));
-
-            latch.await(TRANSFER_TIMEOUT, TimeUnit.SECONDS);
-
+                .forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remoteTransferPath, latchedActionListener));
+            try {
+                if (latch.await(TRANSFER_TIMEOUT, TimeUnit.SECONDS) == false) {
+                    exceptionList.add(new TimeoutException("Timed out waiting for transfer to complete"));
+                }
+            } catch (InterruptedException ex) {
+                logger.error(() -> new ParameterizedMessage("Time failed for snapshot {}", translogCheckpointTransferSnapshot), ex);
+                exceptionList.add(ex);
+                Thread.currentThread().interrupt();
+            }
             if (exceptionList.isEmpty()) {
                 translogTransferListener.onUploadComplete(translogCheckpointTransferSnapshot);
             } else {

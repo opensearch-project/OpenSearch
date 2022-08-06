@@ -8,12 +8,23 @@
 
 package org.opensearch.index.translog;
 
-import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.index.translog.transfer.BlobStoreTransferService;
+import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.TransferSnapshot;
+import org.opensearch.index.translog.transfer.TransferSnapshotProvider;
+import org.opensearch.index.translog.transfer.TranslogTransferManager;
+import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
-import java.util.stream.Stream;
 
 public class RemoteFsTranslog extends Translog {
 
@@ -36,7 +47,8 @@ public class RemoteFsTranslog extends Translog {
      * @param persistedSequenceNumberConsumer a callback that's called whenever an operation with a given sequence number is successfully
      */
 
-    private final BlobContainer blobContainer;
+    private final BlobStore blobStore;
+    private final TranslogTransferManager translogTransferManager;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -45,24 +57,50 @@ public class RemoteFsTranslog extends Translog {
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
-        BlobContainer blobContainer
+        BlobStore blobStore,
+        ThreadPool threadPool
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
-        this.blobContainer = blobContainer;
-    }
-
-    @Override
-    public void rollGeneration() throws IOException {
-        super.rollGeneration();
-    }
-
-    @Override
-    public boolean ensureSynced(Stream<Location> locations) throws IOException {
-        return super.ensureSynced(locations);
+        this.blobStore = blobStore;
+        this.translogTransferManager = new TranslogTransferManager(
+            new BlobStoreTransferService(blobStore, threadPool),
+            new BlobPath().add(UUIDs.base64UUID())
+                .add(shardId.getIndex().getUUID())
+                .add(String.valueOf(shardId.id()))
+                .add(String.valueOf(primaryTermSupplier.getAsLong())),
+            new FileTransferTracker(shardId)
+        );
     }
 
     @Override
     boolean ensureSynced(Location location) throws IOException {
         return false;
+    }
+
+    @Override
+    public void rollGeneration() throws IOException {
+        super.rollGeneration();
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            TransferSnapshotProvider transferSnapshotProvider = new TransferSnapshotProvider(this.location, readers);
+            Releasable transferReleasable = Releasables.wrap(deletionPolicy.acquireTranslogGen(getMinFileGeneration()));
+            translogTransferManager.uploadTranslog(transferSnapshotProvider.get(), new TranslogTransferListener() {
+                @Override
+                public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
+                    transferReleasable.close();
+                    closeFilesIfNoPendingRetentionLocks();
+                }
+
+                @Override
+                public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException {
+                    transferReleasable.close();
+                    closeFilesIfNoPendingRetentionLocks();
+                }
+            });
+        } catch (final Exception e) {
+            tragedy.setTragicException(e);
+            closeOnTragicEvent(e);
+            throw e;
+        }
     }
 }
