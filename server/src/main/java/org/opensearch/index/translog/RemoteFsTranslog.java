@@ -62,13 +62,15 @@ public class RemoteFsTranslog extends Translog {
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         this.blobStore = blobStore;
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
         this.translogTransferManager = new TranslogTransferManager(
             new BlobStoreTransferService(blobStore, threadPool),
             new BlobPath().add(UUIDs.base64UUID())
                 .add(shardId.getIndex().getUUID())
                 .add(String.valueOf(shardId.id()))
                 .add(String.valueOf(primaryTermSupplier.getAsLong())),
-            new FileTransferTracker(shardId)
+            fileTransferTracker,
+            fileTransferTracker::exclusionFilter
         );
     }
 

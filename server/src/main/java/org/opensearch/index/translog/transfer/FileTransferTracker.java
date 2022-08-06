@@ -8,13 +8,14 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.common.collect.Set;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.FileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class FileTransferTracker implements FileTransferListener {
 
@@ -46,6 +47,12 @@ public class FileTransferTracker implements FileTransferListener {
             }
             throw new IllegalStateException("Unexpected transfer state " + v + "while setting target to" + targetState);
         });
+    }
+
+    public Set<FileSnapshot> exclusionFilter(Set<FileSnapshot> original) {
+        return original.stream()
+            .filter(fileSnapshot -> fileTransferTracker.get(fileSnapshot.getName()) != TransferState.SUCCESS)
+            .collect(Collectors.toSet());
     }
 
     public enum TransferState {

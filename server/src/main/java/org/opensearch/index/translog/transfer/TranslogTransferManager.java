@@ -21,9 +21,11 @@ import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.UnaryOperator;
 
 /**
  * The class responsible for orchestrating the transfer via a {@link TransferService}
@@ -33,6 +35,7 @@ public class TranslogTransferManager {
     private final TransferService transferService;
     private final Iterable<String> remoteTransferPath;
     private final FileTransferListener fileTransferListener;
+    private final UnaryOperator<Set<FileSnapshot>> exclusionFilter;
     private static final long TRANSFER_TIMEOUT = 10;
 
     private static final Logger logger = LogManager.getLogger(TranslogTransferManager.class);
@@ -40,11 +43,13 @@ public class TranslogTransferManager {
     public TranslogTransferManager(
         TransferService transferService,
         Iterable<String> remoteTransferPath,
-        FileTransferListener fileTransferListener
+        FileTransferListener fileTransferListener,
+        UnaryOperator<Set<FileSnapshot>> exclusionFilter
     ) {
         this.transferService = transferService;
         this.remoteTransferPath = remoteTransferPath;
         this.fileTransferListener = fileTransferListener;
+        this.exclusionFilter = exclusionFilter;
     }
 
     public boolean uploadTranslog(TransferSnapshot translogCheckpointTransferSnapshot, TranslogTransferListener translogTransferListener)
@@ -61,9 +66,9 @@ public class TranslogTransferManager {
                 }),
                 latch
             );
-            translogCheckpointTransferSnapshot.getTranslogFileSnapshots()
+            exclusionFilter.apply(translogCheckpointTransferSnapshot.getTranslogFileSnapshots())
                 .forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remoteTransferPath, latchedActionListener));
-            translogCheckpointTransferSnapshot.getCheckpointFileSnapshots()
+            exclusionFilter.apply(translogCheckpointTransferSnapshot.getCheckpointFileSnapshots())
                 .forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remoteTransferPath, latchedActionListener));
             try {
                 if (latch.await(TRANSFER_TIMEOUT, TimeUnit.SECONDS) == false) {
