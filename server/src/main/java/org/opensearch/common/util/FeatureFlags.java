@@ -30,12 +30,6 @@ public class FeatureFlags {
     public static final String REMOTE_STORE = "opensearch.experimental.feature.remote_store.enabled";
 
     /**
-     * Gates the visibility of the index setting that allows persisting operations to remote translog store.
-     * Once the feature is ready for production release, this feature flag can be removed.
-     */
-    public static final String REMOTE_TRANSLOG_STORE = "opensearch.experimental.feature.remote.translog_store.enabled";
-
-    /**
      * Used to test feature flags whose values are expected to be booleans.
      * This method returns true if the value is "true" (case-insensitive),
      * and false otherwise.

@@ -41,7 +41,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -57,7 +56,6 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
-import static org.opensearch.common.settings.IndexScopedSettings.FEATURE_FLAGGED_INDEX_SETTINGS;
 
 public class IndexSettingsTests extends OpenSearchTestCase {
 
@@ -800,7 +798,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testUpdateRemoteStoreFails() {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(FEATURE_FLAGGED_INDEX_SETTINGS.get(FeatureFlags.REMOTE_STORE));
+        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING);
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
@@ -816,17 +814,32 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testUpdateRemoteTranslogStoreFails() {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(FEATURE_FLAGGED_INDEX_SETTINGS.get(FeatureFlags.REMOTE_TRANSLOG_STORE));
+        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
             () -> settings.updateSettings(
-                Settings.builder().put("index.remote.translog_store.enabled", randomBoolean()).build(),
+                Settings.builder().put("index.remote_store.translog.enabled", randomBoolean()).build(),
                 Settings.builder(),
                 Settings.builder(),
                 "index"
             )
         );
-        assertEquals(error.getMessage(), "final index setting [index.remote.translog_store.enabled], not updateable");
+        assertEquals(error.getMessage(), "final index setting [index.remote_store.translog.enabled], not updateable");
+    }
+
+    public void testUpdateRemoteTranslogStoreFailsOnRemoteSegmentDisabled() {
+        Settings indexSettings = Settings.builder()
+            .put("index.remote_store.translog.enabled", true)
+            .put("index.remote_store.enabled", false)
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(indexSettings)
+        );
+        assertEquals(
+            "Settings index.remote_store.translog.enabled cannot be enabled when index.remote_store.enabled is set to false",
+            iae.getMessage()
+        );
     }
 }
