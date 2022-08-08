@@ -828,7 +828,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals(error.getMessage(), "final index setting [index.remote_store.translog.enabled], not updateable");
     }
 
-    public void testUpdateRemoteTranslogStoreFailsOnRemoteSegmentDisabled() {
+    public void testEnablingRemoteTranslogStoreFailsWhenRemoteSegmentDisabled() {
         Settings indexSettings = Settings.builder()
             .put("index.remote_store.translog.enabled", true)
             .put("index.remote_store.enabled", false)
