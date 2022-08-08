@@ -20,4 +20,4 @@ jobs:
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master
         with:
-          ignore_paths: ./gradlew
+          ignore_paths: */gradlew
