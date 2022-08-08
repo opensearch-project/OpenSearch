@@ -777,6 +777,27 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertTrue(settings.isRemoteStoreEnabled());
     }
 
+    public void testRemoteTranslogStoreDefaultSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isRemoteTranslogStoreEnabled());
+    }
+
+    public void testRemoteTranslogStoreExplicitSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isRemoteTranslogStoreEnabled());
+    }
+
     public void testUpdateRemoteStoreFails() {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
         remoteStoreSettingSet.add(FEATURE_FLAGGED_INDEX_SETTINGS.get(FeatureFlags.REMOTE_STORE));
@@ -791,5 +812,21 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             )
         );
         assertEquals(error.getMessage(), "final index setting [index.remote_store.enabled], not updateable");
+    }
+
+    public void testUpdateRemoteTranslogStoreFails() {
+        Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
+        remoteStoreSettingSet.add(FEATURE_FLAGGED_INDEX_SETTINGS.get(FeatureFlags.REMOTE_TRANSLOG_STORE));
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put("index.remote.translog_store.enabled", randomBoolean()).build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertEquals(error.getMessage(), "final index setting [index.remote.translog_store.enabled], not updateable");
     }
 }

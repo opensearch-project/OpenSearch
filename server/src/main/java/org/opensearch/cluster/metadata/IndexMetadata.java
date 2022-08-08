@@ -284,11 +284,23 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
+
+    public static final String SETTING_REMOTE_TRANSLOG_STORE_ENABLED = "index.remote.translog_store.enabled";
     /**
      * Used to specify if the index data should be persisted in the remote store.
      */
     public static final Setting<Boolean> INDEX_REMOTE_STORE_ENABLED_SETTING = Setting.boolSetting(
         SETTING_REMOTE_STORE_ENABLED,
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify if the index translog operations should be persisted in the remote store.
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_REMOTE_TRANSLOG_STORE_ENABLED,
         false,
         Property.IndexScope,
         Property.Final
