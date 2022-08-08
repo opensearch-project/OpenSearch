@@ -22,6 +22,7 @@ public class FeatureFlagTests extends OpenSearchTestCase {
     public static void enableFeature() {
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.REPLICATION_TYPE, "true"));
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.REMOTE_STORE, "true"));
+        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.NOOP_REPLICATION_ENGINE, "true"));
     }
 
     public void testReplicationTypeFeatureFlag() {
@@ -46,5 +47,11 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         String remoteStoreFlag = FeatureFlags.REMOTE_STORE;
         assertNotNull(System.getProperty(remoteStoreFlag));
         assertTrue(FeatureFlags.isEnabled(remoteStoreFlag));
+    }
+
+    public void testNoopReplicationEngineFeatureFlag() {
+        String noopReplicationEngineFlag = FeatureFlags.NOOP_REPLICATION_ENGINE;
+        assertNotNull(System.getProperty(noopReplicationEngineFlag));
+        assertTrue(FeatureFlags.isEnabled(noopReplicationEngineFlag));
     }
 }

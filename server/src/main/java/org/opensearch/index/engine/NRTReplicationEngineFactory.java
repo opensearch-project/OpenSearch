@@ -10,6 +10,7 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.util.FeatureFlags;
 
 /**
  * Engine Factory implementation used with Segment Replication that wires up replica shards with an ${@link NRTReplicationEngine}
@@ -25,7 +26,7 @@ public class NRTReplicationEngineFactory implements EngineFactory {
     public Engine newReadWriteEngine(EngineConfig config) {
         Engine engine;
         if (config.isReadOnlyReplica()) {
-            if (config.getIndexSettings().isRemoteStoreEnabled()) {
+            if (FeatureFlags.isEnabled(FeatureFlags.NOOP_REPLICATION_ENGINE) && config.getIndexSettings().isRemoteStoreEnabled()) {
                 engine = new NRTReplicationNoOpEngine(config);
             } else {
                 engine = new NRTReplicationEngine(config);
