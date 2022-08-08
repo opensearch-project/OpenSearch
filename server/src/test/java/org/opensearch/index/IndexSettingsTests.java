@@ -796,6 +796,18 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertTrue(settings.isRemoteTranslogStoreEnabled());
     }
 
+    public void testRemoteTranslogStoreNullSetting() {
+        Settings indexSettings = Settings.builder()
+            .put("index.remote_store.translog.enabled", "null")
+            .put("index.remote_store.enabled", randomBoolean())
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(indexSettings)
+        );
+        assertEquals("Failed to parse value [null] as only [true] or [false] are allowed.", iae.getMessage());
+    }
+
     public void testUpdateRemoteStoreFails() {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
         remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING);
