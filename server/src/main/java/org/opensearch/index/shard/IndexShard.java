@@ -3230,7 +3230,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
             internalRefreshListener.add(new RemoteStoreRefreshListener(store.directory(), remoteDirectory));
         }
-        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled()) {
+        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
 

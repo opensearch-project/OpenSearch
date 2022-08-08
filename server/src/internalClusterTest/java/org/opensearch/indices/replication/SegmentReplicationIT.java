@@ -21,6 +21,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -154,6 +155,41 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         waitForReplicaUpdate();
 
         assertDocCounts(initialDocCount, replicaNodeName, primaryNodeName);
+        assertSegmentStats(REPLICA_COUNT);
+    }
+
+    public void testCancelPrimaryAllocation() throws Exception {
+        // this test cancels allocation on the primary - promoting the new replica and recreating the former primary as a replica.
+        final String primary = internalCluster().startNode();
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replica = internalCluster().startNode();
+        ensureGreen(INDEX_NAME);
+
+        final int initialDocCount = 1;
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        refresh(INDEX_NAME);
+
+        waitForReplicaUpdate();
+        assertDocCounts(initialDocCount, replica, primary);
+
+        final IndexShard indexShard = getIndexShard(primary);
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new CancelAllocationCommand(INDEX_NAME, indexShard.shardId().id(), primary, true))
+            .execute()
+            .actionGet();
+        ensureGreen(INDEX_NAME);
+
+        final DiscoveryNode newPrimaryNode = getNodeContainingPrimaryShard();
+        assertEquals(newPrimaryNode.getName(), replica);
+
+        flushAndRefresh(INDEX_NAME);
+        waitForReplicaUpdate();
+
+        assertDocCounts(initialDocCount, replica, primary);
         assertSegmentStats(REPLICA_COUNT);
     }
 
@@ -324,9 +360,8 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
         assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
 
-        final Index index = resolveIndex(INDEX_NAME);
-        IndexShard primaryShard = getIndexShard(index, primaryNode);
-        IndexShard replicaShard = getIndexShard(index, replicaNode);
+        IndexShard primaryShard = getIndexShard(primaryNode);
+        IndexShard replicaShard = getIndexShard(replicaNode);
         assertEquals(
             primaryShard.translogStats().estimatedNumberOfOperations(),
             replicaShard.translogStats().estimatedNumberOfOperations()
@@ -435,8 +470,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                 final ShardRouting replicaShardRouting = shardSegment.getShardRouting();
                 ClusterState state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
                 final DiscoveryNode replicaNode = state.nodes().resolveNode(replicaShardRouting.currentNodeId());
-                final Index index = resolveIndex(INDEX_NAME);
-                IndexShard indexShard = getIndexShard(index, replicaNode.getName());
+                IndexShard indexShard = getIndexShard(replicaNode.getName());
                 final String lastCommitSegmentsFileName = SegmentInfos.getLastCommitSegmentsFileName(indexShard.store().directory());
                 // calls to readCommit will fail if a valid commit point and all its segments are not in the store.
                 SegmentInfos.readCommit(indexShard.store().directory(), lastCommitSegmentsFileName);
@@ -476,7 +510,8 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         });
     }
 
-    private IndexShard getIndexShard(Index index, String node) {
+    private IndexShard getIndexShard(String node) {
+        final Index index = resolveIndex(INDEX_NAME);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
         IndexService indexService = indicesService.indexServiceSafe(index);
         final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
