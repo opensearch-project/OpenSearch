@@ -477,6 +477,57 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertThat(searchResponse.getSuccessfulShards(), equalTo(shards.length));
     }
 
+    public void testExecutePhaseOnShardFailure() throws InterruptedException {
+        final Index index = new Index("test", UUID.randomUUID().toString());
+
+        final SearchShardIterator[] shards = IntStream.range(0, 2 + randomInt(3))
+            .mapToObj(i -> new SearchShardIterator(null, new ShardId(index, i), List.of("n1", "n2", "n3"), null, null, null))
+            .toArray(SearchShardIterator[]::new);
+
+        final AtomicBoolean fail = new AtomicBoolean(true);
+        final CountDownLatch latch = new CountDownLatch(1);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        searchRequest.setMaxConcurrentShardRequests(5);
+
+        final ArraySearchPhaseResults<SearchPhaseResult> queryResult = new ArraySearchPhaseResults<>(shards.length);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            queryResult,
+            new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse response) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        // We end up here only when onPhaseDone() is called (causing NPE) and
+                        // ending up in the onPhaseFailure() callback
+                        if (fail.compareAndExchange(true, false)) {
+                            assertThat(e, instanceOf(SearchPhaseExecutionException.class));
+                            throw new RuntimeException("Simulated exception");
+                        }
+                    } finally {
+                        executor.submit(() -> latch.countDown());
+                    }
+                }
+            },
+            false,
+            false,
+            new AtomicLong(),
+            shards
+        );
+        action.run();
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
+
+        InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, action.buildShardFailures(), null, null);
+        assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
+        assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
+        assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
+        assertSame(searchResponse.getHits(), internalSearchResponse.hits());
+        assertThat(searchResponse.getSuccessfulShards(), equalTo(shards.length));
+    }
+
     private static final class PhaseResult extends SearchPhaseResult {
         PhaseResult(ShardSearchContextId contextId) {
             this.contextId = contextId;

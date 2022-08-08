@@ -6,5 +6,7 @@
  * compatible open source license.
  */
 
-/** Restore remote store transport handler. */
-package org.opensearch.action.admin.cluster.remotestore.restore;
+/**
+ * Support for adding consumers to consume task related information.
+ */
+package org.opensearch.tasks.consumer;

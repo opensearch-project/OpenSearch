@@ -125,22 +125,27 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         throw new UnsupportedOperationException("Must be overridden");
     }
 
+    // TODO: Add abstract keyword after removing the deprecated masterOperation()
     protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         masterOperation(request, state, listener);
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)} */
+    /**
+     * Override this operation if access to the task parameter is needed
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)}
+     */
     @Deprecated
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        clusterManagerOperation(task, request, state, listener);
+        clusterManagerOperation(request, state, listener);
     }
 
     /**
      * Override this operation if access to the task parameter is needed
      */
+    // TODO: Change the implementation to call 'clusterManagerOperation(request...)' after removing the deprecated masterOperation()
     protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
-        clusterManagerOperation(request, state, listener);
+        masterOperation(task, request, state, listener);
     }
 
     protected boolean localExecute(Request request) {
