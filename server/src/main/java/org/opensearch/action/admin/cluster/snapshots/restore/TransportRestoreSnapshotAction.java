@@ -109,7 +109,12 @@ public class TransportRestoreSnapshotAction extends TransportClusterManagerNodeA
     ) {
         restoreService.restoreSnapshot(request, ActionListener.delegateFailure(listener, (delegatedListener, restoreCompletionResponse) -> {
             if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, delegatedListener);
+                RestoreClusterStateListener.createAndRegisterListener(
+                    clusterService,
+                    restoreCompletionResponse,
+                    delegatedListener,
+                    RestoreSnapshotResponse::new
+                );
             } else {
                 delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
             }

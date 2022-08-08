@@ -84,6 +84,8 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private final ArchiveOperations archiveOperations;
     private int nodeIndex = 0;
 
+    private int zoneCount = 1;
+
     public OpenSearchCluster(
         String clusterName,
         Project project,
@@ -104,11 +106,19 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.bwcJdk = bwcJdk;
 
         // Always add the first node
-        addNode(clusterName + "-0");
+        String zone = hasZoneProperty() ? "zone-1" : "";
+        addNode(clusterName + "-0", zone);
         // configure the cluster name eagerly so all nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
         addWaitForClusterHealth();
+    }
+
+    public void setNumberOfZones(int zoneCount) {
+        if (zoneCount < 1) {
+            throw new IllegalArgumentException("Number of zones should be >= 1 but was " + zoneCount + " for " + this);
+        }
+        this.zoneCount = zoneCount;
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
@@ -124,12 +134,31 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             );
         }
 
-        for (int i = nodes.size(); i < numberOfNodes; i++) {
-            addNode(clusterName + "-" + i);
+        if (numberOfNodes < zoneCount) {
+            throw new IllegalArgumentException(
+                "Number of nodes should be >= zoneCount but was " + numberOfNodes + " for " + this.zoneCount
+            );
+        }
+
+        if (hasZoneProperty()) {
+            int currentZone;
+            for (int i = nodes.size(); i < numberOfNodes; i++) {
+                currentZone = i % zoneCount + 1;
+                String zoneName = "zone-" + currentZone;
+                addNode(clusterName + "-" + i, zoneName);
+            }
+        } else {
+            for (int i = nodes.size(); i < numberOfNodes; i++) {
+                addNode(clusterName + "-" + i, "");
+            }
         }
     }
 
-    private void addNode(String nodeName) {
+    private boolean hasZoneProperty() {
+        return this.project.findProperty("numZones") != null;
+    }
+
+    private void addNode(String nodeName, String zoneName) {
         OpenSearchNode newNode = new OpenSearchNode(
             path,
             nodeName,
@@ -138,7 +167,8 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             fileSystemOperations,
             archiveOperations,
             workingDirBase,
-            bwcJdk
+            bwcJdk,
+            zoneName
         );
         // configure the cluster name eagerly
         newNode.defaultConfig.put("cluster.name", safeName(clusterName));
