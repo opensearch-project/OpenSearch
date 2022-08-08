@@ -63,7 +63,6 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -98,7 +97,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
     private void allocateAllUnassigned(final RoutingAllocation allocation) {
         final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
-            testAllocator.allocateUnassigned(iterator.next(), allocation, iterator, testAllocator.settings);
+            testAllocator.allocateUnassigned(iterator.next(), allocation, iterator);
         }
     }
 
@@ -208,7 +207,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * Tests that replica with highest primary ter version will be selected as target
+     * Tests that replica with the highest primary term version will be selected as target
      */
     public void testPreferReplicaWithHighestPrimaryTerm() {
         String allocId1 = randomAlphaOfLength(10);
@@ -221,7 +220,6 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocId2,
             allocId3
         );
-        this.testAllocator.enableSegmentReplication();
         testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 20, 10, 101, 1));
         testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 22, 10, 120, 2));
         testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
@@ -255,7 +253,6 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocId2,
             allocId3
         );
-        this.testAllocator.enableSegmentReplication();
         testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 20, 10, 101, 1));
         testAllocator.addData(node2, allocId2, false);
         testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 40, 10, 120, 2));
@@ -289,7 +286,6 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocId2,
             allocId3
         );
-        this.testAllocator.enableSegmentReplication();
         testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 10, 10, 101, 1));
         testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 3));
         testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
@@ -322,7 +318,6 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocId1,
             allocId3
         );
-        this.testAllocator.enableSegmentReplication();
         testAllocator.addData(node1, allocId1, false, new ReplicationCheckpoint(shardId, 10, 10, 101, 1));
         testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
         testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 15, 10, 120, 2));
@@ -356,7 +351,6 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocId2,
             allocId3
         );
-        this.testAllocator.enableSegmentReplication();
         testAllocator.addData(node1, allocId1, true, new ReplicationCheckpoint(shardId, 10, 10, 101, 1));
         testAllocator.addData(node2, allocId2, false, new ReplicationCheckpoint(shardId, 20, 10, 120, 2));
         testAllocator.addData(node3, allocId3, false, new ReplicationCheckpoint(shardId, 15, 10, 120, 2));
@@ -767,8 +761,6 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
 
         private Map<DiscoveryNode, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> data;
 
-        private Settings settings = Settings.EMPTY;
-
         public TestAllocator clear() {
             data = null;
             return this;
@@ -820,10 +812,6 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             RoutingAllocation allocation
         ) {
             return new AsyncShardFetch.FetchResult<>(shardId, data, Collections.<String>emptySet());
-        }
-
-        public void enableSegmentReplication() {
-            this.settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
         }
     }
 }

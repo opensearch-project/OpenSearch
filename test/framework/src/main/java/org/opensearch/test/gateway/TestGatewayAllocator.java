@@ -71,9 +71,9 @@ import java.util.stream.Collectors;
 public class TestGatewayAllocator extends GatewayAllocator {
 
     Map<String /* node id */, Map<ShardId, ShardRouting>> knownAllocations = new HashMap<>();
-
-    Map<String, ReplicationCheckpoint> shardIdNodeToReplicationCheckPointMap = new HashMap<>();
     DiscoveryNodes currentNodes = DiscoveryNodes.EMPTY_NODES;
+    Map<String, ReplicationCheckpoint> shardIdNodeToReplicationCheckPointMap = new HashMap<>();
+
     PrimaryShardAllocator primaryShardAllocator = new PrimaryShardAllocator() {
         @Override
         protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
@@ -103,10 +103,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     };
 
     private ReplicationCheckpoint getReplicationCheckpoint(ShardId shardId, String nodeName) {
-        return shardIdNodeToReplicationCheckPointMap.getOrDefault(
-            getReplicationCheckPointKey(shardId, nodeName),
-            ReplicationCheckpoint.empty(shardId)
-        );
+        return shardIdNodeToReplicationCheckPointMap.getOrDefault(getReplicationCheckPointKey(shardId, nodeName), null);
     }
 
     ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator() {
@@ -157,14 +154,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
         UnassignedAllocationHandler unassignedAllocationHandler
     ) {
         currentNodes = allocation.nodes();
-        innerAllocatedUnassigned(
-            allocation,
-            primaryShardAllocator,
-            replicaShardAllocator,
-            shardRouting,
-            unassignedAllocationHandler,
-            this.settings
-        );
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
     }
 
     /**

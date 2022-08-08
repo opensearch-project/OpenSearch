@@ -48,11 +48,9 @@ import org.opensearch.cluster.routing.allocation.NodeAllocationResult.ShardStore
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -95,8 +93,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     public AllocateUnassignedDecision makeAllocationDecision(
         final ShardRouting unassignedShard,
         final RoutingAllocation allocation,
-        final Logger logger,
-        final Settings settings
+        final Logger logger
     ) {
         if (isResponsibleFor(unassignedShard) == false) {
             // this allocator is not responsible for allocating this shard
@@ -127,7 +124,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
-        final IndexSettings indexSettings = settings != null ? new IndexSettings(indexMetadata, settings) : null;
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
@@ -139,7 +135,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             allocation.getIgnoreNodes(unassignedShard.shardId()),
             inSyncAllocationIds,
             shardState,
-            indexSettings,
             logger
         );
         final boolean enoughAllocationsFound = nodeShardsResult.orderedAllocationCandidates.size() > 0;
@@ -318,7 +313,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         NodeGatewayStartedShards::primary
     ).reversed();
 
-    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR = Comparator.nullsLast(
+    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR = Comparator.nullsLast(
         Comparator.comparing(NodeGatewayStartedShards::replicationCheckpoint)
     );
 
@@ -333,7 +328,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         Set<String> ignoreNodes,
         Set<String> inSyncAllocationIds,
         FetchResult<NodeGatewayStartedShards> shardState,
-        IndexSettings indexSettings,
         Logger logger
     ) {
         List<NodeGatewayStartedShards> nodeShardStates = new ArrayList<>();
@@ -391,21 +385,24 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
         }
 
-        Comparator<NodeGatewayStartedShards> comparator; // allocation preference
+        /**
+         * Orders the active shards copies based on below comparators
+         * 1. No store exception
+         * 2. Shard copies previously primary shard
+         * 3. Shard copies with highest replication checkpoint. This comparator is NO-OP for doc rep enabled indices.
+         */
+        final Comparator<NodeGatewayStartedShards> comparator; // allocation preference
         if (matchAnyShard) {
             // prefer shards with matching allocation ids
             Comparator<NodeGatewayStartedShards> matchingAllocationsFirst = Comparator.comparing(
                 (NodeGatewayStartedShards state) -> inSyncAllocationIds.contains(state.allocationId())
             ).reversed();
             comparator = matchingAllocationsFirst.thenComparing(NO_STORE_EXCEPTION_FIRST_COMPARATOR)
-                .thenComparing(PRIMARY_FIRST_COMPARATOR);
+                .thenComparing(PRIMARY_FIRST_COMPARATOR)
+                .thenComparing(HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR);
         } else {
-            comparator = NO_STORE_EXCEPTION_FIRST_COMPARATOR.thenComparing(PRIMARY_FIRST_COMPARATOR);
-        }
-
-        // If index has segrep enabled, then use replication checkpoint info to order the replicas
-        if (indexSettings != null && indexSettings.isSegRepEnabled()) {
-            comparator = comparator.thenComparing(HIGHEST_REPLICATION_FIRST_CHECKPOINT_COMPARATOR);
+            comparator = NO_STORE_EXCEPTION_FIRST_COMPARATOR.thenComparing(PRIMARY_FIRST_COMPARATOR)
+                .thenComparing(HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR);
         }
 
         nodeShardStates.sort(comparator);

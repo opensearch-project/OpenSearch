@@ -96,8 +96,6 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
 
     private TestAllocator testAllocator;
 
-    private final Settings settings = Settings.EMPTY;
-
     @Before
     public void buildTestAllocator() {
         this.testAllocator = new TestAllocator();
@@ -106,7 +104,7 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
     private void allocateAllUnassigned(final RoutingAllocation allocation) {
         final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
-            testAllocator.allocateUnassigned(iterator.next(), allocation, iterator, settings);
+            testAllocator.allocateUnassigned(iterator.next(), allocation, iterator);
         }
     }
 

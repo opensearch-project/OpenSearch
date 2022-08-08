@@ -473,7 +473,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             if (storeException != null) {
                 buf.append(",storeException=").append(storeException);
             }
-            buf.append(",ReplicationCheckpoint=").append(replicationCheckpoint.toString());
+            if (replicationCheckpoint != null) {
+                buf.append(",ReplicationCheckpoint=").append(replicationCheckpoint.toString());
+            }
             buf.append("]");
             return buf.toString();
         }
