@@ -437,10 +437,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SCROLL_TIME = "scroll_time";
         static final String SCROLL_TIME_IN_MILLIS = "scroll_time_in_millis";
         static final String SCROLL_CURRENT = "scroll_current";
-        static final String PIT_TOTAL = "pit_total";
-        static final String PIT_TIME = "pit_time";
-        static final String PIT_TIME_IN_MILLIS = "pit_time_in_millis";
-        static final String PIT_CURRENT = "pit_current";
+        static final String PIT_TOTAL = "point_in_time_total";
+        static final String PIT_TIME = "point_in_time_time";
+        static final String PIT_TIME_IN_MILLIS = "point_in_time_time_in_millis";
+        static final String PIT_CURRENT = "point_in_time_current";
         static final String SUGGEST_TOTAL = "suggest_total";
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
