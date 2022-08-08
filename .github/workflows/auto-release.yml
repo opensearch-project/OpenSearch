@@ -3,7 +3,7 @@ name: Releases
 on:
   push:
     tags:
-      - '*.*.*'
+      - '*'
 
 jobs:
 
