@@ -228,7 +228,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     private void extensionInitialize(DiscoveryNode extensionNode) {
-
+        final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
 
             @Override
@@ -244,11 +244,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                         break;
                     }
                 }
+                inProgressLatch.countDown();
             }
 
             @Override
             public void handleException(TransportException exp) {
                 logger.debug(new ParameterizedMessage("Plugin request failed"), exp);
+                inProgressLatch.countDown();
             }
 
             @Override
@@ -265,6 +267,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 new PluginRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
                 pluginResponseHandler
             );
+            inProgressLatch.await(100, TimeUnit.SECONDS);
         } catch (Exception e) {
             logger.error(e.toString());
         }

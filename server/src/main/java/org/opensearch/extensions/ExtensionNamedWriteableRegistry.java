@@ -51,9 +51,6 @@ public class ExtensionNamedWriteableRegistry {
      * Iterates through all discovered extensions, sends transport requests for named writeables and consolidates all entires into a central named writeable registry for extensions.
      */
     public void getNamedWriteables() {
-
-        logger.info("Hit get Named Writeables");
-        logger.info("initialized extensions : " + extensionsInitializedList.toString());
         // Retrieve named writeable registry entries from each extension
         for (DiscoveryNode extensionNode : extensionsInitializedList) {
             try {
@@ -79,7 +76,6 @@ public class ExtensionNamedWriteableRegistry {
      */
     private Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> getNamedWriteables(DiscoveryNode extensionNode)
         throws UnknownHostException {
-        logger.info("Inside get named writeables( discovery node)");
         NamedWriteableRegistryResponseHandler namedWriteableRegistryResponseHandler = new NamedWriteableRegistryResponseHandler(
             extensionNode,
             transportService,

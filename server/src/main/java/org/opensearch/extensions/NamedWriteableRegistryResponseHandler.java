@@ -104,7 +104,6 @@ public class NamedWriteableRegistryResponseHandler implements TransportResponseH
             Map<String, ExtensionReader> readers = null;
             Class currentCategory = null;
 
-            // Extract response entries and process fully qualified class name into category class instance
             for (Map.Entry<String, Class> entry : response.getRegistry().entrySet()) {
 
                 String name = entry.getKey();
