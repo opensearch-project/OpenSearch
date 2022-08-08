@@ -46,7 +46,7 @@ opensearchplugin {
 dependencies {
   api 'com.azure:azure-core:1.27.0'
   api 'com.azure:azure-storage-common:12.16.0'
-  api 'com.azure:azure-core-http-netty:1.12.0'
+  api 'com.azure:azure-core-http-netty:1.12.4'
   api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
