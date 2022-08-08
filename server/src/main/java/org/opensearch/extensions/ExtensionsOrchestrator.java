@@ -23,6 +23,9 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -39,7 +42,6 @@ import org.opensearch.discovery.PluginResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.IndicesModuleNameResponse;
 import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
@@ -54,6 +56,8 @@ import org.opensearch.transport.TransportService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import java.util.HashMap;
+import java.util.List;
 
 /**
  * The main class for Plugin Extensibility
@@ -67,6 +71,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
+    public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
+    public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
 
@@ -84,11 +90,21 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         GET_SETTINGS
     };
 
+    /**
+     * Enum for OpenSearch Requests
+     *
+     * @opensearch.internal
+     */
+    public static enum OpenSearchRequestType {
+        REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY
+    }
+
     private final Path extensionsPath;
     final List<DiscoveryExtension> extensionsList;
     List<DiscoveryExtension> extensionsInitializedList;
     TransportService transportService;
     ClusterService clusterService;
+    ExtensionNamedWriteableRegistry namedWriteableRegistry;
 
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
@@ -97,6 +113,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionsList = new ArrayList<DiscoveryExtension>();
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
         this.clusterService = null;
+        this.namedWriteableRegistry = null;
 
         /*
          * Now Discover extensions
@@ -112,6 +129,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     public void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
+    }
+
+    public void setNamedWriteableRegistry() {
+        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsInitializedList, transportService);
     }
 
     private void registerRequestHandler() {
@@ -207,7 +228,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     private void extensionInitialize(DiscoveryNode extensionNode) {
-
+        final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
 
             @Override
@@ -223,11 +244,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                         break;
                     }
                 }
+                inProgressLatch.countDown();
             }
 
             @Override
             public void handleException(TransportException exp) {
                 logger.debug(new ParameterizedMessage("Plugin request failed"), exp);
+                inProgressLatch.countDown();
             }
 
             @Override
@@ -236,6 +259,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
         };
         try {
+            logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
             transportService.connectToNode(extensionNode, true);
             transportService.sendRequest(
                 extensionNode,
@@ -243,6 +267,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 new PluginRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
                 pluginResponseHandler
             );
+            inProgressLatch.await(100, TimeUnit.SECONDS);
         } catch (Exception e) {
             logger.error(e.toString());
         }
@@ -278,10 +303,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
 
-        final TransportResponseHandler<IndicesModuleNameResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<
-            IndicesModuleNameResponse>() {
+        final TransportResponseHandler<ExtensionBooleanResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<
+            ExtensionBooleanResponse>() {
             @Override
-            public void handleResponse(IndicesModuleNameResponse response) {
+            public void handleResponse(ExtensionBooleanResponse response) {
                 logger.info("ACK Response" + response);
                 inProgressIndexNameLatch.countDown();
             }
@@ -297,8 +322,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
 
             @Override
-            public IndicesModuleNameResponse read(StreamInput in) throws IOException {
-                return new IndicesModuleNameResponse(in);
+            public ExtensionBooleanResponse read(StreamInput in) throws IOException {
+                return new ExtensionBooleanResponse(in);
             }
 
         };
@@ -325,7 +350,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                             String indexName = indexService.index().getName();
                             logger.info("Index Name" + indexName.toString());
                             try {
-                                logger.info("Sending request of index name to extension");
+                                logger.info("Sending extension request type: " + INDICES_EXTENSION_NAME_ACTION_NAME);
                                 transportService.sendRequest(
                                     extensionNode,
                                     INDICES_EXTENSION_NAME_ACTION_NAME,
@@ -359,7 +384,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         };
 
         try {
-            logger.info("Sending request to extension");
+            logger.info("Sending extension request type: " + INDICES_EXTENSION_POINT_ACTION_NAME);
             transportService.sendRequest(
                 extensionNode,
                 INDICES_EXTENSION_POINT_ACTION_NAME,
