@@ -250,7 +250,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("Plugin request failed"), exp);
+                logger.debug(new ParameterizedMessage("Extension request failed"), exp);
                 inProgressLatch.countDown();
             }
 
