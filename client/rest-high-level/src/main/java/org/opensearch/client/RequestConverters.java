@@ -439,8 +439,11 @@ final class RequestConverters {
         if (searchRequest.pointInTimeBuilder() == null) {
             params.withIndicesOptions(searchRequest.indicesOptions());
         }
-        params.withIndicesOptions(searchRequest.indicesOptions());
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        /**
+         * Merging search responses as part of CCS flow to reduce roundtrips is not supported for point in time -
+         * refer to org.opensearch.action.search.SearchResponseMerger
+         */
         if (searchRequest.pointInTimeBuilder() != null) {
             params.putParam("ccs_minimize_roundtrips", "false");
         } else {
