@@ -1382,10 +1382,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the lastest Replication Checkpoint that shard received. Shards will return an EMPTY checkpoint before
-     * the engine is opened.
+     * Returns the latest ReplicationCheckpoint that shard received.
+     * @return EMPTY checkpoint before the engine is opened and null for non-segrep enabled indices
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        if (indexSettings.isSegRepEnabled() == false) {
+            return null;
+        }
         if (getEngineOrNull() == null) {
             return ReplicationCheckpoint.empty(shardId);
         }
