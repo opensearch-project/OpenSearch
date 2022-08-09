@@ -109,6 +109,8 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.NRTReplicationEngine;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -2651,6 +2653,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Fetch the latest checkpoint that has been processed but not necessarily persisted. This should be used only when Segment Replication is enabled.
+     * Also see {@link #getLocalCheckpoint()}.
+     */
+    public long getProcessedLocalCheckpoint() {
+        assert indexSettings.isSegRepEnabled();
+        // Returns checkpoint only if the current engine is an instance of NRTReplicationEngine or InternalEngine
+        return getReplicationEngine().map(NRTReplicationEngine::getProcessedLocalCheckpoint).orElseGet(() -> {
+            final Engine engine = getEngine();
+            assert engine instanceof InternalEngine;
+            return ((InternalEngine) engine).getProcessedLocalCheckpoint();
+        });
+    }
+
+    private Optional<NRTReplicationEngine> getReplicationEngine() {
+        if (getEngine() instanceof NRTReplicationEngine) {
+            return Optional.of((NRTReplicationEngine) getEngine());
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Returns the global checkpoint for the shard.
      *
      * @return the global checkpoint
@@ -4016,5 +4040,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     RetentionLeaseSyncer getRetentionLeaseSyncer() {
         return retentionLeaseSyncer;
+    }
+
+    /**
+     * Fetch the latest SegmentInfos held by the shard's underlying Engine, wrapped
+     * by a a {@link GatedCloseable} to ensure files are not deleted/merged away.
+     *
+     * @throws EngineException - When segment infos cannot be safely retrieved
+     */
+    public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        return getEngine().getSegmentInfosSnapshot();
     }
 }
