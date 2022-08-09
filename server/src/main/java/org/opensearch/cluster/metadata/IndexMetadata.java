@@ -284,12 +284,50 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
+
+    public static final String SETTING_REMOTE_TRANSLOG_STORE_ENABLED = "index.remote_store.translog.enabled";
     /**
      * Used to specify if the index data should be persisted in the remote store.
      */
     public static final Setting<Boolean> INDEX_REMOTE_STORE_ENABLED_SETTING = Setting.boolSetting(
         SETTING_REMOTE_STORE_ENABLED,
         false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify if the index translog operations should be persisted in the remote store.
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_REMOTE_TRANSLOG_STORE_ENABLED,
+        false,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Boolean value) {}
+
+            @Override
+            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
+                final Boolean isRemoteSegmentStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
+                if (isRemoteSegmentStoreEnabled == false && value == true) {
+                    throw new IllegalArgumentException(
+                        "Settings "
+                            + INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()
+                            + " cannot be enabled when "
+                            + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
+                            + " is set to "
+                            + settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING)
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Final
     );
