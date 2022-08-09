@@ -223,7 +223,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         FeatureFlags.REPLICATION_TYPE,
         List.of(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING),
         FeatureFlags.REMOTE_STORE,
-        Arrays.asList(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING),
+        List.of(
+            IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING
+        ),
         FeatureFlags.SEARCHABLE_SNAPSHOT,
         List.of(
             IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY,
