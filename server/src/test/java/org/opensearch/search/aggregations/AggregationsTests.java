@@ -80,7 +80,6 @@ import org.opensearch.search.aggregations.metrics.InternalStatsTests;
 import org.opensearch.search.aggregations.metrics.InternalSumTests;
 import org.opensearch.search.aggregations.metrics.InternalAvgTests;
 import org.opensearch.search.aggregations.metrics.InternalCardinalityTests;
-import org.opensearch.search.aggregations.metrics.InternalGeoBoundsTests;
 import org.opensearch.search.aggregations.metrics.InternalGeoCentroidTests;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentilesRanksTests;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentilesTests;
@@ -142,7 +141,6 @@ public class AggregationsTests extends OpenSearchTestCase {
         aggsTests.add(new InternalStatsBucketTests());
         aggsTests.add(new InternalExtendedStatsTests());
         aggsTests.add(new InternalExtendedStatsBucketTests());
-        aggsTests.add(new InternalGeoBoundsTests());
         aggsTests.add(new InternalGeoCentroidTests());
         aggsTests.add(new InternalHistogramTests());
         aggsTests.add(new InternalDateHistogramTests());
