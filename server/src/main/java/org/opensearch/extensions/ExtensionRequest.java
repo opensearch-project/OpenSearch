@@ -16,6 +16,7 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.security.Principal;
 
 /**
  * CLusterService Request for Extensibility
@@ -25,28 +26,36 @@ import java.util.Objects;
 public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
     private ExtensionsOrchestrator.RequestType requestType;
+    private Principal user;
 
-    public ExtensionRequest(ExtensionsOrchestrator.RequestType requestType) {
+    public ExtensionRequest(ExtensionsOrchestrator.RequestType requestType, Principal user) {
         this.requestType = requestType;
+        this.user = user;
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
         super(in);
         this.requestType = in.readEnum(ExtensionsOrchestrator.RequestType.class);
+        this.user = in.readGenericValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(requestType);
+        out.write(user);
     }
 
     public ExtensionsOrchestrator.RequestType getRequestType() {
         return this.requestType;
     }
 
+    public Principal getUser() {
+        return this.user;
+    }
+
     public String toString() {
-        return "ExtensionRequest{" + "requestType=" + requestType + '}';
+        return "ExtensionRequest{" + "requestType=" + getRequestType() + ", user=" + getUser() + "}";
     }
 
     @Override
@@ -55,12 +64,12 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-        return Objects.equals(requestType, that.requestType);
+        return Objects.equals(getRequest(), that.getRequest()) && Objects.equals(getUser(), that.getUser());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestType);
+        return Objects.hash(getRequest(), getUser());
     }
 
 }
