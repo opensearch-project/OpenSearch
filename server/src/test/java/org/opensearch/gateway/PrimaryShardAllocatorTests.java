@@ -273,6 +273,39 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
     }
 
     /**
+     * Tests that null ReplicationCheckpoint are ignored
+     */
+    public void testPreferReplicaWithAllNullReplicationCheckpoint() {
+        String allocId1 = randomAlphaOfLength(10);
+        String allocId2 = randomAlphaOfLength(10);
+        String allocId3 = randomAlphaOfLength(10);
+        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
+            yesAllocationDeciders(),
+            CLUSTER_RECOVERED,
+            allocId1,
+            allocId2,
+            allocId3
+        );
+        testAllocator.addData(node1, allocId1, false, null, null);
+        testAllocator.addData(node2, allocId2, false, null, null);
+        testAllocator.addData(node3, allocId3, true, null, null);
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+        assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(node3.getId())
+        );
+        // Assert node3's allocation id should be used as it was previous primary
+        assertThat(
+            allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(),
+            equalTo(allocId3)
+        );
+        assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+    /**
      * Tests that replica with highest segment info version will be selected as target on equal primary terms
      */
     public void testPreferReplicaWithHighestSegmentInfoVersion() {

@@ -313,8 +313,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         NodeGatewayStartedShards::primary
     ).reversed();
 
-    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR = Comparator.nullsLast(
-        Comparator.comparing(NodeGatewayStartedShards::replicationCheckpoint)
+    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR = Comparator.comparing(
+        NodeGatewayStartedShards::replicationCheckpoint,
+        Comparator.nullsLast(Comparator.naturalOrder())
     );
 
     /**
@@ -387,9 +388,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         /**
          * Orders the active shards copies based on below comparators
-         * 1. No store exception
-         * 2. Shard copies previously primary shard
-         * 3. Shard copies with highest replication checkpoint. This comparator is NO-OP for doc rep enabled indices.
+         * 1. No store exception i.e. shard copy is readable
+         * 2. Prefer previous primary shard
+         * 3. Prefer shard copy with the highest replication checkpoint. It is NO-OP for doc rep enabled indices.
          */
         final Comparator<NodeGatewayStartedShards> comparator; // allocation preference
         if (matchAnyShard) {
