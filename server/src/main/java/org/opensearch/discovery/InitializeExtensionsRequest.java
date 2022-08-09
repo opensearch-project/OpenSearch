@@ -19,23 +19,23 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * PluginRequest to intialize plugin
+ * InitializeExtensionsRequest to intialize plugin
  *
  * @opensearch.internal
  */
-public class PluginRequest extends TransportRequest {
+public class InitializeExtensionsRequest extends TransportRequest {
     private final DiscoveryNode sourceNode;
     /*
      * TODO change DiscoveryNode to Extension information
      */
     private final List<DiscoveryExtension> extensions;
 
-    public PluginRequest(DiscoveryNode sourceNode, List<DiscoveryExtension> extensions) {
+    public InitializeExtensionsRequest(DiscoveryNode sourceNode, List<DiscoveryExtension> extensions) {
         this.sourceNode = sourceNode;
         this.extensions = extensions;
     }
 
-    public PluginRequest(StreamInput in) throws IOException {
+    public InitializeExtensionsRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
         extensions = in.readList(DiscoveryExtension::new);
@@ -58,14 +58,14 @@ public class PluginRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "PluginRequest{" + "sourceNode=" + sourceNode + ", extensions=" + extensions + '}';
+        return "InitializeExtensionsRequest{" + "sourceNode=" + sourceNode + ", extensions=" + extensions + '}';
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PluginRequest that = (PluginRequest) o;
+        InitializeExtensionsRequest that = (InitializeExtensionsRequest) o;
         return Objects.equals(sourceNode, that.sourceNode) && Objects.equals(extensions, that.extensions);
     }
 
