@@ -180,7 +180,6 @@ public abstract class Engine implements Closeable {
         return null;
     };
 
-
     /**
      * In contrast to {@link #getLatestSegmentInfos()}, which returns a {@link SegmentInfos}
      * object directly, this method returns a {@link GatedCloseable} reference to the same object.
