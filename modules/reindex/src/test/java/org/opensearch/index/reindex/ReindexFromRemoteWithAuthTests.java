@@ -65,7 +65,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Netty4Plugin;
+import org.opensearch.transport.Netty4ModulePlugin;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.junit.Before;
 
@@ -87,7 +87,7 @@ public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(Netty4Plugin.class, ReindexFromRemoteWithAuthTests.TestPlugin.class, ReindexPlugin.class);
+        return Arrays.asList(Netty4ModulePlugin.class, ReindexFromRemoteWithAuthTests.TestPlugin.class, ReindexModulePlugin.class);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
         // Allowlist reindexing from the http host we're going to use
         settings.put(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.getKey(), "127.0.0.1:*");
-        settings.put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME);
+        settings.put(NetworkModule.HTTP_TYPE_KEY, Netty4ModulePlugin.NETTY_HTTP_TRANSPORT_NAME);
         return settings.build();
     }
 

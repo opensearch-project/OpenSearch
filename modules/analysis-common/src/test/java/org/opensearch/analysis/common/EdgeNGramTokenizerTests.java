@@ -60,7 +60,7 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
             .put("index.analysis.analyzer.my_analyzer.tokenizer", tokenizer)
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(new CommonAnalysisPlugin()))
+        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(new CommonAnalysisModulePlugin()))
             .getAnalysisRegistry()
             .build(idxSettings);
     }

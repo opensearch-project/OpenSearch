@@ -37,7 +37,7 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
+import org.opensearch.ingest.geoip.IngestGeoIpModulePlugin.GeoIpCache;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

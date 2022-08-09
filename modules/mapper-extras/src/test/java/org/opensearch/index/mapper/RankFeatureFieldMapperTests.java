@@ -72,7 +72,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new MapperExtrasPlugin());
+        return List.of(new MapperExtrasModulePlugin());
     }
 
     static int getFrequency(TokenStream tk) throws IOException {

@@ -8,7 +8,10 @@
 
 package org.opensearch.search.query;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
@@ -33,7 +36,15 @@ public class TotalHitCountCollectorManager
 
     private static final TotalHitCountCollector EMPTY_COLLECTOR = new TotalHitCountCollector() {
         @Override
-        public void collect(int doc) {}
+        public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+            return new LeafCollector() {
+                @Override
+                public void setScorer(Scorable scorer) throws IOException {}
+
+                @Override
+                public void collect(int doc) throws IOException {}
+            };
+        }
 
         @Override
         public ScoreMode scoreMode() {
