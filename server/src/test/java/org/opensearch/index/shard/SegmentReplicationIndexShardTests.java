@@ -14,13 +14,37 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
+
+import java.io.IOException;
 
 public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelReplicationTestCase {
 
     private static final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .build();
+
+    /**
+     *  Test that latestReplicationCheckpoint returns null only for docrep enabled indices
+     */
+    public void testReplicationCheckpointNullForDocRep() throws IOException {
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, "DOCUMENT").put(Settings.EMPTY).build();
+        final IndexShard indexShard = newStartedShard(false, indexSettings);
+        assertNull(indexShard.getLatestReplicationCheckpoint());
+        closeShards(indexShard);
+    }
+
+    /**
+     *  Test that latestReplicationCheckpoint returns ReplicationCheckpoint for segrep enabled indices
+     */
+    public void testReplicationCheckpointNotNullForSegReb() throws IOException {
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT").put(Settings.EMPTY).build();
+        final IndexShard indexShard = newStartedShard(indexSettings);
+        final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
+        assertNotNull(replicationCheckpoint);
+        closeShards(indexShard);
+    }
 
     public void testIgnoreShardIdle() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
