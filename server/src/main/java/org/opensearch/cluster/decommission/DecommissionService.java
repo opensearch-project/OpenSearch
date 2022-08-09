@@ -27,6 +27,7 @@ import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -35,8 +36,10 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 
 public class DecommissionService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -46,6 +49,7 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final DecommissionNodeAttributeClusterStateTaskExecutor decommissionExecutor;
     private final ThreadPool threadPool;
+    private final DecommissionHelper decommissionHelper;
 
     @Inject
     public DecommissionService(
@@ -57,6 +61,10 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
         this.threadPool = threadPool;
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.decommissionExecutor = new DecommissionNodeAttributeClusterStateTaskExecutor(allocationService, logger);
+        this.decommissionHelper = new DecommissionHelper(
+            clusterService,
+            nodeRemovalExecutor
+        );
     }
 
     /**
@@ -197,18 +205,14 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
 //    )
 
     public void failDecommissionedNodes(ClusterState updatedState) {
-        DiscoveryNode[] discoveryNodes = updatedState.nodes().getNodes().values().toArray(DiscoveryNode.class);
-        DecommissionedAttributesMetadata decommissionedAttributes = updatedState.metadata().custom(DecommissionedAttributesMetadata.TYPE);
-        DecommissionedAttributeMetadata metadata = decommissionedAttributes.decommissionedAttribute("awareness");
-        assert metadata != null : "No nodes to decommission";
-        DecommissionAttribute decommissionAttribute = metadata.decommissionedAttribute();
-        clusterService.submitStateUpdateTask(
-            "attribute-decommissioned",
-            new DecommissionNodeAttributeClusterStateTaskExecutor.Task(decommissionAttribute, "node is decommissioned"),
-            ClusterStateTaskConfig.build(Priority.IMMEDIATE),
-            decommissionExecutor,
-            decommissionExecutor
-        );
+//        clusterManagerService.submitStateUpdateTask(
+//            "attribute-decommissioned",
+//            new DecommissionNodeAttributeClusterStateTaskExecutor.Task(decommissionAttribute, "node is decommissioned"),
+//            ClusterStateTaskConfig.build(Priority.IMMEDIATE),
+//            decommissionExecutor,
+//            decommissionExecutor
+//        );
+        decommissionHelper.handleNodesDecommissionRequest(resolveDecommissionedNodes(updatedState), "test");
         logger.info("Zone decommissioned");
 
 
@@ -221,14 +225,24 @@ public class DecommissionService extends AbstractLifecycleComponent implements C
 //        }
     }
 
-    // TODO -Zone Removal
-    private void removeDecommissionedNodes(DiscoveryNode discoveryNode) {
-        clusterService.submitStateUpdateTask(
-            "attribute-decommissioned",
-            new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, "node is decommissioned"),
-            ClusterStateTaskConfig.build(Priority.IMMEDIATE),
-            nodeRemovalExecutor,
-            nodeRemovalExecutor
-        );
+    private List<DiscoveryNode> resolveDecommissionedNodes(ClusterState currentState) {
+        DecommissionedAttributesMetadata decommissionedAttributes = currentState.metadata().custom(DecommissionedAttributesMetadata.TYPE);
+        DecommissionedAttributeMetadata metadata = decommissionedAttributes.decommissionedAttribute("awareness");
+        DecommissionAttribute decommissionAttribute = metadata.decommissionedAttribute();
+
+        DiscoveryNode[] discoveryNodes = currentState.nodes().getNodes().values().toArray(DiscoveryNode.class);
+        final Predicate<DiscoveryNode> shouldRemoveNodePredicate = discoveryNode -> nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute);
+        List<DiscoveryNode> nodesList = new ArrayList<>();
+        for (DiscoveryNode node: discoveryNodes) {
+            if (shouldRemoveNodePredicate.test(node)) {
+                nodesList.add(node);
+            }
+        }
+        return nodesList;
+    }
+
+    private boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
+        String discoveryNodeAttributeValue = discoveryNode.getAttributes().get(decommissionAttribute.attributeName());
+        return discoveryNodeAttributeValue != null && decommissionAttribute.attributeValues().contains(discoveryNodeAttributeValue);
     }
 }
