@@ -872,9 +872,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     public void testEnablingRemoteStoreFailsWhenReplicationTypeIsDefault() {
-        Settings indexSettings = Settings.builder()
-            .put("index.remote_store.enabled", true)
-            .build();
+        Settings indexSettings = Settings.builder().put("index.remote_store.enabled", true).build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
