@@ -36,6 +36,8 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -82,6 +84,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
             .get();
         assertEquals(2, searchResponse.getSuccessfulShards());
         assertEquals(2, searchResponse.getTotalShards());
+        validatePitStats("index", 2, 2);
         PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
         assertSegments(false, client());
     }
@@ -95,6 +98,8 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
                 assertTrue(ex.getMessage().contains("Failed to execute phase [create_pit]"));
+                assertTrue(ex.getMessage().contains("Partial shards failure"));
+                validatePitStats("index", 0, 0);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -118,6 +123,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                     .get();
                 assertEquals(1, searchResponse.getSuccessfulShards());
                 assertEquals(1, searchResponse.getTotalShards());
+                validatePitStats("index", 1, 1);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -139,6 +145,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 assertEquals(1, searchResponse.getFailedShards());
                 assertEquals(0, searchResponse.getSkippedShards());
                 assertEquals(2, searchResponse.getTotalShards());
+                validatePitStats("index", 1, 1);
                 PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
                 return super.onNodeStopped(nodeName);
             }
@@ -327,6 +334,18 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         } finally {
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }
+    }
+
+    public void validatePitStats(String index, long expectedPitCurrent, long expectedOpenContexts) throws ExecutionException,
+        InterruptedException {
+        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+        indicesStatsRequest.indices("index");
+        indicesStatsRequest.all();
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(indicesStatsRequest).get();
+        long pitCurrent = indicesStatsResponse.getIndex(index).getTotal().search.getTotal().getPitCurrent();
+        long openContexts = indicesStatsResponse.getIndex(index).getTotal().search.getOpenContexts();
+        assertEquals(expectedPitCurrent, pitCurrent);
+        assertEquals(expectedOpenContexts, openContexts);
     }
 
     public void testGetAllPits() throws Exception {
