@@ -32,18 +32,36 @@
 
 package org.opensearch.geo;
 
+import org.opensearch.geo.search.aggregations.metrics.GeoBounds;
+import org.opensearch.geo.search.aggregations.metrics.GeoBoundsAggregationBuilder;
+import org.opensearch.geo.search.aggregations.metrics.InternalGeoBounds;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
-public class GeoPlugin extends Plugin implements MapperPlugin {
+public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
+    }
+
+    /**
+     * Registering {@link GeoBounds} aggregation on GeoPoint field.
+     */
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        final AggregationSpec spec = new AggregationSpec(
+            GeoBoundsAggregationBuilder.NAME,
+            GeoBoundsAggregationBuilder::new,
+            GeoBoundsAggregationBuilder.PARSER
+        ).addResultReader(InternalGeoBounds::new).setAggregatorRegistrar(GeoBoundsAggregationBuilder::registerAggregators);
+        return Collections.singletonList(spec);
     }
 }

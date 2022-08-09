@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.search.aggregations.metrics;
+package org.opensearch.geo.search.aggregations.metrics;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
@@ -43,21 +43,21 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.search.aggregations.AggregationBuilders.geoBounds;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.opensearch.geo.tests.common.AggregationBuilders.geoBounds;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class GeoBoundsIT extends AbstractGeoTestCase {
+public class GeoBoundsIT extends AbstractGeoAggregatorTestCaseModulePlugin {
     private static final String aggName = "geoBounds";
 
     public void testSingleValuedField() throws Exception {
@@ -226,7 +226,8 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
     }
 
     /**
-     * This test forces the {@link GeoBoundsAggregator} to resize the {@link BigArray}s it uses to ensure they are resized correctly
+     * This test forces the {@link GeoBoundsAggregator} to resize the {@link BigArray}s it uses to ensure they are
+     * resized correctly
      */
     public void testSingleValuedFieldAsSubAggToHighCardTermsAgg() {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)

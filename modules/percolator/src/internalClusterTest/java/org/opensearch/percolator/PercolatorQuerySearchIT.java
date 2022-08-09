@@ -44,7 +44,7 @@ import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.geo.GeoPlugin;
+import org.opensearch.geo.GeoModulePlugin;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
@@ -93,7 +93,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(PercolatorPlugin.class, GeoPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, GeoModulePlugin.class);
     }
 
     public void testPercolatorQuery() throws Exception {
