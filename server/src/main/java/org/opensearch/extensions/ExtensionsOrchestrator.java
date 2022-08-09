@@ -229,12 +229,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private void extensionInitialize(DiscoveryNode extensionNode) {
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
-<<<<<<< HEAD
-        final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
-=======
-        final TransportResponseHandler<InitializeExtensionsResponse> pluginResponseHandler = new TransportResponseHandler<
-            InitializeExtensionsResponse>() {
->>>>>>> [Feature/extensions] Extensibility support for getNamedWriteables extension point (#3925)
+        final TransportResponseHandler<InitializeExtensionsRespons> pluginResponseHandler = new TransportResponseHandler<
+            InitializeExtensionsRespons>() {
 
             @Override
             public InitializeExtensionsResponse read(StreamInput in) throws IOException {
