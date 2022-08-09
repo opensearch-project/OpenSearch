@@ -395,6 +395,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
+                    // Get Authenication information about request source (AuthN)
+                    final SessionInfo sessionInfo = this.authenticators.extractSessionInfo(request);
+                    this.sessionManger.setSessino(sessionInfo);
+                    /*
+                       Note; this could be moved farther up in the lifecycle, but as is avoids overactively quering authenicators
+                       if the request has no associated handlers and is unresponsable
+                     */
+
                     dispatchRequest(request, channel, handler);
                     return;
                 }

@@ -184,8 +184,15 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }
 
-        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
-        requestFilterChain.proceed(task, actionName, request, listener);
+        // Verify authoriziation for the task (AuthZ)
+        final SessionInfo sessionInfo = this.sessionManager.getSession();
+        final AuthorizationResult authResult = sessionInfo.isPermitted(task, request);
+        if (authResult.isDenied()) {
+           listener.onFailure(authResult.asException());   
+        } else{
+            RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
+            requestFilterChain.proceed(task, actionName, request, listener);
+        }
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);
