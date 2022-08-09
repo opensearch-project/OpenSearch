@@ -13,7 +13,8 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * Simple Translog Factory
+ * Translog Factory to enable creation of various local on-disk
+ * and remote store flavors of {@link Translog}
  *
  * @opensearch.internal
  */
