@@ -87,7 +87,7 @@
           "pit_id": [$pit_id]
 
   - match: {pits.0.pitId: $pit_id}
-  - match: {pits.0.succeeded: true }
+  - match: {pits.0.successful: true }
 
 ---
 "Delete all":
@@ -127,7 +127,7 @@
       delete_all_pits: {}
 
   - match: {pits.0.pitId: $pit_id}
-  - match: {pits.0.succeeded: true }
+  - match: {pits.0.successful: true }
 
   - do:
       catch: missing

@@ -4,7 +4,7 @@
       "url":"https://opensearch.org/docs/latest/opensearch/rest-api/point_in_time/",
       "description":"Deletes all active point in time searches."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "url":{
       "paths":[
         {
