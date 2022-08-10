@@ -13,6 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexShard;
@@ -50,7 +51,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        final Settings settings = Settings.builder().put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName()).build();
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
+            .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
+            .build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
         final TransportService transportService = mock(TransportService.class);
