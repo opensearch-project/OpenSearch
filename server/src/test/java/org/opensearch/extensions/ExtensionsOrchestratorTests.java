@@ -48,6 +48,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.NamedWriteable;
@@ -60,6 +61,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.xcontent.NamedXContentRegistryResponse;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
@@ -492,6 +494,80 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             responseHandler.parseNamedWriteable(extensionNode, categoryClass, in);
             mockLogAppender.assertAllExpectationsMatched();
         }
+    }
+
+    public void testGetNamedXContents() throws Exception {
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        extensionsOrchestrator.setTransportService(transportService);
+
+        try (
+            MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
+                LogManager.getLogger(NamedXContentRegistryResponseHandler.class)
+            )
+        ) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "OpenSearchRequest Failure",
+                    "org.opensearch.extensions.NamedXContentRegistryResponseHandler",
+                    Level.ERROR,
+                    "OpenSearchRequest failed"
+                )
+            );
+
+            extensionsOrchestrator.namedXContentRegistry = new ExtensionNamedXContentRegistry(
+                extensionsOrchestrator.extensionsList,
+                transportService
+            );
+            extensionsOrchestrator.namedXContentRegistry.getNamedXContents();
+            mockLogAppender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testNamedXContentRegistryResponseHandler() throws Exception {
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        extensionsOrchestrator.setTransportService(transportService);
+
+        DiscoveryNode extensionNode = extensionsOrchestrator.extensionsList.get(0);
+        String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_NAMED_XCONTENT_REGISTRY;
+
+        Class testCategoryClass = Object.class;
+        ParseField testParseField = new ParseField("test");
+
+        // create response to pass to response handler
+        Map<ParseField, Class> responseRegistry = new HashMap<>();
+        responseRegistry.put(testParseField, testCategoryClass);
+        NamedXContentRegistryResponse response = new NamedXContentRegistryResponse(responseRegistry);
+
+        NamedXContentRegistryResponseHandler responseHandler = new NamedXContentRegistryResponseHandler(
+            extensionNode,
+            transportService,
+            requestType
+        );
+        responseHandler.handleResponse(response);
+
+        // Ensure that response entires have been processed correctly into their respective maps
+        Map<DiscoveryNode, Map<Class, Map<String, Map<ParseField, ExtensionReader>>>> extensionsRegistry = responseHandler
+            .getExtensionRegistry();
+        assertEquals(1, extensionsRegistry.size());
+
+        Map<Class, Map<String, Map<ParseField, ExtensionReader>>> categoryMap = extensionsRegistry.get(extensionNode);
+        assertEquals(1, categoryMap.size());
+
+        Map<String, Map<ParseField, ExtensionReader>> nameMap = categoryMap.get(testCategoryClass);
+        assertEquals(1, nameMap.size());
+
+        Map<ParseField, ExtensionReader> readerMap = nameMap.get(testParseField.getPreferredName());
+        assertEquals(1, readerMap.size());
+
+        ExtensionReader callback = readerMap.get(testParseField);
+        assertNotNull(callback);
     }
 
     public void testOnIndexModule() throws Exception {
