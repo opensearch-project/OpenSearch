@@ -2136,7 +2136,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             // means that once we received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
             // into a connection timeout quickly. Yet other implementations can for instance can terminate the connection within the 3 way
             // handshake which I haven't tested yet.
-            socket.bind(getLocalEphemeral(), 1);
+            socket.bind(createLocalEphemeralAddress(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode first = new DiscoveryNode(
                 "TEST",
@@ -2278,7 +2278,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
 
     public void testTcpHandshakeTimeout() throws IOException {
         try (ServerSocket socket = new ServerSocket()) {
-            socket.bind(getLocalEphemeral(), 1);
+            socket.bind(createLocalEphemeralAddress(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode(
                 "TEST",
@@ -2307,7 +2307,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
 
     public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
         try (ServerSocket socket = new ServerSocket()) {
-            socket.bind(getLocalEphemeral(), 1);
+            socket.bind(createLocalEphemeralAddress(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode(
                 "TEST",
@@ -3126,7 +3126,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
     }
 
     @SuppressForbidden(reason = "need local ephemeral port")
-    protected InetSocketAddress getLocalEphemeral() throws UnknownHostException {
+    private InetSocketAddress createLocalEphemeralAddress() throws UnknownHostException {
         return new InetSocketAddress(InetAddress.getLocalHost(), 0);
     }
 
