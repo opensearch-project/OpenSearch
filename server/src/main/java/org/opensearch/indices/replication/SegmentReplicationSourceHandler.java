@@ -55,6 +55,7 @@ class SegmentReplicationSourceHandler {
     private final Logger logger;
     private final AtomicBoolean isReplicating = new AtomicBoolean();
     private final DiscoveryNode targetNode;
+    private final String allocationId;
 
     /**
      * Constructor.
@@ -71,6 +72,7 @@ class SegmentReplicationSourceHandler {
         FileChunkWriter writer,
         ThreadPool threadPool,
         CopyState copyState,
+        String allocationId,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks
     ) {
@@ -91,6 +93,7 @@ class SegmentReplicationSourceHandler {
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
+        this.allocationId = allocationId;
         this.copyState = copyState;
     }
 
@@ -180,5 +183,9 @@ class SegmentReplicationSourceHandler {
 
     public DiscoveryNode getTargetNode() {
         return targetNode;
+    }
+
+    public String getAllocationId() {
+        return allocationId;
     }
 }
