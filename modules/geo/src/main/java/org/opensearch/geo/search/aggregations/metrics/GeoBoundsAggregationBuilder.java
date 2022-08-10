@@ -30,8 +30,9 @@
  * GitHub history for details.
  */
 
-package org.opensearch.search.aggregations.metrics;
+package org.opensearch.geo.search.aggregations.metrics;
 
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ObjectParser;
@@ -40,6 +41,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -57,6 +59,7 @@ import java.util.Objects;
  */
 public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
+    private static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");
     public static final ValuesSourceRegistry.RegistryKey<GeoBoundsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
         GeoBoundsAggregatorSupplier.class
@@ -68,7 +71,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
-        PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
+        PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, WRAP_LONGITUDE_FIELD);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -121,13 +124,6 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
         return this;
     }
 
-    /**
-     * Get whether to wrap longitudes.
-     */
-    public boolean wrapLongitude() {
-        return wrapLongitude;
-    }
-
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.NONE;
@@ -145,7 +141,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD.getPreferredName(), wrapLongitude);
+        builder.field(WRAP_LONGITUDE_FIELD.getPreferredName(), wrapLongitude);
         return builder;
     }
 
