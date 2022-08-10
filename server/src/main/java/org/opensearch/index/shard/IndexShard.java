@@ -1435,7 +1435,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         if (getReplicationTracker().isPrimaryMode()) {
-            logger.trace(
+            logger.warn(
                 () -> new ParameterizedMessage(
                     "Ignoring new replication checkpoint - shard is in primaryMode and cannot receive any checkpoints."
                 )
