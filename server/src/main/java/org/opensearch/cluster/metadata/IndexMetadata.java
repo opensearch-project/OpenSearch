@@ -292,6 +292,32 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Boolean> INDEX_REMOTE_STORE_ENABLED_SETTING = Setting.boolSetting(
         SETTING_REMOTE_STORE_ENABLED,
         false,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Boolean value) {}
+
+            @Override
+            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
+                final Object replicationType = settings.get(INDEX_REPLICATION_TYPE_SETTING);
+                if (replicationType != ReplicationType.SEGMENT && value == true) {
+                    throw new IllegalArgumentException(
+                        "Settings "
+                            + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
+                            + " cannot be enabled when "
+                            + INDEX_REPLICATION_TYPE_SETTING.getKey()
+                            + " is set to "
+                            + settings.get(INDEX_REPLICATION_TYPE_SETTING)
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REPLICATION_TYPE_SETTING);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Final
     );
