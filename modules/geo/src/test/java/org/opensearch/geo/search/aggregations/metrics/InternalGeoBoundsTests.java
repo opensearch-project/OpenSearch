@@ -30,11 +30,18 @@
  * GitHub history for details.
  */
 
-package org.opensearch.search.aggregations.metrics;
+package org.opensearch.geo.search.aggregations.metrics;
 
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.ContextParser;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.geo.GeoModulePlugin;
+import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.test.InternalAggregationTestCase;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +50,30 @@ import static org.hamcrest.Matchers.closeTo;
 
 public class InternalGeoBoundsTests extends InternalAggregationTestCase<InternalGeoBounds> {
     static final double GEOHASH_TOLERANCE = 1E-5D;
+
+    /**
+     * Overriding the method so that tests can get the aggregation specs for namedWriteable.
+     *
+     * @return GeoPlugin
+     */
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new GeoModulePlugin();
+    }
+
+    /**
+     * Overriding with the {@link ParsedGeoBounds} so that it can be parsed. We need to do this as {@link GeoModulePlugin}
+     * is registering this Aggregation.
+     *
+     * @return a List of {@link NamedXContentRegistry.Entry}
+     */
+    @Override
+    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
+        final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(getDefaultNamedXContents());
+        final ContextParser<Object, Aggregation> parser = (p, c) -> ParsedGeoBounds.fromXContent(p, (String) c);
+        namedXContents.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(GeoBoundsAggregationBuilder.NAME), parser));
+        return namedXContents;
+    }
 
     @Override
     protected InternalGeoBounds createTestInstance(String name, Map<String, Object> metadata) {

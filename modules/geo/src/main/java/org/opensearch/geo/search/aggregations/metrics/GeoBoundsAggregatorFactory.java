@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.search.aggregations.metrics;
+package org.opensearch.geo.search.aggregations.metrics;
 
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;

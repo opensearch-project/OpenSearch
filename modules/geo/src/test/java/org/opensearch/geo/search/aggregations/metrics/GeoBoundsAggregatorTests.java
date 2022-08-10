@@ -30,26 +30,42 @@
  * GitHub history for details.
  */
 
-package org.opensearch.search.aggregations.metrics;
+package org.opensearch.geo.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.geo.GeoModulePlugin;
+import org.opensearch.geo.tests.common.AggregationInspectionHelper;
+import org.opensearch.geo.tests.common.RandomGeoGenerator;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.AggregatorTestCase;
-import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
-import org.opensearch.test.geo.RandomGeoGenerator;
 
-import static org.opensearch.search.aggregations.metrics.InternalGeoBoundsTests.GEOHASH_TOLERANCE;
+import java.util.Collections;
+import java.util.List;
+
 import static org.hamcrest.Matchers.closeTo;
 
 public class GeoBoundsAggregatorTests extends AggregatorTestCase {
+    public static final double GEOHASH_TOLERANCE = 1E-5D;
+
+    /**
+     * Overriding the Search Plugins list with {@link GeoModulePlugin} so that the testcase will know that this plugin is
+     * to be loaded during the tests.
+     * @return List of {@link SearchPlugin}
+     */
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new GeoModulePlugin());
+    }
+
     public void testEmpty() throws Exception {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("field").wrapLongitude(false);
