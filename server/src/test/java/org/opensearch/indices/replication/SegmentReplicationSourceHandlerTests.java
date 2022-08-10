@@ -66,6 +66,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
             chunkWriter,
             threadPool,
             copyState,
+            primary.routingEntry().allocationId().getId(),
             5000,
             1
         );
@@ -103,6 +104,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
             chunkWriter,
             threadPool,
             copyState,
+            primary.routingEntry().allocationId().getId(),
             5000,
             1
         );
@@ -141,6 +143,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
             chunkWriter,
             threadPool,
             copyState,
+            primary.routingEntry().allocationId().getId(),
             5000,
             1
         );
@@ -178,6 +181,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
             chunkWriter,
             threadPool,
             copyState,
+            primary.routingEntry().allocationId().getId(),
             5000,
             1
         );

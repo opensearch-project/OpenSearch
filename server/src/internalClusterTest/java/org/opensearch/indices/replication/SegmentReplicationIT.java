@@ -111,6 +111,54 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testMultipleShards() throws Exception {
+        Settings indexSettings = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
+        final String nodeA = internalCluster().startNode();
+        final String nodeB = internalCluster().startNode();
+        createIndex(INDEX_NAME, indexSettings);
+        ensureGreen(INDEX_NAME);
+
+        final int initialDocCount = scaledRandomIntBetween(1, 200);
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(initialDocCount);
+            waitForDocs(initialDocCount, indexer);
+            refresh(INDEX_NAME);
+            waitForReplicaUpdate();
+
+            assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+            assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+
+            final int additionalDocCount = scaledRandomIntBetween(0, 200);
+            final int expectedHitCount = initialDocCount + additionalDocCount;
+            indexer.start(additionalDocCount);
+            waitForDocs(expectedHitCount, indexer);
+
+            flushAndRefresh(INDEX_NAME);
+            waitForReplicaUpdate();
+            assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+            assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+
+            ensureGreen(INDEX_NAME);
+            assertSegmentStats(REPLICA_COUNT);
+        }
+    }
+
     public void testReplicationAfterForceMerge() throws Exception {
         final String nodeA = internalCluster().startNode();
         final String nodeB = internalCluster().startNode();
@@ -262,15 +310,17 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                 final Map<Boolean, List<ShardSegments>> segmentListMap = segmentsByShardType(replicationGroupSegments);
                 final List<ShardSegments> primaryShardSegmentsList = segmentListMap.get(true);
                 final List<ShardSegments> replicaShardSegments = segmentListMap.get(false);
-
+                // if we don't have any segments yet, proceed.
                 final ShardSegments primaryShardSegments = primaryShardSegmentsList.stream().findFirst().get();
-                final Map<String, Segment> latestPrimarySegments = getLatestSegments(primaryShardSegments);
-                final Long latestPrimaryGen = latestPrimarySegments.values().stream().findFirst().map(Segment::getGeneration).get();
-                for (ShardSegments shardSegments : replicaShardSegments) {
-                    final boolean isReplicaCaughtUpToPrimary = shardSegments.getSegments()
-                        .stream()
-                        .anyMatch(segment -> segment.getGeneration() == latestPrimaryGen);
-                    assertTrue(isReplicaCaughtUpToPrimary);
+                if (primaryShardSegments.getSegments().isEmpty() == false) {
+                    final Map<String, Segment> latestPrimarySegments = getLatestSegments(primaryShardSegments);
+                    final Long latestPrimaryGen = latestPrimarySegments.values().stream().findFirst().map(Segment::getGeneration).get();
+                    for (ShardSegments shardSegments : replicaShardSegments) {
+                        final boolean isReplicaCaughtUpToPrimary = shardSegments.getSegments()
+                            .stream()
+                            .anyMatch(segment -> segment.getGeneration() == latestPrimaryGen);
+                        assertTrue(isReplicaCaughtUpToPrimary);
+                    }
                 }
             }
         });
