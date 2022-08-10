@@ -100,4 +100,5 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         verify(mock, times(0)).publish(any());
         closeShards(shard);
     }
+
 }
