@@ -37,8 +37,8 @@ import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.discovery.PluginRequest;
-import org.opensearch.discovery.PluginResponse;
+import org.opensearch.discovery.InitializeExtensionsRequest;
+import org.opensearch.discovery.InitializeExtensionsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -229,15 +229,16 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private void extensionInitialize(DiscoveryNode extensionNode) {
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
-        final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
+        final TransportResponseHandler<InitializeExtensionsResponse> extensionResponseHandler = new TransportResponseHandler<
+            InitializeExtensionsResponse>() {
 
             @Override
-            public PluginResponse read(StreamInput in) throws IOException {
-                return new PluginResponse(in);
+            public InitializeExtensionsResponse read(StreamInput in) throws IOException {
+                return new InitializeExtensionsResponse(in);
             }
 
             @Override
-            public void handleResponse(PluginResponse response) {
+            public void handleResponse(InitializeExtensionsResponse response) {
                 for (DiscoveryExtension extension : extensionsList) {
                     if (extension.getName().equals(response.getName())) {
                         extensionsInitializedList.add(extension);
@@ -249,7 +250,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("Plugin request failed"), exp);
+                logger.debug(new ParameterizedMessage("Extension request failed"), exp);
                 inProgressLatch.countDown();
             }
 
@@ -264,8 +265,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new PluginRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
-                pluginResponseHandler
+                new InitializeExtensionsRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
+                extensionResponseHandler
             );
             inProgressLatch.await(100, TimeUnit.SECONDS);
         } catch (Exception e) {
