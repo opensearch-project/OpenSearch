@@ -229,7 +229,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private void extensionInitialize(DiscoveryNode extensionNode) {
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
-        final TransportResponseHandler<InitializeExtensionsRespons> pluginResponseHandler = new TransportResponseHandler<
+        final TransportResponseHandler<InitializeExtensionsRespons> extensionResponseHandler = new TransportResponseHandler<
             InitializeExtensionsRespons>() {
 
             @Override
@@ -266,7 +266,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
                 new InitializeExtensionsRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
-                pluginResponseHandler
+                extensionResponseHandler
             );
             inProgressLatch.await(100, TimeUnit.SECONDS);
         } catch (Exception e) {

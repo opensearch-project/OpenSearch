@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * InitializeExtensionsRequest to intialize plugin
+ * InitializeExtensionsRequest to initialize extension
  *
  * @opensearch.internal
  */

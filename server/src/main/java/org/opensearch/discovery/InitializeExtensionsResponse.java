@@ -40,7 +40,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * InitializeExtensionsResponse to intialize plugin
+ * InitializeExtensionsResponse to initialize extension
  *
  * @opensearch.internal
  */
