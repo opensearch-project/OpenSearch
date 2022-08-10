@@ -229,8 +229,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private void extensionInitialize(DiscoveryNode extensionNode) {
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
-        final TransportResponseHandler<InitializeExtensionsRespons> extensionResponseHandler = new TransportResponseHandler<
-            InitializeExtensionsRespons>() {
+        final TransportResponseHandler<InitializeExtensionsResponse> extensionResponseHandler = new TransportResponseHandler<
+            InitializeExtensionsResponse>() {
 
             @Override
             public InitializeExtensionsResponse read(StreamInput in) throws IOException {
