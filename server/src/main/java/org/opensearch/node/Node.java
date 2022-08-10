@@ -1166,6 +1166,7 @@ public class Node implements Closeable {
         transportService.acceptIncomingRequests();
         extensionsOrchestrator.extensionsInitialize();
         extensionsOrchestrator.setNamedWriteableRegistry();
+        extensionsOrchestrator.setNamedXContentRegistry();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
