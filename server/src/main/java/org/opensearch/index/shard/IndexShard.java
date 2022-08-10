@@ -2708,7 +2708,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Also see {@link #getLocalCheckpoint()}.
      */
     public long getProcessedLocalCheckpoint() {
-        assert indexSettings.isSegRepEnabled();
         // Returns checkpoint only if the current engine is an instance of NRTReplicationEngine or InternalEngine
         return getReplicationEngine().map(NRTReplicationEngine::getProcessedLocalCheckpoint).orElseGet(() -> {
             final Engine engine = getEngine();
