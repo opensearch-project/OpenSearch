@@ -15,9 +15,7 @@ import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -43,8 +41,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT").put(Settings.EMPTY).build();
-        primary = newStartedShard(true, settings);
+        primary = newStartedShard(true);
         replica = newShard(primary.shardId(), false);
         recoverReplica(replica, primary, true);
         replicaDiscoveryNode = replica.recoveryState().getTargetNode();
