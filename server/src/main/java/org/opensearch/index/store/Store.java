@@ -1106,9 +1106,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * Helper method used to group store files according to segment and commit.
          *
          * @see MetadataSnapshot#recoveryDiff(MetadataSnapshot)
-         * @see MetadataSnapshot#getFilesRecoveryDiff(MetadataSnapshot)
+         * @see MetadataSnapshot#segmentReplicationDiff(MetadataSnapshot)
          */
-        public Object[] getGroupedFiles() {
+        private Iterable<List<StoreFileMetadata>> getGroupedFilesIterable() {
             final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
             final List<StoreFileMetadata> perCommitStoreFiles = new ArrayList<>();
             for (StoreFileMetadata meta : this) {
@@ -1123,7 +1123,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     perSegment.computeIfAbsent(segmentId, k -> new ArrayList<>()).add(meta);
                 }
             }
-            return new Object[] { perSegment, perCommitStoreFiles };
+            return Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles));
         }
 
         /**
@@ -1163,11 +1163,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final List<StoreFileMetadata> identical = new ArrayList<>();
             final List<StoreFileMetadata> different = new ArrayList<>();
             final List<StoreFileMetadata> missing = new ArrayList<>();
-            Object[] groupedFiles = getGroupedFiles();
-            final Map<String, List<StoreFileMetadata>> perSegment = (Map<String, List<StoreFileMetadata>>) groupedFiles[0];
-            final List<StoreFileMetadata> perCommitStoreFiles = (List<StoreFileMetadata>) groupedFiles[1];
             final ArrayList<StoreFileMetadata> identicalFiles = new ArrayList<>();
-            for (List<StoreFileMetadata> segmentFiles : Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles))) {
+            for (List<StoreFileMetadata> segmentFiles : getGroupedFilesIterable()) {
                 identicalFiles.clear();
                 boolean consistent = true;
                 for (StoreFileMetadata meta : segmentFiles) {
@@ -1203,24 +1200,28 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         /**
+         * Segment Replication method
          * Returns a diff between the two snapshots that can be used for getting list of files to copy over to a replica for segment replication. The given snapshot is treated as the
-         * target and this snapshot as the source.
+         * target and this snapshot as the source. The returned diff will hold a list of files that are:
+         * <ul>
+         * <li>identical: they exist in both snapshots and they can be considered the same ie. they don't need to be recovered</li>
+         * <li>different: they exist in both snapshots but their they are not identical</li>
+         * <li>missing: files that exist in the source but not in the target</li>
+         * </ul>
          */
-        public RecoveryDiff getFilesRecoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
+        public RecoveryDiff segmentReplicationDiff(MetadataSnapshot recoveryTargetSnapshot) {
             final List<StoreFileMetadata> identical = new ArrayList<>();
             final List<StoreFileMetadata> different = new ArrayList<>();
             final List<StoreFileMetadata> missing = new ArrayList<>();
-            Object[] groupedFiles = getGroupedFiles();
-            final Map<String, List<StoreFileMetadata>> perSegment = (Map<String, List<StoreFileMetadata>>) groupedFiles[0];
-            final List<StoreFileMetadata> perCommitStoreFiles = (List<StoreFileMetadata>) groupedFiles[1];
             final ArrayList<StoreFileMetadata> identicalFiles = new ArrayList<>();
-            for (List<StoreFileMetadata> segmentFiles : Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles))) {
+            for (List<StoreFileMetadata> segmentFiles : getGroupedFilesIterable()) {
                 identicalFiles.clear();
                 boolean consistent = true;
                 for (StoreFileMetadata meta : segmentFiles) {
                     StoreFileMetadata storeFileMetadata = recoveryTargetSnapshot.get(meta.name());
                     if (storeFileMetadata == null) {
-                        consistent = false;
+                        // Do not consider missing files as inconsistent in SegRep as replicas may lag while primary updates
+                        // documents and generate new files specific to a segment
                         missing.add(meta);
                     } else if (storeFileMetadata.isSame(meta) == false) {
                         consistent = false;
@@ -1231,6 +1232,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
                 if (consistent) {
                     identical.addAll(identicalFiles);
+                } else {
+                    different.addAll(identicalFiles);
                 }
             }
             RecoveryDiff recoveryDiff = new RecoveryDiff(
