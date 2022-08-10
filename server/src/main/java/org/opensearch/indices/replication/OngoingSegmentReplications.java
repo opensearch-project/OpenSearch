@@ -24,7 +24,9 @@ import org.opensearch.indices.replication.common.CopyState;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Manages references to ongoing segrep events on a node.
@@ -38,7 +40,7 @@ class OngoingSegmentReplications {
     private final RecoverySettings recoverySettings;
     private final IndicesService indicesService;
     private final Map<ReplicationCheckpoint, CopyState> copyStateMap;
-    private final Map<DiscoveryNode, SegmentReplicationSourceHandler> nodesToHandlers;
+    private final Map<String, SegmentReplicationSourceHandler> allocationIdToHandlers;
 
     /**
      * Constructor.
@@ -50,7 +52,7 @@ class OngoingSegmentReplications {
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
         this.copyStateMap = Collections.synchronizedMap(new HashMap<>());
-        this.nodesToHandlers = ConcurrentCollections.newConcurrentMap();
+        this.allocationIdToHandlers = ConcurrentCollections.newConcurrentMap();
     }
 
     /**
@@ -96,8 +98,7 @@ class OngoingSegmentReplications {
      * @param listener {@link ActionListener} that resolves when sending files is complete.
      */
     void startSegmentCopy(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
-        final DiscoveryNode node = request.getTargetNode();
-        final SegmentReplicationSourceHandler handler = nodesToHandlers.get(node);
+        final SegmentReplicationSourceHandler handler = allocationIdToHandlers.get(request.getTargetAllocationId());
         if (handler != null) {
             if (handler.isReplicating()) {
                 throw new OpenSearchException(
@@ -108,7 +109,7 @@ class OngoingSegmentReplications {
             }
             // update the given listener to release the CopyState before it resolves.
             final ActionListener<GetSegmentFilesResponse> wrappedListener = ActionListener.runBefore(listener, () -> {
-                final SegmentReplicationSourceHandler sourceHandler = nodesToHandlers.remove(node);
+                final SegmentReplicationSourceHandler sourceHandler = allocationIdToHandlers.remove(request.getTargetAllocationId());
                 if (sourceHandler != null) {
                     removeCopyState(sourceHandler.getCopyState());
                 }
@@ -129,10 +130,12 @@ class OngoingSegmentReplications {
      * @param node {@link DiscoveryNode} node for which to cancel replication events.
      */
     void cancelReplication(DiscoveryNode node) {
-        final SegmentReplicationSourceHandler handler = nodesToHandlers.remove(node);
-        if (handler != null) {
-            handler.cancel("Cancel on node left");
-            removeCopyState(handler.getCopyState());
+        for (Map.Entry<String, SegmentReplicationSourceHandler> entry : allocationIdToHandlers.entrySet()) {
+            if (entry.getValue().getTargetNode().equals(node)) {
+                final SegmentReplicationSourceHandler handler = allocationIdToHandlers.remove(entry.getKey());
+                handler.cancel("Cancel on node left");
+                removeCopyState(handler.getCopyState());
+            }
         }
     }
 
@@ -149,8 +152,8 @@ class OngoingSegmentReplications {
      */
     CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
-        if (nodesToHandlers.putIfAbsent(
-            request.getTargetNode(),
+        if (allocationIdToHandlers.putIfAbsent(
+            request.getTargetAllocationId(),
             createTargetHandler(request.getTargetNode(), copyState, fileChunkWriter)
         ) != null) {
             throw new OpenSearchException(
@@ -169,12 +172,23 @@ class OngoingSegmentReplications {
      * @param reason {@link String} - Reason for the cancel
      */
     synchronized void cancel(IndexShard shard, String reason) {
-        for (SegmentReplicationSourceHandler entry : nodesToHandlers.values()) {
-            if (entry.getCopyState().getShard().equals(shard)) {
-                entry.cancel(reason);
+        for (Map.Entry<String, SegmentReplicationSourceHandler> handlerEntry : allocationIdToHandlers.entrySet()) {
+            if (handlerEntry.getValue().getCopyState().getShard().shardId().equals(shard.shardId())) {
+                final SegmentReplicationSourceHandler handler = allocationIdToHandlers.remove(handlerEntry.getKey());
+                handler.cancel(reason);
             }
         }
-        copyStateMap.clear();
+        final List<CopyState> list = copyStateMap.values()
+            .stream()
+            .filter(state -> state.getShard().shardId().equals(shard.shardId()))
+            .collect(Collectors.toList());
+        for (CopyState copyState : list) {
+            if (copyState.getShard().shardId().equals(shard.shardId())) {
+                while (copyStateMap.containsKey(copyState.getRequestedReplicationCheckpoint())) {
+                    removeCopyState(copyState);
+                }
+            }
+        }
     }
 
     /**
@@ -186,7 +200,7 @@ class OngoingSegmentReplications {
     }
 
     int size() {
-        return nodesToHandlers.size();
+        return allocationIdToHandlers.size();
     }
 
     int cachedCopyStateSize() {
