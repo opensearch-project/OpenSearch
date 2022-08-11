@@ -162,9 +162,9 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -1361,6 +1361,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public void finalizeReplication(SegmentInfos infos, long seqNo) throws IOException {
+        if (getReplicationEngine().isPresent()) {
+            getReplicationEngine().get().updateSegments(infos, seqNo);
+        }
+    }
+
     /**
      * Snapshots the most recent safe index commit from the currently running engine.
      * All index files referenced by this index commit won't be freed until the commit/snapshot is closed.
@@ -1379,15 +1385,60 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the lastest Replication Checkpoint that shard received
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        return new ReplicationCheckpoint(shardId, 0, 0, 0, 0);
+        try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
+            return Optional.ofNullable(snapshot.get())
+                .map(
+                    segmentInfos -> new ReplicationCheckpoint(
+                        this.shardId,
+                        getOperationPrimaryTerm(),
+                        segmentInfos.getGeneration(),
+                        getProcessedLocalCheckpoint(),
+                        segmentInfos.getVersion()
+                    )
+                )
+                .orElse(
+                    new ReplicationCheckpoint(
+                        shardId,
+                        getOperationPrimaryTerm(),
+                        SequenceNumbers.NO_OPS_PERFORMED,
+                        getProcessedLocalCheckpoint(),
+                        SequenceNumbers.NO_OPS_PERFORMED
+                    )
+                );
+        } catch (IOException ex) {
+            throw new OpenSearchException("Error Closing SegmentInfos Snapshot", ex);
+        }
     }
 
     /**
-     * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
+     * Checks if checkpoint should be processed
+     *
+     * @param requestCheckpoint       received checkpoint that is checked for processing
+     * @return true if checkpoint should be processed
      */
-    public synchronized void onNewCheckpoint(final PublishCheckpointRequest request) {
-        assert shardRouting.primary() == false;
-        // TODO
+    public final boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
+        if (state().equals(IndexShardState.STARTED) == false) {
+            logger.trace(() -> new ParameterizedMessage("Ignoring new replication checkpoint - shard is not started {}", state()));
+            return false;
+        }
+        ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
+        if (localCheckpoint.isAheadOf(requestCheckpoint)) {
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
+                    localCheckpoint,
+                    requestCheckpoint
+                )
+            );
+            return false;
+        }
+        if (localCheckpoint.equals(requestCheckpoint)) {
+            logger.trace(
+                () -> new ParameterizedMessage("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint)
+            );
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -2657,7 +2708,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Also see {@link #getLocalCheckpoint()}.
      */
     public long getProcessedLocalCheckpoint() {
-        assert indexSettings.isSegRepEnabled();
         // Returns checkpoint only if the current engine is an instance of NRTReplicationEngine or InternalEngine
         return getReplicationEngine().map(NRTReplicationEngine::getProcessedLocalCheckpoint).orElseGet(() -> {
             final Engine engine = getEngine();

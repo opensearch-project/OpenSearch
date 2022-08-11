@@ -34,8 +34,6 @@ package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.RateLimiter;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.bytes.BytesReference;
@@ -46,12 +44,12 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.RemoteSegmentFileChunkWriter;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -72,13 +70,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final RecoverySettings recoverySettings;
 
     private final TransportRequestOptions translogOpsRequestOptions;
-    private final TransportRequestOptions fileChunkRequestOptions;
 
-    private final AtomicLong bytesSinceLastPause = new AtomicLong();
     private final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
-
-    private final Consumer<Long> onSourceThrottle;
     private final RetryableTransportClient retryableTransportClient;
+    private final RemoteSegmentFileChunkWriter fileChunkWriter;
 
     public RemoteRecoveryTargetHandler(
         long recoveryId,
@@ -102,15 +97,19 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         this.shardId = shardId;
         this.targetNode = targetNode;
         this.recoverySettings = recoverySettings;
-        this.onSourceThrottle = onSourceThrottle;
         this.translogOpsRequestOptions = TransportRequestOptions.builder()
             .withType(TransportRequestOptions.Type.RECOVERY)
             .withTimeout(recoverySettings.internalActionLongTimeout())
             .build();
-        this.fileChunkRequestOptions = TransportRequestOptions.builder()
-            .withType(TransportRequestOptions.Type.RECOVERY)
-            .withTimeout(recoverySettings.internalActionTimeout())
-            .build();
+        this.fileChunkWriter = new RemoteSegmentFileChunkWriter(
+            recoveryId,
+            recoverySettings,
+            retryableTransportClient,
+            shardId,
+            PeerRecoveryTargetService.Actions.FILE_CHUNK,
+            requestSeqNoGenerator,
+            onSourceThrottle
+        );
     }
 
     public DiscoveryNode targetNode() {
@@ -236,6 +235,11 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
+    public void cancel() {
+        retryableTransportClient.cancel();
+    }
+
+    @Override
     public void writeFileChunk(
         StoreFileMetadata fileMetadata,
         long position,
@@ -244,57 +248,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         int totalTranslogOps,
         ActionListener<Void> listener
     ) {
-        // Pause using the rate limiter, if desired, to throttle the recovery
-        final long throttleTimeInNanos;
-        // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
-        final RateLimiter rl = recoverySettings.rateLimiter();
-        if (rl != null) {
-            long bytes = bytesSinceLastPause.addAndGet(content.length());
-            if (bytes > rl.getMinPauseCheckBytes()) {
-                // Time to pause
-                bytesSinceLastPause.addAndGet(-bytes);
-                try {
-                    throttleTimeInNanos = rl.pause(bytes);
-                    onSourceThrottle.accept(throttleTimeInNanos);
-                } catch (IOException e) {
-                    throw new OpenSearchException("failed to pause recovery", e);
-                }
-            } else {
-                throttleTimeInNanos = 0;
-            }
-        } else {
-            throttleTimeInNanos = 0;
-        }
-
-        final String action = PeerRecoveryTargetService.Actions.FILE_CHUNK;
-        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
-        /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
-         * see how many translog ops we accumulate while copying files across the network. A future optimization
-         * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
-         */
-        final FileChunkRequest request = new FileChunkRequest(
-            recoveryId,
-            requestSeqNo,
-            shardId,
-            fileMetadata,
-            position,
-            content,
-            lastChunk,
-            totalTranslogOps,
-            throttleTimeInNanos
-        );
-        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        retryableTransportClient.executeRetryableAction(
-            action,
-            request,
-            fileChunkRequestOptions,
-            ActionListener.map(listener, r -> null),
-            reader
-        );
-    }
-
-    @Override
-    public void cancel() {
-        retryableTransportClient.cancel();
+        fileChunkWriter.writeFileChunk(fileMetadata, position, content, lastChunk, totalTranslogOps, listener);
     }
 }

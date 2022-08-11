@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @opensearch.internal
  */
-public final class SegmentReplicationTargetService implements IndexEventListener {
+public class SegmentReplicationTargetService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(SegmentReplicationTargetService.class);
 
@@ -81,6 +81,39 @@ public final class SegmentReplicationTargetService implements IndexEventListener
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
             onGoingReplications.cancelForShard(shardId, "shard closed");
+        }
+    }
+
+    /**
+     * Invoked when a new checkpoint is received from a primary shard.
+     * It checks if a new checkpoint should be processed or not and starts replication if needed.
+     * @param receivedCheckpoint       received checkpoint that is checked for processing
+     * @param replicaShard      replica shard on which checkpoint is received
+     */
+    public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
+        if (onGoingReplications.isShardReplicating(replicaShard.shardId())) {
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
+                    replicaShard.getLatestReplicationCheckpoint()
+                )
+            );
+            return;
+        }
+        if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
+            startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {}
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    if (sendShardFailure == true) {
+                        logger.error("replication failure", e);
+                        replicaShard.failShard("replication failure", e);
+                    }
+                }
+            });
+
         }
     }
 
@@ -139,6 +172,11 @@ public final class SegmentReplicationTargetService implements IndexEventListener
 
     private void start(final long replicationId) {
         try (ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)) {
+            // This check is for handling edge cases where the reference is removed before the ReplicationRunner is started by the
+            // threadpool.
+            if (replicationRef == null) {
+                return;
+            }
             replicationRef.get().startReplication(new ActionListener<>() {
                 @Override
                 public void onResponse(Void o) {
