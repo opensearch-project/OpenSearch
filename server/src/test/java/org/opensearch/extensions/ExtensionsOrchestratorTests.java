@@ -306,6 +306,12 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
         assertEquals(extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass(), LocalNodeResponse.class);
 
+        ExtensionRequest listenerFailureRequest = new ExtensionRequest(
+            ExtensionsOrchestrator.RequestType.REQUEST_ACTION_LISTENER_ON_FAILURE
+        );
+        assertEquals(extensionsOrchestrator.handleExtensionRequest(listenerFailureRequest).getClass(), ExtensionBooleanResponse.class);
+        assertEquals(extensionsOrchestrator.listener.getFailureCount(), 1);
+
         ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
         Exception exception = expectThrows(Exception.class, () -> extensionsOrchestrator.handleExtensionRequest(exceptionRequest));
         assertEquals(exception.getMessage(), "Handler not present for the provided request");
@@ -328,7 +334,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         extensionsOrchestrator.setTransportService(mockTransportService);
-        verify(mockTransportService, times(3)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        verify(mockTransportService, times(4)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
 

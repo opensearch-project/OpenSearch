@@ -23,9 +23,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -56,8 +53,6 @@ import org.opensearch.transport.TransportService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import java.util.HashMap;
-import java.util.List;
 
 /**
  * The main class for Plugin Extensibility
@@ -73,6 +68,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
+    public static final String REQUEST_ACTION_LISTENER_ON_FAILURE = "internal:discovery/actionlisteneronfailure";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
 
@@ -85,6 +81,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
+        REQUEST_ACTION_LISTENER_ON_FAILURE,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -105,6 +102,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
+    ExtensionActionListener<ExtensionBooleanResponse> listener;
 
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
@@ -114,6 +112,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
+        this.listener = new ExtensionActionListener<ExtensionBooleanResponse>();
 
         /*
          * Now Discover extensions
@@ -154,6 +153,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ExtensionRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_ACTION_LISTENER_ON_FAILURE,
             ThreadPool.Names.GENERIC,
             false,
             false,
@@ -288,6 +295,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS) {
             ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
             return clusterSettingsResponse;
+        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_ACTION_LISTENER_ON_FAILURE) {
+            listener.onFailure(new Exception());
+            ExtensionBooleanResponse actionListenerOnFailureResponse = new ExtensionBooleanResponse(true);
+            return actionListenerOnFailureResponse;
         }
         throw new Exception("Handler not present for the provided request");
     }
