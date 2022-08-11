@@ -254,7 +254,7 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             super.toXContent(builder, params);
-            builder.field("pitId", pitId);
+            builder.field("pit_id", pitId);
             return builder.endObject();
         }
     }

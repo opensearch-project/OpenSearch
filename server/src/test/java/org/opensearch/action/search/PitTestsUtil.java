@@ -134,9 +134,18 @@ public class PitTestsUtil {
         Assert.assertEquals(0, getPitResponse.getPitInfos().size());
     }
 
-    public static void assertSegments(boolean isEmpty, Client client) {
+    public static void assertSegments(boolean isEmpty, String index, long expectedShardSize, Client client) {
         IndicesSegmentResponse indicesSegmentResponse = client.execute(PitSegmentsAction.INSTANCE, new PitSegmentsRequest()).actionGet();
         assertTrue(indicesSegmentResponse.getShardFailures() == null || indicesSegmentResponse.getShardFailures().length == 0);
         assertEquals(indicesSegmentResponse.getIndices().isEmpty(), isEmpty);
+        if (!isEmpty) {
+            assertTrue(indicesSegmentResponse.getIndices().get(index) != null);
+            assertTrue(indicesSegmentResponse.getIndices().get(index).getIndex().equalsIgnoreCase(index));
+            assertEquals(expectedShardSize, indicesSegmentResponse.getIndices().get(index).getShards().size());
+        }
+    }
+
+    public static void assertSegments(boolean isEmpty, Client client) {
+        assertSegments(isEmpty, "index", 2, client);
     }
 }
