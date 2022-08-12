@@ -439,7 +439,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         assertNotNull(callback);
     }
 
-    public void testGetExtensionReader() throws IOException {
+    public void testGetNamedWriteablesExtensionReader() throws IOException {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
@@ -568,6 +568,62 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionReader callback = readerMap.get(testParseField);
         assertNotNull(callback);
+    }
+
+    public void testGetNamedXContentsExtensionReader() throws IOException {
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        extensionsOrchestrator.namedXContentRegistry = spy(
+            new ExtensionNamedXContentRegistry(extensionsOrchestrator.extensionsList, transportService)
+        );
+
+        Object test = new Object();
+        Class categoryClass = test.getClass();
+        ParseField parseField = new ParseField("test");
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> extensionsOrchestrator.namedXContentRegistry.getExtensionReader(categoryClass, parseField, parseField.getPreferredName())
+        );
+        verify(extensionsOrchestrator.namedXContentRegistry, times(1)).getExtensionReader(any(), any(), any());
+    }
+
+    public void testParseNamedXContent() throws Exception {
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        extensionsOrchestrator.setTransportService(transportService);
+
+        String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_XCONTENT;
+        DiscoveryNode extensionNode = extensionsOrchestrator.extensionsList.get(0);
+        Class categoryClass = Object.class;
+        String context = "test context";
+
+        try (
+            MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
+                LogManager.getLogger(NamedXContentRegistryParseResponseHandler.class)
+            )
+        ) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "NamedXContentRegistryParseRequest Failure",
+                    "org.opensearch.extensions.NamedXContentRegistryParseResponseHandler",
+                    Level.ERROR,
+                    "NamedXContentRegistryParseRequest failed"
+                )
+            );
+
+            NamedXContentRegistryResponseHandler responseHandler = new NamedXContentRegistryResponseHandler(
+                extensionNode,
+                transportService,
+                requestType
+            );
+            responseHandler.parseNamedXContent(extensionNode, categoryClass, context);
+            mockLogAppender.assertAllExpectationsMatched();
+        }
+
     }
 
     public void testOnIndexModule() throws Exception {

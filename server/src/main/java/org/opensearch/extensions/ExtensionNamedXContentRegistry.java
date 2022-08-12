@@ -9,6 +9,7 @@
 package org.opensearch.extensions;
 
 import java.net.UnknownHostException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +66,8 @@ public class ExtensionNamedXContentRegistry {
                 logger.error(e.toString());
             }
         }
+
+        // TODO : Invoke during the consolidation of named xcontent within Node.java and return extension entries there
     }
 
     /**
@@ -94,6 +97,64 @@ public class ExtensionNamedXContentRegistry {
         }
 
         return namedXContentRegistryResponseHandler.getExtensionRegistry();
+    }
+
+    /**
+     * Iterates through list of discovered extensions and returns the callback method associated with the given category class, parsefield and name
+     *
+     * @param categoryClass Class that the XContent object extends
+     * @param parseField ParseField associated with the XContent Reader
+     * @param name Unique name identifiying the XContent object
+     * @throws IllegalArgumentException if there is no reader associated with the given category class and name
+     * @return A map of the discovery node and its associated extension reader
+     */
+    public Map<DiscoveryNode, ExtensionReader> getExtensionReader(Class categoryClass, ParseField parseField, String name) {
+
+        ExtensionReader reader = null;
+        DiscoveryNode extension = null;
+
+        // The specific extension that the reader is associated with is not known, must iterate through all of them
+        for (DiscoveryNode extensionNode : extensionsInitializedList) {
+            reader = getExtensionReader(extensionNode, categoryClass, parseField, name);
+            if (reader != null) {
+                extension = extensionNode;
+                break;
+            }
+        }
+
+        // At this point, if reader does not exist throughout all extensionNodes, named xcontent is not registered, throw exception
+        if (reader == null) {
+            throw new IllegalArgumentException(
+                "Unknown NamedXContent [" + categoryClass.getName() + "][" + parseField.toString() + "][" + name + "]"
+            );
+        }
+        return Collections.singletonMap(extension, reader);
+    }
+
+    /**
+     * Returns the callback method associated with the given extension node, category class, parseField and name
+     *
+     * @param extensionNode Discovery Node identifying the extension associated with the category class and name
+     * @param categoryClass Class that the Writeable object extends
+     * @param parseField ParseField associated with the XContent Reader
+     * @param name Unique name identifying the Writeable object
+     * @return The extension reader
+     */
+    private ExtensionReader getExtensionReader(DiscoveryNode extensionNode, Class categoryClass, ParseField parseField, String name) {
+        ExtensionReader reader = null;
+
+        Map<Class, Map<String, Map<ParseField, ExtensionReader>>> categoryMap = this.extensionNamedXContentRegistry.get(extensionNode);
+        if (categoryMap != null) {
+
+            Map<String, Map<ParseField, ExtensionReader>> nameMap = categoryMap.get(categoryClass);
+            if (nameMap != null) {
+                Map<ParseField, ExtensionReader> readerMap = nameMap.get(name);
+                if (readerMap != null) {
+                    reader = readerMap.get(parseField);
+                }
+            }
+        }
+        return reader;
     }
 
 }
