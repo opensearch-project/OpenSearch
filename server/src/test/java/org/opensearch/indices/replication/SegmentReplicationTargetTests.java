@@ -102,7 +102,10 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     public void setUp() throws Exception {
 
         super.setUp();
-        Settings indexSettings = getIndexSettings();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
         spyIndexShard = spy(indexShard);
@@ -120,13 +123,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             spyIndexShard.seqNoStats().getLocalCheckpoint(),
             testSegmentInfos.version
         );
-    }
-
-    private Settings getIndexSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
     }
 
     public void testSuccessfulResponse_startReplication() {
@@ -398,6 +394,9 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
      */
     public void test_MissingFiles_NotCausingFailure() throws IOException {
         int docCount = 1 + random().nextInt(10);
+        // Generate a list of MetadataSnapshot containing two elements. The second snapshot contains extra files
+        // generated due to delete operations. These two snapshots can then be used in test to mock the primary shard
+        // snapshot (2nd element which contains delete operations) and replica's existing snapshot (1st element).
         List<Store.MetadataSnapshot> storeMetadataSnapshots = generateStoreMetadataSnapshot(docCount);
 
         SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
@@ -444,15 +443,14 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
     /**
      * Generates a list of Store.MetadataSnapshot with two elements where second snapshot has extra files due to delete
-     * operation. Two snpashots are generated inside this method to ensure they have files with same checksum other
-     * than ones generated due to delete operations
+     * operation. A list of snapshots is returned so that identical files have same checksum.
      * @param docCount
      * @return
      * @throws IOException
      */
     List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
         List<Document> docList = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < docCount; i++) {
             Document document = new Document();
             String text = new String(new char[] { (char) (97 + i), (char) (97 + i) });
             document.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
