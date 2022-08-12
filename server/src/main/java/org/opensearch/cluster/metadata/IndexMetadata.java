@@ -302,12 +302,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 final Object replicationType = settings.get(INDEX_REPLICATION_TYPE_SETTING);
                 if (replicationType != ReplicationType.SEGMENT && value == true) {
                     throw new IllegalArgumentException(
-                        "Settings "
+                        "To enable "
                             + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
-                            + " cannot be enabled when "
+                            + ", "
                             + INDEX_REPLICATION_TYPE_SETTING.getKey()
-                            + " is set to "
-                            + settings.get(INDEX_REPLICATION_TYPE_SETTING)
+                            + " should be set to "
+                            + ReplicationType.SEGMENT
                     );
                 }
             }
