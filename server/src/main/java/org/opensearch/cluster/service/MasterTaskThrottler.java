@@ -112,8 +112,12 @@ public class MasterTaskThrottler implements TaskBatcherListener {
         }
     }
 
+    protected Long getThrottlingLimit(final String taskKey) {
+        return tasksThreshold.get(taskKey);
+    }
+
     @Override
-    public void beforeSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
+    public void onSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
         String masterTaskKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
         tasksCount.putIfAbsent(masterTaskKey, 0L);
         tasksCount.computeIfPresent(masterTaskKey, (key, count) -> {
@@ -133,13 +137,16 @@ public class MasterTaskThrottler implements TaskBatcherListener {
     }
 
     @Override
-    public void beforeExecute(List<? extends TaskBatcher.BatchedTask> tasks) {
-        String masterTaskKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
-        tasksCount.computeIfPresent(masterTaskKey, (key, count) -> count - tasks.size());
+    public void onSubmitFailure(List<? extends TaskBatcher.BatchedTask> tasks) {
+        reduceTaskCount(tasks);
     }
 
     @Override
-    public void beforeTimeout(List<? extends TaskBatcher.BatchedTask> tasks) {
+    public void onProcessed(List<? extends TaskBatcher.BatchedTask> tasks) {
+        reduceTaskCount(tasks);
+    }
+
+    private void reduceTaskCount(List<? extends TaskBatcher.BatchedTask> tasks) {
         String masterTaskKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
         tasksCount.computeIfPresent(masterTaskKey, (key, count) -> count - tasks.size());
     }

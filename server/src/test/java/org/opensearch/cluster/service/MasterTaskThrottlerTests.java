@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.Priority;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.ClusterServiceUtils;
@@ -19,7 +20,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -171,7 +174,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
 
         // set some limit for update snapshot tasks
-        int newLimit = randomIntBetween(1, 10);
+        long newLimit = randomLongBetween(1, 10);
 
         Settings newSettings = Settings.builder().put("master.throttling.thresholds.put-mapping.value", newLimit).build();
         clusterSettings.applySettings(newSettings);
@@ -218,7 +221,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
 
         throttler.updateLimit("test", 5);
-        assertEquals(5, throttler.getThrottlingLimit("test").intValue());
+        assertEquals(5L, throttler.getThrottlingLimit("test").intValue());
         throttler.updateLimit("test", -1);
         assertNull(throttler.getThrottlingLimit("test"));
     }

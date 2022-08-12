@@ -727,7 +727,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         }
 
         MasterService masterService = createClusterManagerService(true);
-        masterService.masterTaskThrottler.updateThrottlingLimit(taskName, throttlingLimit);
+        masterService.masterTaskThrottler.updateLimit(taskName, throttlingLimit);
 
         final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
@@ -846,8 +846,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
         MasterService masterService = createClusterManagerService(true);
         // configuring limits for Task1 and Task3. All task submission of Task2 should pass.
-        masterService.masterTaskThrottler.updateThrottlingLimit("Task1", throttlingLimitForTask1);
-        masterService.masterTaskThrottler.updateThrottlingLimit("Task3", throttlingLimitForTask3);
+        masterService.masterTaskThrottler.updateLimit("Task1", throttlingLimitForTask1);
+        masterService.masterTaskThrottler.updateLimit("Task3", throttlingLimitForTask3);
         final CountDownLatch latch = new CountDownLatch(numberOfTask1 + numberOfTask2 + numberOfTask3);
         AtomicInteger throttledTask1 = new AtomicInteger();
         AtomicInteger throttledTask2 = new AtomicInteger();
@@ -943,7 +943,6 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
         // await for latch to clear
         latch.await();
-
         assertEquals(numberOfTask1, throttledTask1.get() + succeededTask1.get());
         assertEquals(numberOfTask2, succeededTask2.get());
         assertEquals(0, throttledTask2.get());

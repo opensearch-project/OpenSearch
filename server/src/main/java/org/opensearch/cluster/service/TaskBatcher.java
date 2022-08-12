@@ -80,38 +80,44 @@ public abstract class TaskBatcher {
         assert tasks.stream().allMatch(t -> t.getTask().getClass() == firstTask.getTask().getClass())
             : "tasks submitted in a batch should be of same class: " + tasks;
 
-        taskBatcherListener.beforeSubmit(tasks);
+        taskBatcherListener.onSubmit(tasks);
 
-        // convert to an identity map to check for dups based on task identity
-        final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
-            .collect(
-                Collectors.toMap(
-                    BatchedTask::getTask,
-                    Function.identity(),
-                    (a, b) -> { throw new IllegalStateException("cannot add duplicate task: " + a); },
-                    IdentityHashMap::new
-                )
-            );
+        try {
+            // convert to an identity map to check for dups based on task identity
+            final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
+                .collect(
+                    Collectors.toMap(
+                        BatchedTask::getTask,
+                        Function.identity(),
+                        (a, b) -> {
+                            throw new IllegalStateException("cannot add duplicate task: " + a);
+                        },
+                        IdentityHashMap::new
+                    )
+                );
 
-        synchronized (tasksPerBatchingKey) {
-            LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.computeIfAbsent(
-                firstTask.batchingKey,
-                k -> new LinkedHashSet<>(tasks.size())
-            );
-            for (BatchedTask existing : existingTasks) {
-                // check that there won't be two tasks with the same identity for the same batching key
-                BatchedTask duplicateTask = tasksIdentity.get(existing.getTask());
-                if (duplicateTask != null) {
-                    throw new IllegalStateException(
-                        "task ["
-                            + duplicateTask.describeTasks(Collections.singletonList(existing))
-                            + "] with source ["
-                            + duplicateTask.source
-                            + "] is already queued"
-                    );
+            synchronized (tasksPerBatchingKey) {
+                LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.computeIfAbsent(
+                    firstTask.batchingKey,
+                    k -> new LinkedHashSet<>(tasks.size())
+                );
+                for (BatchedTask existing : existingTasks) {
+                    // check that there won't be two tasks with the same identity for the same batching key
+                    BatchedTask duplicateTask = tasksIdentity.get(existing.getTask());
+                    if (duplicateTask != null) {
+                        throw new IllegalStateException(
+                            "task ["
+                                + duplicateTask.describeTasks(Collections.singletonList(existing))
+                                + "] with source ["
+                                + duplicateTask.source
+                                + "] is already queued"
+                        );
+                    }
                 }
+                existingTasks.addAll(tasks);
             }
-            existingTasks.addAll(tasks);
+        } catch (Exception e) {
+            taskBatcherListener.onSubmitFailure(tasks);
         }
 
         if (timeout != null) {
@@ -143,7 +149,7 @@ public abstract class TaskBatcher {
                     }
                 }
             }
-            taskBatcherListener.beforeTimeout(toRemove);
+            taskBatcherListener.onProcessed(toRemove);
             onTimeout(toRemove, timeout);
         }
     }
@@ -181,7 +187,7 @@ public abstract class TaskBatcher {
                     return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
                 }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
 
-                taskBatcherListener.beforeExecute(toExecute);
+                taskBatcherListener.onProcessed(toExecute);
                 run(updateTask.batchingKey, toExecute, tasksSummary);
             }
         }
