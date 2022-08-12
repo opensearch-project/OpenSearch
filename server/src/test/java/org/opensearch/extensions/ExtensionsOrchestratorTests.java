@@ -307,7 +307,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         assertEquals(extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass(), LocalNodeResponse.class);
 
         ExtensionRequest listenerFailureRequest = new ExtensionRequest(
-            ExtensionsOrchestrator.RequestType.REQUEST_ACTION_LISTENER_ON_FAILURE
+            ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE
         );
         assertEquals(extensionsOrchestrator.handleExtensionRequest(listenerFailureRequest).getClass(), ExtensionBooleanResponse.class);
         assertEquals(extensionsOrchestrator.listener.getFailureCount(), 1);

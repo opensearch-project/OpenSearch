@@ -68,7 +68,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
-    public static final String REQUEST_ACTION_LISTENER_ON_FAILURE = "internal:discovery/actionlisteneronfailure";
+    public static final String REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE = "internal:discovery/actionlisteneronfailure";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
 
@@ -81,7 +81,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
-        REQUEST_ACTION_LISTENER_ON_FAILURE,
+        REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -160,7 +160,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
         );
         transportService.registerRequestHandler(
-            REQUEST_ACTION_LISTENER_ON_FAILURE,
+            REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
             ThreadPool.Names.GENERIC,
             false,
             false,
@@ -295,7 +295,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS) {
             ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
             return clusterSettingsResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_ACTION_LISTENER_ON_FAILURE) {
+        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE) {
             listener.onFailure(new Exception());
             ExtensionBooleanResponse actionListenerOnFailureResponse = new ExtensionBooleanResponse(true);
             return actionListenerOnFailureResponse;
