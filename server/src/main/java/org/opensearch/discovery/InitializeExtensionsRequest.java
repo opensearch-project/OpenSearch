@@ -65,13 +65,26 @@ public class InitializeExtensionsRequest extends TransportRequest {
         return sourceNode;
     }
 
-    public int getPort() { return port; }
+    public int getPort() {
+        return port;
+    }
 
-    public String getHostAddress() { return hostAddress; }
+    public String getHostAddress() {
+        return hostAddress;
+    }
 
     @Override
     public String toString() {
-        return "InitializeExtensionsRequest{" + "sourceNode=" + sourceNode + ", extensions=" + extensions + ", port=" + port + ", hostAddress=" + hostAddress + '}';
+        return "InitializeExtensionsRequest{"
+            + "sourceNode="
+            + sourceNode
+            + ", extensions="
+            + extensions
+            + ", port="
+            + port
+            + ", hostAddress="
+            + hostAddress
+            + '}';
     }
 
     @Override
@@ -79,7 +92,10 @@ public class InitializeExtensionsRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InitializeExtensionsRequest that = (InitializeExtensionsRequest) o;
-        return Objects.equals(sourceNode, that.sourceNode) && Objects.equals(extensions, that.extensions) && Objects.equals(port, that.port) && Objects.equals(hostAddress, that.hostAddress);
+        return Objects.equals(sourceNode, that.sourceNode)
+            && Objects.equals(extensions, that.extensions)
+            && Objects.equals(port, that.port)
+            && Objects.equals(hostAddress, that.hostAddress);
     }
 
     @Override
