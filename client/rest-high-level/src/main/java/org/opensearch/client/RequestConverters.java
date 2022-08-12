@@ -495,8 +495,7 @@ final class RequestConverters {
     }
 
     static Request deleteAllPits(DeletePitRequest deletePitRequest) {
-        Request request = new Request(HttpDelete.METHOD_NAME, "/_search/point_in_time/_all");
-        return request;
+        return new Request(HttpDelete.METHOD_NAME, "/_search/point_in_time/_all");
     }
 
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
