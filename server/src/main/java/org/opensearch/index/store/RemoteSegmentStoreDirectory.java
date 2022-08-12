@@ -114,7 +114,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             logger.info("Reading latest Metadata file {}", latestMetadataFile.get());
             segmentMetadataMap = readMetadataFile(latestMetadataFile.get());
         } else {
-            logger.info("No metadata file found");
+            logger.info("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
         }
 
         return segmentMetadataMap;
@@ -191,7 +191,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             }
         }
 
-        public static String getMetadataFilename(long primaryTerm, long generation, String uuid) {
+        // Visible for testing
+        static String getMetadataFilename(long primaryTerm, long generation, String uuid) {
             return String.join(
                 SEPARATOR,
                 METADATA_PREFIX,
@@ -201,15 +202,18 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             );
         }
 
-        public static long getPrimaryTerm(String[] filenameTokens) {
+        // Visible for testing
+        static long getPrimaryTerm(String[] filenameTokens) {
             return Long.parseLong(filenameTokens[1]);
         }
 
-        public static long getGeneration(String[] filenameTokens) {
+        // Visible for testing
+        static long getGeneration(String[] filenameTokens) {
             return Long.parseLong(filenameTokens[2], Character.MAX_RADIX);
         }
 
-        public static String getUuid(String[] filenameTokens) {
+        // Visible for testing
+        static String getUuid(String[] filenameTokens) {
             return filenameTokens[3];
         }
     }
@@ -320,21 +324,23 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      */
     public void uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
         throws IOException {
-        String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.metadataFileUniqueSuffix);
-        IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
-        Map<String, String> uploadedSegments = new HashMap<>();
-        for (String file : segmentFiles) {
-            if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
-            } else {
-                throw new NoSuchFileException(file);
+        synchronized (this) {
+            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.metadataFileUniqueSuffix);
+            IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
+            Map<String, String> uploadedSegments = new HashMap<>();
+            for (String file : segmentFiles) {
+                if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                    uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
+                } else {
+                    throw new NoSuchFileException(file);
+                }
             }
+            indexOutput.writeMapOfStrings(uploadedSegments);
+            indexOutput.close();
+            storeDirectory.sync(Collections.singleton(metadataFilename));
+            remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+            storeDirectory.deleteFile(metadataFilename);
         }
-        indexOutput.writeMapOfStrings(uploadedSegments);
-        indexOutput.close();
-        storeDirectory.sync(Collections.singleton(metadataFilename));
-        remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
-        storeDirectory.deleteFile(metadataFilename);
     }
 
     private String getChecksumOfLocalFile(Directory directory, String file) throws IOException {
