@@ -866,7 +866,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.enabled cannot be enabled when index.replication.type is set to DOCUMENT",
+            "To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT",
             iae.getMessage()
         );
     }
@@ -878,7 +878,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.enabled cannot be enabled when index.replication.type is set to DOCUMENT",
+            "To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT",
             iae.getMessage()
         );
     }
