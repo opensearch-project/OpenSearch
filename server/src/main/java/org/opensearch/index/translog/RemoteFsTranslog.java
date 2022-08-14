@@ -14,6 +14,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
@@ -23,8 +24,14 @@ import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.concurrent.Callable;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 public class RemoteFsTranslog extends Translog {
 
@@ -53,20 +60,131 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             fileTransferTracker::exclusionFilter
         );
+        try {
+            final Checkpoint checkpoint = readCheckpoint(location);
+            this.readers.addAll(recoverFromFiles(checkpoint));
+            if (readers.isEmpty()) {
+                throw new IllegalStateException("at least one reader must be recovered");
+            }
+
+            boolean success = false;
+            current = null;
+            try {
+                current = createWriter(checkpoint.generation + 1, getMinFileGeneration(),
+                    checkpoint.globalCheckpoint, persistedSequenceNumberConsumer);
+                success = true;
+            } finally {
+                // we have to close all the recovered ones otherwise we leak file handles here
+                // for instance if we have a lot of tlog and we can't create the writer we keep
+                // on holding
+                // on to all the uncommitted tlog files if we don't close
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(readers);
+                }
+            }
+        } catch (Exception e) {
+            // close the opened translog files if we fail to create a new translog...
+            IOUtils.closeWhileHandlingException(current);
+            IOUtils.closeWhileHandlingException(readers);
+            throw e;
+        }
+    }
+
+    /** recover all translog files found on disk */
+    protected ArrayList<TranslogReader> recoverFromFiles(Checkpoint checkpoint) throws IOException {
+        boolean success = false;
+        ArrayList<TranslogReader> foundTranslogs = new ArrayList<>();
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            logger.debug("open uncommitted translog checkpoint {}", checkpoint);
+            final long minGenerationToRecoverFrom = checkpoint.minTranslogGeneration;
+
+            // we open files in reverse order in order to validate the translog uuid before we start traversing the translog based on
+            // the generation id we found in the lucene commit. This gives for better error messages if the wrong
+            // translog was found.
+            for (long i = checkpoint.generation; i >= minGenerationToRecoverFrom; i--) {
+                Path committedTranslogFile = location.resolve(Translog.getFilename(i));
+                if (Files.exists(committedTranslogFile) == false) {
+                    throw new TranslogCorruptedException(
+                        committedTranslogFile.toString(),
+                        "translog file doesn't exist with generation: "
+                            + i
+                            + " recovering from: "
+                            + minGenerationToRecoverFrom
+                            + " checkpoint: "
+                            + checkpoint.generation
+                            + " - translog ids must be consecutive"
+                    );
+                }
+                final Checkpoint readerCheckpoint = i == checkpoint.generation
+                    ? checkpoint
+                    : Checkpoint.read(location.resolve(Translog.getCommitCheckpointFileName(i)));
+                final TranslogReader reader = openReader(committedTranslogFile, readerCheckpoint);
+                assert reader.getPrimaryTerm() <= primaryTermSupplier.getAsLong() : "Primary terms go backwards; current term ["
+                    + primaryTermSupplier.getAsLong()
+                    + "] translog path [ "
+                    + committedTranslogFile
+                    + ", existing term ["
+                    + reader.getPrimaryTerm()
+                    + "]";
+                foundTranslogs.add(reader);
+                logger.debug("recovered local translog from checkpoint {}", checkpoint);
+            }
+            Collections.reverse(foundTranslogs);
+
+            // when we clean up files, we first update the checkpoint with a new minReferencedTranslog and then delete them;
+            // if we crash just at the wrong moment, it may be that we leave one unreferenced file behind so we delete it if there
+            IOUtils.deleteFilesIgnoringExceptions(
+                location.resolve(Translog.getFilename(minGenerationToRecoverFrom - 1)),
+                location.resolve(Translog.getCommitCheckpointFileName(minGenerationToRecoverFrom - 1))
+            );
+
+            Path commitCheckpoint = location.resolve(Translog.getCommitCheckpointFileName(checkpoint.generation));
+            if (Files.exists(commitCheckpoint)) {
+                Checkpoint checkpointFromDisk = Checkpoint.read(commitCheckpoint);
+                if (checkpoint.equals(checkpointFromDisk) == false) {
+                    throw new TranslogCorruptedException(
+                        commitCheckpoint.toString(),
+                        "checkpoint file "
+                            + commitCheckpoint.getFileName()
+                            + " already exists but has corrupted content: expected "
+                            + checkpoint
+                            + " but got "
+                            + checkpointFromDisk
+                    );
+                }
+            } else {
+                copyCheckpointTo(commitCheckpoint);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(foundTranslogs);
+            }
+        }
+        return foundTranslogs;
     }
 
     @Override
     boolean ensureSynced(Location location) throws IOException {
+        Callable<Boolean> execute = () -> false;
         try (ReleasableLock lock = readLock.acquire()) {
             assert location.generation <= current.getGeneration();
             if (location.generation == current.getGeneration()) {
                 ensureOpen();
-                prepareUpload(location.generation);
+                execute = () -> {
+                    prepareUpload(location.generation);
+                    return upload();
+                };
             }
-            return upload();
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw ex;
+        } try {
+            return execute.call();
+        } catch (Exception ex) {
+            closeOnTragicEvent(ex);
+            assert ex instanceof IOException;
+            throw (IOException) ex;
         }
     }
 
@@ -86,8 +204,8 @@ public class RemoteFsTranslog extends Translog {
                 try {
                     final TranslogReader reader = current.closeIntoReader();
                     readers.add(reader);
+                    copyCheckpointTo(location.resolve(getCommitCheckpointFileName(current.getGeneration())));
                     if (closed.get() == false) {
-                        // create a new translog file; this will sync it and update the checkpoint data;
                         logger.trace("Creating new writer for gen: [{}]", current.getGeneration() + 1);
                         current = createWriter(current.getGeneration() + 1);
                         logger.trace("current translog set to [{}]", current.getGeneration());
@@ -133,6 +251,7 @@ public class RemoteFsTranslog extends Translog {
 
         try {
             if(syncToDisk()) {
+                prepareUpload(null);
                 upload();
             }
         } catch (final Exception e) {

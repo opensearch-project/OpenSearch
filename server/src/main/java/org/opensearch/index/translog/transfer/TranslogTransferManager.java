@@ -56,20 +56,24 @@ public class TranslogTransferManager {
         throws IOException {
         List<Exception> exceptionList = new ArrayList<>(translogCheckpointTransferSnapshot.getTransferSize());
         try {
-            final CountDownLatch latch = new CountDownLatch(translogCheckpointTransferSnapshot.getTransferSize());
+            Set<FileSnapshot> toUpload = exclusionFilter.apply(translogCheckpointTransferSnapshot.getTranslogFileSnapshots());
+            toUpload.addAll(exclusionFilter.apply(translogCheckpointTransferSnapshot.getCheckpointFileSnapshots()));
+            if (toUpload.isEmpty()) {
+                logger.warn("Nothing to upload for transfer size {}", translogCheckpointTransferSnapshot.getTransferSize());
+                return true;
+            }
+            final CountDownLatch latch = new CountDownLatch(toUpload.size());
             LatchedActionListener<FileSnapshot> latchedActionListener = new LatchedActionListener(
                 ActionListener.wrap(fileTransferListener::onSuccess, ex -> {
                     assert ex instanceof FileTransferException;
+                    logger.error("Exception received type {}", ex.getClass(), ex);
                     FileTransferException e = (FileTransferException) ex;
                     fileTransferListener.onFailure(e.getFileSnapshot(), ex);
                     exceptionList.add(ex);
                 }),
                 latch
             );
-            exclusionFilter.apply(translogCheckpointTransferSnapshot.getTranslogFileSnapshots())
-                .forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remoteTransferPath, latchedActionListener));
-            exclusionFilter.apply(translogCheckpointTransferSnapshot.getCheckpointFileSnapshots())
-                .forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remoteTransferPath, latchedActionListener));
+            toUpload.forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remoteTransferPath, latchedActionListener));
             try {
                 if (latch.await(TRANSFER_TIMEOUT, TimeUnit.SECONDS) == false) {
                     exceptionList.add(new TimeoutException("Timed out waiting for transfer to complete"));

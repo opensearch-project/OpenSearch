@@ -516,7 +516,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
                 Directory remoteDirectory = remoteDirectoryFactory.newDirectory(
-                    clusterService.state().metadata().clusterUUID(),
+                    "clusterUUID",
                     this.indexSettings,
                     path
                 );
@@ -559,7 +559,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
                 circuitBreakerService,
-                this.indexSettings.isSegRepEnabled() && this.indexSettings.isRemoteStoreEnabled()
+                this.indexSettings.isSegRepEnabled() && this.indexSettings.isRemoteTranslogStoreEnabled()
                     ? new RemoteBlobStoreInternalTranslogFactory(repositoriesServiceSupplier, clusterService, threadPool)
                     : new InternalTranslogFactory(),
                 this.indexSettings.isSegRepEnabled() && routing.primary() ? checkpointPublisher : null,

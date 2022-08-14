@@ -34,7 +34,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
     ) {
         Repository repository;
         try {
-            repository = repositoriesServiceSupplier.get().repository(clusterService.state().metadata().clusterUUID());
+            repository = repositoriesServiceSupplier.get().repository("clusterUUID");
         } catch (RepositoryMissingException ex) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
         }
