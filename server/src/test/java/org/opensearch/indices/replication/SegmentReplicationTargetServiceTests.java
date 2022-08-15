@@ -208,6 +208,23 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         closeShard(indexShard, false);
     }
 
+    /**
+     * here we are starting a new shard in PrimaryMode and testing that we don't process a checkpoint on shard when it is in PrimaryMode.
+     */
+    public void testRejectCheckpointOnShardPrimaryMode() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+
+        // Starting a new shard in PrimaryMode.
+        IndexShard primaryShard = newStartedShard(true);
+        IndexShard spyShard = spy(primaryShard);
+        doNothing().when(spy).startReplication(any(), any(), any());
+        spy.onNewCheckpoint(aheadCheckpoint, spyShard);
+
+        // Verify that checkpoint is not processed as shard is in PrimaryMode.
+        verify(spy, times(0)).startReplication(any(), any(), any());
+        closeShards(primaryShard);
+    }
+
     public void testReplicationOnDone() throws IOException {
         SegmentReplicationTargetService spy = spy(sut);
         IndexShard spyShard = spy(indexShard);

@@ -14,10 +14,16 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 
 public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelReplicationTestCase {
 
@@ -80,4 +86,41 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             replica.awaitShardSearchActive(b -> assertFalse("A new RefreshListener should not be registered", b));
         }
     }
+
+    /**
+     * here we are starting a new primary shard in PrimaryMode and testing if the shard publishes checkpoint after refresh.
+     */
+    public void testPublishCheckpointOnPrimaryMode() throws IOException {
+        final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
+        IndexShard shard = newStartedShard(true);
+        CheckpointRefreshListener refreshListener = new CheckpointRefreshListener(shard, mock);
+        refreshListener.afterRefresh(true);
+
+        // verify checkpoint is published
+        verify(mock, times(1)).publish(any());
+        closeShards(shard);
+    }
+
+    /**
+     * here we are starting a new primary shard in PrimaryMode initially and starting relocation handoff. Later we complete relocation handoff then shard is no longer
+     * in PrimaryMode, and we test if the shard does not publish checkpoint after refresh.
+     */
+    public void testPublishCheckpointAfterRelocationHandOff() throws IOException {
+        final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
+        IndexShard shard = newStartedShard(true);
+        CheckpointRefreshListener refreshListener = new CheckpointRefreshListener(shard, mock);
+        String id = shard.routingEntry().allocationId().getId();
+
+        // Starting relocation handoff
+        shard.getReplicationTracker().startRelocationHandoff(id);
+
+        // Completing relocation handoff
+        shard.getReplicationTracker().completeRelocationHandoff();
+        refreshListener.afterRefresh(true);
+
+        // verify checkpoint is not published
+        verify(mock, times(0)).publish(any());
+        closeShards(shard);
+    }
+
 }
