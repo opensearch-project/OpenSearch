@@ -451,7 +451,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             Exception.class,
             () -> extensionsOrchestrator.namedWriteableRegistry.getExtensionReader(Example.class, Example.NAME)
         );
-        assertEquals(e.getMessage(), "Unknown NamedWriteable [" + Example.class.getName() + "][" + Example.NAME + "]");
+        assertEquals("Unknown NamedWriteable [" + Example.class.getName() + "][" + Example.NAME + "]", e.getMessage());
         verify(extensionsOrchestrator.namedWriteableRegistry, times(1)).getExtensionReader(any(), any());
     }
 
@@ -584,6 +584,10 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         Exception e = expectThrows(
             Exception.class,
             () -> extensionsOrchestrator.namedXContentRegistry.getExtensionReader(categoryClass, parseField, parseField.getPreferredName())
+        );
+        assertEquals(
+            "Unknown NamedXContent [" + categoryClass.getName() + "][" + parseField.toString() + "][" + parseField.getPreferredName() + "]",
+            e.getMessage()
         );
         verify(extensionsOrchestrator.namedXContentRegistry, times(1)).getExtensionReader(any(), any(), any());
     }
