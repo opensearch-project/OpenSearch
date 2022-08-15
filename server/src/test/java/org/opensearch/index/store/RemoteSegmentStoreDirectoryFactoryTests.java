@@ -34,18 +34,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
-public class RemoteDirectoryFactoryTests extends OpenSearchTestCase {
+public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase {
 
     private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private RepositoriesService repositoriesService;
-    private RemoteDirectoryFactory remoteDirectoryFactory;
+    private RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory;
 
     @Before
     public void setup() {
         repositoriesServiceSupplier = mock(Supplier.class);
         repositoriesService = mock(RepositoriesService.class);
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
-        remoteDirectoryFactory = new RemoteDirectoryFactory(repositoriesServiceSupplier);
+        remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(repositoriesServiceSupplier);
     }
 
     public void testNewDirectory() throws IOException {
@@ -62,7 +62,7 @@ public class RemoteDirectoryFactoryTests extends OpenSearchTestCase {
 
         when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
 
-        try (Directory directory = remoteDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)) {
+        try (Directory directory = remoteSegmentStoreDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)) {
             assertTrue(directory instanceof RemoteDirectory);
             ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);
             verify(blobStore).blobContainer(blobPathCaptor.capture());
@@ -85,7 +85,7 @@ public class RemoteDirectoryFactoryTests extends OpenSearchTestCase {
 
         assertThrows(
             IllegalArgumentException.class,
-            () -> remoteDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)
+            () -> remoteSegmentStoreDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)
         );
     }
 
