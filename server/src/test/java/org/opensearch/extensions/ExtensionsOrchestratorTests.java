@@ -336,11 +336,11 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         extensionsOrchestrator.setTransportService(transportService);
         String nodeIdStr = "uniqueid1";
         List<String> apiList = List.of("GET /foo", "PUT /bar", "POST /baz");
-        RegisterApiRequest registerApiRequest = new RegisterApiRequest(nodeIdStr, apiList);
-        TransportResponse response = extensionsOrchestrator.handleRegisterApiRequest(registerApiRequest);
-        assertEquals(RegisterApiResponse.class, response.getClass());
-        assertTrue(((RegisterApiResponse) response).getResponse().contains(nodeIdStr));
-        assertTrue(((RegisterApiResponse) response).getResponse().contains(apiList.toString()));
+        RegisterRestApiRequest registerApiRequest = new RegisterRestApiRequest(nodeIdStr, apiList);
+        TransportResponse response = extensionsOrchestrator.handleRegisterRestApiRequest(registerApiRequest);
+        assertEquals(RegisterRestApiResponse.class, response.getClass());
+        assertTrue(((RegisterRestApiResponse) response).getResponse().contains(nodeIdStr));
+        assertTrue(((RegisterRestApiResponse) response).getResponse().contains(apiList.toString()));
     }
 
     public void testHandleRegisterApiRequestWithInvalidId() throws Exception {
@@ -352,8 +352,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         extensionsOrchestrator.setTransportService(transportService);
         String nodeIdStr = "notAValidUniqueId";
         List<String> apiList = List.of("GET /foo", "PUT /bar", "POST /baz");
-        RegisterApiRequest registerApiRequest = new RegisterApiRequest(nodeIdStr, apiList);
-        expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterApiRequest(registerApiRequest));
+        RegisterRestApiRequest registerApiRequest = new RegisterRestApiRequest(nodeIdStr, apiList);
+        expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterRestApiRequest(registerApiRequest));
     }
 
     public void testHandleRegisterApiRequestWithInvalidMethod() throws Exception {
@@ -365,8 +365,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         extensionsOrchestrator.setTransportService(transportService);
         String nodeIdStr = "notAValidUniqueId";
         List<String> apiList = List.of("FOO /foo", "PUT /bar", "POST /baz");
-        RegisterApiRequest registerApiRequest = new RegisterApiRequest(nodeIdStr, apiList);
-        expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterApiRequest(registerApiRequest));
+        RegisterRestApiRequest registerApiRequest = new RegisterRestApiRequest(nodeIdStr, apiList);
+        expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterRestApiRequest(registerApiRequest));
     }
 
     public void testHandleRegisterApiRequestWithInvalidUri() throws Exception {
@@ -378,8 +378,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         extensionsOrchestrator.setTransportService(transportService);
         String nodeIdStr = "notAValidUniqueId";
         List<String> apiList = List.of("GET", "PUT /bar", "POST /baz");
-        RegisterApiRequest registerApiRequest = new RegisterApiRequest(nodeIdStr, apiList);
-        expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterApiRequest(registerApiRequest));
+        RegisterRestApiRequest registerApiRequest = new RegisterRestApiRequest(nodeIdStr, apiList);
+        expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterRestApiRequest(registerApiRequest));
     }
 
     public void testHandleExtensionRequest() throws Exception {

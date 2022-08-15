@@ -18,55 +18,55 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * ApiRequest to register extension API
+ * ApiRequest to register extension REST API
  *
  * @opensearch.internal
  */
-public class RegisterApiRequest extends TransportRequest {
+public class RegisterRestApiRequest extends TransportRequest {
     private String nodeId;
-    private List<String> api;
+    private List<String> restApi;
 
-    public RegisterApiRequest(String nodeId, List<String> api) {
+    public RegisterRestApiRequest(String nodeId, List<String> api) {
         this.nodeId = nodeId;
-        this.api = new ArrayList<>(api);
+        this.restApi = new ArrayList<>(api);
     }
 
-    public RegisterApiRequest(StreamInput in) throws IOException {
+    public RegisterRestApiRequest(StreamInput in) throws IOException {
         super(in);
         nodeId = in.readString();
-        api = in.readStringList();
+        restApi = in.readStringList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(nodeId);
-        out.writeStringCollection(api);
+        out.writeStringCollection(restApi);
     }
 
     public String getNodeId() {
         return nodeId;
     }
 
-    public List<String> getApi() {
-        return new ArrayList<>(api);
+    public List<String> getRestApi() {
+        return new ArrayList<>(restApi);
     }
 
     @Override
     public String toString() {
-        return "ApiRequest{nodeId=" + nodeId + ", api=" + api + "}";
+        return "RestApiRequest{nodeId=" + nodeId + ", restApi=" + restApi + "}";
     }
 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        RegisterApiRequest that = (RegisterApiRequest) obj;
-        return Objects.equals(nodeId, that.nodeId) && Objects.equals(api, that.api);
+        RegisterRestApiRequest that = (RegisterRestApiRequest) obj;
+        return Objects.equals(nodeId, that.nodeId) && Objects.equals(restApi, that.restApi);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, api);
+        return Objects.hash(nodeId, restApi);
     }
 }

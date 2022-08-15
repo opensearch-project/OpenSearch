@@ -14,9 +14,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -71,7 +68,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
-    public static final String REQUEST_EXTENSION_REGISTER_API = "internal:discovery/registerapi";
+    public static final String REQUEST_EXTENSION_REGISTER_REST_API = "internal:discovery/registerrestapi";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
 
@@ -86,7 +83,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
-        REQUEST_EXTENSION_REGISTER_API,
+        REQUEST_EXTENSION_REGISTER_REST_API,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -105,7 +102,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     final List<DiscoveryExtension> extensionsList;
     List<DiscoveryExtension> extensionsInitializedList;
     Map<String, DiscoveryExtension> extensionIdMap;
-    Map<String, List<String>> extensionApiMap;
+    Map<String, List<String>> extensionRestApiMap;
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
@@ -124,7 +121,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionsList = new ArrayList<DiscoveryExtension>();
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
-        this.extensionApiMap = new HashMap<String, List<String>>();
+        this.extensionRestApiMap = new HashMap<String, List<String>>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
 
@@ -155,12 +152,12 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private void registerRequestHandler() {
         transportService.registerRequestHandler(
-            REQUEST_EXTENSION_REGISTER_API,
+            REQUEST_EXTENSION_REGISTER_REST_API,
             ThreadPool.Names.GENERIC,
             false,
             false,
-            RegisterApiRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleRegisterApiRequest(request)))
+            RegisterRestApiRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleRegisterRestApiRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
@@ -302,36 +299,41 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     /**
-     * Handles a {@link RegisterApiRequest}.
+     * Handles a {@link RegisterRestApiRequest}.
      *
-     * @param apiRequest  The request to handle.
-     * @return  A {@link RegisterApiResponse} indicating success.
+     * @param restApiRequest  The request to handle.
+     * @return  A {@link RegisterRestApiResponse} indicating success.
      * @throws Exception if the request is not handled properly.
      */
-    TransportResponse handleRegisterApiRequest(RegisterApiRequest apiRequest) throws Exception {
-        DiscoveryExtension extension = extensionIdMap.get(apiRequest.getNodeId());
+    TransportResponse handleRegisterRestApiRequest(RegisterRestApiRequest restApiRequest) throws Exception {
+        DiscoveryExtension extension = extensionIdMap.get(restApiRequest.getNodeId());
         if (extension == null) {
             throw new IllegalArgumentException(
-                "API Request unique id " + apiRequest.getNodeId() + " does not match a discovered extension."
+                "API Request unique id " + restApiRequest.getNodeId() + " does not match a discovered extension."
             );
         }
-        for (String api : apiRequest.getApi()) {
+        for (String restApi : restApiRequest.getRestApi()) {
             RestRequest.Method method;
             String uri;
             try {
-                int delim = api.indexOf(' ');
-                method = RestRequest.Method.valueOf(api.substring(0, delim));
-                uri = api.substring(delim).trim();
+                int delim = restApi.indexOf(' ');
+                method = RestRequest.Method.valueOf(restApi.substring(0, delim));
+                uri = restApi.substring(delim).trim();
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
-                throw new IllegalArgumentException(api + " does not begin with a valid REST method");
+                throw new IllegalArgumentException(restApi + " does not begin with a valid REST method");
             }
             logger.info("Registering: " + method + " /_extensions/" + extension.getName() + uri);
             // TODO put more REST handler stuff here
-            // Register using RestController.registerHandler
+            // Register using RestController.registerHandler, try to use plugin getRestHandler first
         }
-        extensionApiMap.put(apiRequest.getNodeId(), apiRequest.getApi());
-        return new RegisterApiResponse(
-            "Registered node " + apiRequest.getNodeId() + ", extension " + extension.getName() + " to handle API " + apiRequest.getApi()
+        extensionRestApiMap.put(restApiRequest.getNodeId(), restApiRequest.getRestApi());
+        return new RegisterRestApiResponse(
+            "Registered node "
+                + restApiRequest.getNodeId()
+                + ", extension "
+                + extension.getName()
+                + " to handle REST API "
+                + restApiRequest.getRestApi()
         );
     }
 
