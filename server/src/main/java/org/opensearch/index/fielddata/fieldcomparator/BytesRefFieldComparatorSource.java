@@ -100,7 +100,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
         final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);
         if (indexFieldData instanceof IndexOrdinalsFieldData) {
-            return new TermOrdValComparator(numHits, indexFieldData.getFieldName(), sortMissingLast, reversed) {
+            FieldComparator<?> cmp = new TermOrdValComparator(numHits, indexFieldData.getFieldName(), sortMissingLast, reversed) {
 
                 @Override
                 protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
@@ -122,8 +122,9 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                         return new ReplaceMissing(selectedValues, missingBytes);
                     }
                 }
-
             };
+            cmp.disableSkipping();
+            return cmp;
         }
 
         return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
