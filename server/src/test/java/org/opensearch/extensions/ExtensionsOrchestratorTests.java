@@ -602,7 +602,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_XCONTENT;
         DiscoveryNode extensionNode = extensionsOrchestrator.extensionsList.get(0);
         Class categoryClass = Object.class;
-        String context = "test context";
+        String context = "test";
 
         try (
             MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
