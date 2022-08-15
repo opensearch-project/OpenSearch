@@ -29,15 +29,13 @@ public class InitializeExtensionsRequest extends TransportRequest {
      * TODO change DiscoveryNode to Extension information
      */
     private final List<DiscoveryExtension> extensions;
-    private static final int OS_DEFAULT_PORT = 9200;
+    public static final int OS_DEFAULT_PORT = 9200;
     private int port;
-    private String hostAddress;
 
     public InitializeExtensionsRequest(DiscoveryNode sourceNode, List<DiscoveryExtension> extensions) {
         this.sourceNode = sourceNode;
         this.extensions = extensions;
         this.port = OS_DEFAULT_PORT;
-        this.hostAddress = sourceNode.getHostAddress();
     }
 
     public InitializeExtensionsRequest(StreamInput in) throws IOException {
@@ -45,7 +43,6 @@ public class InitializeExtensionsRequest extends TransportRequest {
         sourceNode = new DiscoveryNode(in);
         extensions = in.readList(DiscoveryExtension::new);
         port = in.readInt();
-        hostAddress = in.readString();
     }
 
     @Override
@@ -54,7 +51,6 @@ public class InitializeExtensionsRequest extends TransportRequest {
         sourceNode.writeTo(out);
         out.writeList(extensions);
         out.writeInt(port);
-        out.writeString(hostAddress);
     }
 
     public List<DiscoveryExtension> getExtensions() {
@@ -69,22 +65,9 @@ public class InitializeExtensionsRequest extends TransportRequest {
         return port;
     }
 
-    public String getHostAddress() {
-        return hostAddress;
-    }
-
     @Override
     public String toString() {
-        return "InitializeExtensionsRequest{"
-            + "sourceNode="
-            + sourceNode
-            + ", extensions="
-            + extensions
-            + ", port="
-            + port
-            + ", hostAddress="
-            + hostAddress
-            + '}';
+        return "InitializeExtensionsRequest{" + "sourceNode=" + sourceNode + ", extensions=" + extensions + ", port=" + port + '}';
     }
 
     @Override
@@ -94,12 +77,11 @@ public class InitializeExtensionsRequest extends TransportRequest {
         InitializeExtensionsRequest that = (InitializeExtensionsRequest) o;
         return Objects.equals(sourceNode, that.sourceNode)
             && Objects.equals(extensions, that.extensions)
-            && Objects.equals(port, that.port)
-            && Objects.equals(hostAddress, that.hostAddress);
+            && Objects.equals(port, that.port);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceNode, extensions, port, hostAddress);
+        return Objects.hash(sourceNode, extensions, port);
     }
 }
