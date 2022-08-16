@@ -43,10 +43,18 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAc
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.get.GetDecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.get.GetDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.get.GetDecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.get.GetDecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
@@ -1255,6 +1263,36 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request) {
             return execute(DeleteDanglingIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<PutDecommissionResponse> putDecommission(PutDecommissionRequest request) {
+            return execute(PutDecommissionAction.INSTANCE, request);
+        }
+
+        @Override
+        public void putDecommission(PutDecommissionRequest request, ActionListener<PutDecommissionResponse> listener) {
+            execute(PutDecommissionAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public PutDecommissionRequestBuilder preparePutDecommission() {
+            return new PutDecommissionRequestBuilder(this, PutDecommissionAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<GetDecommissionResponse> getDecommission(GetDecommissionRequest request) {
+            return execute(GetDecommissionAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getDecommission(GetDecommissionRequest request, ActionListener<GetDecommissionResponse> listener) {
+            execute(GetDecommissionAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public GetDecommissionRequestBuilder prepareGetDecommission() {
+            return new GetDecommissionRequestBuilder(this, GetDecommissionAction.INSTANCE);
         }
 
         @Override

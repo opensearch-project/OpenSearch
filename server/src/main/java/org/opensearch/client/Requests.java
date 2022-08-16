@@ -32,7 +32,9 @@
 
 package org.opensearch.client;
 
+import org.opensearch.action.admin.cluster.decommission.get.GetDecommissionRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -547,5 +549,16 @@ public class Requests {
      */
     public static SnapshotsStatusRequest snapshotsStatusRequest(String repository) {
         return new SnapshotsStatusRequest(repository);
+    }
+
+    /**
+     * Creates a new decommission request.
+     */
+    public static PutDecommissionRequest putDecommissionRequest() {
+        return new PutDecommissionRequest();
+    }
+
+    public static GetDecommissionRequest getDecommissionRequest() {
+        return new GetDecommissionRequest();
     }
 }
