@@ -2097,6 +2097,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockGeoShapeFieldMapper()) {
             mocks.add(TestGeoShapeFieldMapperPlugin.class);
         }
+
         return Collections.unmodifiableList(mocks);
     }
 

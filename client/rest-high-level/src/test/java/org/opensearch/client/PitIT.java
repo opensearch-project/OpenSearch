@@ -48,7 +48,7 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
     }
 
-    public void testCreatePit() throws IOException {
+    public void testCreatePitAndDeletePit() throws IOException {
         CreatePitRequest pitRequest = new CreatePitRequest(new TimeValue(1, TimeUnit.DAYS), true, "index");
         CreatePitResponse pitResponse = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
         assertTrue(pitResponse.getId() != null);
