@@ -144,7 +144,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         return createGroup(replicas, settings, indexMapping, engineFactory);
     }
 
-    protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory) throws IOException {
+    protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory)
+        throws IOException {
         IndexMetadata metadata = buildIndexMetadata(replicas, settings, mappings);
         return new ReplicationGroup(metadata) {
             @Override
