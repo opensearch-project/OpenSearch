@@ -8,17 +8,23 @@
 
 package org.opensearch.index.shard;
 
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -50,6 +56,54 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
         assertNotNull(replicationCheckpoint);
         closeShards(indexShard);
+    }
+
+    public void testSegmentReplication_Index_Update_Delete() throws Exception {
+        String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
+        try (ReplicationGroup shards = createGroup(2, settings, mappings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+
+            final int numDocs = randomIntBetween(100, 200);
+            for (int i = 0; i < numDocs; i++) {
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+            }
+
+            primaryShard.refresh("Test");
+            replicateSegments(primaryShard, shards.getReplicas());
+
+            shards.assertAllEqual(numDocs);
+
+            for (int i = 0; i < numDocs; i++) {
+                // randomly update docs.
+                if (randomBoolean()) {
+                    shards.index(
+                        new IndexRequest(index.getName()).id(String.valueOf(i)).source("{ \"foo\" : \"baz\" }", XContentType.JSON)
+                    );
+                }
+            }
+
+            primaryShard.refresh("Test");
+            replicateSegments(primaryShard, shards.getReplicas());
+            shards.assertAllEqual(numDocs);
+
+            final List<DocIdSeqNoAndSource> docs = getDocIdAndSeqNos(primaryShard);
+            for (IndexShard shard : shards.getReplicas()) {
+                assertEquals(getDocIdAndSeqNos(shard), docs);
+            }
+            for (int i = 0; i < numDocs; i++) {
+                // randomly delete.
+                if (randomBoolean()) {
+                    shards.delete(new DeleteRequest(index.getName()).id(String.valueOf(i)));
+                }
+            }
+            primaryShard.refresh("Test");
+            replicateSegments(primaryShard, shards.getReplicas());
+            final List<DocIdSeqNoAndSource> docsAfterDelete = getDocIdAndSeqNos(primaryShard);
+            for (IndexShard shard : shards.getReplicas()) {
+                assertEquals(getDocIdAndSeqNos(shard), docsAfterDelete);
+            }
+        }
     }
 
     public void testIgnoreShardIdle() throws Exception {
