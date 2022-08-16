@@ -151,6 +151,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.warmer.ShardIndexWarmerService;
@@ -308,6 +309,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReferenceManager.RefreshListener checkpointRefreshListener;
 
     private final Store remoteStore;
+    private final TranslogFactory translogFactory;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -330,6 +332,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
+        final TranslogFactory translogFactory,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
         @Nullable final Store remoteStore
     ) throws IOException {
@@ -420,6 +423,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.checkpointRefreshListener = null;
         }
         this.remoteStore = remoteStore;
+        this.translogFactory = translogFactory;
     }
 
     public ThreadPool getThreadPool() {
@@ -3254,7 +3258,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
-            indexSettings.isSegRepEnabled() && shardRouting.primary() == false
+            indexSettings.isSegRepEnabled() && shardRouting.primary() == false,
+            translogFactory
         );
     }
 
