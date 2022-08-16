@@ -88,6 +88,7 @@ import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
@@ -547,7 +548,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
                 circuitBreakerService,
-                this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
+                // TODO Replace with remote translog factory in the follow up PR
+                this.indexSettings.isRemoteTranslogStoreEnabled() ? null : new InternalTranslogFactory(),
+                this.indexSettings.isSegRepEnabled() && routing.primary() ? checkpointPublisher : null,
                 remoteStore
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
