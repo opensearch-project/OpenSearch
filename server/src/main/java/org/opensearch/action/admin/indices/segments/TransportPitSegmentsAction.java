@@ -199,8 +199,9 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
                 return new ShardSegments(shardRouting, new ArrayList<>());
             }
             return new ShardSegments(pitReaderContext.getShardRouting(), pitReaderContext.getSegments());
+        } else {
+            throw new IllegalArgumentException("Shard routing is not of PitAwareShardRouting type");
         }
-        return new ShardSegments(shardRouting, new ArrayList<>());
     }
 
     /**
