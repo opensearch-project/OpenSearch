@@ -624,6 +624,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         try {
                             if (indexSettings.isSegRepEnabled()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
+                                assert newRouting.primary() && currentRouting.primary() == false;
                                 promoteNRTReplicaToPrimary();
                             }
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
@@ -4140,8 +4141,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 engine.commitSegmentInfos();
                 resetEngineToGlobalCheckpoint();
             } catch (IOException e) {
-                throw new OpenSearchException("Unable to change engine type, failing", e);
+                throw new EngineException(shardId, "Unable to update  replica to writeable engine, failing shard", e);
             }
-        }, () -> { throw new OpenSearchException("Expected replica engine to be of type NRTReplicationEngine"); });
+        }, () -> { throw new EngineException(shardId, "Expected replica engine to be of type NRTReplicationEngine"); });
     }
 }

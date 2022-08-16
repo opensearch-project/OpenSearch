@@ -133,8 +133,9 @@ public class NRTReplicationEngine extends Engine {
      * Persist the latest live SegmentInfos.
      *
      * This method creates a commit point from the latest SegmentInfos. It is intended to be used when this shard is about to be promoted as the new primary.
-     * If this method is invoked while the engine is currently updating segments on its reader, it will wait for that update to complete so the updated segments are used.
-     * It does not wait for segment copy to complete, that
+     *
+     * TODO: If this method is invoked while the engine is currently updating segments on its reader, wait for that update to complete so the updated segments are used.
+     *
      *
      * @throws IOException - When there is an IO error committing the SegmentInfos.
      */

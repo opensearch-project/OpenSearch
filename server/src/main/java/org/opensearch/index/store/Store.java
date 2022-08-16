@@ -829,8 +829,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // similar to TrimUnsafeCommits, create a commit with an appending IW, this will delete old commits and ensure all files
             // associated with the SegmentInfos.commit are fsynced.
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
-            assert existingCommits.isEmpty() == false : "No commits found";
+            assert existingCommits.isEmpty() == false : "Expected at least one commit but none found";
             final IndexCommit lastIndexCommit = existingCommits.get(existingCommits.size() - 1);
+            assert latestSegmentInfos.getSegmentsFileName().equals(lastIndexCommit.getSegmentsFileName());
             try (IndexWriter writer = newAppendingIndexWriter(directory, lastIndexCommit)) {
                 writer.setLiveCommitData(lastIndexCommit.getUserData().entrySet());
                 writer.commit();
