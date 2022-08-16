@@ -25,7 +25,7 @@ public class NRTReplicationEngineFactory implements EngineFactory {
     public Engine newReadWriteEngine(EngineConfig config) {
         Engine engine;
         if (config.isReadOnlyReplica()) {
-            if (config.getIndexSettings().isRemoteStoreEnabled()) {
+            if (config.getIndexSettings().isRemoteStoreEnabled() && config.getIndexSettings().isRemoteTranslogStoreEnabled()) {
                 engine = new NRTReplicationNoOpEngine(config);
             } else {
                 engine = new NRTReplicationEngine(config);
