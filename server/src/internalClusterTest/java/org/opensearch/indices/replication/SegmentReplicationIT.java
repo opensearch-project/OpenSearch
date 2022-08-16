@@ -293,6 +293,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
             refresh(INDEX_NAME);
             waitForReplicaUpdate();
+            Thread.sleep(1000);
 
             assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount - 1);
             assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount - 1);
