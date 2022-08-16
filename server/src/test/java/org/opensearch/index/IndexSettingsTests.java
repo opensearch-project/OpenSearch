@@ -42,6 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -853,5 +854,26 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             "Settings index.remote_store.translog.enabled cannot be enabled when index.remote_store.enabled is set to false",
             iae.getMessage()
         );
+    }
+
+    public void testEnablingRemoteStoreFailsWhenReplicationTypeIsDocument() {
+        Settings indexSettings = Settings.builder()
+            .put("index.replication.type", ReplicationType.DOCUMENT)
+            .put("index.remote_store.enabled", true)
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
+        );
+        assertEquals("To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT", iae.getMessage());
+    }
+
+    public void testEnablingRemoteStoreFailsWhenReplicationTypeIsDefault() {
+        Settings indexSettings = Settings.builder().put("index.remote_store.enabled", true).build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
+        );
+        assertEquals("To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT", iae.getMessage());
     }
 }
