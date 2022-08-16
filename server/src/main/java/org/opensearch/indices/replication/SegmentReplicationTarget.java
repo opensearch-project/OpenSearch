@@ -176,7 +176,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
         final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
-        final Store.RecoveryDiff diff = snapshot.segmentReplicationDiff(localMetadata);
+        final Store.RecoveryDiff diff = snapshot.recoveryDiff(localMetadata, false);
         logger.trace("Replication diff {}", diff);
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
