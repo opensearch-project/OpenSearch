@@ -63,7 +63,7 @@ public class NRTReplicationNoOpEngine extends AbstractNRTReplicationEngine {
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
-        return 0;
+        return -1;
     }
 
     /**

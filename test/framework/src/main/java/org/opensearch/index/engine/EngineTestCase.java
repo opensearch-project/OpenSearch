@@ -355,6 +355,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     protected void assertEngineCleanedUp(Engine engine, TranslogDeletionPolicy translogDeletionPolicy) throws Exception {
         if (engine.isClosed.get() == false) {
             translogDeletionPolicy.assertNoOpenTranslogRefs();
+            assertEngineCleanedUp(engine);
+        }
+    }
+
+    protected void assertEngineCleanedUp(Engine engine) throws Exception {
+        if (engine.isClosed.get() == false) {
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
             assertNoInFlightDocuments(engine);
             assertMaxSeqNoInCommitUserData(engine);
