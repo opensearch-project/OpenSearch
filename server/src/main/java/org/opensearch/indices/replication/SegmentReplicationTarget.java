@@ -64,8 +64,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
-        this.state = new SegmentReplicationState(stateIndex);
-        this.state.setReplicationId(getId());
+        this.state = new SegmentReplicationState(stateIndex, getId());
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);
     }
 

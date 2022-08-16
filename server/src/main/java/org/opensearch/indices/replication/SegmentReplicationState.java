@@ -67,7 +67,7 @@ public class SegmentReplicationState implements ReplicationState {
     private Stage stage;
     private final ReplicationLuceneIndex index;
     private final ReplicationTimer overallTimer;
-    private final ReplicationTimer stepTimer;
+    private final ReplicationTimer stageTimer;
     private final List<Tuple<String, Long>> timingData;
     private long replicationId;
 
@@ -78,8 +78,15 @@ public class SegmentReplicationState implements ReplicationState {
         // additional entry for the overall timer
         timingData = new ArrayList<>(Stage.values().length + 1);
         overallTimer = new ReplicationTimer();
-        stepTimer = new ReplicationTimer();
-        stepTimer.start();
+        stageTimer = new ReplicationTimer();
+        stageTimer.start();
+        // set an invalid value by default
+        this.replicationId = -1L;
+    }
+
+    public SegmentReplicationState(ReplicationLuceneIndex index, long replicationId) {
+        this(index);
+        this.replicationId = replicationId;
     }
 
     @Override
@@ -89,10 +96,6 @@ public class SegmentReplicationState implements ReplicationState {
 
     public long getReplicationId() {
         return replicationId;
-    }
-
-    public void setReplicationId(long replicationId) {
-        this.replicationId = replicationId;
     }
 
     @Override
@@ -116,11 +119,11 @@ public class SegmentReplicationState implements ReplicationState {
             );
         }
         // save the timing data for the current step
-        stepTimer.stop();
-        timingData.add(new Tuple<>(stage.name(), stepTimer.time()));
+        stageTimer.stop();
+        timingData.add(new Tuple<>(stage.name(), stageTimer.time()));
         // restart the step timer
-        stepTimer.reset();
-        stepTimer.start();
+        stageTimer.reset();
+        stageTimer.start();
         stage = next;
     }
 
