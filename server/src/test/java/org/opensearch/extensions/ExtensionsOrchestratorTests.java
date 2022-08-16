@@ -86,7 +86,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     private ClusterService clusterService;
     private MockNioTransport transport;
     private Path extensionDir;
-    private List<String> extensionsYmlLines;
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsOrchestratorTests.class.getSimpleName());
     private final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -151,33 +150,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         clusterService = createClusterService(threadPool);
 
         extensionDir = createTempDir();
-        extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false",
-            "   - name: secondExtension",
-            "     uniqueId: 'uniqueid2'",
-            "     hostName: 'myIndependentPluginHost2'",
-            "     hostAddress: '127.0.0.1'",
-            "     port: '9301'",
-            "     version: '3.14.16'",
-            "     description: Fake description 2",
-            "     opensearchVersion: '2.0.0'",
-            "     javaVersion: '17'",
-            "     className: fakeClass2",
-            "     customFolderName: fakeFolder2",
-            "     hasNativeController: true"
-        );
     }
 
     @Override
