@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -293,10 +294,22 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
             refresh(INDEX_NAME);
             waitForReplicaUpdate();
-            Thread.sleep(1000);
-
-            assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount - 1);
-            assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount - 1);
+            assertBusy(() -> {
+                final long nodeA_Count = client(nodeA).prepareSearch(INDEX_NAME)
+                    .setSize(0)
+                    .setPreference("_only_local")
+                    .get()
+                    .getHits()
+                    .getTotalHits().value;
+                assertEquals(expectedHitCount - 1, nodeA_Count);
+                final long nodeB_Count = client(nodeB).prepareSearch(INDEX_NAME)
+                    .setSize(0)
+                    .setPreference("_only_local")
+                    .get()
+                    .getHits()
+                    .getTotalHits().value;
+                assertEquals(expectedHitCount - 1, nodeB_Count);
+            }, 5, TimeUnit.SECONDS);
         }
     }
 
