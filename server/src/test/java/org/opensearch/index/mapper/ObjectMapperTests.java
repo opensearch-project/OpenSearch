@@ -178,19 +178,13 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    public void testDottedFields() throws Exception {
+    public void testDotAsFieldName() throws Exception {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
                 .startObject(".")
                 .field("type", "text")
-                .field("dimension", 4)
-                .startObject("method")
-                .field("name", "hnsw")
-                .field("space", "l2")
-                .field("engine", "lucene")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -200,7 +194,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), containsString("out of bounds for length"));
+            assertThat(e.getMessage(), containsString("Invalid field name"));
         }
     }
 
