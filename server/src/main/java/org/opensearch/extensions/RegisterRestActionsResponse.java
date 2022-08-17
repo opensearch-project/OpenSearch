@@ -39,18 +39,18 @@ import org.opensearch.transport.TransportResponse;
 import java.io.IOException;
 
 /**
- * ApiResponse to communicate REST API
+ * Response to register REST Actions request.
  *
  * @opensearch.internal
  */
-public class RegisterRestApiResponse extends TransportResponse {
+public class RegisterRestActionsResponse extends TransportResponse {
     private String response;
 
-    public RegisterRestApiResponse(String response) {
+    public RegisterRestActionsResponse(String response) {
         this.response = response;
     }
 
-    public RegisterRestApiResponse(StreamInput in) throws IOException {
+    public RegisterRestActionsResponse(StreamInput in) throws IOException {
         response = in.readString();
     }
 

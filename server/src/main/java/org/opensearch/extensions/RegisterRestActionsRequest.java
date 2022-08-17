@@ -18,55 +18,55 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * ApiRequest to register extension REST API
+ * Request to register extension REST actions
  *
  * @opensearch.internal
  */
-public class RegisterRestApiRequest extends TransportRequest {
+public class RegisterRestActionsRequest extends TransportRequest {
     private String nodeId;
-    private List<String> restApi;
+    private List<String> restActions;
 
-    public RegisterRestApiRequest(String nodeId, List<String> api) {
+    public RegisterRestActionsRequest(String nodeId, List<String> restActions) {
         this.nodeId = nodeId;
-        this.restApi = new ArrayList<>(api);
+        this.restActions = new ArrayList<>(restActions);
     }
 
-    public RegisterRestApiRequest(StreamInput in) throws IOException {
+    public RegisterRestActionsRequest(StreamInput in) throws IOException {
         super(in);
         nodeId = in.readString();
-        restApi = in.readStringList();
+        restActions = in.readStringList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(nodeId);
-        out.writeStringCollection(restApi);
+        out.writeStringCollection(restActions);
     }
 
     public String getNodeId() {
         return nodeId;
     }
 
-    public List<String> getRestApi() {
-        return new ArrayList<>(restApi);
+    public List<String> getRestActions() {
+        return new ArrayList<>(restActions);
     }
 
     @Override
     public String toString() {
-        return "RestApiRequest{nodeId=" + nodeId + ", restApi=" + restApi + "}";
+        return "RestActionsRequest{nodeId=" + nodeId + ", restActions=" + restActions + "}";
     }
 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        RegisterRestApiRequest that = (RegisterRestApiRequest) obj;
-        return Objects.equals(nodeId, that.nodeId) && Objects.equals(restApi, that.restApi);
+        RegisterRestActionsRequest that = (RegisterRestActionsRequest) obj;
+        return Objects.equals(nodeId, that.nodeId) && Objects.equals(restActions, that.restActions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, restApi);
+        return Objects.hash(nodeId, restActions);
     }
 }
