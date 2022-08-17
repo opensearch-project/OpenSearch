@@ -335,7 +335,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.setTransportService(transportService);
-        String nodeIdStr = "notAValidUniqueId";
+        String nodeIdStr = "uniqueid1";
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, actionsList);
         expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterRestActionsRequest(registerActionsRequest));
@@ -348,7 +348,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.setTransportService(transportService);
-        String nodeIdStr = "notAValidUniqueId";
+        String nodeIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, actionsList);
         expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterRestActionsRequest(registerActionsRequest));
