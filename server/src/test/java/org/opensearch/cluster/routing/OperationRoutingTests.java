@@ -36,6 +36,7 @@ import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.WeightedRoundRobinMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -102,6 +103,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(shardSplits[2])
                 .numberOfReplicas(1)
+
                 .setRoutingNumShards(shardSplits[0])
                 .build();
             shrunkShard = OperationRouting.generateShardId(shrunk, term, null);
@@ -759,6 +761,111 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         terminate(threadPool);
     }
 
+    public void testWRR() throws Exception {
+        final int numIndices = 2;
+        final int numShards = 3;
+        final int numReplicas = 2;
+        final String[] indexNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indexNames[i] = "test" + i;
+        }
+        DiscoveryNode[] allNodes = setUpNodesWRR();
+        ClusterState state = ClusterStateCreationUtils.state(allNodes[0], allNodes[6], allNodes);
+
+        Map<String, List<DiscoveryNode>> discoveryNodeMap = new HashMap<>();
+        List<DiscoveryNode> nodesZoneA = new ArrayList<>();
+        nodesZoneA.add(allNodes[0]);
+        nodesZoneA.add(allNodes[1]);
+
+        List<DiscoveryNode> nodesZoneB = new ArrayList<>();
+        nodesZoneB.add(allNodes[2]);
+        nodesZoneB.add(allNodes[3]);
+
+        List<DiscoveryNode> nodesZoneC = new ArrayList<>();
+        nodesZoneC.add(allNodes[4]);
+        nodesZoneC.add(allNodes[5]);
+        discoveryNodeMap.put("a", nodesZoneA);
+        discoveryNodeMap.put("b", nodesZoneB);
+        discoveryNodeMap.put("c", nodesZoneC);
+
+        state = updateStatetoTestWRR(indexNames, numShards, numReplicas, state, discoveryNodeMap);
+
+        Settings setting = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.use_weighted_round_robin", "true")
+            .build();
+
+        TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupport");
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        OperationRouting opRouting = new OperationRouting(
+            setting,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        assertTrue(opRouting.ignoreAwarenessAttributes());
+        Set<String> selectedNodes = new HashSet<>();
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+        Map<String, Long> outstandingRequests = new HashMap<>();
+
+        Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
+        WRRWeight wrrWeight = new WRRWeight("zone", weights);
+        WeightedRoundRobinMetadata wrrMetadata = new WeightedRoundRobinMetadata(wrrWeight);
+        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
+        metadataBuilder.putCustom(WeightedRoundRobinMetadata.TYPE, wrrMetadata);
+        state = ClusterState.builder(state).metadata(metadataBuilder).build();
+
+        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
+            state,
+            indexNames,
+            null,
+            null,
+            collector,
+            outstandingRequests
+        );
+
+        for (ShardIterator it : groupIterator) {
+            List<ShardRouting> shardRoutings = Collections.singletonList(it.nextOrNull());
+            for (ShardRouting shardRouting : shardRoutings) {
+                selectedNodes.add(shardRouting.currentNodeId());
+            }
+        }
+        for (String nodeID : selectedNodes) {
+            // No shards are assigned to nodes in zone c since its weight is 0
+            assertFalse(nodeID.contains("c"));
+        }
+
+        selectedNodes = new HashSet<>();
+        setting = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.use_weighted_round_robin", "true")
+            .build();
+
+        weights = Map.of("a", "1", "b", "0", "c", "1");
+        wrrWeight = new WRRWeight("zone", weights);
+        wrrMetadata = new WeightedRoundRobinMetadata(wrrWeight);
+        metadataBuilder = Metadata.builder(state.metadata());
+        metadataBuilder.putCustom(WeightedRoundRobinMetadata.TYPE, wrrMetadata);
+        state = ClusterState.builder(state).metadata(metadataBuilder).build();
+
+        opRouting = new OperationRouting(setting, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+
+        for (ShardIterator it : groupIterator) {
+            List<ShardRouting> shardRoutings = Collections.singletonList(it.nextOrNull());
+            for (ShardRouting shardRouting : shardRoutings) {
+                selectedNodes.add(shardRouting.currentNodeId());
+            }
+        }
+        for (String nodeID : selectedNodes) {
+            // No shards are assigned to nodes in zone b since its weight is 0
+            assertFalse(nodeID.contains("b"));
+        }
+        IOUtils.close(clusterService);
+        terminate(threadPool);
+    }
+
     private DiscoveryNode[] setupNodes() {
         // Sets up two data nodes in zone-a and one data node in zone-b
         List<String> zones = Arrays.asList("a", "a", "b");
@@ -774,6 +881,32 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             );
             allNodes[i++] = node;
         }
+        DiscoveryNode clusterManager = new DiscoveryNode(
+            "cluster-manager",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
+        allNodes[i] = clusterManager;
+        return allNodes;
+    }
+
+    private DiscoveryNode[] setUpNodesWRR() {
+        List<String> zones = Arrays.asList("a", "a", "b", "b", "c", "c");
+        DiscoveryNode[] allNodes = new DiscoveryNode[7];
+        int i = 0;
+        for (String zone : zones) {
+            DiscoveryNode node = new DiscoveryNode(
+                "node_" + zone + "_" + i,
+                buildNewFakeTransportAddress(),
+                singletonMap("zone", zone),
+                Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+                Version.CURRENT
+            );
+            allNodes[i++] = node;
+        }
+
         DiscoveryNode clusterManager = new DiscoveryNode(
             "cluster-manager",
             buildNewFakeTransportAddress(),
@@ -837,6 +970,71 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             }
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
+        clusterState.metadata(metadataBuilder);
+        clusterState.routingTable(routingTableBuilder.build());
+        return clusterState.build();
+    }
+
+    private ClusterState updateStatetoTestWRR(
+        String[] indices,
+        int numberOfShards,
+        int numberOfReplicas,
+        ClusterState state,
+        Map<String, List<DiscoveryNode>> discoveryNodeMap
+    ) {
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        ClusterState.Builder clusterState = ClusterState.builder(state);
+        List<DiscoveryNode> nodesZoneA = discoveryNodeMap.get("a");
+        List<DiscoveryNode> nodesZoneB = discoveryNodeMap.get("b");
+        List<DiscoveryNode> nodesZoneC = discoveryNodeMap.get("c");
+        for (String index : indices) {
+            IndexMetadata indexMetadata = IndexMetadata.builder(index)
+                .settings(
+                    Settings.builder()
+                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                        .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                        .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                )
+                .build();
+            metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+            for (int i = 0; i < numberOfShards; i++) {
+                final ShardId shardId = new ShardId(index, "_na_", i);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                // Assign all the primary shards on nodes in zone-a (node_a0 or node_a1)
+                indexShardRoutingBuilder.addShard(
+                    TestShardRouting.newShardRouting(
+                        index,
+                        i,
+                        nodesZoneA.get(randomInt(nodesZoneA.size() - 1)).getId(),
+                        null,
+                        true,
+                        ShardRoutingState.STARTED
+                    )
+                );
+                for (int replica = 0; replica < numberOfReplicas; replica++) {
+                    // Assign all the replicas on nodes in zone-b (node_b2)
+                    String nodeId = "";
+                    if (replica == 0) {
+                        nodeId = nodesZoneB.get(randomInt(nodesZoneB.size() - 1)).getId();
+                    } else {
+                        nodeId = nodesZoneC.get(randomInt(nodesZoneC.size() - 1)).getId();
+                    }
+                    indexShardRoutingBuilder.addShard(
+                        TestShardRouting.newShardRouting(index, i, nodeId, null, false, ShardRoutingState.STARTED)
+                    );
+                }
+                indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder.build());
+        }
+        // add wrr weights in metadata
+        Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
+        WRRWeight wrrWeight = new WRRWeight("zone", weights);
+        WeightedRoundRobinMetadata wrrMetadata = new WeightedRoundRobinMetadata(wrrWeight);
+        metadataBuilder.putCustom(WeightedRoundRobinMetadata.TYPE, wrrMetadata);
         clusterState.metadata(metadataBuilder);
         clusterState.routingTable(routingTableBuilder.build());
         return clusterState.build();

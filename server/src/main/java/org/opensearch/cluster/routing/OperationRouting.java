@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.WeightedRoundRobinMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.Nullable;
@@ -68,6 +69,12 @@ public class OperationRouting {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> USE_WEIGHTED_ROUND_ROBIN = Setting.boolSetting(
+        "cluster.routing.use_weighted_round_robin",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final String IGNORE_AWARENESS_ATTRIBUTES = "cluster.search.ignore_awareness_attributes";
     public static final Setting<Boolean> IGNORE_AWARENESS_ATTRIBUTES_SETTING = Setting.boolSetting(
         IGNORE_AWARENESS_ATTRIBUTES,
@@ -79,6 +86,8 @@ public class OperationRouting {
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
 
+    private volatile boolean useWeightedRoundRobin;
+
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
         this.ignoreAwarenessAttr = clusterSettings.get(IGNORE_AWARENESS_ATTRIBUTES_SETTING);
@@ -88,8 +97,11 @@ public class OperationRouting {
             this::setAwarenessAttributes
         );
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
+        this.useWeightedRoundRobin = USE_WEIGHTED_ROUND_ROBIN.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
+        clusterSettings.addSettingsUpdateConsumer(USE_WEIGHTED_ROUND_ROBIN, this::setUseWeightedRoundRobin);
+
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -98,6 +110,14 @@ public class OperationRouting {
 
     void setIgnoreAwarenessAttributes(boolean ignoreAwarenessAttributes) {
         this.ignoreAwarenessAttr = ignoreAwarenessAttributes;
+    }
+
+    public boolean isUseWeightedRoundRobin() {
+        return useWeightedRoundRobin;
+    }
+
+    public void setUseWeightedRoundRobin(boolean useWeightedRoundRobin) {
+        this.useWeightedRoundRobin = useWeightedRoundRobin;
     }
 
     public boolean isIgnoreAwarenessAttr() {
@@ -169,19 +189,35 @@ public class OperationRouting {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
-            ShardIterator iterator = preferenceActiveShardIterator(
-                shard,
-                clusterState.nodes().getLocalNodeId(),
-                clusterState.nodes(),
-                preference,
-                collectorService,
-                nodeCounts
-            );
+            ShardIterator iterator = null;
+            // TODO: Do we need similar changes in getShards call??
+            if (isWeightedRoundRobinEnabled(clusterState)) {
+                WeightedRoundRobinMetadata weightedRoundRobinMetadata = clusterState.metadata().custom(WeightedRoundRobinMetadata.TYPE);
+                iterator = shard.activeInitializingShardsWRR(weightedRoundRobinMetadata.getWrrWeight(), clusterState.nodes());
+            } else {
+                iterator = preferenceActiveShardIterator(
+                    shard,
+                    clusterState.nodes().getLocalNodeId(),
+                    clusterState.nodes(),
+                    preference,
+                    collectorService,
+                    nodeCounts
+                );
+            }
+
             if (iterator != null) {
                 set.add(iterator);
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
+    }
+
+    private boolean isWeightedRoundRobinEnabled(ClusterState clusterState) {
+        WeightedRoundRobinMetadata weightedRoundRobinMetadata = clusterState.metadata().custom(WeightedRoundRobinMetadata.TYPE);
+        if (useWeightedRoundRobin && weightedRoundRobinMetadata != null) {
+            return true;
+        }
+        return false;
     }
 
     public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
@@ -227,6 +263,7 @@ public class OperationRouting {
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts
     ) {
+
         if (preference == null || preference.isEmpty()) {
             return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
         }

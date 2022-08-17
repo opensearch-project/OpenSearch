@@ -43,7 +43,6 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -290,6 +289,65 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         List<ShardRouting> rankedInitializingShards = rankShardsAndUpdateStats(allInitializingShards, collector, nodeSearchCounts);
         ordered.addAll(rankedInitializingShards);
         return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * *
+     * @param wrrWeight Weighted round-robin weight entity
+     * @param nodes discovered nodes in the cluster
+     * @return an interator over active and initializing shards, ordered by weighted round-robin
+     * scheduling policy. Making sure that initializing shards are the last to iterate through.
+     */
+    public ShardIterator activeInitializingShardsWRR(WRRWeight wrrWeight, DiscoveryNodes nodes) {
+        final int seed = shuffler.nextSeed();
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        ArrayList<ShardRouting> orderedActiveShards = getShardsWRR(activeShards, wrrWeight, nodes);
+        ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
+        if (!allInitializingShards.isEmpty()) {
+            ArrayList<ShardRouting> orderedInitializingShards = getShardsWRR(allInitializingShards, wrrWeight, nodes);
+            ordered.addAll(shuffler.shuffle(orderedInitializingShards, seed));
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     *
+     * @param shards shards to be ordered using weighted round-robin scheduling policy
+     * @param wrrWeight weights to be considered for routing
+     * @param nodes discovered nodes in the cluster
+     * @return list of shards ordered using weighted round-robin scheduling.
+     */
+    private ArrayList<ShardRouting> getShardsWRR(List<ShardRouting> shards, WRRWeight wrrWeight, DiscoveryNodes nodes) {
+        List<WeightedRoundRobin.Entity<ShardRouting>> weightedShards = calculateShardWeight(shards, wrrWeight, nodes);
+        WeightedRoundRobin<ShardRouting> wrr = new WeightedRoundRobin<>(weightedShards);
+        List<WeightedRoundRobin.Entity<ShardRouting>> wrrOrderedActiveShards = wrr.orderEntities();
+        ArrayList<ShardRouting> orderedActiveShards = new ArrayList<>(activeShards.size());
+        for (WeightedRoundRobin.Entity<ShardRouting> shardRouting : wrrOrderedActiveShards) {
+            orderedActiveShards.add(shardRouting.getTarget());
+        }
+        return orderedActiveShards;
+    }
+
+    /**
+     * *
+     * @param shards associate weights to shards
+     * @param wrrWeight weights to be used for association
+     * @param nodes
+     * @return list of entity containing shard routing and associated weight.
+     */
+    private List<WeightedRoundRobin.Entity<ShardRouting>> calculateShardWeight(
+        List<ShardRouting> shards,
+        WRRWeight wrrWeight,
+        DiscoveryNodes nodes
+    ) {
+        List<WeightedRoundRobin.Entity<ShardRouting>> weightedShards = new ArrayList<>();
+        for (ShardRouting shard : shards) {
+            shard.currentNodeId();
+            DiscoveryNode node = nodes.get(shard.currentNodeId());
+            String attVal = node.getAttributes().get(wrrWeight.attributeName());
+            weightedShards.add(new WeightedRoundRobin.Entity<>(Double.parseDouble(wrrWeight.weights().get(attVal).toString()), shard));
+        }
+        return weightedShards;
     }
 
     private static Set<String> getAllNodeIds(final List<ShardRouting> shards) {
