@@ -35,6 +35,8 @@ package org.opensearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.shiro.SecurityUtils;
+import org.apache.shiro.subject.Subject;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -61,6 +63,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.identity.MyShiroModule;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.ReportingService;
 import org.opensearch.tasks.Task;
@@ -767,7 +770,10 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         try {
-            logger.info("Action: " + action);
+            logger.info("Action: " + action + ", as Subject: " + SecurityUtils.getSubject().getPrincipal());
+            if (!SecurityUtils.getSubject().isAuthenticated()) {
+                throw new RuntimeException("AHH!");
+            }
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
@@ -931,7 +937,7 @@ public class TransportService extends AbstractLifecycleComponent
                 // thread on a best effort basis though.
                 final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
                 final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-                threadPool.executor(executor).execute(new AbstractRunnable() {
+                threadPool.executor(executor).execute(MyShiroModule.getSubjectOrInternal().associateWith(new AbstractRunnable() {
                     @Override
                     public void onRejection(Exception e) {
                         // if we get rejected during node shutdown we don't wanna bubble it up
@@ -959,7 +965,7 @@ public class TransportService extends AbstractLifecycleComponent
                     protected void doRun() throws Exception {
                         contextToNotify.handler().handleException(sendRequestException);
                     }
-                });
+                }));
             } else {
                 logger.debug("Exception while sending request, handler likely already notified due to timeout", e);
             }
@@ -980,7 +986,7 @@ public class TransportService extends AbstractLifecycleComponent
                 // noinspection unchecked
                 reg.processMessageReceived(request, channel);
             } else {
-                threadPool.executor(executor).execute(new AbstractRunnable() {
+                threadPool.executor(executor).execute(MyShiroModule.getSubjectOrInternal().associateWith(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         // noinspection unchecked
@@ -1009,7 +1015,7 @@ public class TransportService extends AbstractLifecycleComponent
                     public String toString() {
                         return "processing of [" + requestId + "][" + action + "]: " + request;
                     }
-                });
+                }));
             }
 
         } catch (Exception e) {
@@ -1457,7 +1463,7 @@ public class TransportService extends AbstractLifecycleComponent
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processResponse(handler, response);
                 } else {
-                    threadPool.executor(executor).execute(new Runnable() {
+                    threadPool.executor(executor).execute(MyShiroModule.getSubjectOrInternal().associateWith(new Runnable() {
                         @Override
                         public void run() {
                             processResponse(handler, response);
@@ -1467,7 +1473,7 @@ public class TransportService extends AbstractLifecycleComponent
                         public String toString() {
                             return "delivery of response to [" + requestId + "][" + action + "]: " + response;
                         }
-                    });
+                    }));
                 }
             }
         }
@@ -1492,7 +1498,7 @@ public class TransportService extends AbstractLifecycleComponent
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processException(handler, rtx);
                 } else {
-                    threadPool.executor(handler.executor()).execute(new Runnable() {
+                    threadPool.executor(handler.executor()).execute(MyShiroModule.getSubjectOrInternal().associateWith(new Runnable() {
                         @Override
                         public void run() {
                             processException(handler, rtx);
@@ -1502,7 +1508,7 @@ public class TransportService extends AbstractLifecycleComponent
                         public String toString() {
                             return "delivery of failure response to [" + requestId + "][" + action + "]: " + exception;
                         }
-                    });
+                    }));
                 }
             }
         }

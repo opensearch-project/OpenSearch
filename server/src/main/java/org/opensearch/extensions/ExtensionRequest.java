@@ -36,14 +36,14 @@ public class ExtensionRequest extends TransportRequest {
     public ExtensionRequest(StreamInput in) throws IOException {
         super(in);
         this.requestType = in.readEnum(ExtensionsOrchestrator.RequestType.class);
-        this.user = in.readGenericValue();
+        this.user = (Principal)in.readGenericValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(requestType);
-        out.write(user);
+        out.writeGenericValue(user);
     }
 
     public ExtensionsOrchestrator.RequestType getRequestType() {
@@ -64,12 +64,12 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-        return Objects.equals(getRequest(), that.getRequest()) && Objects.equals(getUser(), that.getUser());
+        return Objects.equals(getRequestType(), that.getRequestType()) && Objects.equals(getUser(), that.getUser());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getRequest(), getUser());
+        return Objects.hash(getRequestType(), getUser());
     }
 
 }

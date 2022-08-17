@@ -228,6 +228,8 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.opensearch.identity.MyShiroModule;
+
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.REPLICATION_TYPE;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
@@ -342,6 +344,7 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
+    private final MyShiroModule shiro;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
@@ -414,6 +417,8 @@ public class Node implements Closeable {
                     initialEnvironment.pluginsDir()
                 );
             }
+
+            this.shiro = new MyShiroModule();
 
             this.pluginsService = new PluginsService(
                 tmpSettings,
@@ -917,6 +922,7 @@ public class Node implements Closeable {
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
+                // b.bind(MyShiroModel.class).toInstance(shiro);
                 b.bind(NodeService.class).toInstance(nodeService);
                 b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                 b.bind(PluginsService.class).toInstance(pluginsService);

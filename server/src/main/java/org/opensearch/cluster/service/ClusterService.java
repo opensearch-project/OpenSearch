@@ -167,6 +167,8 @@ public class ClusterService extends AbstractLifecycleComponent {
      * TODO: Should be renamed to appliedState / appliedClusterState
      */
     public ClusterState state() {
+
+        // sessionManager.getSession().throwIfNotPermitted("opensearch.clusterState");
         return clusterApplierService.state();
     }
 

@@ -34,6 +34,11 @@ package org.opensearch.action.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
+import org.apache.shiro.SecurityUtils;
+import org.apache.shiro.authc.BearerToken;
+import org.apache.shiro.authc.UsernamePasswordToken;
+import org.apache.shiro.subject.Subject;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -184,15 +189,21 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }
 
-        // Verify authoriziation for the task (AuthZ)
-        final SessionInfo sessionInfo = this.sessionManager.getSession();
-        final AuthorizationResult authResult = sessionInfo.isPermitted(task, request);
-        if (authResult.isDenied()) {
-           listener.onFailure(authResult.asException());   
-        } else{
-            RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
-            requestFilterChain.proceed(task, actionName, request, listener);
+        // Verify authorization for the task (AuthZ)
+        final Subject currentSubject = SecurityUtils.getSubject();
+        if (!currentSubject.isAuthenticated()) {
+            listener.onFailure(new RuntimeException("Not allowed without authentication, action name: " + task.getAction()));
+            return;
         }
+
+        if (currentSubject.isPermitted(task.getAction())) {
+            logger.atInfo().log(currentSubject.getPrincipal() + " is allowed to " + task.getAction());
+        } else {
+            logger.atError().log(currentSubject.getPrincipal() + " is NOT allowed to " + task.getAction() + ", but is not being stopped");
+        }
+
+        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
+        requestFilterChain.proceed(task, actionName, request, listener);
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);

@@ -35,6 +35,9 @@ package org.opensearch.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.shiro.SecurityUtils;
+import org.apache.shiro.authc.UsernamePasswordToken;
+import org.apache.shiro.subject.Subject;
 import org.opensearch.OpenSearchException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Nullable;
@@ -57,12 +60,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -395,13 +393,29 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    // Get Authenication information about request source (AuthN)
-                    final SessionInfo sessionInfo = this.authenticators.extractSessionInfo(request);
-                    this.sessionManger.setSessino(sessionInfo);
-                    /*
-                       Note; this could be moved farther up in the lifecycle, but as is avoids overactively quering authenicators
-                       if the request has no associated handlers and is unresponsable
-                     */
+
+                    final Subject currentSubject = SecurityUtils.getSubject();
+                    if (!currentSubject.isAuthenticated()) {
+                        logger.atInfo().log("Attempting to authenticated request.");
+                        final Optional<String> authHeader = request.getHeaders().get("Authorization").stream().findFirst();
+
+                        if (authHeader.isPresent() && !(Strings.isNullOrEmpty(authHeader.get())) && authHeader.get().startsWith("Basic ")) {
+                            try {
+                                final byte[] decodedAuthHeader = Base64.getDecoder().decode(authHeader.get().substring(6));
+                                final String[] decodedUserNamePassword = new String(decodedAuthHeader).split(":");
+                                currentSubject.login(new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]));
+                                logger.atInfo().log("User has been authenticated as: " + currentSubject.getPrincipal());
+                            } catch (final Exception e) {
+                                logger.atError().log("Failed to login");
+                                handleBadRequest(uri, requestMethod, channel);
+                                return;
+                            }
+                        } else {
+                            logger.atError().log("Unsupported Authentication");
+                            handleBadRequest(uri, requestMethod, channel);
+                            return;
+                        }
+                    }
 
                     dispatchRequest(request, channel, handler);
                     return;

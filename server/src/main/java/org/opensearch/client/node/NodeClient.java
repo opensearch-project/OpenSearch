@@ -32,6 +32,9 @@
 
 package org.opensearch.client.node;
 
+import org.apache.shiro.SecurityUtils;
+import org.apache.shiro.subject.SimplePrincipalCollection;
+import org.apache.shiro.subject.Subject;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
@@ -42,6 +45,7 @@ import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.MyShiroModule;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -107,7 +111,7 @@ public class NodeClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        return transportAction(action).execute(request, listener);
+        return MyShiroModule.getSubjectOrInternal().execute(() -> transportAction(action).execute(request, listener));
     }
 
     /**
@@ -119,7 +123,7 @@ public class NodeClient extends AbstractClient {
         Request request,
         TaskListener<Response> listener
     ) {
-        return transportAction(action).execute(request, listener);
+        return MyShiroModule.getSubjectOrInternal().execute(() -> transportAction(action).execute(request, listener));
     }
 
     /**
