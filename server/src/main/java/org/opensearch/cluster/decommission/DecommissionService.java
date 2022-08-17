@@ -12,6 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -26,11 +29,15 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -61,7 +68,6 @@ public class DecommissionService implements ClusterStateApplier {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.clusterState = clusterService.state(); // TODO - check if this is the right way
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.decommissionHelper = new DecommissionHelper(
             clusterService,
@@ -84,16 +90,62 @@ public class DecommissionService implements ClusterStateApplier {
 
     public void initiateAttributeDecommissioning(
         final DecommissionAttribute decommissionAttribute,
-        final ActionListener<ClusterStateUpdateResponse> listener
+        final ActionListener<ClusterStateUpdateResponse> listener,
+        ClusterState state
     ) {
-        /**
+        /*
          * 1. Abdicate master
          * 2. Register attribute -> status should be set to INIT
          * 3. Trigger weigh away for graceful decommission -> status should be set to DECOMMISSIONING
          * 4. Once zone is weighed away -> trigger zone decommission using executor -> status should be set to DECOMMISSIONED on successful response
          * 5. Clear voting config
          */
-        registerDecommissionAttribute(decommissionAttribute, listener);
+        this.clusterState = state;
+        abdicateDecommissionedClusterManagerNodes(decommissionAttribute, listener);
+    }
+
+    private void abdicateDecommissionedClusterManagerNodes(
+        DecommissionAttribute decommissionAttribute,
+        final ActionListener<ClusterStateUpdateResponse> listener
+    ) {
+        final Predicate<DiscoveryNode> shouldAbdicatePredicate = discoveryNode -> nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute);
+        List<String> clusterManagerNodesToBeDecommissioned = new ArrayList<>();
+        Iterator<DiscoveryNode> clusterManagerNodesIter = clusterState.nodes().getClusterManagerNodes().valuesIt();
+        while (clusterManagerNodesIter.hasNext()) {
+            final DiscoveryNode node = clusterManagerNodesIter.next();
+            if (shouldAbdicatePredicate.test(node)) {
+                clusterManagerNodesToBeDecommissioned.add(node.getName());
+            }
+        }
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest(clusterManagerNodesToBeDecommissioned.toArray(String[]::new)),
+            new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
+                @Override
+                public void handleResponse(AddVotingConfigExclusionsResponse response) {
+                    logger.info("successfully removed decommissioned cluster manager eligible nodes from voting config [{}], " +
+                        "proceeding to drain the decommissioned nodes", response.toString());
+                    registerDecommissionAttribute(decommissionAttribute, listener);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.debug(new ParameterizedMessage(
+                        "failure in removing decommissioned cluster manager eligible nodes from voting config"), exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
+                    return new AddVotingConfigExclusionsResponse(in);
+                }
+            }
+        );
     }
 
     /**
