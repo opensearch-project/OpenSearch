@@ -99,7 +99,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return 1;
             }
         };

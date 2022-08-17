@@ -8,241 +8,216 @@
 
 package org.opensearch.cluster.decommission;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionRequest;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
-import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
-import org.opensearch.cluster.coordination.DecommissionNodeAttributeClusterStateTaskExecutor;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
-import org.opensearch.cluster.metadata.DecommissionedAttributeMetadata;
-import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class DecommissionService extends AbstractLifecycleComponent implements ClusterStateApplier {
+// do we need to implement ClusterStateApplier -> will a change in cluster state impact this service??
+public class DecommissionService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(DecommissionService.class);
 
     private final ClusterService clusterService;
+    private final TransportService transportService;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
-    private final DecommissionNodeAttributeClusterStateTaskExecutor decommissionExecutor;
     private final ThreadPool threadPool;
     private final DecommissionHelper decommissionHelper;
+    private ClusterState clusterState;
+    private volatile List<String> awarenessAttributes;
 
     @Inject
     public DecommissionService(
+        Settings settings,
+        ClusterSettings clusterSettings,
         ClusterService clusterService,
+        TransportService transportService,
         ThreadPool threadPool,
         AllocationService allocationService
     ) {
         this.clusterService = clusterService;
+        this.transportService = transportService;
         this.threadPool = threadPool;
+        this.clusterState = clusterService.state(); // TODO - check if this is the right way
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        this.decommissionExecutor = new DecommissionNodeAttributeClusterStateTaskExecutor(allocationService, logger);
         this.decommissionHelper = new DecommissionHelper(
             clusterService,
             nodeRemovalExecutor
         );
+        this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
+            this::setAwarenessAttributes
+        );
+    }
+
+    List<String> getAwarenessAttributes() {
+        return awarenessAttributes;
+    }
+
+    private void setAwarenessAttributes(List<String> awarenessAttributes) {
+        this.awarenessAttributes = awarenessAttributes;
+    }
+
+    public void initiateAttributeDecommissioning(
+        final DecommissionAttribute decommissionAttribute,
+        final ActionListener<ClusterStateUpdateResponse> listener
+    ) {
+        /**
+         * 1. Abdicate master
+         * 2. Register attribute -> status should be set to INIT
+         * 3. Trigger weigh away for graceful decommission -> status should be set to DECOMMISSIONING
+         * 4. Once zone is weighed away -> trigger zone decommission using executor -> status should be set to DECOMMISSIONED on successful response
+         * 5. Clear voting config
+         */
+        registerDecommissionAttribute(decommissionAttribute, listener);
     }
 
     /**
-     * Registers new decommissioned attribute in the cluster
+     * Registers new decommissioned attribute metadata in the cluster state
      * <p>
      * This method can be only called on the cluster-manager node. It tries to create a new decommissioned attribute on the master
      * and if it was successful it adds new decommissioned attribute to cluster metadata.
+     * <p>
+     * This method should only be called once the eligible cluster manager node having decommissioned attribute is abdicated
      *
-     * @param request  register decommission request
-     * @param listener register decommission listener
+     * @param decommissionAttribute register decommission attribute in the metadata request
+     * @param listener              register decommission listener
      */
-    public void registerDecommissionAttribute(
-        final PutDecommissionRequest request,
+    private void registerDecommissionAttribute(
+        final DecommissionAttribute decommissionAttribute,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-//        assert lifecycle.started() : "Trying to decommission an attribute but service is in state [" + lifecycle.state() + "]";
-
-        final DecommissionedAttributeMetadata newDecommissionedAttributeMetadata = new DecommissionedAttributeMetadata(
-            request.getName(),
-            request.getDecommissionAttribute().attributeName(),
-            request.getDecommissionAttribute().attributeValues()
-        );
-
-        // TODO - add validator on decommission attribute - to check if its a valid attribute
-        // validate(request.name)
-
-        final ActionListener<ClusterStateUpdateResponse> registrationListener;
-        // TODO - this listener can be used to verify if the response was acknowledged by all the nodes -
-        //  can be read from the request if the query param had verify
-        // if request.verify() -> perform task
-
-        registrationListener = listener;
-
-        // TODO - Can we do the decommission action here? before we push the new metadata to cluster state
-
+        validateAwarenessAttribute(decommissionAttribute, getAwarenessAttributes());
         clusterService.submitStateUpdateTask(
-            // TODO - put request.name instead of zone
-            "put_decommission [" + request.getName() + "]",
+            "put_decommission [" + decommissionAttribute + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
-//                @Override
-//                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-//                    return new ClusterStateUpdateResponse(acknowledged);
-//                }
-
                 @Override
-                public ClusterState execute(ClusterState currentState) {
-                    //TODO - before updating cluster state ensure attribute is not in use
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    logger.info("decommission request for attribute [{}] received", decommissionAttribute.toString());
                     Metadata metadata = currentState.metadata();
-                    Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                    DecommissionedAttributesMetadata decommissionedAttributes = metadata.custom(DecommissionedAttributesMetadata.TYPE);
-                    if (decommissionedAttributes == null) {
-                        // TODO - get attribute details from request
-                        logger.info("decommission request for attribute name [{}] and attribute value [{}]", request.getName(), request.getDecommissionAttribute().toString());
-                        decommissionedAttributes = new DecommissionedAttributesMetadata(
-                            Collections.singletonList(new DecommissionedAttributeMetadata(request.getName(), request.getDecommissionAttribute().attributeName(), request.getDecommissionAttribute().attributeValues()))
-                        );
-                    } else {
-                        boolean found = false;
-                        List<DecommissionedAttributeMetadata> decommissionedAttributesMetadata = new ArrayList<>(
-                            decommissionedAttributes.decommissionedAttributes().size() + 1
-                        );
-                        for (DecommissionedAttributeMetadata decommissionedAttributeMetadata : decommissionedAttributes.decommissionedAttributes()) {
-                            if (decommissionedAttributeMetadata.name().equals(newDecommissionedAttributeMetadata.name())) {
-                                if (newDecommissionedAttributeMetadata.equals(decommissionedAttributeMetadata)) {
-                                    // No update needed
-                                    return currentState;
-                                }
-                                found = true;
-                                decommissionedAttributesMetadata.add(newDecommissionedAttributeMetadata);
-                            } else {
-                                decommissionedAttributesMetadata.add(decommissionedAttributeMetadata);
-                            }
-                        }
-                        if (!found) {
-                            // TODO update name based on request
-                            logger.info("put decommissioned attribute [{}]", request.getDecommissionAttribute().toString());
-                            decommissionedAttributesMetadata.add(
-                                new DecommissionedAttributeMetadata(
-                                    request.getName(),
-                                    request.getDecommissionAttribute().attributeName(),
-                                    request.getDecommissionAttribute().attributeValues()
-                                )
-                            );
-                        } else {
-                            // TODO - update name based on request
-                            logger.info("update decommission attribute [{}]", request.getDecommissionAttribute().toString());
-                        }
-                        decommissionedAttributes = new DecommissionedAttributesMetadata(decommissionedAttributesMetadata);
-                    }
-                    mdBuilder.putCustom(DecommissionedAttributesMetadata.TYPE, decommissionedAttributes);
+                    Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                    DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+                    ensureNoAwarenessAttributeDecommissioned(decommissionAttributeMetadata, decommissionAttribute);
+                    decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
+                    mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
                     return ClusterState.builder(currentState).metadata(mdBuilder).build();
                 }
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("failed to decommission attribute [{}]", request.getName()), e);
+                    // TODO - should we put the weights back to zone, since we weighed away the zone before we started registering the metadata
+                    // TODO - should we modify logic of logging for ease of debugging?
+                    if (e instanceof DecommissionFailedException) {
+                        logger.error(() -> new ParameterizedMessage("failed to decommission attribute [{}]", decommissionAttribute.toString()), e);
+                    } else {
+                        clusterService.submitStateUpdateTask(
+                            "decommission_failed",
+                            new ClusterStateUpdateTask(Priority.URGENT) {
+                                @Override
+                                public ClusterState execute(ClusterState currentState) throws Exception {
+                                    Metadata metadata = currentState.metadata();
+                                    Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                                    logger.info("decommission request for attribute [{}] failed", decommissionAttribute.toString());
+                                    DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+                                        decommissionAttribute,
+                                        DecommissionStatus.DECOMMISSION_FAILED
+                                    );
+                                    mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
+                                    return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                                }
+
+                                @Override
+                                public void onFailure(String source, Exception e) {
+                                    logger.error(() -> new ParameterizedMessage(
+                                        "failed to mark status as DECOMMISSION_FAILED for decommission attribute [{}]",
+                                        decommissionAttribute.toString()), e);
+//                                    listener.onFailure(e);
+                                }
+                            }
+                        );
+                    }
                     listener.onFailure(e);
                 }
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    failDecommissionedNodes(newState);
-                    listener.onResponse(new ClusterStateUpdateResponse(true));
+                    if (!newState.equals(oldState)) {
+                        // TODO - drain the nodes before decommissioning
+                        failDecommissionedNodes(newState);
+                        listener.onResponse(new ClusterStateUpdateResponse(true));
+                    }
+                    listener.onResponse(new ClusterStateUpdateResponse(false));
                 }
-//                @Override
-//                public boolean mustAck(DiscoveryNode discoveryNode) {
-//                    // master must acknowledge the metadata change
-//                    return discoveryNode.isMasterNode();
-//                }
             }
         );
     }
 
-    @Override
-    public void applyClusterState(ClusterChangedEvent event) {
-
+    private static void validateAwarenessAttribute(final DecommissionAttribute decommissionAttribute, List<String> awarenessAttributes) {
+        if (!awarenessAttributes.contains(decommissionAttribute.attributeName())) {
+            throw new DecommissionFailedException(decommissionAttribute, "invalid awareness attribute requested for decommissioning");
+        }
+        // TODO - should attribute value be part of force zone values? If yes, read setting and throw exception if not found
     }
 
-    @Override
-    protected void doStart() {
-
+    private static void ensureNoAwarenessAttributeDecommissioned(
+        DecommissionAttributeMetadata decommissionAttributeMetadata,
+        DecommissionAttribute decommissionAttribute
+    ) {
+        // If the previous decommission request failed, we will allow the request to pass this check
+        if (decommissionAttributeMetadata != null && !decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_FAILED)) {
+            throw new DecommissionFailedException(decommissionAttribute, "one awareness attribute already decommissioned, " +
+                "recommission before triggering another decommission");
+        }
     }
 
-    @Override
-    protected void doStop() {
-
-    }
-
-    @Override
-    protected void doClose() throws IOException {
-
-    }
-
-    //TODO - Similarly we can create a registerRecommissionAttribute to recommission a zone
-//    public void registerRecommissionAttribute(
-//        final ClusterManagementRecommissionRequest request,
-//        final ActionListener<ClusterStateUpdateResponse> listener
-//    )
-
-    public void failDecommissionedNodes(ClusterState updatedState) {
-//        clusterManagerService.submitStateUpdateTask(
-//            "attribute-decommissioned",
-//            new DecommissionNodeAttributeClusterStateTaskExecutor.Task(decommissionAttribute, "node is decommissioned"),
-//            ClusterStateTaskConfig.build(Priority.IMMEDIATE),
-//            decommissionExecutor,
-//            decommissionExecutor
-//        );
-        decommissionHelper.handleNodesDecommissionRequest(resolveDecommissionedNodes(updatedState), "test");
-        logger.info("Zone decommissioned");
-
-
-//        for (DiscoveryNode discoveryNode : discoveryNodes) {
-//            for (String zone : decommissionAttribute.attributeValues()) {
-//                if (zone.equals(discoveryNode.getAttributes().get(decommissionAttribute.attributeName()))) {
-//                    removeDecommissionedNodes(discoveryNode);
-//                }
-//            }
-//        }
-    }
-
-    private List<DiscoveryNode> resolveDecommissionedNodes(ClusterState currentState) {
-        DecommissionedAttributesMetadata decommissionedAttributes = currentState.metadata().custom(DecommissionedAttributesMetadata.TYPE);
-        DecommissionedAttributeMetadata metadata = decommissionedAttributes.decommissionedAttribute("awareness");
-        DecommissionAttribute decommissionAttribute = metadata.decommissionedAttribute();
-
-        DiscoveryNode[] discoveryNodes = currentState.nodes().getNodes().values().toArray(DiscoveryNode.class);
+    private void failDecommissionedNodes(ClusterState state) {
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSIONING) : "unexpected status encountered while decommissioning nodes";
+        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+        List<DiscoveryNode> nodesToBeDecommissioned = new ArrayList<>();
         final Predicate<DiscoveryNode> shouldRemoveNodePredicate = discoveryNode -> nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute);
-        List<DiscoveryNode> nodesList = new ArrayList<>();
-        for (DiscoveryNode node: discoveryNodes) {
+        Iterator<DiscoveryNode> nodesIter = state.nodes().getNodes().valuesIt();
+        while (nodesIter.hasNext()) {
+            final DiscoveryNode node = nodesIter.next();
             if (shouldRemoveNodePredicate.test(node)) {
-                nodesList.add(node);
+                nodesToBeDecommissioned.add(node);
             }
         }
-        return nodesList;
+        decommissionHelper.handleNodesDecommissionRequest(nodesToBeDecommissioned, "nodes-decommissioned");
     }
 
-    private boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
-        String discoveryNodeAttributeValue = discoveryNode.getAttributes().get(decommissionAttribute.attributeName());
-        return discoveryNodeAttributeValue != null && decommissionAttribute.attributeValues().contains(discoveryNodeAttributeValue);
+    private static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
+        return discoveryNode.getAttributes().get(
+            decommissionAttribute.attributeName()
+        ).equals(decommissionAttribute.attributeValue());
+    }
+
+    @Override
+    public void applyClusterState(ClusterChangedEvent event) {
+        clusterState = event.state();
     }
 }
