@@ -83,36 +83,33 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         ActionListener<PutDecommissionResponse> listener) throws Exception {
 
         boolean currentMasterDecommission = false;
-        DiscoveryNode masterNode = clusterService.state().getNodes().getMasterNode();
-        for (String decommissionedZone : request.getDecommissionAttribute().attributeValues()) {
-            if (masterNode.getAttributes().get(request.getDecommissionAttribute().attributeName()).equals(decommissionedZone)) {
-                currentMasterDecommission = true;
-            }
-        }
+//        DiscoveryNode masterNode = clusterService.state().getNodes().getMasterNode();
+//        for (String decommissionedZone : request.getDecommissionAttribute().attributeValues()) {
+//            if (masterNode.getAttributes().get(request.getDecommissionAttribute().attributeName()).equals(decommissionedZone)) {
+//                currentMasterDecommission = true;
+//            }
+//        }
+//
+//        if (currentMasterDecommission) {
+//            logger.info("Current master in getting decommissioned. Will first abdicate master and then execute the decommission");
+//            ActionListener<AddVotingConfigExclusionsResponse> addVotingConfigExclusionsListener = new ActionListener<>() {
+//                @Override
+//                public void onResponse(AddVotingConfigExclusionsResponse addVotingConfigExclusionsResponse) {
+//                    logger.info("Master abdicated - Response received");
+//                }
+//
+//                @Override
+//                public void onFailure(Exception e) {
+//                    listener.onFailure(e);
+//                }
+//            };
+//            exclusionsAction.execute(new AddVotingConfigExclusionsRequest(masterNode.getName()), addVotingConfigExclusionsListener);
+//            throw new NotClusterManagerException("abdicated");
+//        }
 
-        if (currentMasterDecommission) {
-            logger.info("Current master in getting decommissioned. Will first abdicate master and then execute the decommission");
-            ActionListener<AddVotingConfigExclusionsResponse> addVotingConfigExclusionsListener = new ActionListener<>() {
-                @Override
-                public void onResponse(AddVotingConfigExclusionsResponse addVotingConfigExclusionsResponse) {
-                    logger.info("Master abdicated - Response received");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            };
-            exclusionsAction.execute(new AddVotingConfigExclusionsRequest(masterNode.getName()), addVotingConfigExclusionsListener);
-            throw new NotClusterManagerException("abdicated");
-        }
-
-        decommissionService.registerDecommissionAttribute(
-            request,
-            ActionListener.delegateFailure(
-                listener,
-                (delegatedListener, response) -> delegatedListener.onResponse(new PutDecommissionResponse(response.isAcknowledged()))
-            )
+        decommissionService.initiateAttributeDecommissioning(
+            request.getDecommissionAttribute(),
+            listener
         );
     }
 

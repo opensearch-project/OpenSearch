@@ -87,7 +87,7 @@ public abstract class PeerFinder {
     // the time between attempts to find all peers when node is in decommissioned state
     public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_DECOMMISSION_SETTING = Setting.timeSetting(
         "discovery.find_peers_interval_decommission",
-        TimeValue.timeValueMillis(4000),
+        TimeValue.timeValueMillis(5*60*1000),
         //TimeValue.timeValueMillis(300000),
         TimeValue.timeValueMillis(3000),
         Setting.Property.NodeScope

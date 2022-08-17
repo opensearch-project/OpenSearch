@@ -13,6 +13,8 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionStatus;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -98,25 +100,20 @@ public class PutDecommissionRequest extends AcknowledgedRequest<PutDecommissionR
             )
         ) {
             XContentParser.Token token;
-            // move to the first alias
-            parser.nextToken();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
-                    List<String> values = new ArrayList<>();
+                    String value;
                     token = parser.nextToken();
                     if (token == XContentParser.Token.VALUE_STRING) {
-                        values.add(parser.text());
-                    } else if (token == XContentParser.Token.START_ARRAY) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                values.add(parser.text());
-                            } else {
-                                parser.skipChildren();
-                            }
-                        }
-                    } else throw new OpenSearchParseException("failed to parse attribute [{}], unknown type", fieldName);
-                    decommissionAttribute = new DecommissionAttribute(fieldName, values);
+                        value = parser.text();
+                    } else {
+                        throw new OpenSearchParseException("failed to parse attribute [{}], expected string for attribute value", fieldName);
+                    }
+                    decommissionAttribute = new DecommissionAttribute(fieldName, value);
+                } else {
+                    throw new OpenSearchParseException("failed to parse attribute type, unexpected type");
                 }
             }
             return this;

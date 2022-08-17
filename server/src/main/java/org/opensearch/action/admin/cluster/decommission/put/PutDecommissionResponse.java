@@ -22,11 +22,11 @@ import java.io.IOException;
  */
 public class PutDecommissionResponse extends AcknowledgedResponse implements ToXContentObject {
 
-    PutDecommissionResponse(StreamInput in) throws IOException {
+    public PutDecommissionResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    PutDecommissionResponse(boolean acknowledged) {
+    public PutDecommissionResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

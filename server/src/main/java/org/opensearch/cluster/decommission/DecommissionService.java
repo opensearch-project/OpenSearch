@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.put.PutDecommissionResponse;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -61,7 +62,7 @@ public class DecommissionService implements ClusterStateApplier {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.clusterState = clusterService.state(); // TODO - check if this is the right way
+//        this.clusterState = clusterService.state(); // TODO - check if this is the right way
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.decommissionHelper = new DecommissionHelper(
             clusterService,
@@ -84,7 +85,7 @@ public class DecommissionService implements ClusterStateApplier {
 
     public void initiateAttributeDecommissioning(
         final DecommissionAttribute decommissionAttribute,
-        final ActionListener<ClusterStateUpdateResponse> listener
+        final ActionListener<PutDecommissionResponse> listener
     ) {
         /**
          * 1. Abdicate master
@@ -109,9 +110,9 @@ public class DecommissionService implements ClusterStateApplier {
      */
     private void registerDecommissionAttribute(
         final DecommissionAttribute decommissionAttribute,
-        final ActionListener<ClusterStateUpdateResponse> listener
+        final ActionListener<PutDecommissionResponse> listener
     ) {
-        validateAwarenessAttribute(decommissionAttribute, getAwarenessAttributes());
+//        validateAwarenessAttribute(decommissionAttribute, getAwarenessAttributes());
         clusterService.submitStateUpdateTask(
             "put_decommission [" + decommissionAttribute + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
@@ -168,9 +169,11 @@ public class DecommissionService implements ClusterStateApplier {
                     if (!newState.equals(oldState)) {
                         // TODO - drain the nodes before decommissioning
                         failDecommissionedNodes(newState);
-                        listener.onResponse(new ClusterStateUpdateResponse(true));
+                        listener.onResponse(new PutDecommissionResponse(true));
                     }
-                    listener.onResponse(new ClusterStateUpdateResponse(false));
+                    else {
+                        listener.onResponse(new PutDecommissionResponse(false));
+                    }
                 }
             }
         );
@@ -196,7 +199,8 @@ public class DecommissionService implements ClusterStateApplier {
 
     private void failDecommissionedNodes(ClusterState state) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
-        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSIONING) : "unexpected status encountered while decommissioning nodes";
+        // Change the status check to decommissioning once graceful decommission is integrated
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT) : "unexpected status encountered while decommissioning nodes";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
         List<DiscoveryNode> nodesToBeDecommissioned = new ArrayList<>();
         final Predicate<DiscoveryNode> shouldRemoveNodePredicate = discoveryNode -> nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute);

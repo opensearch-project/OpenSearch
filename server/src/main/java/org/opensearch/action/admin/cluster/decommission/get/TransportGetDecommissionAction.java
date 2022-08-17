@@ -15,7 +15,7 @@ import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeR
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -68,12 +68,10 @@ public class TransportGetDecommissionAction extends TransportClusterManagerNodeR
         ActionListener<GetDecommissionResponse> listener
     ) throws Exception {
         Metadata metadata = state.metadata();
-        DecommissionedAttributesMetadata decommissionedAttributes = metadata.custom(DecommissionedAttributesMetadata.TYPE);
+        DecommissionAttributeMetadata decommissionedAttributes = metadata.custom(DecommissionAttributeMetadata.TYPE);
         listener.onResponse(
             new GetDecommissionResponse(
-                Objects.requireNonNullElseGet(decommissionedAttributes,
-                    () -> new DecommissionedAttributesMetadata(Collections.emptyList())
-                )
+                decommissionedAttributes
             )
         );
     }

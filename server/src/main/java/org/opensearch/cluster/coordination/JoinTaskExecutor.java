@@ -39,8 +39,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.metadata.DecommissionedAttributeMetadata;
-import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -109,7 +109,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             return reason.equals(BECOME_MASTER_TASK_REASON) || reason.equals(BECOME_CLUSTER_MANAGER_TASK_REASON);
         }
 
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isBecomeClusterManagerTask()} */
+        /**
+         * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isBecomeClusterManagerTask()}
+         */
         @Deprecated
         public boolean isBecomeMasterTask() {
             return isBecomeClusterManagerTask();
@@ -360,6 +362,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     /**
      * a task indicates that the current node should become master
+     *
      * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #newBecomeClusterManagerTask()}
      */
     @Deprecated
@@ -386,8 +389,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata
      * will not be created with a newer version of opensearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
-     * @see Version#minimumIndexCompatibilityVersion()
+     *
      * @throws IllegalStateException if any index is incompatible with the given version
+     * @see Version#minimumIndexCompatibilityVersion()
      */
     public static void ensureIndexCompatibility(final Version nodeVersion, Metadata metadata) {
         Version supportedIndexVersion = nodeVersion.minimumIndexCompatibilityVersion();
@@ -417,14 +421,18 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
-    /** ensures that the joining node has a version that's compatible with all current nodes*/
+    /**
+     * ensures that the joining node has a version that's compatible with all current nodes
+     */
     public static void ensureNodesCompatibility(final Version joiningNodeVersion, DiscoveryNodes currentNodes) {
         final Version minNodeVersion = currentNodes.getMinNodeVersion();
         final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
         ensureNodesCompatibility(joiningNodeVersion, minNodeVersion, maxNodeVersion);
     }
 
-    /** ensures that the joining node has a version that's compatible with a given version range */
+    /**
+     * ensures that the joining node has a version that's compatible with a given version range
+     */
     public static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
         assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + " > " + maxClusterNodeVersion;
         if (joiningNodeVersion.isCompatible(maxClusterNodeVersion) == false) {
@@ -470,16 +478,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     // TODO - put this to helper
     public static void ensureNodeNotDecommissioned(DiscoveryNode node, Metadata metadata) {
-        DecommissionedAttributesMetadata decommissionedAttributesMetadata = metadata.custom(DecommissionedAttributesMetadata.TYPE);
+        DecommissionAttributeMetadata decommissionedAttributesMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
         if (decommissionedAttributesMetadata == null) return;
-        DecommissionedAttributeMetadata decommissionedAttribute = decommissionedAttributesMetadata.decommissionedAttribute("awareness");
-        if(decommissionedAttribute == null) return;
-        for(String decommissionedZone: decommissionedAttribute.decommissionedAttribute().attributeValues()){
-            if (node.getAttributes().get(decommissionedAttribute.decommissionedAttribute().attributeName()).equals(decommissionedZone)) {
-                throw new NodeDecommissionedException(
-                    "node is decommissioned"
-                );
-            }
+        DecommissionAttribute decommissionedAttribute = decommissionedAttributesMetadata.decommissionAttribute();
+        if (decommissionedAttribute == null) return;
+        if (node.getAttributes().get(decommissionedAttribute.attributeName()).equals(decommissionedAttribute.attributeValue())) {
+            throw new NodeDecommissionedException(
+                "node is decommissioned"
+            );
         }
     }
 
