@@ -101,6 +101,7 @@ public class DecommissionService implements ClusterStateApplier {
          * 5. Clear voting config
          */
         this.clusterState = state;
+        logger.info("initiating awareness attribute [{}] decommissioning", decommissionAttribute.toString());
         abdicateDecommissionedClusterManagerNodes(decommissionAttribute, listener);
     }
 
@@ -124,8 +125,8 @@ public class DecommissionService implements ClusterStateApplier {
             new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
                 @Override
                 public void handleResponse(AddVotingConfigExclusionsResponse response) {
-                    logger.info("successfully removed decommissioned cluster manager eligible nodes from voting config [{}], " +
-                        "proceeding to drain the decommissioned nodes", response.toString());
+                    logger.info("successfully removed decommissioned cluster manager eligible nodes [{}] from voting config, " +
+                        "proceeding to drain the decommissioned nodes", clusterManagerNodesToBeDecommissioned.toString());
                     registerDecommissionAttribute(decommissionAttribute, listener);
                 }
 
@@ -186,6 +187,7 @@ public class DecommissionService implements ClusterStateApplier {
                     if (e instanceof DecommissionFailedException) {
                         logger.error(() -> new ParameterizedMessage("failed to decommission attribute [{}]", decommissionAttribute.toString()), e);
                     } else {
+                        // could be due to on longer cluster manager
                         clusterService.submitStateUpdateTask(
                             "decommission_failed",
                             new ClusterStateUpdateTask(Priority.URGENT) {
