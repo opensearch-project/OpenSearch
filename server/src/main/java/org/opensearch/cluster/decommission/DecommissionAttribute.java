@@ -13,7 +13,6 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 public final class DecommissionAttribute implements Writeable {
@@ -102,4 +101,11 @@ public final class DecommissionAttribute implements Writeable {
     }
 
 
+    @Override
+    public String toString() {
+        return "DecommissionAttribute{" +
+            "attributeName='" + attributeName + '\'' +
+            ", attributeValue='" + attributeValue + '\'' +
+            '}';
+    }
 }

@@ -169,8 +169,9 @@ public class DecommissionService implements ClusterStateApplier {
                         // TODO - drain the nodes before decommissioning
                         failDecommissionedNodes(newState);
                         listener.onResponse(new ClusterStateUpdateResponse(true));
+                    } else {
+                        listener.onResponse(new ClusterStateUpdateResponse(false));
                     }
-                    listener.onResponse(new ClusterStateUpdateResponse(false));
                 }
             }
         );
@@ -196,7 +197,8 @@ public class DecommissionService implements ClusterStateApplier {
 
     private void failDecommissionedNodes(ClusterState state) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
-        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSIONING) : "unexpected status encountered while decommissioning nodes";
+        // TODO update the status check to DECOMMISSIONING once graceful decommission is implemented
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT) : "unexpected status encountered while decommissioning nodes";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
         List<DiscoveryNode> nodesToBeDecommissioned = new ArrayList<>();
         final Predicate<DiscoveryNode> shouldRemoveNodePredicate = discoveryNode -> nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute);
