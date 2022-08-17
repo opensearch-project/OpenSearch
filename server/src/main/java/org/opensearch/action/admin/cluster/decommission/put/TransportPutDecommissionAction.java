@@ -109,7 +109,8 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
 
         decommissionService.initiateAttributeDecommissioning(
             request.getDecommissionAttribute(),
-            listener
+            listener,
+            state
         );
     }
 
