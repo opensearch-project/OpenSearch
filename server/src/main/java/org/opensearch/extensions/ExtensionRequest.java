@@ -46,7 +46,7 @@ public class ExtensionRequest extends TransportRequest {
     }
 
     public String toString() {
-                return "ExtensionRequest{" + "requestType=" + requestType + '}';
+        return "ExtensionRequest{" + "requestType=" + requestType + '}';
     }
 
     @Override
@@ -55,7 +55,7 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-                return Objects.equals(requestType, that.requestType);
+        return Objects.equals(requestType, that.requestType);
     }
 
     @Override

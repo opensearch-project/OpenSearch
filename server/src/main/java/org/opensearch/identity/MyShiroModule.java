@@ -21,7 +21,8 @@ import java.util.Collections;
 import java.util.Optional;
 
 /**
- * Nothing yet
+ * Prototyping use of security system implemented with Shiro
+ * See more at https://shiro.apache.org/
  */
 public class MyShiroModule {
 
@@ -44,11 +45,11 @@ public class MyShiroModule {
         // Used for tracing where this function is used that is visible in the log output
         final Exception e = new Exception();
         final StackTraceElement current = e.getStackTrace()[1];
-        final String sourceAnnotation = current.getFileName() + "." + current.getMethodName() + "@" +current.getLineNumber();
+        final String sourceAnnotation = current.getFileName() + "." + current.getMethodName() + "@" + current.getLineNumber();
 
-        final Subject internalSubject = new Subject.Builder()
-            .authenticated(true)
-            .principals(new SimplePrincipalCollection("INTERNAL-" + sourceAnnotation, "OpenSearch")) // How can we ensure the roles this princpal resolves?
+        final Subject internalSubject = new Subject.Builder().authenticated(true)
+            .principals(new SimplePrincipalCollection("INTERNAL-" + sourceAnnotation, "OpenSearch")) // How can we ensure the roles this
+                                                                                                     // princpal resolves?
             .contextAttribute("NodeId", "???") // Can we use this to source the originating node in a cluster?
             .buildSubject();
         return internalSubject;

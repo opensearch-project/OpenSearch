@@ -35,7 +35,6 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.shiro.SecurityUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -190,39 +189,42 @@ public class PreVoteCollector {
             assert StreamSupport.stream(broadcastNodes.spliterator(), false).noneMatch(Coordinator::isZen1Node) : broadcastNodes;
             logger.debug("{} requesting pre-votes from {}", this, broadcastNodes);
             /* Direct transportService.sendRequest calls need a user context */
-            MyShiroModule.getSubjectOrInternal().execute(() -> broadcastNodes.forEach(
-                n -> transportService.sendRequest(
-                    n,
-                    REQUEST_PRE_VOTE_ACTION_NAME,
-                    preVoteRequest,
-                    new TransportResponseHandler<PreVoteResponse>() {
-                        @Override
-                        public PreVoteResponse read(StreamInput in) throws IOException {
-                            return new PreVoteResponse(in);
-                        }
+            MyShiroModule.getSubjectOrInternal()
+                .execute(
+                    () -> broadcastNodes.forEach(
+                        n -> transportService.sendRequest(
+                            n,
+                            REQUEST_PRE_VOTE_ACTION_NAME,
+                            preVoteRequest,
+                            new TransportResponseHandler<PreVoteResponse>() {
+                                @Override
+                                public PreVoteResponse read(StreamInput in) throws IOException {
+                                    return new PreVoteResponse(in);
+                                }
 
-                        @Override
-                        public void handleResponse(PreVoteResponse response) {
-                            handlePreVoteResponse(response, n);
-                        }
+                                @Override
+                                public void handleResponse(PreVoteResponse response) {
+                                    handlePreVoteResponse(response, n);
+                                }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
-                        }
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    logger.debug(new ParameterizedMessage("{} failed", this), exp);
+                                }
 
-                        @Override
-                        public String executor() {
-                            return Names.GENERIC;
-                        }
+                                @Override
+                                public String executor() {
+                                    return Names.GENERIC;
+                                }
 
-                        @Override
-                        public String toString() {
-                            return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
-                        }
-                    }
-                )
-            ));
+                                @Override
+                                public String toString() {
+                                    return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
+                                }
+                            }
+                        )
+                    )
+                );
         }
 
         private void handlePreVoteResponse(final PreVoteResponse response, final DiscoveryNode sender) {
@@ -278,7 +280,6 @@ public class PreVoteCollector {
             }
 
             logger.debug("{} added {} from {}, starting election", this, response, sender);
-//            MyShiroModule.getSubjectOrInternal().execute(startElection);
             startElection.run();
         }
 

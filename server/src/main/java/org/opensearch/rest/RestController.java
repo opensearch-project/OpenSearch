@@ -35,9 +35,6 @@ package org.opensearch.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.authc.UsernamePasswordToken;
-import org.apache.shiro.subject.Subject;
 import org.opensearch.OpenSearchException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Nullable;
@@ -61,7 +58,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -403,7 +407,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     try {
                         MyShiroModule.authenticateViaAuthorizationHeader(authHeader);
                     } catch (final Exception e) {
-                        final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.UNAUTHORIZED, e.getMessage());
+                        final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
+                            channel,
+                            RestStatus.UNAUTHORIZED,
+                            e.getMessage()
+                        );
                         channel.sendResponse(bytesRestResponse);
                         return;
                     }
