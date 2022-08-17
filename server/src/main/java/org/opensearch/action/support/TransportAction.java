@@ -34,10 +34,7 @@ package org.opensearch.action.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
 import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.authc.BearerToken;
-import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.subject.Subject;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
@@ -190,12 +187,15 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
 
         // Verify authorization for the task (AuthZ)
+
+        // Ensure that we have an authenticated subject!
         final Subject currentSubject = SecurityUtils.getSubject();
         if (!currentSubject.isAuthenticated()) {
             listener.onFailure(new RuntimeException("Not allowed without authentication, action name: " + task.getAction()));
             return;
         }
 
+        // Check the current subject has access, don't block just log
         if (currentSubject.isPermitted(task.getAction())) {
             logger.atInfo().log(currentSubject.getPrincipal() + " is allowed to " + task.getAction());
         } else {

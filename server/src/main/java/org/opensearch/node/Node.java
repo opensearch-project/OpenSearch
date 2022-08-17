@@ -418,6 +418,7 @@ public class Node implements Closeable {
                 );
             }
 
+            // Should the security system be registered as another module, would this allow all nodes to share its state?
             this.shiro = new MyShiroModule();
 
             this.pluginsService = new PluginsService(
@@ -922,7 +923,6 @@ public class Node implements Closeable {
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
-                // b.bind(MyShiroModel.class).toInstance(shiro);
                 b.bind(NodeService.class).toInstance(nodeService);
                 b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                 b.bind(PluginsService.class).toInstance(pluginsService);

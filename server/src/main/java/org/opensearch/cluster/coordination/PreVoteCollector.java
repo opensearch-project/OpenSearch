@@ -189,41 +189,40 @@ public class PreVoteCollector {
         void start(final Iterable<DiscoveryNode> broadcastNodes) {
             assert StreamSupport.stream(broadcastNodes.spliterator(), false).noneMatch(Coordinator::isZen1Node) : broadcastNodes;
             logger.debug("{} requesting pre-votes from {}", this, broadcastNodes);
-            MyShiroModule.getSubjectOrInternal().execute(() -> {
-                broadcastNodes.forEach(
-                    n -> transportService.sendRequest(
-                        n,
-                        REQUEST_PRE_VOTE_ACTION_NAME,
-                        preVoteRequest,
-                        new TransportResponseHandler<PreVoteResponse>() {
-                            @Override
-                            public PreVoteResponse read(StreamInput in) throws IOException {
-                                return new PreVoteResponse(in);
-                            }
-
-                            @Override
-                            public void handleResponse(PreVoteResponse response) {
-                                handlePreVoteResponse(response, n);
-                            }
-
-                            @Override
-                            public void handleException(TransportException exp) {
-                                logger.debug(new ParameterizedMessage("{} failed", this), exp);
-                            }
-
-                            @Override
-                            public String executor() {
-                                return Names.GENERIC;
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
-                            }
+            /* Direct transportService.sendRequest calls need a user context */
+            MyShiroModule.getSubjectOrInternal().execute(() -> broadcastNodes.forEach(
+                n -> transportService.sendRequest(
+                    n,
+                    REQUEST_PRE_VOTE_ACTION_NAME,
+                    preVoteRequest,
+                    new TransportResponseHandler<PreVoteResponse>() {
+                        @Override
+                        public PreVoteResponse read(StreamInput in) throws IOException {
+                            return new PreVoteResponse(in);
                         }
-                    )
-                );
-            });
+
+                        @Override
+                        public void handleResponse(PreVoteResponse response) {
+                            handlePreVoteResponse(response, n);
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
+                        }
+
+                        @Override
+                        public String executor() {
+                            return Names.GENERIC;
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
+                        }
+                    }
+                )
+            ));
         }
 
         private void handlePreVoteResponse(final PreVoteResponse response, final DiscoveryNode sender) {
@@ -279,7 +278,8 @@ public class PreVoteCollector {
             }
 
             logger.debug("{} added {} from {}, starting election", this, response, sender);
-            MyShiroModule.getSubjectOrInternal().execute(startElection);
+//            MyShiroModule.getSubjectOrInternal().execute(startElection);
+            startElection.run();
         }
 
         @Override

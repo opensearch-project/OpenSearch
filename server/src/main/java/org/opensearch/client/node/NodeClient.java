@@ -32,9 +32,6 @@
 
 package org.opensearch.client.node;
 
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.subject.SimplePrincipalCollection;
-import org.apache.shiro.subject.Subject;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
@@ -111,6 +108,10 @@ public class NodeClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
+        /* Cluster monitoring done via indices:monitor/stats & cluster:monitor/nodes/stats, that required an internal subject
+           More advanced look will need to be done to ensure that client usage is traceable and only running under expected permissions
+           aka cluster monitoring should be defined to allow use of the above APIs and no others to prevent escalation of privileges
+        */
         return MyShiroModule.getSubjectOrInternal().execute(() -> transportAction(action).execute(request, listener));
     }
 

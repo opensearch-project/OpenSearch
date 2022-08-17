@@ -53,6 +53,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.Streams;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.identity.MyShiroModule;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.usage.UsageService;
 
@@ -394,27 +395,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     }
                 } else {
 
-                    final Subject currentSubject = SecurityUtils.getSubject();
-                    if (!currentSubject.isAuthenticated()) {
-                        logger.atInfo().log("Attempting to authenticated request.");
-                        final Optional<String> authHeader = request.getHeaders().get("Authorization").stream().findFirst();
+                    final Optional<String> authHeader = request.getHeaders()
+                        .getOrDefault("Authorization", Collections.emptyList())
+                        .stream()
+                        .findFirst();
 
-                        if (authHeader.isPresent() && !(Strings.isNullOrEmpty(authHeader.get())) && authHeader.get().startsWith("Basic ")) {
-                            try {
-                                final byte[] decodedAuthHeader = Base64.getDecoder().decode(authHeader.get().substring(6));
-                                final String[] decodedUserNamePassword = new String(decodedAuthHeader).split(":");
-                                currentSubject.login(new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]));
-                                logger.atInfo().log("User has been authenticated as: " + currentSubject.getPrincipal());
-                            } catch (final Exception e) {
-                                logger.atError().log("Failed to login");
-                                handleBadRequest(uri, requestMethod, channel);
-                                return;
-                            }
-                        } else {
-                            logger.atError().log("Unsupported Authentication");
-                            handleBadRequest(uri, requestMethod, channel);
-                            return;
-                        }
+                    try {
+                        MyShiroModule.authenticateViaAuthorizationHeader(authHeader);
+                    } catch (final Exception e) {
+                        final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.UNAUTHORIZED, e.getMessage());
+                        channel.sendResponse(bytesRestResponse);
+                        return;
                     }
 
                     dispatchRequest(request, channel, handler);
