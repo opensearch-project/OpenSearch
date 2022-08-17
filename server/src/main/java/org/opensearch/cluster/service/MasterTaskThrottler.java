@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 
 /**
  * This class is extension of {@link Throttler} and does throttling of master tasks.
@@ -58,30 +59,30 @@ public class MasterTaskThrottler implements TaskBatcherListener {
         new HashSet<>(Arrays.asList("put-mapping"))
     );
 
-    private final int DEFAULT_THRESHOLD_VALUE = -1; // Disabled throttling
-    private final MasterService masterService;
+    private final int MIN_THRESHOLD_VALUE = -1; // Disabled throttling
     private final MasterTaskThrottlerListener masterTaskThrottlerListener;
 
     private final ConcurrentMap<String, Long> tasksCount;
     private final ConcurrentMap<String, Long> tasksThreshold;
+    private final Supplier<Version> minNodeVersionSupplier;
 
     public MasterTaskThrottler(
         final ClusterSettings clusterSettings,
-        final MasterService masterService,
+        final Supplier<Version> minNodeVersionSupplier,
         final MasterTaskThrottlerListener masterTaskThrottlerListener
     ) {
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTINGS, this::updateSetting, this::validateSetting);
-        this.masterService = masterService;
+        this.minNodeVersionSupplier = minNodeVersionSupplier;
         this.masterTaskThrottlerListener = masterTaskThrottlerListener;
-        tasksCount = new ConcurrentHashMap<>(128); // setting initial capacity so each task will lend in different segment
-        tasksThreshold = new ConcurrentHashMap<>(128); // setting initial capacity so each task will lend in different segment
+        tasksCount = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
+        tasksThreshold = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
     }
 
-    public void validateSetting(final Settings settings) {
+    void validateSetting(final Settings settings) {
         /**
          * TODO: Change the version number of check as per version in which this change will be merged.
          */
-        if (masterService.state().nodes().getMinNodeVersion().compareTo(Version.V_3_0_0) < 0) {
+        if (minNodeVersionSupplier.get().compareTo(Version.V_3_0_0) < 0) {
             throw new IllegalArgumentException("All the nodes in cluster should be on version later than or equal to 3.0.0");
         }
         Map<String, Settings> groups = settings.getAsGroups();
@@ -89,41 +90,42 @@ public class MasterTaskThrottler implements TaskBatcherListener {
             if (!CONFIGURED_TASK_FOR_THROTTLING.contains(key)) {
                 throw new IllegalArgumentException("Master task throttling is not configured for given task type: " + key);
             }
-            int threshold = groups.get(key).getAsInt("value", DEFAULT_THRESHOLD_VALUE);
-            if (threshold < DEFAULT_THRESHOLD_VALUE) {
+            int threshold = groups.get(key).getAsInt("value", MIN_THRESHOLD_VALUE);
+            if (threshold < MIN_THRESHOLD_VALUE) {
                 throw new IllegalArgumentException("Provide positive integer for limit or -1 for disabling throttling");
             }
         }
     }
 
-    public void updateSetting(final Settings settings) {
+    void updateSetting(final Settings settings) {
         Map<String, Settings> groups = settings.getAsGroups();
         for (String key : groups.keySet()) {
-            updateLimit(key, groups.get(key).getAsInt("value", DEFAULT_THRESHOLD_VALUE));
+            updateLimit(key, groups.get(key).getAsInt("value", MIN_THRESHOLD_VALUE));
         }
     }
 
-    protected void updateLimit(final String taskKey, final int limit) {
-        assert limit >= DEFAULT_THRESHOLD_VALUE;
-        if (limit == DEFAULT_THRESHOLD_VALUE) {
+    void updateLimit(final String taskKey, final int limit) {
+        assert limit >= MIN_THRESHOLD_VALUE;
+        if (limit == MIN_THRESHOLD_VALUE) {
             tasksThreshold.remove(taskKey);
         } else {
-            tasksThreshold.put(taskKey, (long)limit);
+            tasksThreshold.put(taskKey, (long) limit);
         }
     }
 
-    protected Long getThrottlingLimit(final String taskKey) {
+    Long getThrottlingLimit(final String taskKey) {
         return tasksThreshold.get(taskKey);
     }
 
     @Override
-    public void onSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
+    public void onBeginSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
         String masterTaskKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getMasterThrottlingKey();
         tasksCount.putIfAbsent(masterTaskKey, 0L);
         tasksCount.computeIfPresent(masterTaskKey, (key, count) -> {
-            long size = tasks.size();
+            int size = tasks.size();
             Long threshold = tasksThreshold.get(masterTaskKey);
-            if(threshold != null && (count + size > threshold)) {
+            if (threshold != null && (count + size > threshold)) {
+                masterTaskThrottlerListener.onThrottle(masterTaskKey, size);
                 logger.warn(
                     "Throwing Throttling Exception for [{}]. Trying to add [{}] tasks to queue, limit is set to [{}]",
                     masterTaskKey,

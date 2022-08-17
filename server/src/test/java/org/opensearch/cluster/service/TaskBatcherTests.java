@@ -71,7 +71,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
         taskBatcher = new TestTaskBatcher(logger, threadExecutor);
     }
 
-    class TestTaskBatcher extends TaskBatcher {
+    static class TestTaskBatcher extends TaskBatcher {
 
         TestTaskBatcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor) {
             super(logger, threadExecutor, getMockListener());
@@ -344,10 +344,10 @@ public class TaskBatcherTests extends TaskExecutorTests {
         latch.await();
     }
 
-    protected TaskBatcherListener getMockListener() {
+    protected static TaskBatcherListener getMockListener() {
         return new TaskBatcherListener() {
             @Override
-            public void onSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
+            public void onBeginSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
                 // No Op
             }
 

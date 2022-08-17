@@ -10,6 +10,9 @@ package org.opensearch.cluster.service;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Priority;
@@ -79,7 +82,11 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testDefaults() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
+        MasterTaskThrottler throttler = new MasterTaskThrottler(
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            throttlingStats
+        );
         for (String key : MasterTaskThrottler.CONFIGURED_TASK_FOR_THROTTLING) {
             assertNull(throttler.getThrottlingLimit(key));
         }
@@ -103,7 +110,11 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[] { masterNode, dataNode }));
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
+        MasterTaskThrottler throttler = new MasterTaskThrottler(
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            throttlingStats
+        );
 
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
@@ -137,7 +148,11 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[] { masterNode, dataNode }));
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
+        MasterTaskThrottler throttler = new MasterTaskThrottler(
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            throttlingStats
+        );
 
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
@@ -153,7 +168,7 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         assertTrue(exceptionThrown.get());
     }
 
-    public void testUpdateThrottlingLimitForHappyCase() {
+    public void testUpdateThrottlingLimitForBasicSanity() {
         DiscoveryNode masterNode = new DiscoveryNode(
             "local_master_node",
             buildNewFakeTransportAddress(),
@@ -171,7 +186,11 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[] { masterNode, dataNode }));
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
+        MasterTaskThrottler throttler = new MasterTaskThrottler(
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            throttlingStats
+        );
 
         // set some limit for update snapshot tasks
         long newLimit = randomLongBetween(1, 10);
@@ -204,7 +223,11 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(masterNode, masterNode, new DiscoveryNode[] { masterNode, dataNode }));
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
+        MasterTaskThrottler throttler = new MasterTaskThrottler(
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            throttlingStats
+        );
 
         Settings newSettings = Settings.builder().put("master.throttling.thresholds.put-mapping.values", -5).build();
         AtomicBoolean exceptionThrown = new AtomicBoolean();
@@ -218,11 +241,112 @@ public class MasterTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testUpdateLimit() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MasterTaskThrottler throttler = new MasterTaskThrottler(clusterSettings, clusterService.getMasterService(), throttlingStats);
+        MasterTaskThrottler throttler = new MasterTaskThrottler(
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            throttlingStats
+        );
 
         throttler.updateLimit("test", 5);
         assertEquals(5L, throttler.getThrottlingLimit("test").intValue());
         throttler.updateLimit("test", -1);
         assertNull(throttler.getThrottlingLimit("test"));
+    }
+
+    public void testThrottling() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        MasterTaskThrottler throttler = new MasterTaskThrottler(
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            throttlingStats
+        );
+
+        String taskKey = "test";
+        throttler.updateLimit(taskKey, 5);
+
+        // adding 3 tasks
+        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, 3));
+
+        // adding 3 more tasks, these tasks should be throttled
+        // taskCount in Queue: 3 Threshold: 5
+        try {
+            throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, 3));
+        } catch (Exception e) {
+            assertTrue(e instanceof MasterTaskThrottlingException);
+        }
+        assertEquals(3L, throttlingStats.getThrottlingCount(taskKey));
+
+        // remove one task
+        throttler.onProcessed(getMockUpdateTaskList(taskKey, 1));
+
+        // add 3 tasks should pass now.
+        // taskCount in Queue: 2 Threshold: 5
+        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, 3));
+
+        // adding one task will throttle
+        // taskCount in Queue: 5 Threshold: 5
+        try {
+            throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, 1));
+        } catch (Exception e) {
+            assertTrue(e instanceof MasterTaskThrottlingException);
+        }
+        assertEquals(4L, throttlingStats.getThrottlingCount(taskKey));
+
+        // update limit of threshold 6
+        throttler.updateLimit(taskKey, 6);
+
+        // adding one task should pass now
+        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, 1));
+    }
+
+    private List<TaskBatcherTests.TestTaskBatcher.UpdateTask> getMockUpdateTaskList(String taskKey, int size) {
+        TaskBatcherTests.TestTaskBatcher testTaskBatcher = new TaskBatcherTests.TestTaskBatcher(logger, null);
+        List<TaskBatcherTests.TestTaskBatcher.UpdateTask> taskList = new ArrayList<>();
+
+        class MockExecutor
+            implements
+                TaskExecutorTests.TestExecutor,
+                ClusterStateTaskExecutor<TaskBatcherTests.TestTaskBatcher.UpdateTask> {
+
+            @Override
+            public ClusterTasksResult<TaskBatcherTests.TestTaskBatcher.UpdateTask> execute(
+                ClusterState currentState,
+                List<TaskBatcherTests.TestTaskBatcher.UpdateTask> tasks
+            ) throws Exception {
+                // No Op
+                return null;
+            }
+
+            @Override
+            public boolean runOnlyOnMaster() {
+                return true;
+            }
+
+            @Override
+            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
+
+            @Override
+            public void execute(List tasks) {}
+
+            @Override
+            public String getMasterThrottlingKey() {
+                return taskKey;
+            }
+
+            @Override
+            public String describeTasks(List tasks) {
+                return taskKey;
+            }
+        }
+
+        for (int i = 0; i < size; i++) {
+            taskList.add(testTaskBatcher.new UpdateTask(Priority.HIGH, taskKey, taskKey, (source, e) -> {
+                if (!(e instanceof MasterTaskThrottlingException)) {
+                    throw new AssertionError(e);
+                }
+            }, new MockExecutor()));
+        }
+
+        return taskList;
     }
 }

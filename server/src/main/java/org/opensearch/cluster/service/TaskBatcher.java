@@ -80,7 +80,7 @@ public abstract class TaskBatcher {
         assert tasks.stream().allMatch(t -> t.getTask().getClass() == firstTask.getTask().getClass())
             : "tasks submitted in a batch should be of same class: " + tasks;
 
-        taskBatcherListener.onSubmit(tasks);
+        taskBatcherListener.onBeginSubmit(tasks);
 
         try {
             // convert to an identity map to check for dups based on task identity
@@ -89,9 +89,7 @@ public abstract class TaskBatcher {
                     Collectors.toMap(
                         BatchedTask::getTask,
                         Function.identity(),
-                        (a, b) -> {
-                            throw new IllegalStateException("cannot add duplicate task: " + a);
-                        },
+                        (a, b) -> { throw new IllegalStateException("cannot add duplicate task: " + a); },
                         IdentityHashMap::new
                     )
                 );

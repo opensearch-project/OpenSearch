@@ -15,7 +15,7 @@ public interface TaskBatcherListener {
      * Callback called before submitting tasks.
      * @param tasks list of tasks which will be submitted.
      */
-    void onSubmit(List<? extends TaskBatcher.BatchedTask> tasks);
+    void onBeginSubmit(List<? extends TaskBatcher.BatchedTask> tasks);
 
     /**
      * Callback called if tasks submission due to any reason

@@ -29,7 +29,8 @@ public class MasterThrottlingStats implements MasterTaskThrottlerListener {
     }
 
     public long getThrottlingCount(String type) {
-        return throttledTasksCount.get(type).count();
+        CounterMetric throttledCount = throttledTasksCount.get(type);
+        return throttledCount == null ? 0 : throttledCount.count();
     }
 
     public long getTotalThrottledTaskCount() {

@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Assertions;
+import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.AckedClusterStateTaskListener;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -144,7 +145,7 @@ public class MasterService extends AbstractLifecycleComponent {
         );
 
         this.throttlingStats = new MasterThrottlingStats();
-        this.masterTaskThrottler = new MasterTaskThrottler(clusterSettings, this, throttlingStats);
+        this.masterTaskThrottler = new MasterTaskThrottler(clusterSettings, this::getMinNodeVersion, throttlingStats);
         this.threadPool = threadPool;
     }
 
@@ -589,6 +590,13 @@ public class MasterService extends AbstractLifecycleComponent {
      */
     public long numberOfThrottledPendingTasks() {
         return throttlingStats.getTotalThrottledTaskCount();
+    }
+
+    /**
+     * Returns the min version of nodes in cluster
+     */
+    public Version getMinNodeVersion() {
+        return state().getNodes().getMinNodeVersion();
     }
 
     /**
