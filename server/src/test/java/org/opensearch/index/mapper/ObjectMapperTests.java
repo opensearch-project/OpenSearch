@@ -179,21 +179,21 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testDottedFields() throws Exception {
-            String mapping = Strings.toString(
+        String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject(".")
-            .field("type", "text")
-            .field("dimension", 4)
-            .startObject("method")
-            .field("name", "hnsw")
-            .field("space", "l2")
-            .field("engine", "lucene")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
+                .startObject()
+                .startObject("properties")
+                .startObject(".")
+                .field("type", "text")
+                .field("dimension", 4)
+                .startObject("method")
+                .field("name", "hnsw")
+                .field("space", "l2")
+                .field("engine", "lucene")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
         );
 
         try {

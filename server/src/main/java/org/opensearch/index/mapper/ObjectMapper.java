@@ -382,7 +382,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     String[] fieldNameParts = fieldName.split("\\.");
                     if (fieldNameParts.length < 1) {
                         throw new MapperParsingException("Index -1 out of bounds for length 0");
-                    } 
+                    }
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                     Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
