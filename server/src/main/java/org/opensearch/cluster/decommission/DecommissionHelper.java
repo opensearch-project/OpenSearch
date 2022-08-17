@@ -10,15 +10,12 @@ package org.opensearch.cluster.decommission;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.opensearch.common.inject.Inject;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,17 +26,17 @@ public class DecommissionHelper {
     private static final Logger logger = LogManager.getLogger(DecommissionHelper.class);
 
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
-    private final ClusterManagerService clusterManagerService;
+    private final ClusterService clusterService;
 
     DecommissionHelper(
-        ClusterManagerService clusterManagerService,
+        ClusterService clusterService,
         NodeRemovalClusterStateTaskExecutor nodeRemovalClusterStateTaskExecutor
     ) {
         this.nodeRemovalExecutor = nodeRemovalClusterStateTaskExecutor;
-        this.clusterManagerService = clusterManagerService;
+        this.clusterService = clusterService;
     }
 
-    private void handleNodesDecommissionRequest(List<DiscoveryNode> nodesToBeDecommissioned, String reason) {
+    public void handleNodesDecommissionRequest(List<DiscoveryNode> nodesToBeDecommissioned, String reason) {
         final Map<NodeRemovalClusterStateTaskExecutor.Task, ClusterStateTaskListener> nodesDecommissionTasks = new LinkedHashMap<>();
         nodesToBeDecommissioned.forEach(discoveryNode -> {
             final NodeRemovalClusterStateTaskExecutor.Task task = new NodeRemovalClusterStateTaskExecutor.Task(
@@ -48,7 +45,7 @@ public class DecommissionHelper {
             nodesDecommissionTasks.put(task, nodeRemovalExecutor);
         });
         final String source = "node-decommissioned";
-        clusterManagerService.submitStateUpdateTasks(
+        clusterService.submitStateUpdateTasks(
             source,
             nodesDecommissionTasks,
             ClusterStateTaskConfig.build(Priority.IMMEDIATE),
