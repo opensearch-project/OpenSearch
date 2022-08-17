@@ -6,15 +6,21 @@ This is a prototype of how security can be added, this document serves as a tour
 
 There are several open-sourced security frameworks available, during an [initial pull request](https://github.com/opensearch-project/OpenSearch/pull/4028#issuecomment-1198385167) several came to light, Spring Security, Apache CXF, and Shiro. Shiro's focused design around authentication and authorization scenarios made it the candidate for this investigation.
 
-## What scenarios are we trying to understand?
+## Scenarios covered in this prototype
 
 ### How and where should identity information be captured?
-Looking at the existing SecurityFilter implemenation of
+From external-in perspective suggests that the RestController has access to request headers that could contain this information, and it could be picked up before the request is dispatched.  This also would be a good point to dispatch to a login workflow if challenge auth is supported.
 
 ### How identity information is accessed during a request?
-### How and where can identity information be verified that aligns with the existing Task focused security model of the security plugin?
-### How to apply identity information for internal processes?
+Looking at the existing [SecurityFilter](https://github.com/opensearch-project/security/blob/main/src/main/java/org/opensearch/security/filter/SecurityFilter.java) implementation of the security plugin, this was the point in time when AuthZ was verifiable, which pertained to the Task filter.
 
+### How and where can identity information be verified that aligns with the existing Task focused security model of the security plugin?
+`SecurityUtils.getSubject().isPermitted(...)` is accessible anywhere within the context of the thread running the request.  While typically checking AuthZ should be done as soon as possible to eliminate wasted processing time, it means layers of auth can be added.  E.g. First check that the subject can execute the task by name.  Then as indexes are being resolved from an index pattern block/filter based on the subjects available view.  The existing security plugin has a [IndexResolverReplacer](https://github.com/opensearch-project/security/blob/main/src/main/java/org/opensearch/security/resolver/IndexResolverReplacer.java) that emulates OpenSearch's behavior where this _could_ be done inline.
+
+A check was added in TransportAction to ensure that all requests are authenticated or they are errored out, then logging of the resolved permissions.
+
+### How to apply identity information for internal processes?
+Shiro's [Subject](https://shiro.apache.org/static/1.9.1/apidocs/org/apache/shiro/subject/Subject.html) implementation allows for the Principal to be of any type, in the test infra for Shiro [UserIdPrincipal](https://github.com/apache/shiro/blob/df81077726b407f905ba16a9f57ba731b7736375/core/src/test/java/org/apache/shiro/realm/UserIdPrincipal.java) is used and is nearly identical to the object that was created in the previous pull request.
 
 ## OpenSearch Scenarios
 

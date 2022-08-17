@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 /**
- * Prototyping use of security system implemented with Shiro
+ * Prototyping use of identity management (authentication & authorization) implemented with Shiro
  * See more at https://shiro.apache.org/
  */
 public class MyShiroModule {
