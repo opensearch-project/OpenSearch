@@ -550,7 +550,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 // TODO Replace with remote translog factory in the follow up PR
                 this.indexSettings.isRemoteTranslogStoreEnabled() ? null : new InternalTranslogFactory(),
-                this.indexSettings.isSegRepEnabled() && routing.primary() ? checkpointPublisher : null,
+                this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
