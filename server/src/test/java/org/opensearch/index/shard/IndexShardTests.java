@@ -3453,7 +3453,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
      * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
      */

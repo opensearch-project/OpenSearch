@@ -71,6 +71,12 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager = readerManager;
             this.readerManager.addListener(completionStatsCache);
+            for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
+                this.readerManager.addListener(listener);
+            }
+            for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
+                this.readerManager.addListener(listener);
+            }
             final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
             final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             translogManagerRef = new WriteOnlyTranslogManager(
@@ -197,6 +203,18 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
     @Override
     protected ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
+    }
+
+    /**
+     * Refreshing of this engine will only happen internally when a new set of segments is received.  The engine will ignore external
+     * refresh attempts so we can return false here.  Further Engine's existing implementation reads DirectoryReader.isCurrent after acquiring a searcher.
+     * With this Engine's NRTReplicationReaderManager, This will use StandardDirectoryReader's implementation which determines if the reader is current by
+     * comparing the on-disk SegmentInfos version against the one in the reader, which at refresh points will always return isCurrent false and then refreshNeeded true.
+     * Even if this method returns refresh as needed, we ignore it and only ever refresh with incoming SegmentInfos.
+     */
+    @Override
+    public boolean refreshNeeded() {
+        return false;
     }
 
     @Override

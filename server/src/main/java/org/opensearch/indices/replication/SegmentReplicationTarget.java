@@ -154,7 +154,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         throws IOException {
         final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
-        final Store.RecoveryDiff diff = snapshot.recoveryDiff(localMetadata);
+        final Store.RecoveryDiff diff = snapshot.segmentReplicationDiff(localMetadata);
         logger.debug("Replication diff {}", diff);
         // Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming snapshot
         // from
@@ -181,11 +181,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         for (StoreFileMetadata file : filesToFetch) {
             state.getIndex().addFileDetail(file.name(), file.length(), false);
         }
-        if (filesToFetch.isEmpty()) {
-            getFilesListener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-        } else {
-            source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, store, getFilesListener);
-        }
+        // always send a req even if not fetching files so the primary can clear the copyState for this shard.
+        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, store, getFilesListener);
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {

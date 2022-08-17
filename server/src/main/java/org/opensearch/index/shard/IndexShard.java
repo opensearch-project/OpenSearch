@@ -1382,9 +1382,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the lastest Replication Checkpoint that shard received
+     * Returns the latest ReplicationCheckpoint that shard received.
+     * @return EMPTY checkpoint before the engine is opened and null for non-segrep enabled indices
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        if (indexSettings.isSegRepEnabled() == false) {
+            return null;
+        }
+        if (getEngineOrNull() == null) {
+            return ReplicationCheckpoint.empty(shardId);
+        }
         try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
             return Optional.ofNullable(snapshot.get())
                 .map(
@@ -1396,15 +1403,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentInfos.getVersion()
                     )
                 )
-                .orElse(
-                    new ReplicationCheckpoint(
-                        shardId,
-                        getOperationPrimaryTerm(),
-                        SequenceNumbers.NO_OPS_PERFORMED,
-                        getProcessedLocalCheckpoint(),
-                        SequenceNumbers.NO_OPS_PERFORMED
-                    )
-                );
+                .orElse(ReplicationCheckpoint.empty(shardId));
         } catch (IOException ex) {
             throw new OpenSearchException("Error Closing SegmentInfos Snapshot", ex);
         }
@@ -1419,6 +1418,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public final boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
         if (state().equals(IndexShardState.STARTED) == false) {
             logger.trace(() -> new ParameterizedMessage("Ignoring new replication checkpoint - shard is not started {}", state()));
+            return false;
+        }
+        if (getReplicationTracker().isPrimaryMode()) {
+            logger.warn("Ignoring new replication checkpoint - shard is in primaryMode and cannot receive any checkpoints.");
             return false;
         }
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
@@ -3774,6 +3777,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
                 && isSearchIdle()
                 && indexSettings.isExplicitRefresh() == false
+                && indexSettings.isSegRepEnabled() == false
+                // Indices with segrep enabled will never wait on a refresh and ignore shard idle. Primary shards push out new segments only
+                // after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
+                // a new set of segments.
                 && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will

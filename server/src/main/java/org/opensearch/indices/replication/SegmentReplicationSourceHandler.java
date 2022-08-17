@@ -54,6 +54,8 @@ class SegmentReplicationSourceHandler {
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final Logger logger;
     private final AtomicBoolean isReplicating = new AtomicBoolean();
+    private final DiscoveryNode targetNode;
+    private final String allocationId;
 
     /**
      * Constructor.
@@ -70,9 +72,11 @@ class SegmentReplicationSourceHandler {
         FileChunkWriter writer,
         ThreadPool threadPool,
         CopyState copyState,
+        String allocationId,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks
     ) {
+        this.targetNode = targetNode;
         this.shard = copyState.getShard();
         this.logger = Loggers.getLogger(
             SegmentReplicationSourceHandler.class,
@@ -89,6 +93,7 @@ class SegmentReplicationSourceHandler {
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
+        this.allocationId = allocationId;
         this.copyState = copyState;
     }
 
@@ -118,7 +123,7 @@ class SegmentReplicationSourceHandler {
                     logger.debug(
                         "delaying replication of {} as it is not listed as assigned to target node {}",
                         shard.shardId(),
-                        request.getTargetNode()
+                        targetNode
                     );
                     throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
                 }
@@ -166,5 +171,13 @@ class SegmentReplicationSourceHandler {
 
     public boolean isReplicating() {
         return isReplicating.get();
+    }
+
+    public DiscoveryNode getTargetNode() {
+        return targetNode;
+    }
+
+    public String getAllocationId() {
+        return allocationId;
     }
 }

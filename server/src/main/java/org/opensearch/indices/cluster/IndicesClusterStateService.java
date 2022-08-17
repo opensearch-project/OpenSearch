@@ -56,6 +56,7 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -80,6 +81,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
@@ -90,6 +92,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -134,7 +137,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();
 
     private final boolean sendRefreshMapping;
-    private final List<IndexEventListener> buildInIndexListener;
+    private final List<IndexEventListener> builtInIndexListener;
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final Consumer<ShardId> globalCheckpointSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
@@ -148,6 +151,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final PeerRecoveryTargetService recoveryTargetService,
+        final SegmentReplicationTargetService segmentReplicationTargetService,
         final ShardStateAction shardStateAction,
         final NodeMappingRefreshAction nodeMappingRefreshAction,
         final RepositoriesService repositoriesService,
@@ -165,6 +169,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             clusterService,
             threadPool,
             checkpointPublisher,
+            segmentReplicationTargetService,
             recoveryTargetService,
             shardStateAction,
             nodeMappingRefreshAction,
@@ -185,6 +190,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final SegmentReplicationTargetService segmentReplicationTargetService,
         final PeerRecoveryTargetService recoveryTargetService,
         final ShardStateAction shardStateAction,
         final NodeMappingRefreshAction nodeMappingRefreshAction,
@@ -198,7 +204,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
-        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
+
+        final List<IndexEventListener> indexEventListeners = new ArrayList<>(
+            Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService)
+        );
+        // if segrep feature flag is not enabled, don't wire the target serivce as an IndexEventListener.
+        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
+            indexEventListeners.add(segmentReplicationTargetService);
+        }
+        this.builtInIndexListener = Collections.unmodifiableList(indexEventListeners);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -514,7 +528,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
+                indexService = indicesService.createIndex(indexMetadata, builtInIndexListener, true);
                 if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(
                         state.nodes().getClusterManagerNode(),
