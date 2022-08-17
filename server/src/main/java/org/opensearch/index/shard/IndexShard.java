@@ -164,7 +164,6 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -240,6 +239,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final GlobalCheckpointListeners globalCheckpointListeners;
     private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
+    private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -304,7 +304,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
-    private final ReferenceManager.RefreshListener checkpointRefreshListener;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -410,11 +409,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
-        if (checkpointPublisher != null) {
-            this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
-        } else {
-            this.checkpointRefreshListener = null;
-        }
+        this.checkpointPublisher = checkpointPublisher;
     }
 
     public ThreadPool getThreadPool() {
@@ -614,6 +609,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             + newRouting;
                         assert getOperationPrimaryTerm() == newPrimaryTerm;
                         try {
+                            if (indexSettings.isSegRepEnabled()) {
+                                // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
+                                assert newRouting.primary() && currentRouting.primary() == false;
+                                promoteNRTReplicaToPrimary();
+                            }
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             ensurePeerRecoveryRetentionLeasesExist();
                             /*
@@ -3220,11 +3220,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
 
-        final List<ReferenceManager.RefreshListener> internalRefreshListener;
-        if (this.checkpointRefreshListener != null) {
-            internalRefreshListener = Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener);
-        } else {
-            internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));
+        final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
+        internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
+
+        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+            internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
 
         return this.engineConfigFactory.newEngineConfig(
@@ -4107,5 +4107,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         return getEngine().getSegmentInfosSnapshot();
+    }
+
+    /**
+     * With segment replication enabled - prepare the shard's engine to be promoted as the new primary.
+     *
+     * If this shard is currently using a replication engine, this method:
+     * 1. Invokes {@link NRTReplicationEngine#commitSegmentInfos()} to ensure the engine can be reopened as writeable from the latest refresh point.
+     * InternalEngine opens its IndexWriter from an on-disk commit point, but this replica may have recently synced from a primary's refresh point, meaning it has documents searchable in its in-memory SegmentInfos
+     * that are not part of a commit point.  This ensures that those documents are made part of a commit and do not need to be reindexed after promotion.
+     * 2. Invokes resetEngineToGlobalCheckpoint - This call performs the engine swap, opening up as a writeable engine and replays any operations in the xlog. The operations indexed from xlog here will be
+     * any ack'd writes that were not copied to this replica before promotion.
+     */
+    private void promoteNRTReplicaToPrimary() {
+        assert shardRouting.primary() && indexSettings.isSegRepEnabled();
+        getReplicationEngine().ifPresentOrElse(engine -> {
+            try {
+                engine.commitSegmentInfos();
+                resetEngineToGlobalCheckpoint();
+            } catch (IOException e) {
+                throw new EngineException(shardId, "Unable to update  replica to writeable engine, failing shard", e);
+            }
+        }, () -> { throw new EngineException(shardId, "Expected replica engine to be of type NRTReplicationEngine"); });
     }
 }
