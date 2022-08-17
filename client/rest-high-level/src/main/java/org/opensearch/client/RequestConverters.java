@@ -494,7 +494,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request deleteAllPits(DeletePitRequest deletePitRequest) {
+    static Request deleteAllPits() {
         return new Request(HttpDelete.METHOD_NAME, "/_search/point_in_time/_all");
     }
 

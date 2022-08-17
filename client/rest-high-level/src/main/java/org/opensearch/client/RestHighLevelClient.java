@@ -1341,14 +1341,13 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Delete all point in time searches using delete all PITs API
      *
-     * @param deletePitRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      */
-    public final DeletePitResponse deleteAllPits(DeletePitRequest deletePitRequest, RequestOptions options) throws IOException {
+    public final DeletePitResponse deleteAllPits(RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
-            deletePitRequest,
-            RequestConverters::deleteAllPits,
+            new MainRequest(),
+            (request) -> RequestConverters.deleteAllPits(),
             options,
             DeletePitResponse::fromXContent,
             emptySet()
@@ -1358,19 +1357,14 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Asynchronously Delete all point in time searches using delete all PITs API
      *
-     * @param deletePitRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @return the response
      */
-    public final Cancellable deleteAllPitsAsync(
-        DeletePitRequest deletePitRequest,
-        RequestOptions options,
-        ActionListener<DeletePitResponse> listener
-    ) {
+    public final Cancellable deleteAllPitsAsync(RequestOptions options, ActionListener<DeletePitResponse> listener) {
         return performRequestAsyncAndParseEntity(
-            deletePitRequest,
-            RequestConverters::deleteAllPits,
+            new MainRequest(),
+            (request) -> RequestConverters.deleteAllPits(),
             options,
             DeletePitResponse::fromXContent,
             listener,

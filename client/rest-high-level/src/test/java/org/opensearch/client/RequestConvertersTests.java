@@ -1341,7 +1341,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
     }
 
     public void testDeleteAllPits() {
-        Request request = RequestConverters.deleteAllPits(new DeletePitRequest());
+        Request request = RequestConverters.deleteAllPits();
         String endpoint = "/_search/point_in_time/_all";
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals(endpoint, request.getEndpoint());

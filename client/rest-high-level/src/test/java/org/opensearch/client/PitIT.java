@@ -11,6 +11,8 @@ package org.opensearch.client;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.junit.Before;
+import org.opensearch.OpenSearchStatusException;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.DeletePitInfo;
@@ -48,7 +50,7 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
     }
 
-    public void testCreatePitAndDeletePit() throws IOException {
+    public void testCreateAndDeletePit() throws IOException {
         CreatePitRequest pitRequest = new CreatePitRequest(new TimeValue(1, TimeUnit.DAYS), true, "index");
         CreatePitResponse pitResponse = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
         assertTrue(pitResponse.getId() != null);
@@ -70,16 +72,31 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         CreatePitResponse pitResponse1 = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
         assertTrue(pitResponse.getId() != null);
         assertTrue(pitResponse1.getId() != null);
-        List<String> pitIds = new ArrayList<>();
-        pitIds.add("_all");
-        DeletePitRequest deletePitRequest = new DeletePitRequest(pitIds);
-        DeletePitResponse deletePitResponse = execute(
-            deletePitRequest,
-            highLevelClient()::deleteAllPits,
-            highLevelClient()::deleteAllPitsAsync
-        );
+        DeletePitResponse deletePitResponse = highLevelClient().deleteAllPits(RequestOptions.DEFAULT);
         for (DeletePitInfo deletePitInfo : deletePitResponse.getDeletePitResults()) {
             assertTrue(deletePitInfo.isSuccessful());
         }
+        pitResponse = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
+        pitResponse1 = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
+        assertTrue(pitResponse.getId() != null);
+        assertTrue(pitResponse1.getId() != null);
+        ActionListener<DeletePitResponse> deletePitListener = new ActionListener<>() {
+            @Override
+            public void onResponse(DeletePitResponse response) {
+                for (DeletePitInfo deletePitInfo : response.getDeletePitResults()) {
+                    assertTrue(deletePitInfo.isSuccessful());
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (!(e instanceof OpenSearchStatusException)) {
+                    throw new AssertionError("Delete all failed");
+                }
+            }
+        };
+        highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
+        // validate no pits case
+        highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
     }
 }
