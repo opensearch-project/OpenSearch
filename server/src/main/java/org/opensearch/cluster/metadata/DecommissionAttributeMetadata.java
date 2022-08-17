@@ -150,8 +150,8 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     }
 
     public DecommissionAttributeMetadata(StreamInput in) throws IOException {
-        this.status = DecommissionStatus.fromValue(in.readByte());
         this.decommissionAttribute = new DecommissionAttribute(in);
+        this.status = DecommissionStatus.fromValue(in.readByte());
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -165,7 +165,6 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     public void writeTo(StreamOutput out) throws IOException {
         decommissionAttribute.writeTo(out);
         out.writeByte(status.value());
-        out.writeString(attributeType);
     }
 
     public static DecommissionAttributeMetadata fromXContent(XContentParser parser) throws IOException {
@@ -185,7 +184,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                             String fieldName = parser.currentName();
                             String value;
                             token = parser.nextToken();
-                            if (token != XContentParser.Token.VALUE_STRING) {
+                            if (token == XContentParser.Token.VALUE_STRING) {
                                 value = parser.text();
                             } else {
                                 throw new OpenSearchParseException("failed to parse attribute [{}], expected string for attribute value", fieldName);
