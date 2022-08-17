@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.decommission.DecommissionFailedException;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -1600,6 +1601,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.indices.replication.common.ReplicationFailedException.class,
             org.opensearch.indices.replication.common.ReplicationFailedException::new,
             161,
+            V_2_1_0
+        ),
+        DECOMMISSION_FAILED_EXCEPTION(
+            org.opensearch.cluster.decommission.DecommissionFailedException.class,
+            org.opensearch.cluster.decommission.DecommissionFailedException::new,
+            162,
             V_2_1_0
         );
 

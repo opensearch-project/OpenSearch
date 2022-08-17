@@ -18,27 +18,27 @@ import java.util.Objects;
 
 public final class DecommissionAttribute implements Writeable {
     private final String attributeName;
-    private final List<String> attributeValues;
+    private final String attributeValue;
 
     /**
-     * Update the attribute values for a given attribute name to decommission
+     * Update the attribute value for a given attribute name to decommission
      *
      * @param decommissionAttribute current decommissioned attribute object
-     * @param attributeValues       values to be updated with
+     * @param attributeValue       attribute value to be updated with
      */
-    public DecommissionAttribute(DecommissionAttribute decommissionAttribute, List<String> attributeValues) {
-        this(decommissionAttribute.attributeName, attributeValues);
+    public DecommissionAttribute(DecommissionAttribute decommissionAttribute, String attributeValue) {
+        this(decommissionAttribute.attributeName, attributeValue);
     }
 
     /**
-     * Constructs new decommission attribute name values pair
+     * Constructs new decommission attribute name value pair
      *
      * @param attributeName   attribute name
-     * @param attributeValues attribute values
+     * @param attributeValue attribute value
      */
-    public DecommissionAttribute(String attributeName, List<String> attributeValues) {
+    public DecommissionAttribute(String attributeName, String attributeValue) {
         this.attributeName = attributeName;
-        this.attributeValues = attributeValues;
+        this.attributeValue = attributeValue;
     }
 
     /**
@@ -51,35 +51,35 @@ public final class DecommissionAttribute implements Writeable {
     }
 
     /**
-     * Returns attribute values
+     * Returns attribute value
      *
-     * @return attributeValues
+     * @return attributeValue
      */
-    public List<String> attributeValues() {
-        return this.attributeValues;
+    public String attributeValue() {
+        return this.attributeValue;
     }
 
     public DecommissionAttribute(StreamInput in) throws IOException {
         attributeName = in.readString();
-        attributeValues = in.readStringList();
+        attributeValue = in.readString();
     }
 
     /**
-     * Writes decommission attribute name values to stream output
+     * Writes decommission attribute name value to stream output
      *
      * @param out stream output
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(attributeName);
-        out.writeStringCollection(attributeValues);
+        out.writeString(attributeValue);
     }
 
     /**
-     * Checks if this instance is equal to the other instance in attributeName other than {@link #attributeValues}.
+     * Checks if this instance is equal to the other instance in attributeName but differ in attribute value {@link #attributeValue}.
      *
-     * @param other other decommission attribute name values
-     * @return {@code true} if both instances equal in attributeName fields but the attributeValues fields
+     * @param other other decommission attribute name value
+     * @return {@code true} if both instances equal in attributeName fields but the attributeValue field
      */
     public boolean equalsIgnoreValues(DecommissionAttribute other) {
         return attributeName.equals(other.attributeName);
@@ -93,16 +93,13 @@ public final class DecommissionAttribute implements Writeable {
         DecommissionAttribute that = (DecommissionAttribute) o;
 
         if (!attributeName.equals(that.attributeName)) return false;
-        return attributeValues.equals(that.attributeValues);
+        return attributeValue.equals(that.attributeValue);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributeName, attributeValues);
+        return Objects.hash(attributeName, attributeValue);
     }
 
-    @Override
-    public String toString() {
-        return "DecommissionAttribute{" + attributeName + "}{" + attributeValues().toString() + "}";
-    }
+
 }
