@@ -27,12 +27,14 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase {
 
@@ -63,14 +65,14 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
         when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
 
         try (Directory directory = remoteSegmentStoreDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)) {
-            assertTrue(directory instanceof RemoteDirectory);
+            assertTrue(directory instanceof RemoteSegmentStoreDirectory);
             ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);
-            verify(blobStore).blobContainer(blobPathCaptor.capture());
-            BlobPath blobPath = blobPathCaptor.getValue();
-            assertEquals("foo/0/", blobPath.buildAsString());
+            verify(blobStore, times(2)).blobContainer(blobPathCaptor.capture());
+            List<BlobPath> blobPaths = blobPathCaptor.getAllValues();
+            assertEquals("foo/0/segments/data/", blobPaths.get(0).buildAsString());
+            assertEquals("foo/0/segments/metadata/", blobPaths.get(1).buildAsString());
 
-            directory.listAll();
-            verify(blobContainer).listBlobs();
+            verify(blobContainer).listBlobsByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX);
             verify(repositoriesService).repository("remote_store_repository");
         }
     }
