@@ -40,6 +40,8 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.TransportGetDecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.PutDecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportPutDecommissionAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
@@ -307,6 +309,7 @@ import org.opensearch.rest.action.admin.cluster.RestCreateSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestGetDecommissionAction;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.rest.action.admin.cluster.RestGetScriptContextAction;
 import org.opensearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
@@ -688,6 +691,7 @@ public class ActionModule extends AbstractModule {
 
         // Decommission actions
         actions.register(PutDecommissionAction.INSTANCE, TransportPutDecommissionAction.class);
+        actions.register(GetDecommissionAction.INSTANCE, TransportGetDecommissionAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -880,6 +884,7 @@ public class ActionModule extends AbstractModule {
         }
         registerHandler.accept(new RestCatAction(catActions));
         registerHandler.accept(new RestPutDecommissionAction());
+        registerHandler.accept(new RestGetDecommissionAction());
 
         // Remote Store APIs
         if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
