@@ -43,6 +43,10 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAc
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.PutDecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.PutDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.PutDecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.PutDecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -1313,6 +1317,21 @@ public abstract class AbstractClient implements Client {
         @Override
         public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id) {
             return prepareDeleteStoredScript().setId(id);
+        }
+
+        @Override
+        public ActionFuture<PutDecommissionResponse> putDecommission(PutDecommissionRequest request) {
+            return execute(PutDecommissionAction.INSTANCE, request);
+        }
+
+        @Override
+        public void putDecommission(PutDecommissionRequest request, ActionListener<PutDecommissionResponse> listener) {
+            execute(PutDecommissionAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public PutDecommissionRequestBuilder preparePutDecommission(PutDecommissionRequest request) {
+            return new PutDecommissionRequestBuilder(this, PutDecommissionAction.INSTANCE, request);
         }
     }
 
