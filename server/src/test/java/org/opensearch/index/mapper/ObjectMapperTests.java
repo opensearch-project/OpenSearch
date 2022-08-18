@@ -178,6 +178,26 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testDotAsFieldName() throws Exception {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject(".")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Invalid field name"));
+        }
+    }
+
     public void testFieldPropertiesArray() throws Exception {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
