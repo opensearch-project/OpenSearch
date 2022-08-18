@@ -124,7 +124,7 @@ OpenSearch maintains version specific changelog by enforcing a change to the ong
 Briefly, the changes are curated by version, with the changes to the main branch added chronologically to `Unreleased` version. Further, each version has corresponding sections which list out the category of the change - `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 
 
-### How to add my changes to CHANGELOG](CHANGELOG.md)?
+### How to add my changes to [CHANGELOG](CHANGELOG.md)?
 
 As a contributor, you must ensure that every pull request has the changes listed out within the corresponding version and appropriate section of [CHANGELOG](CHANGELOG.md) file.
 
