@@ -403,6 +403,275 @@ public class RecoverySourceHandler {
         }
     }
 
+    /**
+     * performs the recovery from the local engine to the target
+     */
+    public void recoverToTarget1(ActionListener<RecoveryResponse> listener) {
+        addListener(listener);
+        final Closeable releaseResources = () -> IOUtils.close(resources);
+        try {
+            cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
+                final RuntimeException e;
+                if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
+                    e = new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
+                } else {
+                    e = new CancellableThreads.ExecutionCancelledException("recovery was canceled reason [" + reason + "]");
+                }
+                if (beforeCancelEx != null) {
+                    e.addSuppressed(beforeCancelEx);
+                }
+                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+                throw e;
+            });
+            final Consumer<Exception> onFailure = e -> {
+                assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[onFailure]");
+                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+            };
+
+            final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
+
+            RunUnderPrimaryPermit.run(() -> {
+                    final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
+                    ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
+                    if (targetShardRouting == null) {
+                        logger.debug(
+                            "delaying recovery of {} as it is not listed as assigned to target node {}",
+                            request.shardId(),
+                            request.targetNode()
+                        );
+                        throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+                    }
+                    assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
+                    retentionLeaseRef.set(
+                        shard.getRetentionLeases().get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting))
+                    );
+                },
+                shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ",
+                shard,
+                cancellableThreads,
+                logger
+            );
+            final Closeable retentionLock = shard.acquireHistoryRetentionLock();
+            resources.add(retentionLock);
+            final long startingSeqNo;
+            final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                && isTargetSameHistory()
+                && shard.hasCompleteHistoryOperations(PEER_RECOVERY_NAME, request.startingSeqNo())
+                && ((retentionLeaseRef.get() == null && shard.useRetentionLeasesInPeerRecovery() == false)
+                || (retentionLeaseRef.get() != null && retentionLeaseRef.get().retainingSequenceNumber() <= request.startingSeqNo()));
+            // NB check hasCompleteHistoryOperations when computing isSequenceNumberBasedRecovery, even if there is a retention lease,
+            // because when doing a rolling upgrade from earlier than 7.4 we may create some leases that are initially unsatisfied. It's
+            // possible there are other cases where we cannot satisfy all leases, because that's not a property we currently expect to hold.
+            // Also it's pretty cheap when soft deletes are enabled, and it'd be a disaster if we tried a sequence-number-based recovery
+            // without having a complete history.
+
+            if (isSequenceNumberBasedRecovery && retentionLeaseRef.get() != null) {
+                // all the history we need is retained by an existing retention lease, so we do not need a separate retention lock
+                retentionLock.close();
+                logger.trace("history is retained by {}", retentionLeaseRef.get());
+            } else {
+                // all the history we need is retained by the retention lock, obtained before calling shard.hasCompleteHistoryOperations()
+                // and before acquiring the safe commit we'll be using, so we can be certain that all operations after the safe commit's
+                // local checkpoint will be retained for the duration of this recovery.
+                logger.trace("history is retained by retention lock");
+            }
+
+            final StepListener<SendFileResult> sendFileStep = new StepListener<>();
+            final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
+            final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
+            final StepListener<Void> finalizeStep = new StepListener<>();
+
+            if (isSequenceNumberBasedRecovery) {
+                logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
+                startingSeqNo = request.startingSeqNo();
+                if (retentionLeaseRef.get() == null) {
+                    createRetentionLease(startingSeqNo, ActionListener.map(sendFileStep, ignored -> SendFileResult.EMPTY));
+                } else {
+                    sendFileStep.onResponse(SendFileResult.EMPTY);
+                }
+            } else {
+                final GatedCloseable<IndexCommit> wrappedSafeCommit;
+                try {
+                    wrappedSafeCommit = acquireSafeCommit(shard);
+                    resources.add(wrappedSafeCommit);
+                } catch (final Exception e) {
+                    throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
+                }
+
+                // Try and copy enough operations to the recovering peer so that if it is promoted to primary then it has a chance of being
+                // able to recover other replicas using operations-based recoveries. If we are not using retention leases then we
+                // conservatively copy all available operations. If we are using retention leases then "enough operations" is just the
+                // operations from the local checkpoint of the safe commit onwards, because when using soft deletes the safe commit retains
+                // at least as much history as anything else. The safe commit will often contain all the history retained by the current set
+                // of retention leases, but this is not guaranteed: an earlier peer recovery from a different primary might have created a
+                // retention lease for some history that this primary already discarded, since we discard history when the global checkpoint
+                // advances and not when creating a new safe commit. In any case this is a best-effort thing since future recoveries can
+                // always fall back to file-based ones, and only really presents a problem if this primary fails before things have settled
+                // down.
+                startingSeqNo = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
+                logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
+
+                try {
+                    final int estimateNumOps = countNumberOfHistoryOperations(startingSeqNo);
+                    final Releasable releaseStore = acquireStore(shard.store());
+                    resources.add(releaseStore);
+                    sendFileStep.whenComplete(r -> IOUtils.close(wrappedSafeCommit, releaseStore), e -> {
+                        try {
+                            IOUtils.close(wrappedSafeCommit, releaseStore);
+                        } catch (final IOException ex) {
+                            logger.warn("releasing snapshot caused exception", ex);
+                        }
+                    });
+
+                    final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
+                    RunUnderPrimaryPermit.run(() -> {
+                        try {
+                            // If the target previously had a copy of this shard then a file-based recovery might move its global
+                            // checkpoint backwards. We must therefore remove any existing retention lease so that we can create a
+                            // new one later on in the recovery.
+                            shard.removePeerRecoveryRetentionLease(
+                                request.targetNode().getId(),
+                                new ThreadedActionListener<>(
+                                    logger,
+                                    shard.getThreadPool(),
+                                    ThreadPool.Names.GENERIC,
+                                    deleteRetentionLeaseStep,
+                                    false
+                                )
+                            );
+                        } catch (RetentionLeaseNotFoundException e) {
+                            logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
+                            deleteRetentionLeaseStep.onResponse(null);
+                        }
+                    }, shardId + " removing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
+
+                    deleteRetentionLeaseStep.whenComplete(ignored -> {
+                        assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
+                        phase1(wrappedSafeCommit.get(), startingSeqNo, () -> estimateNumOps, sendFileStep);
+                    }, onFailure);
+
+                } catch (final Exception e) {
+                    throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);
+                }
+            }
+            assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
+
+            sendFileStep.whenComplete(r -> {
+                assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
+                // For a sequence based recovery, the target can keep its local translog
+                prepareTargetForTranslog(countNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);
+            }, onFailure);
+
+//            prepareEngineStep.whenComplete(prepareEngineTime -> {
+//                assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase2]");
+//                /*
+//                 * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
+//                 * This means that any document indexed into the primary after this will be replicated to this replica as well
+//                 * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
+//                 * all documents up to maxSeqNo in phase2.
+//                 */
+//                RunUnderPrimaryPermit.run(
+//                    () -> shard.initiateTracking(request.targetAllocationId()),
+//                    shardId + " initiating tracking of " + request.targetAllocationId(),
+//                    shard,
+//                    cancellableThreads,
+//                    logger
+//                );
+//
+//                final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
+//                if (logger.isTraceEnabled()) {
+//                    logger.trace("snapshot translog for recovery; current size is [{}]", countNumberOfHistoryOperations(startingSeqNo));
+//                }
+//                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
+//                    PEER_RECOVERY_NAME,
+//                    startingSeqNo,
+//                    Long.MAX_VALUE,
+//                    false,
+//                    true
+//                );
+//                resources.add(phase2Snapshot);
+//                retentionLock.close();
+//
+//                // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
+//                // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
+//                final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
+//                final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
+//                final RetentionLeases retentionLeases = shard.getRetentionLeases();
+//                final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetadata().getMappingVersion();
+//                phase2(
+//                    startingSeqNo,
+//                    endingSeqNo,
+//                    phase2Snapshot,
+//                    maxSeenAutoIdTimestamp,
+//                    maxSeqNoOfUpdatesOrDeletes,
+//                    retentionLeases,
+//                    mappingVersionOnPrimary,
+//                    sendSnapshotStep
+//                );
+//
+//            }, onFailure);
+
+            prepareEngineStep.whenComplete(prepareEngineTime -> {
+                assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase2]");
+                /*
+                 * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
+                 * This means that any document indexed into the primary after this will be replicated to this replica as well
+                 * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
+                 * all documents up to maxSeqNo in phase2.
+                 */
+                RunUnderPrimaryPermit.run(
+                    () -> shard.initiateTracking(request.targetAllocationId()),
+                    shardId + " initiating tracking of " + request.targetAllocationId(),
+                    shard,
+                    cancellableThreads,
+                    logger
+                );
+
+                final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
+                if (logger.isTraceEnabled()) {
+                    logger.trace("snapshot translog for recovery; current size is [{}]", countNumberOfHistoryOperations(startingSeqNo));
+                }
+                retentionLock.close();
+
+                final long trimAboveSeqNo = startingSeqNo - 1;
+                // Trim has no effect as the underlying engine's trim method is no-op
+                finalizeRecovery(endingSeqNo, trimAboveSeqNo, finalizeStep);
+
+            }, onFailure);
+
+            // Recovery target can trim all operations >= startingSeqNo as we have sent all these operations in the phase 2
+            // sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, trimAboveSeqNo, finalizeStep), onFailure);
+
+            finalizeStep.whenComplete(r -> {
+                final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
+                // final SendSnapshotResult sendSnapshotResult = sendSnapshotStep.result();
+                final SendFileResult sendFileResult = sendFileStep.result();
+                final RecoveryResponse response = new RecoveryResponse(
+                    sendFileResult.phase1FileNames,
+                    sendFileResult.phase1FileSizes,
+                    sendFileResult.phase1ExistingFileNames,
+                    sendFileResult.phase1ExistingFileSizes,
+                    sendFileResult.totalSize,
+                    sendFileResult.existingTotalSize,
+                    sendFileResult.took.millis(),
+                    phase1ThrottlingWaitTime,
+                    prepareEngineStep.result().millis(),
+                    0,
+                    0
+                    //sendSnapshotResult.sentOperations,
+                    //sendSnapshotResult.tookTime.millis()
+                );
+                try {
+                    future.onResponse(response);
+                } finally {
+                    IOUtils.close(resources);
+                }
+            }, onFailure);
+        } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+        }
+    }
+
     private boolean isTargetSameHistory() {
         final String targetHistoryUUID = request.metadataSnapshot().getHistoryUUID();
         assert targetHistoryUUID != null : "incoming target history missing";
