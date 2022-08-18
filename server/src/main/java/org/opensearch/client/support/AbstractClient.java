@@ -589,11 +589,6 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public void deletePits(final DeletePitRequest deletePITRequest, final ActionListener<DeletePitResponse> listener) {
-        execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
-    }
-
-    @Override
     public ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request) {
         return execute(MultiSearchAction.INSTANCE, request);
     }
@@ -772,6 +767,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<ClusterRerouteResponse> reroute(final ClusterRerouteRequest request) {
             return execute(ClusterRerouteAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deletePits(final DeletePitRequest deletePITRequest, final ActionListener<DeletePitResponse> listener) {
+            execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
+        }
+
+        @Override
+        public ActionFuture<DeletePitResponse> deletePits(DeletePitRequest request) {
+            return execute(DeletePitAction.INSTANCE, request);
         }
 
         @Override

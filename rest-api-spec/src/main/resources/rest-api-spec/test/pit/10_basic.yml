@@ -27,8 +27,6 @@
         keep_alive: 23h
 
   - set: {id: pit_id}
-  - match:   { _shards.total: 1}
-  - match:   { _shards.successful: 1}
   - match:   { _shards.failed: 0}
   - do:
       search:
@@ -119,8 +117,6 @@
         keep_alive: 23h
 
   - set: {id: pit_id}
-  - match:   { _shards.total: 1}
-  - match:   { _shards.successful: 1}
   - match:   { _shards.failed: 0}
 
   - do:
