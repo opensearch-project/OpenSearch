@@ -4,7 +4,8 @@
     - [Install Prerequisites](#install-prerequisites)
       - [JDK 11](#jdk-11)
       - [JDK 14](#jdk-14)
-      - [Runtime JDK](#runtime-jdk)
+      - [JDK 17](#jdk-17)
+      - [Custom Runtime JDK](#custom-runtime-jdk)
       - [Windows](#windows)
       - [Docker](#docker)
     - [Build](#build)
@@ -12,6 +13,7 @@
     - [Run OpenSearch](#run-opensearch)
   - [Use an Editor](#use-an-editor)
     - [IntelliJ IDEA](#intellij-idea)
+      - [Remote development using JetBrains Gateway](#remote-development-using-jetbrains-gateway)
     - [Visual Studio Code](#visual-studio-code)
     - [Eclipse](#eclipse)
   - [Project Layout](#project-layout)
@@ -35,6 +37,7 @@
       - [testImplementation](#testimplementation)
     - [Gradle Plugins](#gradle-plugins)
       - [Distribution Download Plugin](#distribution-download-plugin)
+    - [Creating fat-JAR of a Module](#creating-fat-jar-of-a-module)
   - [Misc](#misc)
     - [git-secrets](#git-secrets)
       - [Installation](#installation)
@@ -49,7 +52,7 @@
   - [Submitting Changes](#submitting-changes)
   - [Backports](#backports)
   - [LineLint](#linelint)
-  - [Lucene Snapshots](#lucene-snapshots)
+- [Lucene Snapshots](#lucene-snapshots)
 
 # Developer Guide
 
@@ -374,6 +377,42 @@ The Distribution Download plugin downloads the latest version of OpenSearch by d
 ./gradlew integTest -PcustomDistributionUrl="https://ci.opensearch.org/ci/dbc/bundle-build/1.2.0/1127/linux/x64/dist/opensearch-1.2.0-linux-x64.tar.gz"
 ```
 
+### Creating fat-JAR of a Module
+
+A fat-JAR (or an uber-JAR) is the JAR, which contains classes from all the libraries, on which your project depends and, of course, the classes of current project.
+
+There might be cases where a developer would like to add some custom logic to the code of a module (or multiple modules) and generate a fat-JAR that can be directly used by the dependency management tool. For example, in [#3665](https://github.com/opensearch-project/OpenSearch/pull/3665) a developer wanted to provide a tentative patch as a fat-JAR to a consumer for changes made in the high level REST client. 
+
+Use [Gradle Shadow plugin](https://imperceptiblethoughts.com/shadow/).
+Add the following to the `build.gradle` file of the module for which you want to create the fat-JAR, e.g. `client/rest-high-level/build.gradle`:
+
+```
+apply plugin: 'com.github.johnrengelman.shadow'
+```
+
+Run the `shadowJar` command using:
+```
+./gradlew :client:rest-high-level:shadowJar
+```
+
+This will generate a fat-JAR in the `build/distributions` folder of the module, e.g. .`/client/rest-high-level/build/distributions/opensearch-rest-high-level-client-1.4.0-SNAPSHOT.jar`.
+
+You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://imperceptiblethoughts.com/shadow/).
+
+To use the generated JAR, install the JAR locally, e.g. 
+```
+mvn install:install-file -Dfile=src/main/resources/opensearch-rest-high-level-client-1.4.0-SNAPSHOT.jar -DgroupId=org.opensearch.client -DartifactId=opensearch-rest-high-level-client -Dversion=1.4.0-SNAPSHOT -Dpackaging=jar -DgeneratePom=true
+```
+
+Refer the installed JAR as any other maven artifact, e.g.
+
+```
+<dependency>
+    <groupId>org.opensearch.client</groupId>
+    <artifactId>opensearch-rest-high-level-client</artifactId>
+    <version>1.4.0-SNAPSHOT</version>
+</dependency>
+```
 
 ## Misc
 
@@ -460,7 +499,7 @@ Work to make sure that OpenSearch can scale in a distributed manner.
 
 Includes:
 
-- Nodes (Master, Data, Compute, Ingest, Discovery, etc.)
+- Nodes (Cluster Manager, Data, Compute, Ingest, Discovery, etc.)
 - Replication & Merge Policies (Document, Segment level)
 - Snapshot/Restore (repositories; S3, Azure, GCP, NFS)
 - Translog (e.g., OpenSearch, Kafka, Kinesis)

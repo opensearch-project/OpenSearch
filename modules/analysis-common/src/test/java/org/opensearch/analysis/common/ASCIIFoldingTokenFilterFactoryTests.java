@@ -51,7 +51,7 @@ public class ASCIIFoldingTokenFilterFactoryTests extends OpenSearchTokenStreamTe
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_ascii_folding");
         String source = "Ansprüche";
@@ -68,7 +68,7 @@ public class ASCIIFoldingTokenFilterFactoryTests extends OpenSearchTokenStreamTe
                 .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
                 .put("index.analysis.filter.my_ascii_folding.preserve_original", true)
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_ascii_folding");
         String source = "Ansprüche";

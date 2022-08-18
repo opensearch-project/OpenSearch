@@ -8,29 +8,52 @@
 
 package org.opensearch.indices.replication;
 
-import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.junit.Assert;
 import org.mockito.Mockito;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.StoreTests;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.DummyShardLock;
+import org.opensearch.test.IndexSettingsModule;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Random;
+import java.util.Arrays;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -69,7 +92,12 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         0
     );
 
-    SegmentInfos testSegmentInfos;
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
+        "index",
+        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
+    );
+
+    private SegmentInfos testSegmentInfos;
 
     @Override
     public void setUp() throws Exception {
@@ -135,6 +163,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             public void onResponse(Void replicationResponse) {
                 try {
                     verify(spyIndexShard, times(1)).finalizeReplication(any(), anyLong());
+                    segrepTarget.markAsDone();
                 } catch (IOException ex) {
                     Assert.fail();
                 }
@@ -142,7 +171,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Unexpected test error", e);
+                logger.error("Unexpected onFailure", e);
                 Assert.fail();
             }
         });
@@ -186,6 +215,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -228,6 +258,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -272,6 +303,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -316,6 +348,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -357,14 +390,123 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assert (e instanceof IllegalStateException);
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
+    }
+
+    /**
+     * This tests ensures that new files generated on primary (due to delete operation) are not considered missing on replica
+     * @throws IOException
+     */
+    public void test_MissingFiles_NotCausingFailure() throws IOException {
+        int docCount = 1 + random().nextInt(10);
+        // Generate a list of MetadataSnapshot containing two elements. The second snapshot contains extra files
+        // generated due to delete operations. These two snapshots can then be used in test to mock the primary shard
+        // snapshot (2nd element which contains delete operations) and replica's existing snapshot (1st element).
+        List<Store.MetadataSnapshot> storeMetadataSnapshots = generateStoreMetadataSnapshot(docCount);
+
+        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {
+                listener.onResponse(
+                    new CheckpointInfoResponse(checkpoint, storeMetadataSnapshots.get(1), buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE))
+                );
+            }
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                Store store,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+        };
+        SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
+            SegmentReplicationTargetService.SegmentReplicationListener.class
+        );
+
+        segrepTarget = spy(new SegmentReplicationTarget(repCheckpoint, indexShard, segrepSource, segRepListener));
+        when(segrepTarget.getMetadataSnapshot()).thenReturn(storeMetadataSnapshots.get(0));
+        segrepTarget.startReplication(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void replicationResponse) {
+                logger.info("No error processing checkpoint info");
+                segrepTarget.markAsDone();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Unexpected onFailure", e);
+                Assert.fail();
+            }
+        });
+    }
+
+    /**
+     * Generates a list of Store.MetadataSnapshot with two elements where second snapshot has extra files due to delete
+     * operation. A list of snapshots is returned so that identical files have same checksum.
+     * @param docCount
+     * @return
+     * @throws IOException
+     */
+    private List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
+        List<Document> docList = new ArrayList<>();
+        for (int i = 0; i < docCount; i++) {
+            Document document = new Document();
+            String text = new String(new char[] { (char) (97 + i), (char) (97 + i) });
+            document.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            document.add(new TextField("str", text, Field.Store.YES));
+            docList.add(document);
+        }
+        long seed = random().nextLong();
+        Random random = new Random(seed);
+        IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setUseCompoundFile(true);
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        IndexWriter writer = new IndexWriter(store.directory(), iwc);
+        for (Document d : docList) {
+            writer.addDocument(d);
+        }
+        writer.commit();
+        Store.MetadataSnapshot storeMetadata = store.getMetadata();
+        // Delete one document to generate .liv file
+        writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(docCount))));
+        writer.commit();
+        Store.MetadataSnapshot storeMetadataWithDeletes = store.getMetadata();
+        deleteContent(store.directory());
+        writer.close();
+        store.close();
+        return Arrays.asList(storeMetadata, storeMetadataWithDeletes);
+    }
+
+    private static void deleteContent(Directory directory) throws IOException {
+        final String[] files = directory.listAll();
+        final List<IOException> exceptions = new ArrayList<>();
+        for (String file : files) {
+            try {
+                directory.deleteFile(file);
+            } catch (NoSuchFileException | FileNotFoundException e) {
+                // ignore
+            } catch (IOException e) {
+                exceptions.add(e);
+            }
+        }
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        segrepTarget.markAsDone();
         closeShards(spyIndexShard, indexShard);
     }
 }

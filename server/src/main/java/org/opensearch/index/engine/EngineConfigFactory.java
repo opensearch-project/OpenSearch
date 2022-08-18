@@ -28,6 +28,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -147,7 +148,8 @@ public class EngineConfigFactory {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
-        boolean isReadOnlyReplica
+        boolean isReadOnlyReplica,
+        TranslogFactory translogFactory
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -178,7 +180,8 @@ public class EngineConfigFactory {
             retentionLeasesSupplier,
             primaryTermSupplier,
             tombstoneDocSupplier,
-            isReadOnlyReplica
+            isReadOnlyReplica,
+            translogFactory
         );
     }
 

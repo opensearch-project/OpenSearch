@@ -53,14 +53,17 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
+import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -74,6 +77,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -89,10 +93,12 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     protected TestNode[] testNodes;
     protected int nodesCount;
+    protected AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
     @Before
     public void setupThreadPool() {
-        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
+        runnableTaskListener = new AtomicReference<>();
+        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName(), runnableTaskListener);
     }
 
     public void setupTestNodes(Settings settings) {
@@ -213,11 +219,16 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
                 Collections.emptySet()
             ) {
                 @Override
-                protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+                protected TaskManager createTaskManager(
+                    Settings settings,
+                    ClusterSettings clusterSettings,
+                    ThreadPool threadPool,
+                    Set<String> taskHeaders
+                ) {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
                         return new MockTaskManager(settings, threadPool, taskHeaders);
                     } else {
-                        return super.createTaskManager(settings, threadPool, taskHeaders);
+                        return super.createTaskManager(settings, clusterSettings, threadPool, taskHeaders);
                     }
                 }
             };
@@ -225,14 +236,22 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
+            taskResourceTrackingService = new TaskResourceTrackingService(settings, clusterService.getClusterSettings(), threadPool);
+            transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters);
+            transportListTasksAction = new TransportListTasksAction(
+                clusterService,
+                transportService,
+                actionFilters,
+                taskResourceTrackingService
+            );
             transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
             transportService.acceptIncomingRequests();
         }
 
         public final ClusterService clusterService;
         public final TransportService transportService;
+        public final TaskResourceTrackingService taskResourceTrackingService;
         private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
         public final TransportListTasksAction transportListTasksAction;
         public final TransportCancelTasksAction transportCancelTasksAction;

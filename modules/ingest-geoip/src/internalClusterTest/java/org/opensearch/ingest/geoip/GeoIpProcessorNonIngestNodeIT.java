@@ -75,7 +75,7 @@ public class GeoIpProcessorNonIngestNodeIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
+        return Arrays.asList(IngestGeoIpModulePlugin.class, IngestGeoIpSettingsPlugin.class);
     }
 
     @Override

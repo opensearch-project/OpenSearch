@@ -59,7 +59,7 @@ public class StemmerOverrideTokenFilterFactoryTests extends OpenSearchTokenStrea
                 .putList("index.analysis.filter.my_stemmer_override.rules", rules)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         return analysis.tokenFilter.get("my_stemmer_override");

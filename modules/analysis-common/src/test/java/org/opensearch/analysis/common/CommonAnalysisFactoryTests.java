@@ -50,7 +50,7 @@ import static java.util.stream.Collectors.toList;
 
 public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     public CommonAnalysisFactoryTests() {
-        super(new CommonAnalysisPlugin());
+        super(new CommonAnalysisModulePlugin());
     }
 
     @Override
