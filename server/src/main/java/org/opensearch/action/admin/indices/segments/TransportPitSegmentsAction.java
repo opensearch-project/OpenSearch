@@ -43,6 +43,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -190,18 +191,15 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
      */
     @Override
     protected ShardSegments shardOperation(PitSegmentsRequest request, ShardRouting shardRouting) {
-        if (shardRouting instanceof PitAwareShardRouting) {
-            PitAwareShardRouting pitAwareShardRouting = (PitAwareShardRouting) shardRouting;
-            SearchContextIdForNode searchContextIdForNode = decode(namedWriteableRegistry, pitAwareShardRouting.getPitId()).shards()
-                .get(shardRouting.shardId());
-            PitReaderContext pitReaderContext = searchService.getPitReaderContext(searchContextIdForNode.getSearchContextId());
-            if (pitReaderContext == null) {
-                return new ShardSegments(shardRouting, new ArrayList<>());
-            }
-            return new ShardSegments(pitReaderContext.getShardRouting(), pitReaderContext.getSegments());
-        } else {
-            throw new IllegalArgumentException("Shard routing is not of PitAwareShardRouting type");
+        assert shardRouting instanceof PitAwareShardRouting;
+        PitAwareShardRouting pitAwareShardRouting = (PitAwareShardRouting) shardRouting;
+        SearchContextIdForNode searchContextIdForNode = decode(namedWriteableRegistry, pitAwareShardRouting.getPitId()).shards()
+            .get(shardRouting.shardId());
+        PitReaderContext pitReaderContext = searchService.getPitReaderContext(searchContextIdForNode.getSearchContextId());
+        if (pitReaderContext == null) {
+            return new ShardSegments(shardRouting, Collections.emptyList());
         }
+        return new ShardSegments(pitReaderContext.getShardRouting(), pitReaderContext.getSegments());
     }
 
     /**
