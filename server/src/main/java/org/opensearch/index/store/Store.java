@@ -1147,7 +1147,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Returns a diff between the two snapshots that can be used for recovery. The given snapshot is treated as the
          * recovery target and this snapshot as the source. This method is also used for segment replication where
-         * missing files should not be considered as inconsistent.
+         * per-segment missing files are not considered inconsistent due to replication lag between primary and
+         * replica in file copy operation.
          * The returned diff will hold a list
          * of files that are:
          * <ul>
@@ -1179,6 +1180,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * </ul>
          * <p>
          * NOTE: this diff will not contain the {@code segments.gen} file. This file is omitted on recovery.
+         *
+         * @param recoveryTargetSnapshot recovery target snapshot to diff against
+         * @param ignoreMissingFiles when false treats missing files as exception state. It ignores remaining identical files
+         *                           in per-segment group and add them to different field in returned object, when true treats
+         *                           missing files as norm and returns different field where files are actually different
+         *
          */
         public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot, boolean ignoreMissingFiles) {
             final List<StoreFileMetadata> identical = new ArrayList<>();
