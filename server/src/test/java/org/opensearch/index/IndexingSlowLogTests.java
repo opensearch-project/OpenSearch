@@ -86,8 +86,8 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
 
     @AfterClass
     public static void cleanup() {
-        appender.stop();
         Loggers.removeAppender(testLogger1, appender);
+        appender.stop();
     }
 
     public void testLevelPrecedence() {

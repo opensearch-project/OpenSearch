@@ -49,7 +49,7 @@ apply plugin: 'opensearch.publish'
  */
 opensearchplugin {
   description 'Netty 4 based transport implementation'
-  classname 'org.opensearch.transport.Netty4Plugin'
+  classname 'org.opensearch.transport.Netty4ModulePlugin'
   hasClientJar = true
 }
 

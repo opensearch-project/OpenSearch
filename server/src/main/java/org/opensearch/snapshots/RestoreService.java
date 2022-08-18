@@ -116,7 +116,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
 
@@ -227,7 +227,7 @@ public class RestoreService implements ClusterStateApplier {
                         logger.warn("Remote store restore is not supported for non-existent index. Skipping: {}", index);
                         continue;
                     }
-                    if (currentIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE, false)) {
+                    if (currentIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
                         if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
                             throw new IllegalStateException(
                                 "cannot restore index ["

@@ -110,8 +110,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -121,6 +121,7 @@ import java.util.zip.Checksum;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 
 /**
  * A Store provides plain access to files written by an opensearch index shard. Each shard
@@ -800,6 +801,47 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * This method should only be used with Segment Replication.
+     * Perform a commit from a live {@link SegmentInfos}.  Replica engines with segrep do not have an IndexWriter and Lucene does not currently
+     * have the ability to create a writer directly from a SegmentInfos object.  To promote the replica as a primary and avoid reindexing, we must first commit
+     * on the replica so that it can be opened with a writeable engine. Further, InternalEngine currently invokes `trimUnsafeCommits` which reverts the engine to a previous safeCommit where the max seqNo is less than or equal
+     * to the current global checkpoint. It is likely that the replica has a maxSeqNo that is higher than the global cp and a new commit will be wiped.
+     *
+     * To get around these limitations, this method first creates an IndexCommit directly from SegmentInfos, it then
+     * uses an appending IW to create an IndexCommit from the commit created on SegmentInfos.
+     * This ensures that 1. All files in the new commit are fsynced and 2. Deletes older commit points so the only commit to start from is our new commit.
+     *
+     * @param latestSegmentInfos {@link SegmentInfos} The latest active infos
+     * @param maxSeqNo The engine's current maxSeqNo
+     * @param processedCheckpoint The engine's current processed checkpoint.
+     * @throws IOException when there is an IO error committing.
+     */
+    public void commitSegmentInfos(SegmentInfos latestSegmentInfos, long maxSeqNo, long processedCheckpoint) throws IOException {
+        assert indexSettings.isSegRepEnabled();
+        metadataLock.writeLock().lock();
+        try {
+            final Map<String, String> userData = new HashMap<>(latestSegmentInfos.getUserData());
+            userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(processedCheckpoint));
+            userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+            latestSegmentInfos.setUserData(userData, true);
+            latestSegmentInfos.commit(directory());
+
+            // similar to TrimUnsafeCommits, create a commit with an appending IW, this will delete old commits and ensure all files
+            // associated with the SegmentInfos.commit are fsynced.
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
+            assert existingCommits.isEmpty() == false : "Expected at least one commit but none found";
+            final IndexCommit lastIndexCommit = existingCommits.get(existingCommits.size() - 1);
+            assert latestSegmentInfos.getSegmentsFileName().equals(lastIndexCommit.getSegmentsFileName());
+            try (IndexWriter writer = newAppendingIndexWriter(directory, lastIndexCommit)) {
+                writer.setLiveCommitData(lastIndexCommit.getUserData().entrySet());
+                writer.commit();
+            }
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
      * A store directory
      *
      * @opensearch.internal
@@ -1103,6 +1145,30 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private static final String SEGMENT_INFO_EXTENSION = "si";
 
         /**
+         * Helper method used to group store files according to segment and commit.
+         *
+         * @see MetadataSnapshot#recoveryDiff(MetadataSnapshot)
+         * @see MetadataSnapshot#segmentReplicationDiff(MetadataSnapshot)
+         */
+        private Iterable<List<StoreFileMetadata>> getGroupedFilesIterable() {
+            final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
+            final List<StoreFileMetadata> perCommitStoreFiles = new ArrayList<>();
+            for (StoreFileMetadata meta : this) {
+                final String segmentId = IndexFileNames.parseSegmentName(meta.name());
+                final String extension = IndexFileNames.getExtension(meta.name());
+                if (IndexFileNames.SEGMENTS.equals(segmentId)
+                    || DEL_FILE_EXTENSION.equals(extension)
+                    || LIV_FILE_EXTENSION.equals(extension)) {
+                    // only treat del files as per-commit files fnm files are generational but only for upgradable DV
+                    perCommitStoreFiles.add(meta);
+                } else {
+                    perSegment.computeIfAbsent(segmentId, k -> new ArrayList<>()).add(meta);
+                }
+            }
+            return Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles));
+        }
+
+        /**
          * Returns a diff between the two snapshots that can be used for recovery. The given snapshot is treated as the
          * recovery target and this snapshot as the source. The returned diff will hold a list of files that are:
          * <ul>
@@ -1139,23 +1205,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final List<StoreFileMetadata> identical = new ArrayList<>();
             final List<StoreFileMetadata> different = new ArrayList<>();
             final List<StoreFileMetadata> missing = new ArrayList<>();
-            final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
-            final List<StoreFileMetadata> perCommitStoreFiles = new ArrayList<>();
-
-            for (StoreFileMetadata meta : this) {
-                final String segmentId = IndexFileNames.parseSegmentName(meta.name());
-                final String extension = IndexFileNames.getExtension(meta.name());
-                if (IndexFileNames.SEGMENTS.equals(segmentId)
-                    || DEL_FILE_EXTENSION.equals(extension)
-                    || LIV_FILE_EXTENSION.equals(extension)) {
-                    // only treat del files as per-commit files fnm files are generational but only for upgradable DV
-                    perCommitStoreFiles.add(meta);
-                } else {
-                    perSegment.computeIfAbsent(segmentId, k -> new ArrayList<>()).add(meta);
-                }
-            }
             final ArrayList<StoreFileMetadata> identicalFiles = new ArrayList<>();
-            for (List<StoreFileMetadata> segmentFiles : Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles))) {
+            for (List<StoreFileMetadata> segmentFiles : getGroupedFilesIterable()) {
                 identicalFiles.clear();
                 boolean consistent = true;
                 for (StoreFileMetadata meta : segmentFiles) {
@@ -1187,6 +1238,51 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 + "] metadata size: ["
                 + this.metadata.size()
                 + "]";
+            return recoveryDiff;
+        }
+
+        /**
+         * Segment Replication method
+         * Returns a diff between the two snapshots that can be used for getting list of files to copy over to a replica for segment replication. The given snapshot is treated as the
+         * target and this snapshot as the source. The returned diff will hold a list of files that are:
+         * <ul>
+         * <li>identical: they exist in both snapshots and they can be considered the same ie. they don't need to be recovered</li>
+         * <li>different: they exist in both snapshots but their they are not identical</li>
+         * <li>missing: files that exist in the source but not in the target</li>
+         * </ul>
+         */
+        public RecoveryDiff segmentReplicationDiff(MetadataSnapshot recoveryTargetSnapshot) {
+            final List<StoreFileMetadata> identical = new ArrayList<>();
+            final List<StoreFileMetadata> different = new ArrayList<>();
+            final List<StoreFileMetadata> missing = new ArrayList<>();
+            final ArrayList<StoreFileMetadata> identicalFiles = new ArrayList<>();
+            for (List<StoreFileMetadata> segmentFiles : getGroupedFilesIterable()) {
+                identicalFiles.clear();
+                boolean consistent = true;
+                for (StoreFileMetadata meta : segmentFiles) {
+                    StoreFileMetadata storeFileMetadata = recoveryTargetSnapshot.get(meta.name());
+                    if (storeFileMetadata == null) {
+                        // Do not consider missing files as inconsistent in SegRep as replicas may lag while primary updates
+                        // documents and generate new files specific to a segment
+                        missing.add(meta);
+                    } else if (storeFileMetadata.isSame(meta) == false) {
+                        consistent = false;
+                        different.add(meta);
+                    } else {
+                        identicalFiles.add(meta);
+                    }
+                }
+                if (consistent) {
+                    identical.addAll(identicalFiles);
+                } else {
+                    different.addAll(identicalFiles);
+                }
+            }
+            RecoveryDiff recoveryDiff = new RecoveryDiff(
+                Collections.unmodifiableList(identical),
+                Collections.unmodifiableList(different),
+                Collections.unmodifiableList(missing)
+            );
             return recoveryDiff;
         }
 

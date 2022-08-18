@@ -2660,7 +2660,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRestoreShardFromRemoteStore() throws IOException {
         IndexShard target = newStartedShard(
             true,
-            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE, true).build(),
+            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true).build(),
             new InternalEngineFactory()
         );
 
@@ -3522,7 +3522,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
      * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
      */

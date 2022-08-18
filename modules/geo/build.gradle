@@ -28,10 +28,11 @@
  * under the License.
  */
 apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Placeholder plugin for geospatial features in OpenSearch. only registers geo_shape field mapper for now'
-  classname 'org.opensearch.geo.GeoPlugin'
+  description 'Plugin for geospatial features in OpenSearch. Registering the geo_shape and aggregations GeoBounds on Geo_Shape and Geo_Point'
+  classname 'org.opensearch.geo.GeoModulePlugin'
 }
 
 restResources {
@@ -42,4 +43,3 @@ restResources {
 artifacts {
   restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
 }
-test.enabled = false
