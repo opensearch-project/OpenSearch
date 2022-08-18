@@ -15,10 +15,14 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
@@ -34,6 +38,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -43,7 +48,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 
-// do we need to implement ClusterStateApplier -> will a change in cluster state impact this service??
 public class DecommissionService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(DecommissionService.class);
@@ -102,10 +106,10 @@ public class DecommissionService implements ClusterStateApplier {
          */
         this.clusterState = state;
         logger.info("initiating awareness attribute [{}] decommissioning", decommissionAttribute.toString());
-        abdicateDecommissionedClusterManagerNodes(decommissionAttribute, listener);
+        excludeDecommissionedClusterManagerNodesFromVotingConfig(decommissionAttribute, listener);
     }
 
-    private void abdicateDecommissionedClusterManagerNodes(
+    private void excludeDecommissionedClusterManagerNodesFromVotingConfig(
         DecommissionAttribute decommissionAttribute,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
@@ -149,6 +153,38 @@ public class DecommissionService implements ClusterStateApplier {
         );
     }
 
+    private void clearVotingConfigAfterSuccessfulDecommission() {
+        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+        clearVotingConfigExclusionsRequest.setWaitForRemoval(true);
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            ClearVotingConfigExclusionsAction.NAME,
+            clearVotingConfigExclusionsRequest,
+            new TransportResponseHandler<ClearVotingConfigExclusionsResponse>() {
+                @Override
+                public void handleResponse(ClearVotingConfigExclusionsResponse response) {
+                    logger.info("successfully cleared voting config after decommissioning");
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.debug(new ParameterizedMessage(
+                        "failure in clearing voting config exclusion after decommissioning"), exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
+                    return new ClearVotingConfigExclusionsResponse(in);
+                }
+            }
+        );
+    }
+
     /**
      * Registers new decommissioned attribute metadata in the cluster state
      * <p>
@@ -186,6 +222,10 @@ public class DecommissionService implements ClusterStateApplier {
                     // TODO - should we modify logic of logging for ease of debugging?
                     if (e instanceof DecommissionFailedException) {
                         logger.error(() -> new ParameterizedMessage("failed to decommission attribute [{}]", decommissionAttribute.toString()), e);
+                    } else if (e instanceof NotClusterManagerException) {
+                        logger.info(() -> new ParameterizedMessage(
+                            "cluster-manager updated while executing request for decommission attribute [{}]",
+                            decommissionAttribute.toString()), e);
                     } else {
                         // could be due to on longer cluster manager
                         clusterService.submitStateUpdateTask(
@@ -263,7 +303,9 @@ public class DecommissionService implements ClusterStateApplier {
                 nodesToBeDecommissioned.add(node);
             }
         }
+        // TODO - check for response from decommission request and then clear voting config?
         decommissionHelper.handleNodesDecommissionRequest(nodesToBeDecommissioned, "nodes-decommissioned");
+        clearVotingConfigAfterSuccessfulDecommission();
     }
 
     private static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
