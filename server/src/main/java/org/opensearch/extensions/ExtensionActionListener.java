@@ -8,6 +8,8 @@
 
 package org.opensearch.extensions;
 
+import java.util.ArrayList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -23,10 +25,12 @@ public class ExtensionActionListener<ExtensionBooleanResponse> implements Action
     private static final Logger logger = LogManager.getLogger(ExtensionActionListener.class);
     private int successCount;
     private int failureCount;
+    private ArrayList<Exception> exceptionList;
 
     public ExtensionActionListener() {
         successCount = 0;
         failureCount = 0;
+        exceptionList = new ArrayList<Exception>();
     }
 
     @Override
@@ -38,6 +42,8 @@ public class ExtensionActionListener<ExtensionBooleanResponse> implements Action
     @Override
     public void onFailure(Exception e) {
         failureCount++;
+        exceptionList.add(e);
+        logger.error(e.getMessage());
     }
 
     public static Logger getLogger() {
@@ -50,5 +56,9 @@ public class ExtensionActionListener<ExtensionBooleanResponse> implements Action
 
     public int getFailureCount() {
         return failureCount;
+    }
+
+    public ArrayList<Exception> getExceptionList() {
+        return exceptionList;
     }
 }

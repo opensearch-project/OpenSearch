@@ -282,25 +282,27 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
         // Read enum
-        if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
-            ClusterStateResponse clusterStateResponse = new ClusterStateResponse(
-                clusterService.getClusterName(),
-                clusterService.state(),
-                false
-            );
-            return clusterStateResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_LOCAL_NODE) {
-            LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
-            return localNodeResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS) {
-            ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
-            return clusterSettingsResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE) {
-            listener.onFailure(new Exception());
-            ExtensionBooleanResponse actionListenerOnFailureResponse = new ExtensionBooleanResponse(true);
-            return actionListenerOnFailureResponse;
+        switch (extensionRequest.getRequestType()) {
+            case REQUEST_EXTENSION_CLUSTER_STATE:
+                ClusterStateResponse clusterStateResponse = new ClusterStateResponse(
+                    clusterService.getClusterName(),
+                    clusterService.state(),
+                    false
+                );
+                return clusterStateResponse;
+            case REQUEST_EXTENSION_LOCAL_NODE:
+                LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
+                return localNodeResponse;
+            case REQUEST_EXTENSION_CLUSTER_SETTINGS:
+                ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
+                return clusterSettingsResponse;
+            case REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE:
+                listener.onFailure(new Exception(extensionRequest.getFailureException()));
+                ExtensionBooleanResponse actionListenerOnFailureResponse = new ExtensionBooleanResponse(true);
+                return actionListenerOnFailureResponse;
+            default:
+                throw new Exception("Handler not present for the provided request");
         }
-        throw new Exception("Handler not present for the provided request");
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
