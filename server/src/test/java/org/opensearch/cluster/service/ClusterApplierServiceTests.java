@@ -299,12 +299,12 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         AtomicBoolean isClusterManager = new AtomicBoolean();
         timedClusterApplierService.addLocalNodeClusterManagerListener(new LocalNodeClusterManagerListener() {
             @Override
-            public void onMaster() {
+            public void onClusterManager() {
                 isClusterManager.set(true);
             }
 
             @Override
-            public void offMaster() {
+            public void offClusterManager() {
                 isClusterManager.set(false);
             }
         });

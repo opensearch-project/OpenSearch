@@ -116,7 +116,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * @param replicaShard      replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
-
+        logger.trace(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
         // Checks if received checkpoint is already present and ahead then it replaces old received checkpoint
         if (latestReceivedCheckpoint.get(replicaShard.shardId()) != null) {
             if (receivedCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId()))) {
@@ -139,6 +139,14 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                            replicaShard.shardId().getId(),
+                            state.getReplicationId(),
+                            state.getTimingData()
+                        )
+                    );
                     // if we received a checkpoint during the copy event that is ahead of this
                     // try and process it.
                     if (latestReceivedCheckpoint.get(replicaShard.shardId()).isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
@@ -154,6 +162,14 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[shardId {}] [replication id {}] Replication failed, timing data: {}",
+                            replicaShard.shardId().getId(),
+                            state.getReplicationId(),
+                            state.getTimingData()
+                        )
+                    );
                     if (sendShardFailure == true) {
                         logger.error("replication failure", e);
                         replicaShard.failShard("replication failure", e);
@@ -172,9 +188,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         startReplication(new SegmentReplicationTarget(checkpoint, indexShard, sourceFactory.get(indexShard), listener));
     }
 
-    public void startReplication(final SegmentReplicationTarget target) {
+    // pkg-private for integration tests
+    void startReplication(final SegmentReplicationTarget target) {
         final long replicationId = onGoingReplications.start(target, recoverySettings.activityTimeout());
-        logger.trace(() -> new ParameterizedMessage("Starting replication {}", replicationId));
         threadPool.generic().execute(new ReplicationRunner(replicationId));
     }
 

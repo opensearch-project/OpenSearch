@@ -13,6 +13,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -102,7 +103,8 @@ public class EngineConfigTests extends OpenSearchTestCase {
             () -> RetentionLeases.EMPTY,
             null,
             null,
-            true
+            true,
+            new InternalTranslogFactory()
         );
     }
 }

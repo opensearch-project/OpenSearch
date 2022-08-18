@@ -29,6 +29,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -103,7 +104,10 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
             PublishCheckpointRequest request = new PublishCheckpointRequest(indexShard.getLatestReplicationCheckpoint());
+            final ReplicationCheckpoint checkpoint = request.getCheckpoint();
             final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "segrep_publish_checkpoint", request);
+            final ReplicationTimer timer = new ReplicationTimer();
+            timer.start();
             transportService.sendChildRequest(
                 clusterService.localNode(),
                 transportPrimaryAction,
@@ -123,12 +127,23 @@ public class PublishCheckpointAction extends TransportReplicationAction<
 
                     @Override
                     public void handleResponse(ReplicationResponse response) {
+                        timer.stop();
+                        logger.trace(
+                            () -> new ParameterizedMessage(
+                                "[shardId {}] Completed publishing checkpoint [{}], timing: {}",
+                                indexShard.shardId().getId(),
+                                checkpoint,
+                                timer.time()
+                            )
+                        );
                         task.setPhase("finished");
                         taskManager.unregister(task);
                     }
 
                     @Override
                     public void handleException(TransportException e) {
+                        timer.stop();
+                        logger.trace("[shardId {}] Failed to publish checkpoint, timing: {}", indexShard.shardId().getId(), timer.time());
                         task.setPhase("finished");
                         taskManager.unregister(task);
                         if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
@@ -151,6 +166,13 @@ public class PublishCheckpointAction extends TransportReplicationAction<
                     }
                 }
             );
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "[shardId {}] Publishing replication checkpoint [{}]",
+                    checkpoint.getShardId().getId(),
+                    checkpoint
+                )
+            );
         }
     }
 
@@ -168,7 +190,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         ActionListener.completeWith(listener, () -> {
-            logger.trace("Checkpoint received on replica {}", request);
+            logger.trace(() -> new ParameterizedMessage("Checkpoint {} received on replica {}", request, replica.shardId()));
             if (request.getCheckpoint().getShardId().equals(replica.shardId())) {
                 replicationService.onNewCheckpoint(request.getCheckpoint(), replica);
             }
