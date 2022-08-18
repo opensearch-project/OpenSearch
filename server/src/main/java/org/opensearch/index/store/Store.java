@@ -121,6 +121,7 @@ import java.util.zip.Checksum;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 
 /**
  * A Store provides plain access to files written by an opensearch index shard. Each shard
@@ -797,6 +798,47 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public void beforeClose() {
         shardLock.setDetails("closing shard");
+    }
+
+    /**
+     * This method should only be used with Segment Replication.
+     * Perform a commit from a live {@link SegmentInfos}.  Replica engines with segrep do not have an IndexWriter and Lucene does not currently
+     * have the ability to create a writer directly from a SegmentInfos object.  To promote the replica as a primary and avoid reindexing, we must first commit
+     * on the replica so that it can be opened with a writeable engine. Further, InternalEngine currently invokes `trimUnsafeCommits` which reverts the engine to a previous safeCommit where the max seqNo is less than or equal
+     * to the current global checkpoint. It is likely that the replica has a maxSeqNo that is higher than the global cp and a new commit will be wiped.
+     *
+     * To get around these limitations, this method first creates an IndexCommit directly from SegmentInfos, it then
+     * uses an appending IW to create an IndexCommit from the commit created on SegmentInfos.
+     * This ensures that 1. All files in the new commit are fsynced and 2. Deletes older commit points so the only commit to start from is our new commit.
+     *
+     * @param latestSegmentInfos {@link SegmentInfos} The latest active infos
+     * @param maxSeqNo The engine's current maxSeqNo
+     * @param processedCheckpoint The engine's current processed checkpoint.
+     * @throws IOException when there is an IO error committing.
+     */
+    public void commitSegmentInfos(SegmentInfos latestSegmentInfos, long maxSeqNo, long processedCheckpoint) throws IOException {
+        assert indexSettings.isSegRepEnabled();
+        metadataLock.writeLock().lock();
+        try {
+            final Map<String, String> userData = new HashMap<>(latestSegmentInfos.getUserData());
+            userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(processedCheckpoint));
+            userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+            latestSegmentInfos.setUserData(userData, true);
+            latestSegmentInfos.commit(directory());
+
+            // similar to TrimUnsafeCommits, create a commit with an appending IW, this will delete old commits and ensure all files
+            // associated with the SegmentInfos.commit are fsynced.
+            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
+            assert existingCommits.isEmpty() == false : "Expected at least one commit but none found";
+            final IndexCommit lastIndexCommit = existingCommits.get(existingCommits.size() - 1);
+            assert latestSegmentInfos.getSegmentsFileName().equals(lastIndexCommit.getSegmentsFileName());
+            try (IndexWriter writer = newAppendingIndexWriter(directory, lastIndexCommit)) {
+                writer.setLiveCommitData(lastIndexCommit.getUserData().entrySet());
+                writer.commit();
+            }
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
     }
 
     /**

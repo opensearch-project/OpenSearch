@@ -28,6 +28,7 @@ import org.apache.lucene.util.Version;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -96,7 +97,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
     );
 
-    SegmentInfos testSegmentInfos;
+    private SegmentInfos testSegmentInfos;
 
     @Override
     public void setUp() throws Exception {
@@ -162,6 +163,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             public void onResponse(Void replicationResponse) {
                 try {
                     verify(spyIndexShard, times(1)).finalizeReplication(any(), anyLong());
+                    segrepTarget.markAsDone();
                 } catch (IOException ex) {
                     Assert.fail();
                 }
@@ -169,7 +171,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Unexpected test error", e);
+                logger.error("Unexpected onFailure", e);
                 Assert.fail();
             }
         });
@@ -213,6 +215,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -255,6 +258,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -299,6 +303,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -343,6 +348,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -384,6 +390,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assert (e instanceof IllegalStateException);
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -432,11 +439,13 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onResponse(Void replicationResponse) {
                 logger.info("No error processing checkpoint info");
+                segrepTarget.markAsDone();
             }
 
             @Override
             public void onFailure(Exception e) {
-                assert (e instanceof IllegalStateException);
+                logger.error("Unexpected onFailure", e);
+                Assert.fail();
             }
         });
     }
@@ -448,7 +457,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
      * @return
      * @throws IOException
      */
-    List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
+    private List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
         List<Document> docList = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             Document document = new Document();
@@ -480,7 +489,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         return Arrays.asList(storeMetadata, storeMetadataWithDeletes);
     }
 
-    public static void deleteContent(Directory directory) throws IOException {
+    private static void deleteContent(Directory directory) throws IOException {
         final String[] files = directory.listAll();
         final List<IOException> exceptions = new ArrayList<>();
         for (String file : files) {
@@ -498,7 +507,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        segrepTarget.markAsDone();
         closeShards(spyIndexShard, indexShard);
     }
 }
