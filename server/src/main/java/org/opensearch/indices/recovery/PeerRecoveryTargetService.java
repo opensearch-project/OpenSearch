@@ -242,7 +242,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     final long startingSeqNo = isTrue ? indexShard.fetchStartSeqNoFromLastCommit() : indexShard.recoverLocallyUpToGlobalCheckpoint();
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
-                    startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
+                    startRequest = isTrue ? createStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo) :
+                        getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
                     requestToSend = startRequest;
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
                 } catch (final Exception e) {
@@ -338,6 +339,54 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             recoveryTarget.sourceNode(),
             localNode,
             metadataSnapshot,
+            recoveryTarget.state().getPrimary(),
+            recoveryTarget.getId(),
+            startingSeqNo
+        );
+        return request;
+    }
+
+    public static StartRecoveryRequest createStartRecoveryRequest(
+        Logger logger,
+        DiscoveryNode localNode,
+        RecoveryTarget recoveryTarget,
+        long startingSeqNo
+    ) {
+        final StartRecoveryRequest request;
+        logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+        Store.MetadataSnapshot metadataSnapshot;
+        try {
+            metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
+            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        } catch (final IOException e) {
+            if (startingSeqNo != UNASSIGNED_SEQ_NO) {
+                logger.warn(
+                    new ParameterizedMessage(
+                        "error while listing local files, resetting the starting sequence number from {} "
+                            + "to unassigned and recovering as if there are none",
+                        startingSeqNo
+                    ),
+                    e
+                );
+                startingSeqNo = UNASSIGNED_SEQ_NO;
+            } else {
+                logger.warn("error while listing local files, recovering as if there are none", e);
+            }
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        }
+        logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
+        request = new StartRecoveryRequest(
+            recoveryTarget.shardId(),
+            recoveryTarget.indexShard().routingEntry().allocationId().getId(),
+            recoveryTarget.sourceNode(),
+            localNode,
+            metadataSnapshot,
+            // TODO - basis the recovery is primary or not, we need to put additional guard rails to only allow recovery
+            // of replicas where remote store with translog is enabled
             recoveryTarget.state().getPrimary(),
             recoveryTarget.getId(),
             startingSeqNo
