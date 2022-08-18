@@ -208,7 +208,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
             for (Extension extension : extensions) {
                 try {
-                    DiscoveryExtension de = new DiscoveryExtension(
+                    DiscoveryExtension discoveryExtension = new DiscoveryExtension(
                         extension.getName(),
                         extension.getUniqueId(),
                         // placeholder for ephemeral id, will change with POC discovery
@@ -229,8 +229,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                             Boolean.parseBoolean(extension.hasNativeController())
                         )
                     );
-                    extensionsList.add(de);
-                    extensionIdMap.put(extension.getUniqueId(), de);
+                    extensionsList.add(discoveryExtension);
+                    extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
                     logger.info("Loaded extension: " + extension + " with id " + extension.getUniqueId());
                 } catch (IllegalArgumentException e) {
                     logger.error(e.toString());
