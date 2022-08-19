@@ -1602,13 +1602,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             161,
             V_2_1_0
         ),
-        NODE_DECOMMISSIONED_EXCEPTION(
-            org.opensearch.cluster.coordination.NodeDecommissionedException.class,
-            org.opensearch.cluster.coordination.NodeDecommissionedException::new,
-            162,
-            V_2_1_0
+        DECOMMISSION_FAILED_EXCEPTION(
+                org.opensearch.cluster.decommission.DecommissionFailedException.class,
+                org.opensearch.cluster.decommission.DecommissionFailedException::new,
+                162,
+                V_2_1_0
         );
-
         final Class<? extends OpenSearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> constructor;
         final int id;

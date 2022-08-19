@@ -84,35 +84,9 @@ public class TransportDeleteDecommissionAction extends TransportClusterManagerNo
     protected void masterOperation(
             DeleteDecommissionRequest request,
             ClusterState state,
-            ActionListener<DeleteDecommissionResponse> listener) throws Exception {
-
-        boolean currentMasterRecommission = false;
-        DiscoveryNode masterNode = clusterService.state().getNodes().getMasterNode();
-        for (String decommissionedZone : request.getDecommissionAttribute().attributeValues()) {
-            if (masterNode.getAttributes().get(request.getDecommissionAttribute().attributeName()).equals(decommissionedZone)) {
-                currentMasterRecommission = true;
-            }
-        }
-
-        if (currentMasterRecommission) {
-            logger.info("Removing Master voting exclusion configuration.");
-            ActionListener<ClearVotingConfigExclusionsResponse> addVotingConfigExclusionsListener = new ActionListener<>() {
-                @Override
-                public void onResponse(ClearVotingConfigExclusionsResponse clearVotingConfigExclusionsResponse) {
-                    logger.info("Master included - Response received");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            };
-            clearExclusionsAction.execute(new ClearVotingConfigExclusionsRequest(), addVotingConfigExclusionsListener);
-            throw new NotClusterManagerException("abdicated");
-        }
-
+            ActionListener<DeleteDecommissionResponse> listener) {
         decommissionService.registerRecommissionAttribute(
-                request,
+                request.getDecommissionAttribute(),
                 ActionListener.delegateFailure(
                         listener,
                         (delegatedListener, response) -> delegatedListener.onResponse(new DeleteDecommissionResponse(response.isAcknowledged()))

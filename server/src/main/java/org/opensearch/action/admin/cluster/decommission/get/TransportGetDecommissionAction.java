@@ -15,7 +15,7 @@ import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeR
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -29,25 +29,25 @@ import java.util.Collections;
 import java.util.Objects;
 
 public class TransportGetDecommissionAction extends TransportClusterManagerNodeReadAction<
-    GetDecommissionRequest,
-    GetDecommissionResponse> {
+        GetDecommissionRequest,
+        GetDecommissionResponse> {
 
     @Inject
     public TransportGetDecommissionAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            GetDecommissionAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            GetDecommissionRequest::new,
-            indexNameExpressionResolver
+                GetDecommissionAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                GetDecommissionRequest::new,
+                indexNameExpressionResolver
         );
     }
 
@@ -63,18 +63,16 @@ public class TransportGetDecommissionAction extends TransportClusterManagerNodeR
 
     @Override
     protected void masterOperation(
-        GetDecommissionRequest request,
-        ClusterState state,
-        ActionListener<GetDecommissionResponse> listener
+            GetDecommissionRequest request,
+            ClusterState state,
+            ActionListener<GetDecommissionResponse> listener
     ) throws Exception {
         Metadata metadata = state.metadata();
-        DecommissionedAttributesMetadata decommissionedAttributes = metadata.custom(DecommissionedAttributesMetadata.TYPE);
+        DecommissionAttributeMetadata decommissionedAttributes = metadata.custom(DecommissionAttributeMetadata.TYPE);
         listener.onResponse(
-            new GetDecommissionResponse(
-                Objects.requireNonNullElseGet(decommissionedAttributes,
-                    () -> new DecommissionedAttributesMetadata(Collections.emptyList())
+                new GetDecommissionResponse(
+                        decommissionedAttributes
                 )
-            )
         );
     }
 

@@ -39,8 +39,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.metadata.DecommissionedAttributeMetadata;
-import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -468,17 +468,16 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
+    // TODO - put this to helper
     public static void ensureNodeNotDecommissioned(DiscoveryNode node, Metadata metadata) {
-        DecommissionedAttributesMetadata decommissionedAttributesMetadata = metadata.custom(DecommissionedAttributesMetadata.TYPE);
+        DecommissionAttributeMetadata decommissionedAttributesMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
         if (decommissionedAttributesMetadata == null) return;
-        DecommissionedAttributeMetadata decommissionedAttribute = decommissionedAttributesMetadata.decommissionedAttribute("awareness");
-        if(decommissionedAttribute == null) return;
-        for(String decommissionedZone: decommissionedAttribute.decommissionedAttribute().attributeValues()){
-            if (node.getAttributes().get(decommissionedAttribute.decommissionedAttribute().attributeName()).equals(decommissionedZone)) {
-                throw new NodeDecommissionedException(
+        DecommissionAttribute decommissionedAttribute = decommissionedAttributesMetadata.decommissionAttribute();
+        if (decommissionedAttribute == null) return;
+        if (node.getAttributes().get(decommissionedAttribute.attributeName()).equals(decommissionedAttribute.attributeValue())) {
+            throw new NodeDecommissionedException(
                     "node is decommissioned"
-                );
-            }
+            );
         }
     }
 

@@ -11,8 +11,6 @@ package org.opensearch.action.admin.cluster.decommission.put;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -21,20 +19,14 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionService;
-import org.opensearch.cluster.metadata.DecommissionedAttributeMetadata;
-import org.opensearch.cluster.metadata.DecommissionedAttributesMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.http.HttpStats;
 import org.opensearch.threadpool.ThreadPool;
@@ -98,44 +90,14 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         ClusterState state,
         ActionListener<PutDecommissionResponse> listener) throws Exception {
 
-        boolean currentMasterDecommission = false;
-        DiscoveryNode masterNode = clusterService.state().getNodes().getMasterNode();
-        for (String decommissionedZone : request.getDecommissionAttribute().attributeValues()) {
-            if (masterNode.getAttributes().get(request.getDecommissionAttribute().attributeName()).equals(decommissionedZone)) {
-                currentMasterDecommission = true;
-            }
-        }
-
-        if (currentMasterDecommission) {
-            logger.info("Current master in getting decommissioned. Will first abdicate master and then execute the decommission");
-            ActionListener<AddVotingConfigExclusionsResponse> addVotingConfigExclusionsListener = new ActionListener<>() {
-                @Override
-                public void onResponse(AddVotingConfigExclusionsResponse addVotingConfigExclusionsResponse) {
-                    logger.info("Master abdicated - Response received");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            };
-            exclusionsAction.execute(new AddVotingConfigExclusionsRequest(masterNode.getName()), addVotingConfigExclusionsListener);
-            throw new NotClusterManagerException("abdicated");
-        }
-
-        List<DiscoveryNode> decommissionedNodes = getDecommissionedNodes(state);
-        checkHttpStatsForDecommissionedNodes(decommissionedNodes, listener);
-
-        decommissionService.registerDecommissionAttribute(
-            request,
-            ActionListener.delegateFailure(
-                listener,
-                (delegatedListener, response) -> delegatedListener.onResponse(new PutDecommissionResponse(response.isAcknowledged()))
-            )
-        );
+        List<DiscoveryNode> decommissionedNodes = getDecommissionedNodes(request, state);
+        checkHttpStatsForDecommissionedNodes(request, decommissionedNodes, listener, state);
     }
 
-    private void checkHttpStatsForDecommissionedNodes(List<DiscoveryNode> decommissionedNodes, ActionListener<PutDecommissionResponse> listener) {
+    private void checkHttpStatsForDecommissionedNodes(PutDecommissionRequest request,
+                                                      List<DiscoveryNode> decommissionedNodes,
+                                                      ActionListener<PutDecommissionResponse> listener,
+                                                      ClusterState state) {
         ActionListener<NodesStatsResponse> nodesStatsResponseActionListener = new ActionListener<NodesStatsResponse>() {
             @Override
             public void onResponse(NodesStatsResponse nodesStatsResponse) {
@@ -151,6 +113,11 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
                 if (hasActiveConnections) {
                     // Slow down the next call to get the Http stats from the decommissioned nodes.
                     scheduleDecommissionNodesRequestCheck(decommissionedNodes, this);
+                } else {
+                    decommissionService.initiateAttributeDecommissioning(
+                            request.getDecommissionAttribute(),
+                            listener,
+                            state);
                 }
             }
 
@@ -226,53 +193,19 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    public List<DiscoveryNode> getDecommissionedNodes(ClusterState clusterState) {
+    public List<DiscoveryNode> getDecommissionedNodes(PutDecommissionRequest request, ClusterState clusterState) {
         List<DiscoveryNode> decommissionedNodes = new ArrayList<>();
         DiscoveryNode[] discoveryNodes = clusterState.nodes().getNodes().values().toArray(DiscoveryNode.class);
-        DecommissionedAttributesMetadata decommissionedAttributes = clusterState.metadata().custom(DecommissionedAttributesMetadata.TYPE);
-        DecommissionedAttributeMetadata metadata = decommissionedAttributes.decommissionedAttribute("awareness");
-        assert metadata != null : "No nodes to decommission";
-        DecommissionAttribute decommissionAttribute = metadata.decommissionedAttribute();
-        for (DiscoveryNode discoveryNode : discoveryNodes) {
-            for (String zone : decommissionAttribute.attributeValues()) {
-                if (zone.equals(discoveryNode.getAttributes().get(decommissionAttribute.attributeName()))) {
+
+        if (request.getDecommissionAttribute().attributeValue() != null) {
+            final String zoneName = request.getDecommissionAttribute().attributeValue();
+            assert zoneName != null : "No nodes to decommission";
+            for (DiscoveryNode discoveryNode : discoveryNodes) {
+                if (zoneName.equals(discoveryNode.getAttributes().get(request.getDecommissionAttribute().attributeName()))) {
                     decommissionedNodes.add(discoveryNode);
                 }
             }
         }
         return decommissionedNodes;
     }
-
-//    private static List<DiscoveryNode> resolveDecommissionedNodes(
-//        PutDecommissionRequest request,
-//        ClusterState state
-//    ) {
-//        return getDecommissionedNodes(
-//            state
-//        );
-//    }
-//    List<DiscoveryNode> getDecommissionedNodes(ClusterState currentState) {
-//        final DiscoveryNodes currentNodes = currentState.nodes();
-//        List<DiscoveryNode> decommissionedNodes = new ArrayList<>();
-//        if (nodeIds.length >= 1) {
-//            for (String nodeId : nodeIds) {
-//                if (currentNodes.nodeExists(nodeId)) {
-//                    DiscoveryNode discoveryNode = currentNodes.get(nodeId);
-//                    decommissionedNodes.add(discoveryNode);
-//                }
-//            }
-//        } else {
-//            assert nodeNames.length >= 1;
-//            Map<String, DiscoveryNode> existingNodes = StreamSupport.stream(currentNodes.spliterator(), false)
-//                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity()));
-//
-//            for (String nodeName : nodeNames) {
-//                if (existingNodes.containsKey(nodeName)) {
-//                    DiscoveryNode discoveryNode = existingNodes.get(nodeName);
-//                    decommissionedNodes.add(discoveryNode);
-//                }
-//            }
-//        }
-//        return decommissionedNodes;
-//    }
 }
