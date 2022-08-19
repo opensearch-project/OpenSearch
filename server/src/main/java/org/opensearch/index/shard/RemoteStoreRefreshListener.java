@@ -49,7 +49,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final Map<String, String> localSegmentChecksumMap;
-    private boolean isPrimary;
+    private long primaryTerm;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
     public RemoteStoreRefreshListener(IndexShard indexShard) {
@@ -57,7 +57,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
-        this.isPrimary = indexShard.shardRouting.primary();
+        this.primaryTerm = indexShard.getOperationPrimaryTerm();
         if (indexShard.shardRouting.primary()) {
             try {
                 this.remoteDirectory.init();
@@ -83,8 +83,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         synchronized (this) {
             try {
                 if (indexShard.shardRouting.primary()) {
-                    if (!isPrimary) {
-                        isPrimary = true;
+                    if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
+                        this.primaryTerm = indexShard.getOperationPrimaryTerm();
                         this.remoteDirectory.init();
                     }
                     try {

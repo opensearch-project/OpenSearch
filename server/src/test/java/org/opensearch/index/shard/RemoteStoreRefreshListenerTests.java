@@ -14,6 +14,8 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.junit.After;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -21,15 +23,16 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
     private RemoteStoreRefreshListener remoteStoreRefreshListener;
 
-    public void setup(int numberOfDocs) throws IOException {
+    public void setup(boolean primary, int numberOfDocs) throws IOException {
         indexShard = newStartedShard(
-            true,
+            primary,
             Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true).build(),
             new InternalEngineFactory()
         );
@@ -55,7 +58,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     public void testAfterRefresh() throws IOException {
-        setup(3);
+        setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
 
         try (Store remoteStore = indexShard.remoteStore()) {
@@ -72,7 +75,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     public void testAfterCommit() throws IOException {
-        setup(3);
+        setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
         flushShard(indexShard);
 
@@ -90,7 +93,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     public void testRefreshAfterCommit() throws IOException {
-        setup(3);
+        setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
         flushShard(indexShard);
 
@@ -114,7 +117,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     public void testAfterMultipleCommits() throws IOException {
-        setup(3);
+        setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
 
         for (int i = 0; i < RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP + 3; i++) {
@@ -133,6 +136,47 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
 
             verifyUploadedSegments(remoteSegmentStoreDirectory);
         }
+    }
+
+    public void testReplica() throws IOException {
+        setup(false, 3);
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        try (Store remoteStore = indexShard.remoteStore()) {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+
+            assertEquals(0, remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().size());
+        }
+    }
+
+    public void testReplicaPromotion() throws IOException {
+        setup(false, 3);
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+            (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
+                .getDelegate();
+
+        assertEquals(0, remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().size());
+
+        final ShardRouting replicaRouting = indexShard.routingEntry();
+        promoteReplica(
+            indexShard,
+            Collections.singleton(replicaRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build()
+        );
+
+        indexDocs(4, 4);
+        indexShard.refresh("test");
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        verifyUploadedSegments(remoteSegmentStoreDirectory);
+
+        // This is to check if reading data from remote segment store works as well.
+        remoteSegmentStoreDirectory.init();
+
+        verifyUploadedSegments(remoteSegmentStoreDirectory);
     }
 
     private void verifyUploadedSegments(RemoteSegmentStoreDirectory remoteSegmentStoreDirectory) throws IOException {
