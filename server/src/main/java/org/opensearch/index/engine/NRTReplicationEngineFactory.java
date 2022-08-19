@@ -28,7 +28,7 @@ public class NRTReplicationEngineFactory implements EngineFactory {
             if (config.getIndexSettings().isRemoteStoreEnabled() && config.getIndexSettings().isRemoteTranslogStoreEnabled()) {
                 engine = new NRTReplicationNoOpEngine(config);
             } else {
-                engine = new NRTReplicationEngine(config);
+                engine = new NRTReplicationNoOpEngine(config);
             }
         } else {
             engine = new InternalEngine(config);

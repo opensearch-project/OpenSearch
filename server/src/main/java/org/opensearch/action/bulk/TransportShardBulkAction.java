@@ -538,7 +538,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            final Translog.Location location = performOnReplica(request, replica);
+            Translog.Location location;
+            if (replica.indexSettings().isSegRepEnabled()) {
+                location = new Translog.Location(0, 0, 0);
+            } else {
+                location = performOnReplica(request, replica);
+            }
             return new WriteReplicaResult<>(request, location, null, replica, logger);
         });
     }

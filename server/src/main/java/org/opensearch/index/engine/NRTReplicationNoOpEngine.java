@@ -42,7 +42,8 @@ public class NRTReplicationNoOpEngine extends AbstractNRTReplicationEngine {
     protected TranslogManager createTranslogManager(String translogUUID, SetOnce<TranslogManager> translogManager) throws IOException {
         return new NoOpTranslogManager(shardId, readLock, this::ensureOpen, null, new Translog.Snapshot() {
             @Override
-            public void close() {}
+            public void close() {
+            }
 
             @Override
             public int totalOperations() {
@@ -74,7 +75,7 @@ public class NRTReplicationNoOpEngine extends AbstractNRTReplicationEngine {
      */
     @Override
     public IndexResult index(Index index) throws IOException {
-        return super.index(index);
+        throw new RuntimeException("You are not supposed to be here");
     }
 
     /**
@@ -85,7 +86,7 @@ public class NRTReplicationNoOpEngine extends AbstractNRTReplicationEngine {
      */
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
-        return super.delete(delete);
+        throw new RuntimeException("You are not supposed to be here");
     }
 
     /**
@@ -96,21 +97,21 @@ public class NRTReplicationNoOpEngine extends AbstractNRTReplicationEngine {
      */
     @Override
     public NoOpResult noOp(NoOp noOp) throws IOException {
-        return super.noOp(noOp);
+        throw new RuntimeException("You are not supposed to be here");
     }
 
-    /**
-     * This method tracks the maximum sequence number of the request that has been given for indexing to this replica.
-     * Currently, the recovery process involves replaying translog operation on the replica by the primary. For recovery
-     * step to finish, and finalize step to kick in, this method should return expected value. Hence it has been overridden.
-     * There is plan to make changes in recovery code to skip the translog replay. Post which this engine can be evaluated
-     * for its existence basis the primary-primary recovery usecase.
-     *
-     * @return the max sequence number that has been sent to {@link #index(Index)}, {@link #delete(Delete)}, and {@link
-     * #noOp(NoOp)} methods.
-     */
-    @Override
-    public long getPersistedLocalCheckpoint() {
-        return getLocalCheckpointTracker().getMaxSeqNo();
-    }
+//    /**
+//     * This method tracks the maximum sequence number of the request that has been given for indexing to this replica.
+//     * Currently, the recovery process involves replaying translog operation on the replica by the primary. For recovery
+//     * step to finish, and finalize step to kick in, this method should return expected value. Hence it has been overridden.
+//     * There is plan to make changes in recovery code to skip the translog replay. Post which this engine can be evaluated
+//     * for its existence basis the primary-primary recovery usecase.
+//     *
+//     * @return the max sequence number that has been sent to {@link #index(Index)}, {@link #delete(Delete)}, and {@link
+//     * #noOp(NoOp)} methods.
+//     */
+//    @Override
+//    public long getPersistedLocalCheckpoint() {
+//        return getLocalCheckpointTracker().getMaxSeqNo();
+//    }
 }
