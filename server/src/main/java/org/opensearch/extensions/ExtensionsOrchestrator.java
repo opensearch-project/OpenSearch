@@ -38,6 +38,8 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.InitializeExtensionsRequest;
 import org.opensearch.discovery.InitializeExtensionsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
+import org.opensearch.extensions.rest.RegisterRestActionsRequest;
+import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
@@ -46,7 +48,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.PluginInfo;
-import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
@@ -57,7 +59,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 /**
- * The main class for Plugin Extensibility
+ * The main class for orchestrating Extension communication with the OpenSearch Node.
  *
  * @opensearch.internal
  */
@@ -100,18 +102,20 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private final Path extensionsPath;
     final List<DiscoveryExtension> extensionsList;
+    // A list of extensions, may be duplicated by valueset of map below
     List<DiscoveryExtension> extensionsInitializedList;
+    // A map of extension uniqueId to full extension details used for node transport here and in the RestActionsRequestHandler
     Map<String, DiscoveryExtension> extensionIdMap;
-    Map<String, List<String>> extensionRestActionsMap;
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
+    RestActionsRequestHandler restActionsRequestHandler;
 
     /**
-     * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions.
+     * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
      * @param settings  Settings from the node the orchestrator is running on.
-     * @param extensionsPath  Path to a directory containing extensions.
+     * @param extensionsPath  Path to a directory containing extension configuration file.
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
@@ -121,7 +125,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionsList = new ArrayList<DiscoveryExtension>();
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
-        this.extensionRestActionsMap = new HashMap<String, List<String>>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
 
@@ -132,18 +135,25 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     }
 
-    /**
-     * Sets the transport service and registers request handlers.
-     *
-     * @param transportService  The transport service to set.
-     */
-    public void setTransportService(TransportService transportService) {
+    void setTransportService(TransportService transportService) {
         this.transportService = transportService;
-        registerRequestHandler();
     }
 
     public void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
+    }
+
+    /**
+     * Initializes the {@link RestActionsRequestHandler} and {@link TransportService}. This is called during Node bootstrap.
+     * Lists/maps of extensions have already been initialized.
+     *
+     * @param restController  The RestController on which to register Rest Actions.
+     * @param transportService  The Node's transport service.
+     */
+    public void initializeRestActionsRequestHandler(RestController restController, TransportService transportService) {
+        setTransportService(transportService);
+        this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
+        registerRequestHandler();
     }
 
     public void setNamedWriteableRegistry() {
@@ -157,7 +167,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             RegisterRestActionsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleRegisterRestActionsRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(restActionsRequestHandler.handleRegisterRestActionsRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
@@ -296,44 +306,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         } catch (Exception e) {
             logger.error(e.toString());
         }
-    }
-
-    /**
-     * Handles a {@link RegisterRestActionsRequest}.
-     *
-     * @param restActionsRequest  The request to handle.
-     * @return  A {@link RegisterRestActionsResponse} indicating success.
-     * @throws Exception if the request is not handled properly.
-     */
-    TransportResponse handleRegisterRestActionsRequest(RegisterRestActionsRequest restActionsRequest) throws Exception {
-        DiscoveryExtension extension = extensionIdMap.get(restActionsRequest.getNodeId());
-        if (extension == null) {
-            throw new IllegalArgumentException(
-                "REST Actions Request unique id " + restActionsRequest.getNodeId() + " does not match a discovered extension."
-            );
-        }
-        for (String restAction : restActionsRequest.getRestActions()) {
-            RestRequest.Method method;
-            String uri;
-            try {
-                int delim = restAction.indexOf(' ');
-                method = RestRequest.Method.valueOf(restAction.substring(0, delim));
-                uri = restAction.substring(delim).trim();
-            } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
-                throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
-            }
-            logger.info("Registering: " + method + " /_extensions/_" + extension.getName() + uri);
-            // TODO turn the restAction string into an Action to send to RestController.registerHandler
-        }
-        extensionRestActionsMap.put(restActionsRequest.getNodeId(), restActionsRequest.getRestActions());
-        return new RegisterRestActionsResponse(
-            "Registered node "
-                + restActionsRequest.getNodeId()
-                + ", extension "
-                + extension.getName()
-                + " to handle REST Actions "
-                + restActionsRequest.getRestActions()
-        );
     }
 
     /**

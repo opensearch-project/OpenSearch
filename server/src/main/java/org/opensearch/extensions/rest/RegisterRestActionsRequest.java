@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.extensions;
+package org.opensearch.extensions.rest;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -24,16 +24,19 @@ import java.util.Objects;
  */
 public class RegisterRestActionsRequest extends TransportRequest {
     private String nodeId;
+    private String uniqueId;
     private List<String> restActions;
 
-    public RegisterRestActionsRequest(String nodeId, List<String> restActions) {
+    public RegisterRestActionsRequest(String nodeId, String uniqueId, List<String> restActions) {
         this.nodeId = nodeId;
+        this.uniqueId = uniqueId;
         this.restActions = new ArrayList<>(restActions);
     }
 
     public RegisterRestActionsRequest(StreamInput in) throws IOException {
         super(in);
         nodeId = in.readString();
+        uniqueId = in.readString();
         restActions = in.readStringList();
     }
 
@@ -41,11 +44,16 @@ public class RegisterRestActionsRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(nodeId);
+        out.writeString(uniqueId);
         out.writeStringCollection(restActions);
     }
 
     public String getNodeId() {
         return nodeId;
+    }
+
+    public String getUniqueId() {
+        return uniqueId;
     }
 
     public List<String> getRestActions() {
@@ -54,7 +62,7 @@ public class RegisterRestActionsRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "RestActionsRequest{nodeId=" + nodeId + ", restActions=" + restActions + "}";
+        return "RestActionsRequest{nodeId=" + nodeId + ", uniqueId=" + uniqueId + ", restActions=" + restActions + "}";
     }
 
     @Override
@@ -62,11 +70,13 @@ public class RegisterRestActionsRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RegisterRestActionsRequest that = (RegisterRestActionsRequest) obj;
-        return Objects.equals(nodeId, that.nodeId) && Objects.equals(restActions, that.restActions);
+        return Objects.equals(nodeId, that.nodeId)
+            && Objects.equals(uniqueId, that.uniqueId)
+            && Objects.equals(restActions, that.restActions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, restActions);
+        return Objects.hash(nodeId, uniqueId, restActions);
     }
 }

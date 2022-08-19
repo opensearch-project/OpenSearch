@@ -62,6 +62,8 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.extensions.rest.RegisterRestActionsRequest;
+import org.opensearch.extensions.rest.RegisterRestActionsResponse;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -307,25 +309,15 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         extensionsOrchestrator.setTransportService(transportService);
         String nodeIdStr = "uniqueid1";
+        String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, actionsList);
-        TransportResponse response = extensionsOrchestrator.handleRegisterRestActionsRequest(registerActionsRequest);
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, uniqueIdStr, actionsList);
+        TransportResponse response = extensionsOrchestrator.restActionsRequestHandler.handleRegisterRestActionsRequest(
+            registerActionsRequest
+        );
         assertEquals(RegisterRestActionsResponse.class, response.getClass());
         assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(nodeIdStr));
         assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(actionsList.toString()));
-    }
-
-    public void testHandleRegisterActionsRequestWithInvalidId() throws Exception {
-
-        Path extensionDir = createTempDir();
-
-        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
-
-        extensionsOrchestrator.setTransportService(transportService);
-        String nodeIdStr = "notAValidUniqueId";
-        List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, actionsList);
-        expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterRestActionsRequest(registerActionsRequest));
     }
 
     public void testHandleRegisterActionsRequestWithInvalidMethod() throws Exception {
@@ -336,9 +328,13 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         extensionsOrchestrator.setTransportService(transportService);
         String nodeIdStr = "uniqueid1";
+        String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, actionsList);
-        expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterRestActionsRequest(registerActionsRequest));
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, uniqueIdStr, actionsList);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionsOrchestrator.restActionsRequestHandler.handleRegisterRestActionsRequest(registerActionsRequest)
+        );
     }
 
     public void testHandleRegisterActionsRequestWithInvalidUri() throws Exception {
@@ -349,9 +345,13 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         extensionsOrchestrator.setTransportService(transportService);
         String nodeIdStr = "uniqueid1";
+        String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, actionsList);
-        expectThrows(IllegalArgumentException.class, () -> extensionsOrchestrator.handleRegisterRestActionsRequest(registerActionsRequest));
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, uniqueIdStr, actionsList);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionsOrchestrator.restActionsRequestHandler.handleRegisterRestActionsRequest(registerActionsRequest)
+        );
     }
 
     public void testHandleExtensionRequest() throws Exception {

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.extensions;
+package org.opensearch.extensions.rest;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
