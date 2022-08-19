@@ -87,4 +87,10 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         );
         transportClient.executeRetryableAction(GET_SEGMENT_FILES, request, responseListener, reader);
     }
+
+    @Override
+    public void cancel() {
+        transportClient.cancel();
+    }
+
 }
