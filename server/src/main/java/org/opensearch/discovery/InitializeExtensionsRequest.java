@@ -65,6 +65,10 @@ public class InitializeExtensionsRequest extends TransportRequest {
         return port;
     }
 
+    public void setPort(int port) {
+        this.port = port;
+    }
+
     @Override
     public String toString() {
         return "InitializeExtensionsRequest{" + "sourceNode=" + sourceNode + ", extensions=" + extensions + ", port=" + port + '}';
