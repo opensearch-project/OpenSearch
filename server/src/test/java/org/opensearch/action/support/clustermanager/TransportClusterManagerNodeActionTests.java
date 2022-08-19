@@ -609,7 +609,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     }
 
     public void testThrottlingRetryRemoteMaster() throws ExecutionException, InterruptedException {
-        Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(60));
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(60));
         DiscoveryNode masterNode = this.remoteNode;
         setState(
             clusterService,

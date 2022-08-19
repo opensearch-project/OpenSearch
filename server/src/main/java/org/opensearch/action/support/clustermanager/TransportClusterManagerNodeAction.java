@@ -41,6 +41,7 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.MasterNodeChangePredicate;
@@ -51,6 +52,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.MasterTaskThrottlingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
@@ -137,7 +139,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());
         }
-        new AsyncSingleAction(task, request, listener).start();
+        new AsyncSingleAction(task, request, listener).run();
     }
 
     /**
@@ -145,25 +147,40 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
      *
      * @opensearch.internal
      */
-    class AsyncSingleAction {
+    class AsyncSingleAction extends RetryableAction {
 
-        private final ActionListener<Response> listener;
+        private ActionListener<Response> listener;
         private final Request request;
         private ClusterStateObserver observer;
         private final long startTime;
         private final Task task;
+        private boolean localRequest;
 
         AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
+            super(logger, threadPool, TimeValue.timeValueMillis(10), request.clusterManagerNodeTimeout, listener);
             this.task = task;
             this.request = request;
-            this.listener = new MasterThrottlingRetryListener(actionName, request, this::start, listener);
             this.startTime = threadPool.relativeTimeInMillis();
+            localRequest = !request.remoteRequest;
         }
 
-        public void start() {
+        @Override
+        public void tryAction(ActionListener retryListener) {
             ClusterState state = clusterService.state();
             logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
+            this.listener = retryListener;
             doStart(state);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (localRequest) {
+                if (e instanceof TransportException) {
+                    return ((TransportException) e).unwrapCause() instanceof MasterTaskThrottlingException;
+                }
+                return e instanceof MasterTaskThrottlingException;
+            }
+            return false;
         }
 
         protected void doStart(ClusterState clusterState) {
