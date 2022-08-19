@@ -13,18 +13,22 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.junit.After;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
@@ -150,7 +154,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         }
     }
 
-    public void testReplicaPromotion() throws IOException {
+    public void testReplicaPromotion() throws IOException, InterruptedException {
         setup(false, 3);
         remoteStoreRefreshListener.afterRefresh(true);
 
@@ -166,6 +170,24 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             Collections.singleton(replicaRouting.allocationId().getId()),
             new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build()
         );
+
+        // The following logic is referenced from IndexShardTests.testPrimaryFillsSeqNoGapsOnPromotion
+        // ToDo: Add wait logic as part of promoteReplica()
+        final CountDownLatch latch = new CountDownLatch(1);
+        indexShard.acquirePrimaryOperationPermit(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                releasable.close();
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        }, ThreadPool.Names.GENERIC, "");
+
+        latch.await();
 
         indexDocs(4, 4);
         indexShard.refresh("test");
