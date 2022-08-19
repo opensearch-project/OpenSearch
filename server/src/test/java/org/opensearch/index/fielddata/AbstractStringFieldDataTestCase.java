@@ -343,9 +343,10 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         );
         // As of Lucene 9.0.0, totalHits may be a lower bound
         if (topDocs.totalHits.relation == TotalHits.Relation.EQUAL_TO) {
-            assertEquals(numDocs, topDocs.totalHits.value);            
+            assertEquals(numDocs, topDocs.totalHits.value);
         } else {
-            assertTrue(numDocs >= topDocs.totalHits.value);                        
+            assertTrue(1000 <= topDocs.totalHits.value);
+            assertTrue(numDocs >= topDocs.totalHits.value);
         }
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
