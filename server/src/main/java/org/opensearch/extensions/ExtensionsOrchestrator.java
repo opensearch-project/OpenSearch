@@ -17,12 +17,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -48,6 +46,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.rest.RestRequest;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
@@ -56,8 +55,6 @@ import org.opensearch.transport.TransportService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import java.util.HashMap;
-import java.util.List;
 
 /**
  * The main class for Plugin Extensibility
@@ -71,6 +68,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
+    public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
 
@@ -85,6 +83,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
+        REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -102,16 +101,27 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     private final Path extensionsPath;
     final List<DiscoveryExtension> extensionsList;
     List<DiscoveryExtension> extensionsInitializedList;
+    Map<String, DiscoveryExtension> extensionIdMap;
+    Map<String, List<String>> extensionRestActionsMap;
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
 
+    /**
+     * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions.
+     *
+     * @param settings  Settings from the node the orchestrator is running on.
+     * @param extensionsPath  Path to a directory containing extensions.
+     * @throws IOException  If the extensions discovery file is not properly retrieved.
+     */
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
         this.transportService = null;
         this.extensionsList = new ArrayList<DiscoveryExtension>();
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
+        this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
+        this.extensionRestActionsMap = new HashMap<String, List<String>>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
 
@@ -122,6 +132,11 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     }
 
+    /**
+     * Sets the transport service and registers request handlers.
+     *
+     * @param transportService  The transport service to set.
+     */
     public void setTransportService(TransportService transportService) {
         this.transportService = transportService;
         registerRequestHandler();
@@ -136,6 +151,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     private void registerRequestHandler() {
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            RegisterRestActionsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleRegisterRestActionsRequest(request)))
+        );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
             ThreadPool.Names.GENERIC,
@@ -185,30 +208,30 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
             for (Extension extension : extensions) {
                 try {
-                    extensionsList.add(
-                        new DiscoveryExtension(
+                    DiscoveryExtension discoveryExtension = new DiscoveryExtension(
+                        extension.getName(),
+                        extension.getUniqueId(),
+                        // placeholder for ephemeral id, will change with POC discovery
+                        extension.getUniqueId(),
+                        extension.getHostName(),
+                        extension.getHostAddress(),
+                        new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
+                        new HashMap<String, String>(),
+                        Version.fromString(extension.getOpensearchVersion()),
+                        new PluginInfo(
                             extension.getName(),
-                            extension.getUniqueId(),
-                            // placeholder for ephemeral id, will change with POC discovery
-                            extension.getUniqueId(),
-                            extension.getHostName(),
-                            extension.getHostAddress(),
-                            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                            new HashMap<String, String>(),
+                            extension.getDescription(),
+                            extension.getVersion(),
                             Version.fromString(extension.getOpensearchVersion()),
-                            new PluginInfo(
-                                extension.getName(),
-                                extension.getDescription(),
-                                extension.getVersion(),
-                                Version.fromString(extension.getOpensearchVersion()),
-                                extension.getJavaVersion(),
-                                extension.getClassName(),
-                                new ArrayList<String>(),
-                                Boolean.parseBoolean(extension.hasNativeController())
-                            )
+                            extension.getJavaVersion(),
+                            extension.getClassName(),
+                            new ArrayList<String>(),
+                            Boolean.parseBoolean(extension.hasNativeController())
                         )
                     );
-                    logger.info("Loaded extension: " + extension);
+                    extensionsList.add(discoveryExtension);
+                    extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
+                    logger.info("Loaded extension: " + extension + " with id " + extension.getUniqueId());
                 } catch (IllegalArgumentException e) {
                     logger.error(e.toString());
                 }
@@ -242,6 +265,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 for (DiscoveryExtension extension : extensionsList) {
                     if (extension.getName().equals(response.getName())) {
                         extensionsInitializedList.add(extension);
+                        logger.info("Initialized extension: " + extension.getName());
                         break;
                     }
                 }
@@ -250,7 +274,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("Extension request failed"), exp);
+                logger.debug(new ParameterizedMessage("Extension initialization failed"), exp);
                 inProgressLatch.countDown();
             }
 
@@ -274,23 +298,62 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
-        // Read enum
-        if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
-            ClusterStateResponse clusterStateResponse = new ClusterStateResponse(
-                clusterService.getClusterName(),
-                clusterService.state(),
-                false
+    /**
+     * Handles a {@link RegisterRestActionsRequest}.
+     *
+     * @param restActionsRequest  The request to handle.
+     * @return  A {@link RegisterRestActionsResponse} indicating success.
+     * @throws Exception if the request is not handled properly.
+     */
+    TransportResponse handleRegisterRestActionsRequest(RegisterRestActionsRequest restActionsRequest) throws Exception {
+        DiscoveryExtension extension = extensionIdMap.get(restActionsRequest.getNodeId());
+        if (extension == null) {
+            throw new IllegalArgumentException(
+                "REST Actions Request unique id " + restActionsRequest.getNodeId() + " does not match a discovered extension."
             );
-            return clusterStateResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_LOCAL_NODE) {
-            LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
-            return localNodeResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS) {
-            ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
-            return clusterSettingsResponse;
         }
-        throw new Exception("Handler not present for the provided request");
+        for (String restAction : restActionsRequest.getRestActions()) {
+            RestRequest.Method method;
+            String uri;
+            try {
+                int delim = restAction.indexOf(' ');
+                method = RestRequest.Method.valueOf(restAction.substring(0, delim));
+                uri = restAction.substring(delim).trim();
+            } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
+                throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
+            }
+            logger.info("Registering: " + method + " /_extensions/_" + extension.getName() + uri);
+            // TODO turn the restAction string into an Action to send to RestController.registerHandler
+        }
+        extensionRestActionsMap.put(restActionsRequest.getNodeId(), restActionsRequest.getRestActions());
+        return new RegisterRestActionsResponse(
+            "Registered node "
+                + restActionsRequest.getNodeId()
+                + ", extension "
+                + extension.getName()
+                + " to handle REST Actions "
+                + restActionsRequest.getRestActions()
+        );
+    }
+
+    /**
+     * Handles an {@link ExtensionRequest}.
+     *
+     * @param extensionRequest  The request to handle, of a type defined in the {@link RequestType} enum.
+     * @return  an Response matching the request.
+     * @throws Exception if the request is not handled properly.
+     */
+    TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
+        switch (extensionRequest.getRequestType()) {
+            case REQUEST_EXTENSION_CLUSTER_STATE:
+                return new ClusterStateResponse(clusterService.getClusterName(), clusterService.state(), false);
+            case REQUEST_EXTENSION_LOCAL_NODE:
+                return new LocalNodeResponse(clusterService);
+            case REQUEST_EXTENSION_CLUSTER_SETTINGS:
+                return new ClusterSettingsResponse(clusterService);
+            default:
+                throw new Exception("Handler not present for the provided request");
+        }
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
