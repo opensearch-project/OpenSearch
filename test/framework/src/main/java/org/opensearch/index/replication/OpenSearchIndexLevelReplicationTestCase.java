@@ -76,6 +76,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
@@ -139,6 +140,21 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         return new ReplicationGroup(metadata);
     }
 
+    protected ReplicationGroup createGroup(int replicas, Settings settings, EngineFactory engineFactory) throws IOException {
+        return createGroup(replicas, settings, indexMapping, engineFactory);
+    }
+
+    protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory)
+        throws IOException {
+        IndexMetadata metadata = buildIndexMetadata(replicas, settings, mappings);
+        return new ReplicationGroup(metadata) {
+            @Override
+            protected EngineFactory getEngineFactory(ShardRouting routing) {
+                return engineFactory;
+            }
+        };
+    }
+
     protected IndexMetadata buildIndexMetadata(int replicas) throws IOException {
         return buildIndexMetadata(replicas, indexMapping);
     }
@@ -191,6 +207,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         private final AtomicInteger docId = new AtomicInteger();
         boolean closed = false;
         private volatile ReplicationTargets replicationTargets;
+        private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         private final PrimaryReplicaSyncer primaryReplicaSyncer = new PrimaryReplicaSyncer(
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
@@ -218,7 +235,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         protected ReplicationGroup(final IndexMetadata indexMetadata) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
+            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer, null);
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
             updateAllocationIDsOnPrimary();
@@ -345,7 +362,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 null,
                 getEngineFactory(replicaRouting),
                 () -> {},
-                retentionLeaseSyncer
+                retentionLeaseSyncer,
+                null
             );
             addReplica(replica);
             return replica;
@@ -386,7 +404,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 getEngineConfigFactory(new IndexSettings(indexMetadata, indexMetadata.getSettings())),
                 () -> {},
                 retentionLeaseSyncer,
-                EMPTY_EVENT_LISTENER
+                EMPTY_EVENT_LISTENER,
+                null
             );
             replicas.add(newReplica);
             if (replicationTargets != null) {

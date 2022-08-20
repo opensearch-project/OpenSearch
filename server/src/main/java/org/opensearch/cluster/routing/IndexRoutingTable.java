@@ -45,6 +45,7 @@ import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource
 import org.opensearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.io.stream.StreamInput;
@@ -445,11 +446,32 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
 
         /**
+         * Initializes an existing index, to be restored from remote store
+         */
+        public Builder initializeAsRemoteStoreRestore(IndexMetadata indexMetadata, RemoteStoreRecoverySource recoverySource) {
+            final UnassignedInfo unassignedInfo = new UnassignedInfo(
+                UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
+                "restore_source[remote_store]"
+            );
+            assert indexMetadata.getIndex().equals(index);
+            if (!shards.isEmpty()) {
+                throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
+            }
+            for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
+                ShardId shardId = new ShardId(index, shardNumber);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, true, recoverySource, unassignedInfo));
+                shards.put(shardNumber, indexShardRoutingBuilder.build());
+            }
+            return this;
+        }
+
+        /**
          * Initializes an index, to be restored from snapshot
          */
         private Builder initializeAsRestore(
             IndexMetadata indexMetadata,
-            SnapshotRecoverySource recoverySource,
+            RecoverySource recoverySource,
             IntSet ignoreShards,
             boolean asNew,
             UnassignedInfo unassignedInfo

@@ -64,9 +64,9 @@ import java.util.stream.Stream;
 import static org.opensearch.env.NodeRepurposeCommand.NO_CLEANUP;
 import static org.opensearch.env.NodeRepurposeCommand.NO_DATA_TO_CLEAN_UP_FOUND;
 import static org.opensearch.env.NodeRepurposeCommand.NO_SHARD_DATA_TO_CLEAN_UP_FOUND;
-import static org.opensearch.test.NodeRoles.masterNode;
+import static org.opensearch.test.NodeRoles.clusterManagerNode;
 import static org.opensearch.test.NodeRoles.nonDataNode;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -102,13 +102,13 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
             }
         }
-        dataNoClusterManagerSettings = nonMasterNode(dataClusterManagerSettings);
+        dataNoClusterManagerSettings = nonClusterManagerNode(dataClusterManagerSettings);
         noDataNoClusterManagerSettings = removeRoles(
             dataClusterManagerSettings,
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
         );
 
-        noDataClusterManagerSettings = masterNode(nonDataNode(dataClusterManagerSettings));
+        noDataClusterManagerSettings = clusterManagerNode(nonDataNode(dataClusterManagerSettings));
     }
 
     public void testEarlyExitNoCleanup() throws Exception {

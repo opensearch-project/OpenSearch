@@ -242,6 +242,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final GlobalCheckpointListeners globalCheckpointListeners;
     private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
+    private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -306,8 +307,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
-    private final ReferenceManager.RefreshListener checkpointRefreshListener;
-
     private final Store remoteStore;
     private final TranslogFactory translogFactory;
 
@@ -417,11 +416,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
-        if (checkpointPublisher != null) {
-            this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
-        } else {
-            this.checkpointRefreshListener = null;
-        }
+        this.checkpointPublisher = checkpointPublisher;
         this.remoteStore = remoteStore;
         this.translogFactory = translogFactory;
     }
@@ -539,7 +534,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
 
             if (newRouting.primary()) {
-                replicationTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable);
+                replicationTracker.updateFromClusterManager(applyingClusterStateVersion, inSyncAllocationIds, routingTable);
             }
 
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
@@ -627,6 +622,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             + newRouting;
                         assert getOperationPrimaryTerm() == newPrimaryTerm;
                         try {
+                            if (indexSettings.isSegRepEnabled()) {
+                                // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
+                                assert newRouting.primary() && currentRouting.primary() == false;
+                                promoteNRTReplicaToPrimary();
+                            }
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             ensurePeerRecoveryRetentionLeasesExist();
                             /*
@@ -1400,9 +1400,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the lastest Replication Checkpoint that shard received
+     * Returns the latest ReplicationCheckpoint that shard received.
+     * @return EMPTY checkpoint before the engine is opened and null for non-segrep enabled indices
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        if (indexSettings.isSegRepEnabled() == false) {
+            return null;
+        }
+        if (getEngineOrNull() == null) {
+            return ReplicationCheckpoint.empty(shardId);
+        }
         try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
             return Optional.ofNullable(snapshot.get())
                 .map(
@@ -1414,15 +1421,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentInfos.getVersion()
                     )
                 )
-                .orElse(
-                    new ReplicationCheckpoint(
-                        shardId,
-                        getOperationPrimaryTerm(),
-                        SequenceNumbers.NO_OPS_PERFORMED,
-                        getProcessedLocalCheckpoint(),
-                        SequenceNumbers.NO_OPS_PERFORMED
-                    )
-                );
+                .orElse(ReplicationCheckpoint.empty(shardId));
         } catch (IOException ex) {
             throw new OpenSearchException("Error Closing SegmentInfos Snapshot", ex);
         }
@@ -1438,6 +1437,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert replicationTracker.isPrimaryMode();
         if (state().equals(IndexShardState.STARTED) == false) {
             logger.trace(() -> new ParameterizedMessage("Ignoring new replication checkpoint - shard is not started {}", state()));
+            return false;
+        }
+        if (getReplicationTracker().isPrimaryMode()) {
+            logger.warn("Ignoring new replication checkpoint - shard is in primaryMode and cannot receive any checkpoints.");
             return false;
         }
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
@@ -2251,6 +2254,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         storeRecovery.recoverFromStore(this, listener);
     }
 
+    public void restoreFromRemoteStore(ActionListener<Boolean> listener) {
+        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+        storeRecovery.recoverFromRemoteStore(this, listener);
+    }
+
     public void restoreFromRepository(Repository repository, ActionListener<Boolean> listener) {
         try {
             assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
@@ -3012,6 +3021,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case EXISTING_STORE:
                 executeRecovery("from store", recoveryState, recoveryListener, this::recoverFromStore);
                 break;
+            case REMOTE_STORE:
+                executeRecovery("from remote store", recoveryState, recoveryListener, this::restoreFromRemoteStore);
+                break;
             case PEER:
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
@@ -3220,8 +3232,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
             internalRefreshListener.add(new RemoteStoreRefreshListener(store.directory(), remoteDirectory));
         }
-        if (this.checkpointRefreshListener != null) {
-            internalRefreshListener.add(checkpointRefreshListener);
+        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+            internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
 
         return this.engineConfigFactory.newEngineConfig(
@@ -3779,6 +3791,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
                 && isSearchIdle()
                 && indexSettings.isExplicitRefresh() == false
+                && indexSettings.isSegRepEnabled() == false
+                // Indices with segrep enabled will never wait on a refresh and ignore shard idle. Primary shards push out new segments only
+                // after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
+                // a new set of segments.
                 && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
@@ -4107,5 +4123,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         return getEngine().getSegmentInfosSnapshot();
+    }
+
+    /**
+     * With segment replication enabled - prepare the shard's engine to be promoted as the new primary.
+     *
+     * If this shard is currently using a replication engine, this method:
+     * 1. Invokes {@link NRTReplicationEngine#commitSegmentInfos()} to ensure the engine can be reopened as writeable from the latest refresh point.
+     * InternalEngine opens its IndexWriter from an on-disk commit point, but this replica may have recently synced from a primary's refresh point, meaning it has documents searchable in its in-memory SegmentInfos
+     * that are not part of a commit point.  This ensures that those documents are made part of a commit and do not need to be reindexed after promotion.
+     * 2. Invokes resetEngineToGlobalCheckpoint - This call performs the engine swap, opening up as a writeable engine and replays any operations in the xlog. The operations indexed from xlog here will be
+     * any ack'd writes that were not copied to this replica before promotion.
+     */
+    private void promoteNRTReplicaToPrimary() {
+        assert shardRouting.primary() && indexSettings.isSegRepEnabled();
+        getReplicationEngine().ifPresentOrElse(engine -> {
+            try {
+                engine.commitSegmentInfos();
+                resetEngineToGlobalCheckpoint();
+            } catch (IOException e) {
+                throw new EngineException(shardId, "Unable to update  replica to writeable engine, failing shard", e);
+            }
+        }, () -> { throw new EngineException(shardId, "Expected replica engine to be of type NRTReplicationEngine"); });
     }
 }

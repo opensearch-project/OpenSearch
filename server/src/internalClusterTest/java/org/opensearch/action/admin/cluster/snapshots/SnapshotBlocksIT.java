@@ -92,7 +92,7 @@ public class SnapshotBlocksIT extends OpenSearchIntegTestCase {
 
         logger.info("--> verify the repository");
         VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository(REPOSITORY_NAME).get();
-        assertThat(verifyResponse.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
+        assertThat(verifyResponse.getNodes().size(), equalTo(cluster().numDataAndClusterManagerNodes()));
 
         logger.info("--> create a snapshot");
         CreateSnapshotResponse snapshotResponse = client().admin()

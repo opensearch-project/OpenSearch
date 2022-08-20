@@ -76,8 +76,17 @@ public class PeersResponse extends TransportResponse {
     /**
      * @return the node that is currently leading, according to the responding node.
      */
-    public Optional<DiscoveryNode> getMasterNode() {
+    public Optional<DiscoveryNode> getClusterManagerNode() {
         return clusterManagerNode;
+    }
+
+    /**
+     * @return the node that is currently leading, according to the responding node.
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerNode()}
+     */
+    @Deprecated
+    public Optional<DiscoveryNode> getMasterNode() {
+        return getClusterManagerNode();
     }
 
     /**

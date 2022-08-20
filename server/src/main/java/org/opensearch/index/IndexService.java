@@ -520,13 +520,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     this.indexSettings,
                     path
                 );
-                remoteStore = new Store(
-                    shardId,
-                    this.indexSettings,
-                    remoteDirectory,
-                    lock,
-                    new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
-                );
+                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
@@ -559,10 +553,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
                 circuitBreakerService,
-                this.indexSettings.isSegRepEnabled() && this.indexSettings.isRemoteTranslogStoreEnabled()
-                    ? new RemoteBlobStoreInternalTranslogFactory(repositoriesServiceSupplier, clusterService, threadPool)
+                // TODO Replace with remote translog factory in the follow up PR
+                this.indexSettings.isRemoteTranslogStoreEnabled() ? new RemoteBlobStoreInternalTranslogFactory(repositoriesServiceSupplier, clusterService, threadPool)
                     : new InternalTranslogFactory(),
-                this.indexSettings.isSegRepEnabled() && routing.primary() ? checkpointPublisher : null,
+                this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");

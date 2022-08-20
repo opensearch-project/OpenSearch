@@ -56,7 +56,7 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.RepositoryCleanupInProgress;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
@@ -235,7 +235,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             actionFilters,
             indexNameExpressionResolver
         );
-        if (DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
             clusterService.addLowPriorityApplier(this);
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
@@ -1120,7 +1120,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
 
                         @Override
-                        public void onNoLongerMaster(String source) {
+                        public void onNoLongerClusterManager(String source) {
                             // We are not longer a cluster-manager - we shouldn't try to do any cleanup
                             // The new cluster-manager will take care of it
                             logger.warn(
@@ -1181,7 +1181,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             userCreateSnapshotListener.onFailure(ExceptionsHelper.useOrSuppress(e, this.e));
         }
 
-        public void onNoLongerMaster() {
+        public void onNoLongerClusterManager() {
             userCreateSnapshotListener.onFailure(e);
         }
     }
@@ -1305,11 +1305,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         try {
-            if (event.localNodeMaster()) {
+            if (event.localNodeClusterManager()) {
                 // We don't remove old cluster-manager when cluster-manager flips anymore. So, we need to check for change in
                 // cluster-manager
                 SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                final boolean newClusterManager = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+                final boolean newClusterManager = event.previousState().nodes().isLocalNodeElectedClusterManager() == false;
                 processExternalChanges(
                     newClusterManager || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)
@@ -1884,7 +1884,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void handleFinalizationFailure(Exception e, SnapshotsInProgress.Entry entry, RepositoryData repositoryData) {
         Snapshot snapshot = entry.snapshot();
-        if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+        if (ExceptionsHelper.unwrap(e, NotClusterManagerException.class, FailedToCommitClusterStateException.class) != null) {
             // Failure due to not being cluster-manager any more, don't try to remove snapshot from cluster state the next cluster-manager
             // will try ending this snapshot again
             logger.debug(() -> new ParameterizedMessage("[{}] failed to update cluster state during snapshot finalization", snapshot), e);
@@ -2091,12 +2091,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public void onNoLongerMaster(String source) {
+            public void onNoLongerClusterManager(String source) {
                 failure.addSuppressed(new SnapshotException(snapshot, "no longer cluster-manager"));
                 failSnapshotCompletionListeners(snapshot, failure);
-                failAllListenersOnMasterFailOver(new NotMasterException(source));
+                failAllListenersOnMasterFailOver(new NotClusterManagerException(source));
                 if (listener != null) {
-                    listener.onNoLongerMaster();
+                    listener.onNoLongerClusterManager();
                 }
             }
 
@@ -2306,7 +2306,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         createDeleteStateUpdate(outstandingDeletes, repoName, result.v1(), Priority.IMMEDIATE, listener)
                     );
                 }, e -> {
-                    if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+                    if (ExceptionsHelper.unwrap(e, NotClusterManagerException.class, FailedToCommitClusterStateException.class) != null) {
                         logger.warn("cluster-manager failover before deleted snapshot could complete", e);
                         // Just pass the exception to the transport handler as is so it is retried on the new cluster-manager
                         listener.onFailure(e);
@@ -2788,7 +2788,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void failAllListenersOnMasterFailOver(Exception e) {
         logger.debug("Failing all snapshot operation listeners because this node is not cluster-manager any longer", e);
         synchronized (currentlyFinalizing) {
-            if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+            if (ExceptionsHelper.unwrap(e, NotClusterManagerException.class, FailedToCommitClusterStateException.class) != null) {
                 repositoryOperations.clear();
                 for (Snapshot snapshot : new HashSet<>(snapshotCompletionListeners.keySet())) {
                     failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer cluster-manager"));
@@ -3654,7 +3654,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         @Override
-        protected void masterOperation(
+        protected void clusterManagerOperation(
             UpdateIndexShardSnapshotStatusRequest request,
             ClusterState state,
             ActionListener<UpdateIndexShardSnapshotStatusResponse> listener

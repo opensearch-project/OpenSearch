@@ -86,7 +86,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
         numberOfNodes = clusterState.nodes().getSize();
         numberOfDataNodes = clusterState.nodes().getDataNodes().size();
-        hasDiscoveredClusterManager = clusterState.nodes().getMasterNodeId() != null;
+        hasDiscoveredClusterManager = clusterState.nodes().getClusterManagerNodeId() != null;
         indices = new HashMap<>();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
@@ -238,8 +238,14 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         return activeShardsPercent;
     }
 
-    public boolean hasDiscoveredMaster() {
+    public boolean hasDiscoveredClusterManager() {
         return hasDiscoveredClusterManager;
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #hasDiscoveredClusterManager()} */
+    @Deprecated
+    public boolean hasDiscoveredMaster() {
+        return hasDiscoveredClusterManager();
     }
 
     @Override

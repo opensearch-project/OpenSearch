@@ -12,6 +12,11 @@ import java.io.IOException;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
+/**
+ * Translog Factory for the local on-disk {@link Translog}
+ *
+ * @opensearch.internal
+ */
 public class InternalTranslogFactory implements TranslogFactory {
 
     @Override

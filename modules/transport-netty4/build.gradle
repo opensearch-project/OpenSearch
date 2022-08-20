@@ -38,6 +38,9 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
+// The transport-netty4 plugin is published to maven
+apply plugin: 'opensearch.publish'
+
 /*
  TODOs:
    * fix permissions such that only netty4 can open sockets etc?
@@ -46,7 +49,7 @@ apply plugin: 'opensearch.internal-cluster-test'
  */
 opensearchplugin {
   description 'Netty 4 based transport implementation'
-  classname 'org.opensearch.transport.Netty4Plugin'
+  classname 'org.opensearch.transport.Netty4ModulePlugin'
   hasClientJar = true
 }
 
@@ -59,6 +62,7 @@ dependencies {
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 }
 
 restResources {
@@ -120,7 +124,7 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoders',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
     // classes are missing
@@ -141,6 +145,7 @@ thirdPartyAudit {
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',
@@ -227,7 +232,8 @@ thirdPartyAudit {
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
     'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',

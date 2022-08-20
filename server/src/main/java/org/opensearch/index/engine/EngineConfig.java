@@ -154,6 +154,8 @@ public final class EngineConfig {
 
     private final TranslogConfig translogConfig;
 
+    private final TranslogFactory translogFactory;
+
     public EngineConfig(
         ShardId shardId,
         ThreadPool threadPool,

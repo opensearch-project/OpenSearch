@@ -107,7 +107,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
             client().admin().cluster().preparePutRepository(name).setType(repositoryType()).setVerify(verify).setSettings(settings)
         );
 
-        internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
+        internalCluster().getDataOrClusterManagerNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
             assertThat(repositories.repository(name), instanceOf(BlobStoreRepository.class));
             assertThat(repositories.repository(name).isReadOnly(), is(false));
@@ -280,7 +280,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
 
     protected BlobStore newBlobStore() {
         final String repository = createRepository(randomName());
-        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getMasterNodeInstance(
+        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getClusterManagerNodeInstance(
             RepositoriesService.class
         ).repository(repository);
         return PlainActionFuture.get(
@@ -470,8 +470,11 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snap").get());
 
         logger.info("--> verify index folder deleted from blob container");
-        RepositoriesService repositoriesSvc = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
-        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
+        RepositoriesService repositoriesSvc = internalCluster().getInstance(
+            RepositoriesService.class,
+            internalCluster().getClusterManagerName()
+        );
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getClusterManagerName());
         BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
 
         final SetOnce<BlobContainer> indicesBlobContainer = new SetOnce<>();
