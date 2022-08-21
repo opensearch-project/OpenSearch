@@ -150,8 +150,6 @@ public final class EngineConfig {
         Property.Dynamic
     );
 
-    private final TranslogFactory translogFactory;
-
     private final TranslogConfig translogConfig;
 
     private final TranslogFactory translogFactory;
