@@ -19,6 +19,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.decommission.DecommissionService;
@@ -116,7 +117,19 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
                 } else {
                     decommissionService.initiateAttributeDecommissioning(
                             request.getDecommissionAttribute(),
-                            listener,
+                            new ActionListener<ClusterStateUpdateResponse>() {
+                                @Override
+                                public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                                    logger.info("Decommission acknowledged. ");
+                                    listener.onResponse(new PutDecommissionResponse(true));
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.info("decommission request for attribute [{}] failed", e.getCause());
+                                    listener.onFailure(e);
+                                }
+                            },
                             state);
                 }
             }

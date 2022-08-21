@@ -79,6 +79,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             null,
             Collections.emptySet()
         );
+
         JoinHelper joinHelper = new JoinHelper(
             Settings.EMPTY,
             null,
@@ -90,7 +91,9 @@ public class JoinHelperTests extends OpenSearchTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
-            () -> new StatusInfo(HEALTHY, "info")
+            () -> new StatusInfo(HEALTHY, "info"),
+            ()->{},
+            ()->{}
         );
         transportService.start();
 
@@ -230,7 +233,9 @@ public class JoinHelperTests extends OpenSearchTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
-            null
+            null,
+            ()->{},
+            ()->{}
         ); // registers request handler
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -284,7 +289,9 @@ public class JoinHelperTests extends OpenSearchTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
-            () -> nodeHealthServiceStatus.get()
+            () -> nodeHealthServiceStatus.get(),
+            ()->{},
+            ()->{}
         );
         transportService.start();
 

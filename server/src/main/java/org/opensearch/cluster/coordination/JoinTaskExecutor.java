@@ -40,6 +40,7 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -471,7 +472,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     // TODO - put this to helper
     public static void ensureNodeNotDecommissioned(DiscoveryNode node, Metadata metadata) {
         DecommissionAttributeMetadata decommissionedAttributesMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
-        if (decommissionedAttributesMetadata == null) return;
+        if (decommissionedAttributesMetadata == null
+                || decommissionedAttributesMetadata.status() == DecommissionStatus.RECOMMISSIONING
+                || decommissionedAttributesMetadata.status() == DecommissionStatus.DECOMMISSION_FAILED) {
+            return;
+        }
         DecommissionAttribute decommissionedAttribute = decommissionedAttributesMetadata.decommissionAttribute();
         if (decommissionedAttribute == null) return;
         if (node.getAttributes().get(decommissionedAttribute.attributeName()).equals(decommissionedAttribute.attributeValue())) {
