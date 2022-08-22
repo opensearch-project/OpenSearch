@@ -75,6 +75,7 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         ActionListener<PutDecommissionResponse> listener
     ) throws Exception {
         logger.info("initiating awareness attribute [{}] decommissioning", request.getDecommissionAttribute().toString());
+        listener.onResponse(new PutDecommissionResponse(true)); // TODO - remove after integration
         // TODO - uncomment when integrating with the service
 //        decommissionService.initiateAttributeDecommissioning(
 //            request.getDecommissionAttribute(),
