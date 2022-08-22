@@ -462,7 +462,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject("Test<Field>Name?*#\\")
+                .startObject("Test<Field>Name? *#\\")
                 .field("type", "text")
                 .endObject()
                 .endObject()

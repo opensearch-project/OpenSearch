@@ -351,7 +351,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
-                Pattern p = Pattern.compile("[^a-zA-Z0-9_.@$-]");
+                Pattern p = Pattern.compile("[^a-zA-Z0-9_.@ $-]");
                 Matcher m = p.matcher(fieldName);
                 if (m.find()) {
                     throw new MapperParsingException("Properties cannot contain special characters: " + fieldName);
