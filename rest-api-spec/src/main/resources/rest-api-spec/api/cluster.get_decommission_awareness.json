@@ -1,8 +1,8 @@
 {
   "cluster.get_decommission_awareness": {
     "documentation": {
-      "url": "TBA",
-      "description": "TBA"
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/decommission/",
+      "description": "Get details and status of decommissioned attribute"
     },
     "stability": "experimental",
     "url": {
