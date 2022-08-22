@@ -32,68 +32,24 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.tests.analysis.MockAnalyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.DoublePoint;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.text.Text;
-import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.time.DateFormatters;
-import org.opensearch.index.Index;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.mapper.DateFieldMapper;
-import org.opensearch.index.mapper.DocumentMapper;
-import org.opensearch.index.mapper.GeoPointFieldMapper;
-import org.opensearch.index.mapper.IpFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.Aggregator;
-import org.opensearch.search.aggregations.AggregatorTestCase;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.composite.BaseCompositeAggregatorTestCase;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.TopHits;
 import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.IndexSettingsModule;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -109,51 +65,14 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-public class CompositeAggregatorTests extends AggregatorTestCase {
-    private static MappedFieldType[] FIELD_TYPES;
-
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        FIELD_TYPES = new MappedFieldType[8];
-        FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType("keyword");
-        FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG);
-        FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE);
-        FIELD_TYPES[3] = new DateFieldMapper.DateFieldType("date", DateFormatter.forPattern("yyyy-MM-dd||epoch_millis"));
-        FIELD_TYPES[4] = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.INTEGER);
-        FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType("terms");
-        FIELD_TYPES[6] = new IpFieldMapper.IpFieldType("ip");
-        FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType("geo_point");
-    }
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        FIELD_TYPES = null;
-    }
-
-    @Override
-    protected MapperService mapperServiceMock() {
-        MapperService mapperService = mock(MapperService.class);
-        DocumentMapper mapper = mock(DocumentMapper.class);
-        when(mapper.typeText()).thenReturn(new Text("_doc"));
-        when(mapper.type()).thenReturn("_doc");
-        when(mapperService.documentMapper()).thenReturn(mapper);
-        return mapperService;
-    }
+public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
 
     public void testUnmappedFieldWithTerms() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
@@ -232,80 +151,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
             }
         );
-    }
-
-    public void testUnmappedFieldWithGeopoint() throws Exception {
-        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
-        final String mappedFieldName = "geo_point";
-        dataset.addAll(
-            Arrays.asList(
-                createDocument(mappedFieldName, new GeoPoint(48.934059, 41.610741)),
-                createDocument(mappedFieldName, new GeoPoint(-23.065941, 113.610741)),
-                createDocument(mappedFieldName, new GeoPoint(90.0, 0.0)),
-                createDocument(mappedFieldName, new GeoPoint(37.2343, -115.8067)),
-                createDocument(mappedFieldName, new GeoPoint(90.0, 0.0))
-            )
-        );
-
-        // just unmapped = no results
-        testSearchCase(
-            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery(mappedFieldName)),
-            dataset,
-            () -> new CompositeAggregationBuilder("name", Arrays.asList(new GeoTileGridValuesSourceBuilder("unmapped").field("unmapped"))),
-            (result) -> assertEquals(0, result.getBuckets().size())
-        );
-
-        // unmapped missing bucket = one result
-        testSearchCase(
-            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery(mappedFieldName)),
-            dataset,
-            () -> new CompositeAggregationBuilder(
-                "name",
-                Arrays.asList(new GeoTileGridValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
-            ),
-            (result) -> {
-                assertEquals(1, result.getBuckets().size());
-                assertEquals("{unmapped=null}", result.afterKey().toString());
-                assertEquals("{unmapped=null}", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(5L, result.getBuckets().get(0).getDocCount());
-            }
-        );
-
-        // field + unmapped, no missing bucket = no results
-        testSearchCase(
-            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery(mappedFieldName)),
-            dataset,
-            () -> new CompositeAggregationBuilder(
-                "name",
-                Arrays.asList(
-                    new GeoTileGridValuesSourceBuilder(mappedFieldName).field(mappedFieldName),
-                    new GeoTileGridValuesSourceBuilder("unmapped").field("unmapped")
-                )
-            ),
-            (result) -> assertEquals(0, result.getBuckets().size())
-        );
-
-        // field + unmapped with missing bucket = multiple results
-        testSearchCase(
-            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery(mappedFieldName)),
-            dataset,
-            () -> new CompositeAggregationBuilder(
-                "name",
-                Arrays.asList(
-                    new GeoTileGridValuesSourceBuilder(mappedFieldName).field(mappedFieldName),
-                    new GeoTileGridValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true)
-                )
-            ),
-            (result) -> {
-                assertEquals(2, result.getBuckets().size());
-                assertEquals("{geo_point=7/64/56, unmapped=null}", result.afterKey().toString());
-                assertEquals("{geo_point=7/32/56, unmapped=null}", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{geo_point=7/64/56, unmapped=null}", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(3L, result.getBuckets().get(1).getDocCount());
-            }
-        );
-
     }
 
     public void testUnmappedFieldWithHistogram() throws Exception {
@@ -2483,42 +2328,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testWithGeoPoint() throws Exception {
-        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
-        dataset.addAll(
-            Arrays.asList(
-                createDocument("geo_point", new GeoPoint(48.934059, 41.610741)),
-                createDocument("geo_point", new GeoPoint(-23.065941, 113.610741)),
-                createDocument("geo_point", new GeoPoint(90.0, 0.0)),
-                createDocument("geo_point", new GeoPoint(37.2343, -115.8067)),
-                createDocument("geo_point", new GeoPoint(90.0, 0.0))
-            )
-        );
-        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("geo_point")), dataset, () -> {
-            GeoTileGridValuesSourceBuilder geoTile = new GeoTileGridValuesSourceBuilder("geo_point").field("geo_point");
-            return new CompositeAggregationBuilder("name", Collections.singletonList(geoTile));
-        }, (result) -> {
-            assertEquals(2, result.getBuckets().size());
-            assertEquals("{geo_point=7/64/56}", result.afterKey().toString());
-            assertEquals("{geo_point=7/32/56}", result.getBuckets().get(0).getKeyAsString());
-            assertEquals(2L, result.getBuckets().get(0).getDocCount());
-            assertEquals("{geo_point=7/64/56}", result.getBuckets().get(1).getKeyAsString());
-            assertEquals(3L, result.getBuckets().get(1).getDocCount());
-        });
-
-        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("geo_point")), dataset, () -> {
-            GeoTileGridValuesSourceBuilder geoTile = new GeoTileGridValuesSourceBuilder("geo_point").field("geo_point");
-            return new CompositeAggregationBuilder("name", Collections.singletonList(geoTile)).aggregateAfter(
-                Collections.singletonMap("geo_point", "7/32/56")
-            );
-        }, (result) -> {
-            assertEquals(1, result.getBuckets().size());
-            assertEquals("{geo_point=7/64/56}", result.afterKey().toString());
-            assertEquals("{geo_point=7/64/56}", result.getBuckets().get(0).getKeyAsString());
-            assertEquals(3L, result.getBuckets().get(0).getDocCount());
-        });
-    }
-
     public void testEarlyTermination() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -2647,194 +2456,5 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 }
             );
         }
-    }
-
-    private void testSearchCase(
-        List<Query> queries,
-        List<Map<String, List<Object>>> dataset,
-        Supplier<CompositeAggregationBuilder> create,
-        Consumer<InternalComposite> verify
-    ) throws IOException {
-        for (Query query : queries) {
-            executeTestCase(false, false, query, dataset, create, verify);
-            executeTestCase(false, true, query, dataset, create, verify);
-        }
-    }
-
-    private void executeTestCase(
-        boolean forceMerge,
-        boolean useIndexSort,
-        Query query,
-        List<Map<String, List<Object>>> dataset,
-        Supplier<CompositeAggregationBuilder> create,
-        Consumer<InternalComposite> verify
-    ) throws IOException {
-        Map<String, MappedFieldType> types = Arrays.stream(FIELD_TYPES)
-            .collect(Collectors.toMap(MappedFieldType::name, Function.identity()));
-        CompositeAggregationBuilder aggregationBuilder = create.get();
-        Sort indexSort = useIndexSort ? buildIndexSort(aggregationBuilder.sources(), types) : null;
-        IndexSettings indexSettings = createIndexSettings(indexSort);
-        try (Directory directory = newDirectory()) {
-            IndexWriterConfig config = newIndexWriterConfig(random(), new MockAnalyzer(random()));
-            if (indexSort != null) {
-                config.setIndexSort(indexSort);
-                config.setCodec(TestUtil.getDefaultCodec());
-            }
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
-                Document document = new Document();
-                int id = 0;
-                for (Map<String, List<Object>> fields : dataset) {
-                    document.clear();
-                    addToDocument(id, document, fields);
-                    indexWriter.addDocument(document);
-                    id++;
-                }
-                if (forceMerge || rarely()) {
-                    // forceMerge randomly or if the collector-per-leaf testing stuff would break the tests.
-                    indexWriter.forceMerge(1);
-                } else {
-                    if (dataset.size() > 0) {
-                        int numDeletes = randomIntBetween(1, 25);
-                        for (int i = 0; i < numDeletes; i++) {
-                            id = randomIntBetween(0, dataset.size() - 1);
-                            indexWriter.deleteDocuments(new Term("id", Integer.toString(id)));
-                            document.clear();
-                            addToDocument(id, document, dataset.get(id));
-                            indexWriter.addDocument(document);
-                        }
-                    }
-
-                }
-            }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                InternalComposite composite = searchAndReduce(indexSettings, indexSearcher, query, aggregationBuilder, FIELD_TYPES);
-                verify.accept(composite);
-            }
-        }
-    }
-
-    private static IndexSettings createIndexSettings(Sort sort) {
-        Settings.Builder builder = Settings.builder();
-        if (sort != null) {
-            String[] fields = Arrays.stream(sort.getSort()).map(SortField::getField).toArray(String[]::new);
-            String[] orders = Arrays.stream(sort.getSort()).map((o) -> o.getReverse() ? "desc" : "asc").toArray(String[]::new);
-            builder.putList("index.sort.field", fields);
-            builder.putList("index.sort.order", orders);
-        }
-        return IndexSettingsModule.newIndexSettings(new Index("_index", "0"), builder.build());
-    }
-
-    private void addToDocument(int id, Document doc, Map<String, List<Object>> keys) {
-        doc.add(new StringField("id", Integer.toString(id), Field.Store.NO));
-        for (Map.Entry<String, List<Object>> entry : keys.entrySet()) {
-            final String name = entry.getKey();
-            for (Object value : entry.getValue()) {
-                if (value instanceof Integer) {
-                    doc.add(new SortedNumericDocValuesField(name, (int) value));
-                    doc.add(new IntPoint(name, (int) value));
-                } else if (value instanceof Long) {
-                    doc.add(new SortedNumericDocValuesField(name, (long) value));
-                    doc.add(new LongPoint(name, (long) value));
-                } else if (value instanceof Double) {
-                    doc.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong((double) value)));
-                    doc.add(new DoublePoint(name, (double) value));
-                } else if (value instanceof String) {
-                    doc.add(new SortedSetDocValuesField(name, new BytesRef((String) value)));
-                    doc.add(new StringField(name, new BytesRef((String) value), Field.Store.NO));
-                } else if (value instanceof InetAddress) {
-                    doc.add(new SortedSetDocValuesField(name, new BytesRef(InetAddressPoint.encode((InetAddress) value))));
-                    doc.add(new InetAddressPoint(name, (InetAddress) value));
-                } else if (value instanceof GeoPoint) {
-                    GeoPoint point = (GeoPoint) value;
-                    doc.add(
-                        new SortedNumericDocValuesField(
-                            name,
-                            GeoTileUtils.longEncode(point.lon(), point.lat(), GeoTileGridAggregationBuilder.DEFAULT_PRECISION)
-                        )
-                    );
-                    doc.add(new LatLonPoint(name, point.lat(), point.lon()));
-                } else {
-                    throw new AssertionError("invalid object: " + value.getClass().getSimpleName());
-                }
-            }
-        }
-    }
-
-    private static Map<String, Object> createAfterKey(Object... fields) {
-        assert fields.length % 2 == 0;
-        final Map<String, Object> map = new HashMap<>();
-        for (int i = 0; i < fields.length; i += 2) {
-            String field = (String) fields[i];
-            map.put(field, fields[i + 1]);
-        }
-        return map;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, List<Object>> createDocument(Object... fields) {
-        assert fields.length % 2 == 0;
-        final Map<String, List<Object>> map = new HashMap<>();
-        for (int i = 0; i < fields.length; i += 2) {
-            String field = (String) fields[i];
-            if (fields[i + 1] instanceof List) {
-                map.put(field, (List<Object>) fields[i + 1]);
-            } else {
-                map.put(field, Collections.singletonList(fields[i + 1]));
-            }
-        }
-        return map;
-    }
-
-    private static long asLong(String dateTime) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
-    }
-
-    private static Sort buildIndexSort(List<CompositeValuesSourceBuilder<?>> sources, Map<String, MappedFieldType> fieldTypes) {
-        List<SortField> sortFields = new ArrayList<>();
-        Map<String, MappedFieldType> remainingFieldTypes = new HashMap<>(fieldTypes);
-        for (CompositeValuesSourceBuilder<?> source : sources) {
-            MappedFieldType type = fieldTypes.remove(source.field());
-            remainingFieldTypes.remove(source.field());
-            SortField sortField = sortFieldFrom(type);
-            if (sortField == null) {
-                break;
-            }
-            sortFields.add(sortField);
-        }
-        while (remainingFieldTypes.size() > 0 && randomBoolean()) {
-            // Add extra unused sorts
-            List<String> fields = new ArrayList<>(remainingFieldTypes.keySet());
-            Collections.sort(fields);
-            String field = fields.get(between(0, fields.size() - 1));
-            SortField sortField = sortFieldFrom(remainingFieldTypes.remove(field));
-            if (sortField != null) {
-                sortFields.add(sortField);
-            }
-        }
-        return sortFields.size() > 0 ? new Sort(sortFields.toArray(new SortField[0])) : null;
-    }
-
-    private static SortField sortFieldFrom(MappedFieldType type) {
-        if (type instanceof KeywordFieldMapper.KeywordFieldType) {
-            return new SortedSetSortField(type.name(), false);
-        } else if (type instanceof DateFieldMapper.DateFieldType) {
-            return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
-        } else if (type instanceof NumberFieldMapper.NumberFieldType) {
-            switch (type.typeName()) {
-                case "byte":
-                case "short":
-                case "integer":
-                    return new SortedNumericSortField(type.name(), SortField.Type.INT, false);
-                case "long":
-                    return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
-                case "float":
-                case "double":
-                    return new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false);
-                default:
-                    return null;
-            }
-        }
-        return null;
     }
 }

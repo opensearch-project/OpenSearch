@@ -69,11 +69,11 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     private SortOrder order = SortOrder.ASC;
     private String format = null;
 
-    CompositeValuesSourceBuilder(String name) {
+    public CompositeValuesSourceBuilder(String name) {
         this.name = name;
     }
 
-    CompositeValuesSourceBuilder(StreamInput in) throws IOException {
+    public CompositeValuesSourceBuilder(StreamInput in) throws IOException {
         this.name = in.readString();
         this.field = in.readOptionalString();
         if (in.readBoolean()) {
@@ -167,7 +167,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         return name;
     }
 
-    abstract String type();
+    protected abstract String type();
 
     /**
      * Sets the field to use for this source
