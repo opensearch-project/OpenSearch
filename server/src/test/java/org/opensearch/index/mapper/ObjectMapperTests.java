@@ -462,7 +462,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject("<script>alert(\"Potential Cross-Site Scripting\");</script>")
+                .startObject("<>\\")
                 .field("type", "text")
                 .endObject()
                 .endObject()
