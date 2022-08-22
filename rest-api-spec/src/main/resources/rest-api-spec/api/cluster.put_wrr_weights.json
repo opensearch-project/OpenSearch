@@ -1,0 +1,25 @@
+{
+  "cluster.put_decommission_awareness": {
+    "documentation": {
+      "url": "TBA",
+      "description": "TBA"
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/routing/awareness/{attribute}/weights",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "attribute": {
+              "type": "string",
+              "description": "Awareness attribute name"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

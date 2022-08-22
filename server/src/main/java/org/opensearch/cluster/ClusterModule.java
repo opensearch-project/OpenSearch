@@ -325,7 +325,10 @@ public class ClusterModule extends AbstractModule {
     }
 
     // TODO: this is public so allocation benchmark can access the default deciders...can we do that in another way?
-    /** Return a new {@link AllocationDecider} instance with builtin deciders as well as those from plugins. */
+
+    /**
+     * Return a new {@link AllocationDecider} instance with builtin deciders as well as those from plugins.
+     */
     public static Collection<AllocationDecider> createAllocationDeciders(
         Settings settings,
         ClusterSettings clusterSettings,
@@ -359,7 +362,9 @@ public class ClusterModule extends AbstractModule {
         return deciders.values();
     }
 
-    /** Add the given allocation decider to the given deciders collection, erroring if the class name is already used. */
+    /**
+     * Add the given allocation decider to the given deciders collection, erroring if the class name is already used.
+     */
     private static void addAllocationDecider(Map<Class, AllocationDecider> deciders, AllocationDecider decider) {
         if (deciders.put(decider.getClass(), decider) != null) {
             throw new IllegalArgumentException("Cannot specify allocation decider [" + decider.getClass().getName() + "] twice");
