@@ -133,34 +133,8 @@ Adding in the change is two step process -
 
   `Your change here ([#PR_NUMBER](PR_URL))`
 
-2. Update your changes with the corresponding `PR_NUMBER` and  `PR_URL` and push out the new commit.
+2. Update the entry for your change in [`CHANGELOG.md`](CHANGELOG.md) and make sure that you reference the pull request there.
 
-For example, as a contributor, if my change adds support for a new `FooBar` client, new entry could look like this:
-
-```md
-# CHANGELOG
-Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
-
-## [ UNRELEASED ]
-### Added
-- ...
-- Add support for FooBar client ([#9999](https://github.com/opensearch-project/OpenSearch/pull/9999))
-
-### Changed
-- ...
-
-### Deprecated
-- ...
-
-### Removed
-- ...
-
-### Fixed
-- ...
-
-### Security
-- ...
-```
 
 ## Review Process
 
