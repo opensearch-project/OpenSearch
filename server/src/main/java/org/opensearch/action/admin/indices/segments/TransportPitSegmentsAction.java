@@ -94,9 +94,10 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
      */
     @Override
     protected void doExecute(Task task, PitSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
-        if (request.getPitIds().isEmpty()) {
+        List<String> pitIds = request.getPitIds();
+        if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
             pitService.getAllPits(ActionListener.wrap(response -> {
-                request.setPitIds(response.getPitInfos().stream().map(ListPitInfo::getPitId).collect(Collectors.toList()));
+                request.clearAndSetPitIds(response.getPitInfos().stream().map(ListPitInfo::getPitId).collect(Collectors.toList()));
                 super.doExecute(task, request, listener);
             }, listener::onFailure));
         } else {

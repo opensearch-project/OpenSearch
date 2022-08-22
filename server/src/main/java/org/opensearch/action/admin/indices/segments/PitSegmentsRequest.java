@@ -8,23 +8,26 @@
 
 package org.opensearch.action.admin.indices.segments;
 
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Transport request for retrieving PITs segment information
  */
 public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
     private boolean verbose = false;
-    private List<String> pitIds;
+    private final List<String> pitIds = new ArrayList<>();
 
     public PitSegmentsRequest() {
         this(Strings.EMPTY_ARRAY);
@@ -32,13 +35,13 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
 
     public PitSegmentsRequest(StreamInput in) throws IOException {
         super(in);
-        pitIds = Arrays.asList(in.readStringArray());
+        pitIds.addAll(Arrays.asList(in.readStringArray()));
         verbose = in.readBoolean();
     }
 
-    public PitSegmentsRequest(String... indices) {
-        super(indices);
-        pitIds = Collections.emptyList();
+    public PitSegmentsRequest(String... pitIds) {
+        super(pitIds);
+        this.pitIds.addAll(Arrays.asList(pitIds));
     }
 
     /**
@@ -64,11 +67,21 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
         out.writeBoolean(verbose);
     }
 
-    public Collection<String> getPitIds() {
+    public List<String> getPitIds() {
         return Collections.unmodifiableList(pitIds);
     }
 
-    public void setPitIds(List<String> pitIds) {
-        this.pitIds = pitIds;
+    public void clearAndSetPitIds(List<String> pitIds) {
+        this.pitIds.clear();
+        this.pitIds.addAll(pitIds);
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = null;
+        if (pitIds == null || pitIds.isEmpty()) {
+            validationException = addValidationError("no pit ids specified", validationException);
+        }
+        return validationException;
     }
 }

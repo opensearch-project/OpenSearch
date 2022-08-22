@@ -135,7 +135,8 @@ public class PitTestsUtil {
     }
 
     public static void assertSegments(boolean isEmpty, String index, long expectedShardSize, Client client) {
-        IndicesSegmentResponse indicesSegmentResponse = client.execute(PitSegmentsAction.INSTANCE, new PitSegmentsRequest()).actionGet();
+        PitSegmentsRequest pitSegmentsRequest = new PitSegmentsRequest("_all");
+        IndicesSegmentResponse indicesSegmentResponse = client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest).actionGet();
         assertTrue(indicesSegmentResponse.getShardFailures() == null || indicesSegmentResponse.getShardFailures().length == 0);
         assertEquals(indicesSegmentResponse.getIndices().isEmpty(), isEmpty);
         if (!isEmpty) {
