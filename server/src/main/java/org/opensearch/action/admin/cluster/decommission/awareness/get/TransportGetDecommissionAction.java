@@ -26,9 +26,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportGetDecommissionAction extends TransportClusterManagerNodeReadAction<
-    GetDecommissionRequest,
-    GetDecommissionResponse> {
+public class TransportGetDecommissionAction extends TransportClusterManagerNodeReadAction<GetDecommissionRequest, GetDecommissionResponse> {
 
     @Inject
     public TransportGetDecommissionAction(
@@ -66,14 +64,9 @@ public class TransportGetDecommissionAction extends TransportClusterManagerNodeR
         ActionListener<GetDecommissionResponse> listener
     ) throws Exception {
         Metadata metadata = state.metadata();
-//        DecommissionAttributeMetadata decommissionedAttributes = metadata.custom(DecommissionAttributeMetadata.TYPE);
+        // DecommissionAttributeMetadata decommissionedAttributes = metadata.custom(DecommissionAttributeMetadata.TYPE);
         // TODO - update once service layer changes are merged
-        listener.onResponse(
-            new GetDecommissionResponse(
-                new DecommissionAttribute("zone", "zone-1"),
-                DecommissionStatus.DECOMMISSIONED
-            )
-        );
+        listener.onResponse(new GetDecommissionResponse(new DecommissionAttribute("zone", "zone-1"), DecommissionStatus.DECOMMISSIONED));
     }
 
     @Override

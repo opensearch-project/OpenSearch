@@ -19,7 +19,11 @@ public class PutDecommissionRequestBuilder extends ClusterManagerNodeOperationRe
     PutDecommissionResponse,
     PutDecommissionRequestBuilder> {
 
-    public PutDecommissionRequestBuilder(OpenSearchClient client, ActionType<PutDecommissionResponse> action, PutDecommissionRequest request) {
+    public PutDecommissionRequestBuilder(
+        OpenSearchClient client,
+        ActionType<PutDecommissionResponse> action,
+        PutDecommissionRequest request
+    ) {
         super(client, action, request);
     }
 

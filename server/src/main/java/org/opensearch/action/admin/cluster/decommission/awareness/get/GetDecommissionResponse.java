@@ -74,7 +74,10 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
                 String currentFieldName = parser.currentName();
                 if (attributeType.equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                        throw new OpenSearchParseException("failed to parse decommission attribute type [{}], expected object", attributeType);
+                        throw new OpenSearchParseException(
+                            "failed to parse decommission attribute type [{}], expected object",
+                            attributeType
+                        );
                     }
                     token = parser.nextToken();
                     if (token != XContentParser.Token.END_OBJECT) {
@@ -85,7 +88,10 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 value = parser.text();
                             } else {
-                                throw new OpenSearchParseException("failed to parse attribute [{}], expected string for attribute value", fieldName);
+                                throw new OpenSearchParseException(
+                                    "failed to parse attribute [{}], expected string for attribute value",
+                                    fieldName
+                                );
                             }
                             decommissionAttribute = new DecommissionAttribute(fieldName, value);
                             token = parser.nextToken();
@@ -97,7 +103,9 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
                     }
                 } else if ("status".equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                        throw new OpenSearchParseException("failed to parse status of decommissioning, expected string but found unknown type");
+                        throw new OpenSearchParseException(
+                            "failed to parse status of decommissioning, expected string but found unknown type"
+                        );
                     }
                     status = DecommissionStatus.fromString(parser.text());
                 } else {

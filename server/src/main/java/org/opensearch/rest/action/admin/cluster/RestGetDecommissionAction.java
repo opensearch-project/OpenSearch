@@ -8,8 +8,6 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
@@ -46,8 +44,6 @@ public class RestGetDecommissionAction extends BaseRestHandler {
         getDecommissionRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", getDecommissionRequest.clusterManagerNodeTimeout())
         );
-        return channel -> client.admin()
-            .cluster()
-            .getDecommission(getDecommissionRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().cluster().getDecommission(getDecommissionRequest, new RestToXContentListener<>(channel));
     }
 }

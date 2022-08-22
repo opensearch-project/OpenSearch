@@ -24,8 +24,7 @@ public class PutDecommissionRequest extends ClusterManagerNodeRequest<PutDecommi
     private DecommissionAttribute decommissionAttribute;
     private TimeValue timeout;
 
-    public PutDecommissionRequest() {
-    }
+    public PutDecommissionRequest() {}
 
     public PutDecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue timeout) {
         this.decommissionAttribute = decommissionAttribute;
@@ -92,11 +91,6 @@ public class PutDecommissionRequest extends ClusterManagerNodeRequest<PutDecommi
 
     @Override
     public String toString() {
-        return "PutDecommissionRequest{"
-            + "decommissionAttribute="
-            + decommissionAttribute
-            + ", timeout="
-            + timeout
-            + '}';
+        return "PutDecommissionRequest{" + "decommissionAttribute=" + decommissionAttribute + ", timeout=" + timeout + '}';
     }
 }

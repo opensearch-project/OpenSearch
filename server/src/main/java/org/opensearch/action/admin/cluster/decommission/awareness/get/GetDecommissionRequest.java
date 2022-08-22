@@ -22,8 +22,7 @@ import java.io.IOException;
  */
 public class GetDecommissionRequest extends ClusterManagerNodeReadRequest<GetDecommissionRequest> {
 
-    public GetDecommissionRequest() {
-    }
+    public GetDecommissionRequest() {}
 
     public GetDecommissionRequest(StreamInput in) throws IOException {
         super(in);

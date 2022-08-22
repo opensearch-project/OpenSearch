@@ -25,9 +25,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportPutDecommissionAction extends TransportClusterManagerNodeAction<
-    PutDecommissionRequest,
-    PutDecommissionResponse> {
+public class TransportPutDecommissionAction extends TransportClusterManagerNodeAction<PutDecommissionRequest, PutDecommissionResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDecommissionAction.class);
 
@@ -35,7 +33,7 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
     public TransportPutDecommissionAction(
         TransportService transportService,
         ClusterService clusterService,
-//        DecommissionService decommissionService,
+        // DecommissionService decommissionService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -49,8 +47,8 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
             PutDecommissionRequest::new,
             indexNameExpressionResolver
         );
-        //TODO - uncomment when integrating with the service
-//        this.decommissionService = decommissionService;
+        // TODO - uncomment when integrating with the service
+        // this.decommissionService = decommissionService;
     }
 
     @Override
@@ -77,10 +75,10 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         logger.info("initiating awareness attribute [{}] decommissioning", request.getDecommissionAttribute().toString());
         listener.onResponse(new PutDecommissionResponse(true)); // TODO - remove after integration
         // TODO - uncomment when integrating with the service
-//        decommissionService.initiateAttributeDecommissioning(
-//            request.getDecommissionAttribute(),
-//            listener,
-//            state
-//        );
+        // decommissionService.initiateAttributeDecommissioning(
+        // request.getDecommissionAttribute(),
+        // listener,
+        // state
+        // );
     }
 }

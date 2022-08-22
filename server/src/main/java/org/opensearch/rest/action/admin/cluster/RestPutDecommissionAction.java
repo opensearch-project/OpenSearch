@@ -8,8 +8,6 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.PutDecommissionRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
@@ -42,9 +40,7 @@ public class RestPutDecommissionAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutDecommissionRequest putDecommissionRequest = createRequest(request);
-        return channel -> client.admin()
-            .cluster()
-            .putDecommission(putDecommissionRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().cluster().putDecommission(putDecommissionRequest, new RestToXContentListener<>(channel));
     }
 
     PutDecommissionRequest createRequest(RestRequest request) throws IOException {
@@ -58,8 +54,7 @@ public class RestPutDecommissionAction extends BaseRestHandler {
         if (request.hasParam("awareness_attribute_value")) {
             attributeValue = request.param("awareness_attribute_value");
         }
-        return putDecommissionRequest
-            .setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
+        return putDecommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
             .setTimeout(TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout"));
     }
 }
