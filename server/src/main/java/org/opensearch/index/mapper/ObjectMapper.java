@@ -55,6 +55,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Field mapper for object field types
@@ -349,6 +351,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
+                Pattern p = Pattern.compile("[^a-zA-Z0-9_.@$-]");
+                Matcher m = p.matcher(fieldName);
+                if (m.find()) {
+                    throw new MapperParsingException("Properties cannot contain special characters: " + fieldName);
+                }
                 // Should accept empty arrays, as a work around for when the
                 // user can't provide an empty Map. (PHP for example)
                 boolean isEmptyList = entry.getValue() instanceof List && ((List<?>) entry.getValue()).isEmpty();

@@ -47,6 +47,8 @@ import java.io.IOException;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
     public void testDifferentInnerObjectTokenFailure() throws Exception {
@@ -453,5 +455,23 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
+    }
+
+    public void testAddSpecialChars() throws Exception {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("<script>alert(\"Potential Cross-Site Scripting\");</script>")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+
+        assertThrows(
+            MapperParsingException.class,
+            () -> createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping))
+        );
     }
 }
