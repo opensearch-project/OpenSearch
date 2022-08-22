@@ -86,6 +86,9 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRespons
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequest;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsResponse;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsResponse;
@@ -805,4 +808,18 @@ public interface ClusterAdminClient extends OpenSearchClient {
      */
     ClusterPutWRRWeightsRequestBuilder prepareWRRWeights();
 
+    /**
+     * Gets weights for weighted round-robin search routing policy.
+     */
+    ActionFuture<ClusterGetWRRWeightsResponse> getWRRWeights(ClusterGetWRRWeightsRequest request);
+
+    /**
+     * Gets weights for weighted round-robin search routing policy.
+     */
+    void getWRRWeights(ClusterGetWRRWeightsRequest request, ActionListener<ClusterGetWRRWeightsResponse> listener);
+
+    /**
+     * Gets weights for weighted round-robin search routing policy.
+     */
+    ClusterGetWRRWeightsRequestBuilder prepareGetWRRWeights();
 }

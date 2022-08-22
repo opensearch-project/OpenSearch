@@ -1,0 +1,25 @@
+{
+  "cluster.get_wrr_weights": {
+    "documentation": {
+      "url": "TBA",
+      "description": "TBA"
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/routing/awareness/{attribute}/weights",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "attribute": {
+              "type": "string",
+              "description": "Awareness attribute name"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -47,6 +47,7 @@ import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryR
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequest;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -559,4 +560,12 @@ public class Requests {
         return new ClusterPutWRRWeightsRequest();
     }
 
+    /**
+     * Gets weights for weighted round-robin search routing policy
+     *
+     * @return get weight request
+     */
+    public static ClusterGetWRRWeightsRequest getWRRWEightsRequest() {
+        return new ClusterGetWRRWeightsRequest();
+    }
 }
