@@ -32,10 +32,6 @@ public class PutDecommissionRequest extends ClusterManagerNodeRequest<PutDecommi
         this.timeout = timeout;
     }
 
-    public PutDecommissionRequest(DecommissionAttribute decommissionAttribute) {
-        this.decommissionAttribute = decommissionAttribute;
-    }
-
     public PutDecommissionRequest(StreamInput in) throws IOException {
         super(in);
         decommissionAttribute = new DecommissionAttribute(in);
@@ -85,10 +81,10 @@ public class PutDecommissionRequest extends ClusterManagerNodeRequest<PutDecommi
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (decommissionAttribute.attributeName() == null) {
+        if (decommissionAttribute.attributeName() == null || decommissionAttribute.attributeName().isEmpty()) {
             validationException = addValidationError("attribute name is missing", validationException);
         }
-        if (decommissionAttribute.attributeValue() == null) {
+        if (decommissionAttribute.attributeValue() == null || decommissionAttribute.attributeValue().isEmpty()) {
             validationException = addValidationError("attribute value is missing", validationException);
         }
         return validationException;

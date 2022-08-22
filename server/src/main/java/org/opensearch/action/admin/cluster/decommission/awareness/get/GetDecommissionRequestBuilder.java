@@ -16,8 +16,6 @@ public class GetDecommissionRequestBuilder extends ClusterManagerNodeReadOperati
     GetDecommissionResponse,
     GetDecommissionRequestBuilder> {
 
-    // TODO - Support for get attribute with the name?
-
     /**
      * Creates new get decommissioned attributes request builder
      */

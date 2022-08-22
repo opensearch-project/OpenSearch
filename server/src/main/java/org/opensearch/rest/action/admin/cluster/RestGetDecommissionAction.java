@@ -30,8 +30,6 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  */
 public class RestGetDecommissionAction extends BaseRestHandler {
 
-    private static final Logger logger = LogManager.getLogger(RestPutDecommissionAction.class);
-
     @Override
     public List<Route> routes() {
         return singletonList(new Route(GET, "/_cluster/decommission/awareness/_status"));

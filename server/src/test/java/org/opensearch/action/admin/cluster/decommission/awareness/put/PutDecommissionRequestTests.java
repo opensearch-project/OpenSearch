@@ -8,7 +8,7 @@
 
 package org.opensearch.action.admin.cluster.decommission.awareness.put;
 
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
@@ -35,5 +35,49 @@ public class PutDecommissionRequestTests extends OpenSearchTestCase {
 
         assertEquals(deserialized.getDecommissionAttribute(), originalRequest.getDecommissionAttribute());
         assertEquals(deserialized.getTimeout(), originalRequest.getTimeout());
+    }
+
+    public void testValidation() {
+        {
+            String attributeName = null;
+            String attributeValue = "test";
+            DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
+            TimeValue timeout = TimeValue.timeValueMillis(between(0, 30000));
+
+            final PutDecommissionRequest request = new PutDecommissionRequest(
+                decommissionAttribute,
+                timeout
+            );
+            ActionRequestValidationException e = request.validate();
+            assertNotNull(e);
+            assertTrue(e.getMessage().contains("attribute name is missing"));
+        }
+        {
+            String attributeName = "zone";
+            String attributeValue = "";
+            DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
+            TimeValue timeout = TimeValue.timeValueMillis(between(0, 30000));
+
+            final PutDecommissionRequest request = new PutDecommissionRequest(
+                decommissionAttribute,
+                timeout
+            );
+            ActionRequestValidationException e = request.validate();
+            assertNotNull(e);
+            assertTrue(e.getMessage().contains("attribute value is missing"));
+        }
+        {
+            String attributeName = "zone";
+            String attributeValue = "test";
+            DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
+            TimeValue timeout = TimeValue.timeValueMillis(between(0, 30000));
+
+            final PutDecommissionRequest request = new PutDecommissionRequest(
+                decommissionAttribute,
+                timeout
+            );
+            ActionRequestValidationException e = request.validate();
+            assertNull(e);
+        }
     }
 }

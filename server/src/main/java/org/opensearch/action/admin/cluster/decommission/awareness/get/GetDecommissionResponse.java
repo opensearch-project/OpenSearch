@@ -19,14 +19,14 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class GetDecommissionResponse extends ActionResponse implements ToXContentObject {
 
-    private final DecommissionStatus status;
     private final DecommissionAttribute decommissionedAttribute;
-
+    private final DecommissionStatus status;
 
     GetDecommissionResponse(DecommissionAttribute decommissionedAttribute, DecommissionStatus status) {
         this.decommissionedAttribute = decommissionedAttribute;
@@ -42,6 +42,14 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
     public void writeTo(StreamOutput out) throws IOException {
         decommissionedAttribute.writeTo(out);
         out.writeByte(status.value());
+    }
+
+    public DecommissionAttribute getDecommissionedAttribute() {
+        return decommissionedAttribute;
+    }
+
+    public DecommissionStatus getDecommissionStatus() {
+        return status;
     }
 
     @Override
@@ -61,7 +69,7 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
         XContentParser.Token token;
         DecommissionAttribute decommissionAttribute = null;
         DecommissionStatus status = null;
-        if ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String currentFieldName = parser.currentName();
                 if (attributeType.equals(currentFieldName)) {
@@ -80,6 +88,7 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
                                 throw new OpenSearchParseException("failed to parse attribute [{}], expected string for attribute value", fieldName);
                             }
                             decommissionAttribute = new DecommissionAttribute(fieldName, value);
+                            token = parser.nextToken();
                         } else {
                             throw new OpenSearchParseException("failed to parse attribute type [{}], unexpected type", attributeType);
                         }
@@ -100,5 +109,18 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
             }
         }
         return new GetDecommissionResponse(decommissionAttribute, status);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetDecommissionResponse that = (GetDecommissionResponse) o;
+        return decommissionedAttribute.equals(that.decommissionedAttribute) && status == that.status;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(decommissionedAttribute, status);
     }
 }
