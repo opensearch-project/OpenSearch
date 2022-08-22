@@ -29,16 +29,20 @@ public class InitializeExtensionsRequest extends TransportRequest {
      * TODO change DiscoveryNode to Extension information
      */
     private final List<DiscoveryExtension> extensions;
+    public static final int OS_DEFAULT_PORT = 9200;
+    private int port;
 
     public InitializeExtensionsRequest(DiscoveryNode sourceNode, List<DiscoveryExtension> extensions) {
         this.sourceNode = sourceNode;
         this.extensions = extensions;
+        this.port = OS_DEFAULT_PORT;
     }
 
     public InitializeExtensionsRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
         extensions = in.readList(DiscoveryExtension::new);
+        port = in.readInt();
     }
 
     @Override
@@ -46,6 +50,7 @@ public class InitializeExtensionsRequest extends TransportRequest {
         super.writeTo(out);
         sourceNode.writeTo(out);
         out.writeList(extensions);
+        out.writeInt(port);
     }
 
     public List<DiscoveryExtension> getExtensions() {
@@ -56,9 +61,17 @@ public class InitializeExtensionsRequest extends TransportRequest {
         return sourceNode;
     }
 
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
     @Override
     public String toString() {
-        return "InitializeExtensionsRequest{" + "sourceNode=" + sourceNode + ", extensions=" + extensions + '}';
+        return "InitializeExtensionsRequest{" + "sourceNode=" + sourceNode + ", extensions=" + extensions + ", port=" + port + '}';
     }
 
     @Override
@@ -66,11 +79,13 @@ public class InitializeExtensionsRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InitializeExtensionsRequest that = (InitializeExtensionsRequest) o;
-        return Objects.equals(sourceNode, that.sourceNode) && Objects.equals(extensions, that.extensions);
+        return Objects.equals(sourceNode, that.sourceNode)
+            && Objects.equals(extensions, that.extensions)
+            && Objects.equals(port, that.port);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceNode, extensions);
+        return Objects.hash(sourceNode, extensions, port);
     }
 }
