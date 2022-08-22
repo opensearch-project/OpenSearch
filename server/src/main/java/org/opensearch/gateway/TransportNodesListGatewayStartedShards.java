@@ -373,7 +373,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else {
                 storeException = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_3_0_0) && in.readBoolean()) {
+            if (in.getVersion().onOrAfter(Version.V_2_3_0) && in.readBoolean()) {
                 replicationCheckpoint = new ReplicationCheckpoint(in);
             } else {
                 replicationCheckpoint = null;
@@ -430,7 +430,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else {
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_3_0)) {
                 if (replicationCheckpoint != null) {
                     out.writeBoolean(true);
                     replicationCheckpoint.writeTo(out);
