@@ -135,9 +135,9 @@ Adding in the change is two step process -
 
 2. Update your changes with the corresponding `PR_NUMBER` and  `PR_URL` and push out the new commit.
 
-For example, as a contributor, my change adds support for a new `FooBar` client, the changes would look like -
+For example, as a contributor, if my change adds support for a new `FooBar` client, new entry could look like this:
 
-```
+```md
 # CHANGELOG
 Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
@@ -145,7 +145,6 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 - ...
 - Add support for FooBar client ([#9999](https://github.com/opensearch-project/OpenSearch/pull/9999))
-- Your change here ([#PR_NUMBER](PR_URL))
 
 ### Changed
 - ...
