@@ -32,9 +32,13 @@ public class RestActionsRequestHandler {
      *
      * @param restController  The Node's {@link RestController}.
      * @param extensionIdMap  A map of extension uniqueId to DiscoveryExtension
-     * @param transportService  The Node's transportService 
+     * @param transportService  The Node's transportService
      */
-    public RestActionsRequestHandler(RestController restController, Map<String, DiscoveryExtension> extensionIdMap, TransportService transportService) {
+    public RestActionsRequestHandler(
+        RestController restController,
+        Map<String, DiscoveryExtension> extensionIdMap,
+        TransportService transportService
+    ) {
         this.restController = restController;
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
@@ -53,13 +57,13 @@ public class RestActionsRequestHandler {
         // don't believe connectToNode is necessary as this was already done in EO
         RestHandler handler = new RestSendToExtensionAction(restActionsRequest, discoveryExtension, transportService);
         restController.registerHandler(handler);
-            return new RegisterRestActionsResponse(
-                "Registered node "
-                    + restActionsRequest.getNodeId()
-                    + ", extension "
-                    + restActionsRequest.getUniqueId()
-                    + " to handle REST Actions "
-                    + restActionsRequest.getRestActions()
-            );
+        return new RegisterRestActionsResponse(
+            "Registered node "
+                + restActionsRequest.getNodeId()
+                + ", extension "
+                + restActionsRequest.getUniqueId()
+                + " to handle REST Actions "
+                + restActionsRequest.getRestActions()
+        );
     }
 }
