@@ -27,6 +27,7 @@ import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
 import org.opensearch.indices.replication.common.CopyState;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
@@ -54,6 +55,8 @@ class SegmentReplicationSourceHandler {
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final Logger logger;
     private final AtomicBoolean isReplicating = new AtomicBoolean();
+    private final DiscoveryNode targetNode;
+    private final String allocationId;
 
     /**
      * Constructor.
@@ -70,9 +73,11 @@ class SegmentReplicationSourceHandler {
         FileChunkWriter writer,
         ThreadPool threadPool,
         CopyState copyState,
+        String allocationId,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks
     ) {
+        this.targetNode = targetNode;
         this.shard = copyState.getShard();
         this.logger = Loggers.getLogger(
             SegmentReplicationSourceHandler.class,
@@ -89,6 +94,7 @@ class SegmentReplicationSourceHandler {
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
+        this.allocationId = allocationId;
         this.copyState = copyState;
     }
 
@@ -99,16 +105,24 @@ class SegmentReplicationSourceHandler {
      * @param listener {@link ActionListener} that completes with the list of files sent.
      */
     public synchronized void sendFiles(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
+        final ReplicationTimer timer = new ReplicationTimer();
         if (isReplicating.compareAndSet(false, true) == false) {
             throw new OpenSearchException("Replication to {} is already running.", shard.shardId());
         }
         future.addListener(listener, OpenSearchExecutors.newDirectExecutorService());
         final Closeable releaseResources = () -> IOUtils.close(resources);
         try {
-
+            timer.start();
             final Consumer<Exception> onFailure = e -> {
                 assert Transports.assertNotTransportThread(SegmentReplicationSourceHandler.this + "[onFailure]");
                 IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+                timer.stop();
+                logger.trace(
+                    "[replication id {}] Source node failed to send files to target node [{}], timing: {}",
+                    request.getReplicationId(),
+                    request.getTargetNode().getId(),
+                    timer.time()
+                );
             };
 
             RunUnderPrimaryPermit.run(() -> {
@@ -118,7 +132,7 @@ class SegmentReplicationSourceHandler {
                     logger.debug(
                         "delaying replication of {} as it is not listed as assigned to target node {}",
                         shard.shardId(),
-                        request.getTargetNode()
+                        targetNode
                     );
                     throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
                 }
@@ -142,18 +156,17 @@ class SegmentReplicationSourceHandler {
             transfer.start();
 
             sendFileStep.whenComplete(r -> {
-                final String targetAllocationId = request.getTargetAllocationId();
-                RunUnderPrimaryPermit.run(
-                    () -> shard.markAllocationIdAsInSync(targetAllocationId, request.getCheckpoint().getSeqNo()),
-                    shard.shardId() + " marking " + targetAllocationId + " as in sync",
-                    shard,
-                    cancellableThreads,
-                    logger
-                );
                 try {
                     future.onResponse(new GetSegmentFilesResponse(List.of(storeFileMetadata)));
                 } finally {
                     IOUtils.close(resources);
+                    timer.stop();
+                    logger.trace(
+                        "[replication id {}] Source node completed sending files to target node [{}], timing: {}",
+                        request.getReplicationId(),
+                        request.getTargetNode().getId(),
+                        timer.time()
+                    );
                 }
             }, onFailure);
         } catch (Exception e) {
@@ -174,5 +187,13 @@ class SegmentReplicationSourceHandler {
 
     public boolean isReplicating() {
         return isReplicating.get();
+    }
+
+    public DiscoveryNode getTargetNode() {
+        return targetNode;
+    }
+
+    public String getAllocationId() {
+        return allocationId;
     }
 }

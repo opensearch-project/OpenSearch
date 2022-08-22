@@ -97,7 +97,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(PercolatorPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(PercolatorModulePlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

@@ -35,6 +35,7 @@ package org.opensearch.gateway;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
@@ -56,11 +57,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.shard.ShardStateMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -195,6 +198,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                             clusterService.localNode(),
                             allocationId,
                             shardStateMetadata.primary,
+                            null,
                             exception
                         );
                     }
@@ -202,10 +206,16 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
                 logger.debug("{} shard state info found: [{}]", shardId, shardStateMetadata);
                 String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
-                return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetadata.primary);
+                final IndexShard shard = indicesService.getShardOrNull(shardId);
+                return new NodeGatewayStartedShards(
+                    clusterService.localNode(),
+                    allocationId,
+                    shardStateMetadata.primary,
+                    shard != null ? shard.getLatestReplicationCheckpoint() : null
+                );
             }
             logger.trace("{} no local shard info found", shardId);
-            return new NodeGatewayStartedShards(clusterService.localNode(), null, false);
+            return new NodeGatewayStartedShards(clusterService.localNode(), null, false, null);
         } catch (Exception e) {
             throw new OpenSearchException("failed to load started shards", e);
         }
@@ -349,10 +359,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
      * @opensearch.internal
      */
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
-
         private final String allocationId;
         private final boolean primary;
         private final Exception storeException;
+        private final ReplicationCheckpoint replicationCheckpoint;
 
         public NodeGatewayStartedShards(StreamInput in) throws IOException {
             super(in);
@@ -363,16 +373,33 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else {
                 storeException = null;
             }
+            if (in.getVersion().onOrAfter(Version.V_2_3_0) && in.readBoolean()) {
+                replicationCheckpoint = new ReplicationCheckpoint(in);
+            } else {
+                replicationCheckpoint = null;
+            }
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, String allocationId, boolean primary) {
-            this(node, allocationId, primary, null);
+        public NodeGatewayStartedShards(
+            DiscoveryNode node,
+            String allocationId,
+            boolean primary,
+            ReplicationCheckpoint replicationCheckpoint
+        ) {
+            this(node, allocationId, primary, replicationCheckpoint, null);
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, String allocationId, boolean primary, Exception storeException) {
+        public NodeGatewayStartedShards(
+            DiscoveryNode node,
+            String allocationId,
+            boolean primary,
+            ReplicationCheckpoint replicationCheckpoint,
+            Exception storeException
+        ) {
             super(node);
             this.allocationId = allocationId;
             this.primary = primary;
+            this.replicationCheckpoint = replicationCheckpoint;
             this.storeException = storeException;
         }
 
@@ -382,6 +409,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
         public boolean primary() {
             return this.primary;
+        }
+
+        public ReplicationCheckpoint replicationCheckpoint() {
+            return this.replicationCheckpoint;
         }
 
         public Exception storeException() {
@@ -399,6 +430,14 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else {
                 out.writeBoolean(false);
             }
+            if (out.getVersion().onOrAfter(Version.V_2_3_0)) {
+                if (replicationCheckpoint != null) {
+                    out.writeBoolean(true);
+                    replicationCheckpoint.writeTo(out);
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
         }
 
         @Override
@@ -414,7 +453,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
             return primary == that.primary
                 && Objects.equals(allocationId, that.allocationId)
-                && Objects.equals(storeException, that.storeException);
+                && Objects.equals(storeException, that.storeException)
+                && Objects.equals(replicationCheckpoint, that.replicationCheckpoint);
         }
 
         @Override
@@ -422,6 +462,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             int result = (allocationId != null ? allocationId.hashCode() : 0);
             result = 31 * result + (primary ? 1 : 0);
             result = 31 * result + (storeException != null ? storeException.hashCode() : 0);
+            result = 31 * result + (replicationCheckpoint != null ? replicationCheckpoint.hashCode() : 0);
             return result;
         }
 
@@ -431,6 +472,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             buf.append("NodeGatewayStartedShards[").append("allocationId=").append(allocationId).append(",primary=").append(primary);
             if (storeException != null) {
                 buf.append(",storeException=").append(storeException);
+            }
+            if (replicationCheckpoint != null) {
+                buf.append(",ReplicationCheckpoint=").append(replicationCheckpoint.toString());
             }
             buf.append("]");
             return buf.toString();

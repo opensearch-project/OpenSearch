@@ -35,7 +35,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
-  classname 'org.opensearch.ingest.geoip.IngestGeoIpPlugin'
+  classname 'org.opensearch.ingest.geoip.IngestGeoIpModulePlugin'
 }
 
 dependencies {

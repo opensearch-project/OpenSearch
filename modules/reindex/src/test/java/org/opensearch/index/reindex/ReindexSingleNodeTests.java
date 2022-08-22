@@ -46,7 +46,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class ReindexSingleNodeTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ReindexPlugin.class);
+        return Arrays.asList(ReindexModulePlugin.class);
     }
 
     public void testDeprecatedSort() {

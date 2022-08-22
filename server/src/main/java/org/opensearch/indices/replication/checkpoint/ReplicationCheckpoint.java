@@ -23,7 +23,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ReplicationCheckpoint implements Writeable {
+public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationCheckpoint> {
 
     private final ShardId shardId;
     private final long primaryTerm;
@@ -108,6 +108,11 @@ public class ReplicationCheckpoint implements Writeable {
     }
 
     @Override
+    public int compareTo(ReplicationCheckpoint other) {
+        return this.isAheadOf(other) ? -1 : 1;
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -125,10 +130,13 @@ public class ReplicationCheckpoint implements Writeable {
     }
 
     /**
-     * Checks if other is aheadof current replication point by comparing segmentInfosVersion. Returns true for null
+     * Checks if current replication checkpoint is AheadOf `other` replication checkpoint point by first comparing
+     * primaryTerm followed by segmentInfosVersion. Returns true when `other` is null.
      */
     public boolean isAheadOf(@Nullable ReplicationCheckpoint other) {
-        return other == null || segmentInfosVersion > other.getSegmentInfosVersion() || primaryTerm > other.getPrimaryTerm();
+        return other == null
+            || primaryTerm > other.getPrimaryTerm()
+            || (primaryTerm == other.getPrimaryTerm() && segmentInfosVersion > other.getSegmentInfosVersion());
     }
 
     @Override

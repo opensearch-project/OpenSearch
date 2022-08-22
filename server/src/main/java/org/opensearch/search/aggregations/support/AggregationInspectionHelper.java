@@ -54,7 +54,6 @@ import org.opensearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
 import org.opensearch.search.aggregations.metrics.InternalCardinality;
 import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
-import org.opensearch.search.aggregations.metrics.InternalGeoBounds;
 import org.opensearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentiles;
@@ -189,10 +188,6 @@ public class AggregationInspectionHelper {
 
     public static boolean hasValue(InternalExtendedStats agg) {
         return agg.getCount() > 0;
-    }
-
-    public static boolean hasValue(InternalGeoBounds agg) {
-        return (agg.topLeft() == null && agg.bottomRight() == null) == false;
     }
 
     public static boolean hasValue(InternalGeoCentroid agg) {
