@@ -82,20 +82,6 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         return new DecommissionAttributeMetadata(metadata.decommissionAttribute(), status);
     }
 
-    /**
-     * Creates a new instance with a updated attribute value.
-     *
-     * @param metadata       current metadata
-     * @param attributeValue new attribute value
-     * @return new instance with updated attribute value and status as DecommissionStatus.INIT
-     */
-    public DecommissionAttributeMetadata withUpdatedAttributeValue(DecommissionAttributeMetadata metadata, String attributeValue) {
-        return new DecommissionAttributeMetadata(
-            new DecommissionAttribute(metadata.decommissionAttribute, attributeValue),
-            DecommissionStatus.INIT
-        );
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
