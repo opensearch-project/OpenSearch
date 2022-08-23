@@ -8,87 +8,73 @@
 
 package org.opensearch.cluster.decommission;
 
+/**
+ * An enumeration of the states during decommissioning and recommissioning.
+ */
 public enum DecommissionStatus {
     /**
      * Decommission process is initiated
      */
-    INIT((byte) 0),
+    INIT("init"),
     /**
      * Decommission process has started, decommissioned nodes should be weighed away
      */
-    DECOMMISSIONING((byte) 1),
+    DECOMMISSION_IN_PROGRESS("decommission_in_progress"),
     /**
      * Decommissioning awareness attribute completed
      */
-    DECOMMISSIONED((byte) 2),
+    DECOMMISSION_SUCCESSFUL("decommission_successful"),
     /**
      * Decommission request failed
      */
-    DECOMMISSION_FAILED((byte) 3),
+    DECOMMISSION_FAILED("decommission_failed"),
     /**
      * Recommission request received, recommissioning process has started
      */
-    RECOMMISSIONING((byte) 4),
+    RECOMMISSION_IN_PROGRESS("recommission_in_progress"),
     /**
      * Recommission request failed. No nodes should fail to join the cluster with decommission exception
      */
-    RECOMMISSION_FAILED((byte) 5);
+    RECOMMISSION_FAILED("recommission_failed");
 
-    private final byte value;
+    private final String status;
 
-    DecommissionStatus(byte value) {
-        this.value = value;
+    DecommissionStatus(String status) {
+        this.status = status;
     }
 
     /**
-     * Returns code that represents the decommission state
+     * Returns status that represents the decommission state
      *
-     * @return code for the state
+     * @return status
      */
-    public byte value() {
-        return value;
+    public String status() {
+        return status;
     }
 
     /**
-     * Generate decommission state from code
+     * Generate decommission status from given string
      *
-     * @param value the state code
-     * @return state
+     * @param status status in string
+     * @return status
      */
-    public static DecommissionStatus fromValue(byte value) {
-        switch (value) {
-            case 0:
-                return INIT;
-            case 1:
-                return DECOMMISSIONING;
-            case 2:
-                return DECOMMISSIONED;
-            case 3:
-                return DECOMMISSION_FAILED;
-            case 4:
-                return RECOMMISSIONING;
-            case 5:
-                return RECOMMISSION_FAILED;
-            default:
-                throw new IllegalArgumentException("No decommission state for value [" + value + "]");
-        }
-    }
-
     public static DecommissionStatus fromString(String status) {
-        if ("init".equals(status)) {
+        if (status == null) {
+            throw new IllegalArgumentException("decommission status cannot be null");
+        }
+        if (status.equals(INIT.status())) {
             return INIT;
-        } else if ("decommissioning".equals(status)) {
-            return DECOMMISSIONING;
-        } else if ("decommissioned".equals(status)) {
-            return DECOMMISSIONED;
-        } else if ("decommission_failed".equals(status)) {
+        } else if (status.equals(DECOMMISSION_IN_PROGRESS.status())) {
+            return DECOMMISSION_IN_PROGRESS;
+        } else if (status.equals(DECOMMISSION_SUCCESSFUL.status())) {
+            return DECOMMISSION_SUCCESSFUL;
+        } else if (status.equals(DECOMMISSION_FAILED.status())) {
             return DECOMMISSION_FAILED;
-        } else if ("recommissioning".equals(status)) {
-            return RECOMMISSIONING;
-        } else if ("recommission_failed".equals(status)) {
+        } else if (status.equals(RECOMMISSION_IN_PROGRESS.status())) {
+            return RECOMMISSION_IN_PROGRESS;
+        } else if (status.equals(RECOMMISSION_FAILED.status())) {
             return RECOMMISSION_FAILED;
         }
-        throw new IllegalStateException("No status match for [" + status + "]");
+        throw new IllegalStateException("Decommission status [" + status + "] not recognized.");
     }
 }
-

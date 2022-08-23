@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.decommission;
 
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -15,12 +16,17 @@ import org.opensearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * {@link DecommissionAttribute} encapsulates information about decommissioned node attribute like attribute name, attribute value.
+ *
+ * @opensearch.internal
+ */
 public final class DecommissionAttribute implements Writeable {
     private final String attributeName;
     private final String attributeValue;
 
     /**
-     * Update the attribute value for a given attribute name to decommission
+     * Construct new decommission attribute with updated value from a given decommission attribute
      *
      * @param decommissionAttribute current decommissioned attribute object
      * @param attributeValue       attribute value to be updated with
@@ -100,12 +106,8 @@ public final class DecommissionAttribute implements Writeable {
         return Objects.hash(attributeName, attributeValue);
     }
 
-
     @Override
     public String toString() {
-        return "DecommissionAttribute{" +
-            "attributeName='" + attributeName + '\'' +
-            ", attributeValue='" + attributeValue + '\'' +
-            '}';
+        return "DecommissionAttribute{" + "attributeName='" + attributeName + '\'' + ", attributeValue='" + attributeValue + '\'' + '}';
     }
 }

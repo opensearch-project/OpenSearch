@@ -110,9 +110,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             return reason.equals(BECOME_MASTER_TASK_REASON) || reason.equals(BECOME_CLUSTER_MANAGER_TASK_REASON);
         }
 
-        /**
-         * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isBecomeClusterManagerTask()}
-         */
+        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isBecomeClusterManagerTask()} */
         @Deprecated
         public boolean isBecomeMasterTask() {
             return isBecomeClusterManagerTask();
@@ -484,9 +482,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             if (decommissionAttribute != null) {
                 if (node.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue())) {
                     throw new NodeDecommissionedException(
-                        "node has decommissioned attribute ["
-                            + decommissionAttribute.toString()
-                            + "]."
+                        "node [{}] has decommissioned attribute [{}].", node.getId(), decommissionAttribute.toString()
                     );
                 }
             }

@@ -19,7 +19,6 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-
 public class NodeDecommissionedException extends OpenSearchException {
 
     public NodeDecommissionedException(String msg, Object... args) {

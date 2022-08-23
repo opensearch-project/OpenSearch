@@ -14,6 +14,12 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * This exception is thrown whenever a failure occurs in decommission request @{@link DecommissionService}
+ *
+ * @opensearch.internal
+ */
+
 public class DecommissionFailedException extends OpenSearchException {
 
     private final DecommissionAttribute decommissionAttribute;

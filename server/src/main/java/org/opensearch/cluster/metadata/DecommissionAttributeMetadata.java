@@ -57,8 +57,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
      * @param decommissionAttribute attribute details
      */
     public DecommissionAttributeMetadata(DecommissionAttribute decommissionAttribute) {
-        this.decommissionAttribute = decommissionAttribute;
-        this.status = DecommissionStatus.INIT;
+        this(decommissionAttribute, DecommissionStatus.INIT);
     }
 
     /**
@@ -79,13 +78,8 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         return this.status;
     }
 
-    public DecommissionAttributeMetadata withUpdatedStatus(
-        DecommissionAttributeMetadata metadata,
-        DecommissionStatus status) {
-        return new DecommissionAttributeMetadata(
-            metadata.decommissionAttribute(),
-            status
-        );
+    public DecommissionAttributeMetadata withUpdatedStatus(DecommissionAttributeMetadata metadata, DecommissionStatus status) {
+        return new DecommissionAttributeMetadata(metadata.decommissionAttribute(), status);
     }
 
     /**
@@ -95,10 +89,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
      * @param attributeValue new attribute value
      * @return new instance with updated attribute value and status as DecommissionStatus.INIT
      */
-    public DecommissionAttributeMetadata withUpdatedAttributeValue(
-        DecommissionAttributeMetadata metadata,
-        String attributeValue
-    ) {
+    public DecommissionAttributeMetadata withUpdatedAttributeValue(DecommissionAttributeMetadata metadata, String attributeValue) {
         return new DecommissionAttributeMetadata(
             new DecommissionAttribute(metadata.decommissionAttribute, attributeValue),
             DecommissionStatus.INIT
@@ -116,21 +107,6 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         return decommissionAttribute.equals(that.decommissionAttribute);
     }
 
-    /**
-     * Checks if this instance and the given instance share the same decommissioned attributeName
-     * and only differ in the attributeValue {@link DecommissionAttribute#attributeValue()}
-     *
-     * @param other other decommission attribute metadata
-     * @return {@code true} iff both instances contain the same attributeName
-     */
-    public boolean equalsIgnoreValue(@Nullable DecommissionAttributeMetadata other) {
-        if (other == null) {
-            return false;
-        }
-        if (!status.equals(other.status)) return false;
-        return decommissionAttribute.equalsIgnoreValues(other.decommissionAttribute);
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(attributeType, decommissionAttribute, status);
@@ -146,12 +122,12 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+        return Version.V_2_3_0;
     }
 
     public DecommissionAttributeMetadata(StreamInput in) throws IOException {
         this.decommissionAttribute = new DecommissionAttribute(in);
-        this.status = DecommissionStatus.fromValue(in.readByte());
+        this.status = DecommissionStatus.fromString(in.readString());
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -164,7 +140,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         decommissionAttribute.writeTo(out);
-        out.writeByte(status.value());
+        out.writeString(status.status());
     }
 
     public static DecommissionAttributeMetadata fromXContent(XContentParser parser) throws IOException {
@@ -176,7 +152,10 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 String currentFieldName = parser.currentName();
                 if (attributeType.equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                        throw new OpenSearchParseException("failed to parse decommission attribute type [{}], expected object", attributeType);
+                        throw new OpenSearchParseException(
+                            "failed to parse decommission attribute type [{}], expected object",
+                            attributeType
+                        );
                     }
                     token = parser.nextToken();
                     if (token != XContentParser.Token.END_OBJECT) {
@@ -187,7 +166,10 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 value = parser.text();
                             } else {
-                                throw new OpenSearchParseException("failed to parse attribute [{}], expected string for attribute value", fieldName);
+                                throw new OpenSearchParseException(
+                                    "failed to parse attribute [{}], expected string for attribute value",
+                                    fieldName
+                                );
                             }
                             decommissionAttribute = new DecommissionAttribute(fieldName, value);
                         } else {
@@ -198,7 +180,9 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                     }
                 } else if ("status".equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                        throw new OpenSearchParseException("failed to parse status of decommissioning, expected string but found unknown type");
+                        throw new OpenSearchParseException(
+                            "failed to parse status of decommissioning, expected string but found unknown type"
+                        );
                     }
                     status = DecommissionStatus.fromString(parser.text());
                 } else {
@@ -243,7 +227,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         builder.startObject(attributeType);
         builder.field(decommissionAttribute.attributeName(), decommissionAttribute.attributeValue());
         builder.endObject();
-        builder.field("status", status);
+        builder.field("status", status.status());
     }
 
     @Override
