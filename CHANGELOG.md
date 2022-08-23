@@ -12,6 +12,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Removed
 
 ### Fixed
+- `opensearch-service.bat start` and `opensearch-service.bat manager` failing to run ([#PR_NUMBER](PR_URL))
 
 ### Security
 
