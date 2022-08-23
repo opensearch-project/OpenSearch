@@ -24,7 +24,6 @@ import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
-import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -49,6 +48,17 @@ import java.util.function.Predicate;
 
 /**
  * Service responsible for entire lifecycle of decommissioning and recommissioning an awareness attribute.
+ *
+ * Whenever a cluster manager initiates operation to decommission an awareness attribute,
+ * the service makes the best attempt to perform the following task -
+ * <p>
+ * 1. Remove cluster-manager eligible nodes from voting config [TODO - checks to avoid quorum loss scenarios]
+ * 2. Initiates nodes decommissioning by adding custom metadata with the attribute and state as {@link DecommissionStatus#DECOMMISSION_INIT}
+ * 3. Triggers weigh away for nodes having given awareness attribute to drain. This marks the decommission status as {@link DecommissionStatus#DECOMMISSION_IN_PROGRESS}
+ * 4. Once weighed away, the service triggers nodes decommission
+ * 5. Once the decommission is successful, the service clears the voting config and marks the status as {@link DecommissionStatus#DECOMMISSION_SUCCESSFUL}
+ * 6. If service fails at any step, it would mark the status as {@link DecommissionStatus#DECOMMISSION_FAILED}
+ * </p>
  *
  * @opensearch.internal
  */
@@ -96,13 +106,6 @@ public class DecommissionService implements ClusterStateApplier {
         final ActionListener<ClusterStateUpdateResponse> listener,
         ClusterState state
     ) {
-        /*
-         * 1. Abdicate master
-         * 2. Register attribute -> status should be set to INIT
-         * 3. Trigger weigh away for graceful decommission -> status should be set to DECOMMISSIONING
-         * 4. Once zone is weighed away -> trigger zone decommission using executor -> status should be set to DECOMMISSIONED on successful response
-         * 5. Clear voting config
-         */
         validateAwarenessAttribute(decommissionAttribute, getAwarenessAttributes());
         this.clusterState = state;
         logger.info("initiating awareness attribute [{}] decommissioning", decommissionAttribute.toString());
@@ -292,6 +295,40 @@ public class DecommissionService implements ClusterStateApplier {
         );
     }
 
+    // To Do - Can we add a consumer here such that whenever this succeeds we call the next method in on cluster state processed
+    private void updateMetadataWithDecommissionStatus(
+        DecommissionStatus decommissionStatus
+    ) {
+        clusterService.submitStateUpdateTask(
+            decommissionStatus.status(),
+            new ClusterStateUpdateTask(Priority.URGENT) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    Metadata metadata = currentState.metadata();
+                    DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+                    assert decommissionAttributeMetadata != null
+                        && decommissionAttributeMetadata.decommissionAttribute() != null
+                        : "failed to update status for decommission. metadata doesn't exist or invalid";
+                    Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                    DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
+                    mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, newMetadata);
+                    return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "failed to mark status as [{}]",
+                            decommissionStatus.status()
+                        ),
+                        e
+                    );
+                }
+            }
+        );
+    }
+
     private static void validateAwarenessAttribute(final DecommissionAttribute decommissionAttribute, List<String> awarenessAttributes) {
         if (!awarenessAttributes.contains(decommissionAttribute.attributeName())) {
             throw new DecommissionFailedException(decommissionAttribute, "invalid awareness attribute requested for decommissioning");
@@ -316,7 +353,7 @@ public class DecommissionService implements ClusterStateApplier {
     private void failDecommissionedNodes(ClusterState state) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
         // TODO update the status check to DECOMMISSIONING once graceful decommission is implemented
-        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT)
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_INIT)
             : "unexpected status encountered while decommissioning nodes";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
         List<DiscoveryNode> nodesToBeDecommissioned = new ArrayList<>();

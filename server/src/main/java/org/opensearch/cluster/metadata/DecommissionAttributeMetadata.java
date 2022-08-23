@@ -15,7 +15,6 @@ import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.metadata.Metadata.Custom;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -52,12 +51,12 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     }
 
     /**
-     * Constructs new decommission attribute metadata with status as {@link DecommissionStatus#INIT}
+     * Constructs new decommission attribute metadata with status as {@link DecommissionStatus#DECOMMISSION_INIT}
      *
      * @param decommissionAttribute attribute details
      */
     public DecommissionAttributeMetadata(DecommissionAttribute decommissionAttribute) {
-        this(decommissionAttribute, DecommissionStatus.INIT);
+        this(decommissionAttribute, DecommissionStatus.DECOMMISSION_INIT);
     }
 
     /**
@@ -78,8 +77,13 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         return this.status;
     }
 
-    public DecommissionAttributeMetadata withUpdatedStatus(DecommissionAttributeMetadata metadata, DecommissionStatus status) {
-        return new DecommissionAttributeMetadata(metadata.decommissionAttribute(), status);
+    /**
+     * Creates a new instance that has the given decommission attribute moved to the given @{@link DecommissionStatus}
+     * @param status status to be updated with
+     * @return new instance with updated status
+     */
+    public DecommissionAttributeMetadata withUpdatedStatus(DecommissionStatus status) {
+        return new DecommissionAttributeMetadata(decommissionAttribute(), status);
     }
 
     @Override

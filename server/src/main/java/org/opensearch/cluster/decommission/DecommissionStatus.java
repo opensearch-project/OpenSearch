@@ -15,7 +15,7 @@ public enum DecommissionStatus {
     /**
      * Decommission process is initiated
      */
-    INIT("init"),
+    DECOMMISSION_INIT("decommission_init"),
     /**
      * Decommission process has started, decommissioned nodes should be weighed away
      */
@@ -62,8 +62,8 @@ public enum DecommissionStatus {
         if (status == null) {
             throw new IllegalArgumentException("decommission status cannot be null");
         }
-        if (status.equals(INIT.status())) {
-            return INIT;
+        if (status.equals(DECOMMISSION_INIT.status())) {
+            return DECOMMISSION_INIT;
         } else if (status.equals(DECOMMISSION_IN_PROGRESS.status())) {
             return DECOMMISSION_IN_PROGRESS;
         } else if (status.equals(DECOMMISSION_SUCCESSFUL.status())) {
