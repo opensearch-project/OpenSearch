@@ -403,7 +403,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             )
         );
 
-        extensionsOrchestrator.initializeRestActionsRequestHandler(restController, transportService);
+        extensionsOrchestrator.initializeRestActionsRequestHandler(restController, mockTransportService);
         verify(mockTransportService, times(4)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
