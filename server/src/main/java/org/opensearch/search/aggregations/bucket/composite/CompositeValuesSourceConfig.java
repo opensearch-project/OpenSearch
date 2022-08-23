@@ -88,7 +88,7 @@ public class CompositeValuesSourceConfig {
      * @param missingBucket If <code>true</code> an explicit <code>null</code> bucket will represent documents with missing values.
      * @param hasScript <code>true</code> if the source contains a script that can change the value.
      */
-    CompositeValuesSourceConfig(
+    public CompositeValuesSourceConfig(
         String name,
         @Nullable MappedFieldType fieldType,
         ValuesSource vs,
@@ -113,21 +113,21 @@ public class CompositeValuesSourceConfig {
     /**
      * Returns the name associated with this configuration.
      */
-    String name() {
+    protected String name() {
         return name;
     }
 
     /**
      * Returns the {@link MappedFieldType} for this config.
      */
-    MappedFieldType fieldType() {
+    public MappedFieldType fieldType() {
         return fieldType;
     }
 
     /**
      * Returns the {@link ValuesSource} for this configuration.
      */
-    ValuesSource valuesSource() {
+    public ValuesSource valuesSource() {
         return vs;
     }
 
@@ -135,35 +135,35 @@ public class CompositeValuesSourceConfig {
      * The {@link DocValueFormat} to use for formatting the keys.
      * {@link DocValueFormat#RAW} means no formatting.
      */
-    DocValueFormat format() {
+    public DocValueFormat format() {
         return format;
     }
 
     /**
      * If true, an explicit `null bucket represents documents with missing values.
      */
-    boolean missingBucket() {
+    public boolean missingBucket() {
         return missingBucket;
     }
 
     /**
      * Return the {@link MissingOrder} for the config.
      */
-    MissingOrder missingOrder() {
+    public MissingOrder missingOrder() {
         return missingOrder;
     }
 
     /**
      * Returns true if the source contains a script that can change the value.
      */
-    boolean hasScript() {
+    protected boolean hasScript() {
         return hasScript;
     }
 
     /**
      * The sort order for the values source (e.g. -1 for descending and 1 for ascending).
      */
-    int reverseMul() {
+    public int reverseMul() {
         assert reverseMul == -1 || reverseMul == 1;
         return reverseMul;
     }

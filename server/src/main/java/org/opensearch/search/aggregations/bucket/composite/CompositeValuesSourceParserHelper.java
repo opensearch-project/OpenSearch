@@ -49,6 +49,11 @@ import org.opensearch.search.aggregations.support.ValueType;
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.search.aggregations.bucket.composite.CompositeAggregationBuilder.AGGREGATION_TYPE_TO_COMPOSITE_VALUE_SOURCE_READER;
+import static org.opensearch.search.aggregations.bucket.composite.CompositeAggregationBuilder.BUILDER_CLASS_TO_AGGREGATION_TYPE;
+import static org.opensearch.search.aggregations.bucket.composite.CompositeAggregationBuilder.BUILDER_CLASS_TO_BYTE_CODE;
+import static org.opensearch.search.aggregations.bucket.composite.CompositeAggregationBuilder.BUILDER_TYPE_TO_PARSER;
+import static org.opensearch.search.aggregations.bucket.composite.CompositeAggregationBuilder.BYTE_CODE_TO_COMPOSITE_VALUE_SOURCE_READER;
 
 /**
  * Helper class for obtaining values source parsers for different aggs
@@ -57,7 +62,11 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  */
 public class CompositeValuesSourceParserHelper {
 
-    static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser) {
+    private static final int AGGREGATION_TYPE_REFERENCE = Byte.MAX_VALUE;
+
+    public static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(
+        AbstractObjectParser<VB, T> objectParser
+    ) {
         objectParser.declareField(VB::field, XContentParser::text, new ParseField("field"), ObjectParser.ValueType.STRING);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
         objectParser.declareString(VB::missingOrder, new ParseField(MissingOrder.NAME));
@@ -78,28 +87,45 @@ public class CompositeValuesSourceParserHelper {
     }
 
     public static void writeTo(CompositeValuesSourceBuilder<?> builder, StreamOutput out) throws IOException {
-        final byte code;
+        int code = Byte.MIN_VALUE;
+        String aggregationType = null;
         if (builder.getClass() == TermsValuesSourceBuilder.class) {
             code = 0;
         } else if (builder.getClass() == DateHistogramValuesSourceBuilder.class) {
             code = 1;
         } else if (builder.getClass() == HistogramValuesSourceBuilder.class) {
             code = 2;
-        } else if (builder.getClass() == GeoTileGridValuesSourceBuilder.class) {
-            if (out.getVersion().before(LegacyESVersion.V_7_5_0)) {
-                throw new IOException(
-                    "Attempting to serialize ["
-                        + builder.getClass().getSimpleName()
-                        + "] to a node with unsupported version ["
-                        + out.getVersion()
-                        + "]"
-                );
-            }
-            code = 3;
         } else {
-            throw new IOException("invalid builder type: " + builder.getClass().getSimpleName());
+            if (!BUILDER_CLASS_TO_BYTE_CODE.containsKey(builder.getClass())
+                && !BUILDER_CLASS_TO_AGGREGATION_TYPE.containsKey(builder.getClass())) {
+                throw new IOException("invalid builder type: " + builder.getClass().getSimpleName());
+            }
+            aggregationType = BUILDER_CLASS_TO_AGGREGATION_TYPE.get(builder.getClass());
+            if (BUILDER_CLASS_TO_BYTE_CODE.containsKey(builder.getClass())) {
+                code = BUILDER_CLASS_TO_BYTE_CODE.get(builder.getClass());
+                if (code == 3 && out.getVersion().before(LegacyESVersion.V_7_5_0)) {
+                    throw new IOException(
+                        "Attempting to serialize ["
+                            + builder.getClass().getSimpleName()
+                            + "] to a node with unsupported version ["
+                            + out.getVersion()
+                            + "]"
+                    );
+                }
+            }
         }
-        out.writeByte(code);
+
+        if (code != Byte.MIN_VALUE) {
+            out.writeByte((byte) code);
+        } else if (!BUILDER_CLASS_TO_BYTE_CODE.containsKey(builder.getClass())) {
+            /*
+             * This is added for backward compatibility when 1 data node is using the new code which is using the
+             * aggregation type and another is using the only byte code in the serialisation.
+             */
+            out.writeByte((byte) AGGREGATION_TYPE_REFERENCE);
+            assert aggregationType != null;
+            out.writeString(aggregationType);
+        }
         builder.writeTo(out);
     }
 
@@ -112,10 +138,17 @@ public class CompositeValuesSourceParserHelper {
                 return new DateHistogramValuesSourceBuilder(in);
             case 2:
                 return new HistogramValuesSourceBuilder(in);
-            case 3:
-                return new GeoTileGridValuesSourceBuilder(in);
+            case AGGREGATION_TYPE_REFERENCE:
+                final String aggregationType = in.readString();
+                if (!AGGREGATION_TYPE_TO_COMPOSITE_VALUE_SOURCE_READER.containsKey(aggregationType)) {
+                    throw new IOException("Invalid aggregation type " + aggregationType);
+                }
+                return (CompositeValuesSourceBuilder<?>) AGGREGATION_TYPE_TO_COMPOSITE_VALUE_SOURCE_READER.get(aggregationType).read(in);
             default:
-                throw new IOException("Invalid code " + code);
+                if (!BYTE_CODE_TO_COMPOSITE_VALUE_SOURCE_READER.containsKey(code)) {
+                    throw new IOException("Invalid code " + code);
+                }
+                return (CompositeValuesSourceBuilder<?>) BYTE_CODE_TO_COMPOSITE_VALUE_SOURCE_READER.get(code).read(in);
         }
     }
 
@@ -143,11 +176,11 @@ public class CompositeValuesSourceParserHelper {
             case HistogramValuesSourceBuilder.TYPE:
                 builder = HistogramValuesSourceBuilder.parse(name, parser);
                 break;
-            case GeoTileGridValuesSourceBuilder.TYPE:
-                builder = GeoTileGridValuesSourceBuilder.parse(name, parser);
-                break;
             default:
-                throw new ParsingException(parser.getTokenLocation(), "invalid source type: " + type);
+                if (!BUILDER_TYPE_TO_PARSER.containsKey(type)) {
+                    throw new ParsingException(parser.getTokenLocation(), "invalid source type: " + type);
+                }
+                builder = BUILDER_TYPE_TO_PARSER.get(type).parse(name, parser);
         }
         parser.nextToken();
         parser.nextToken();
@@ -163,4 +196,5 @@ public class CompositeValuesSourceParserHelper {
         builder.endObject();
         return builder;
     }
+
 }

@@ -35,7 +35,6 @@ import org.opensearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatr
 import org.opensearch.search.aggregations.bucket.composite.InternalComposite;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilters;
-import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
 import org.opensearch.search.aggregations.bucket.global.InternalGlobal;
 import org.opensearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
 import org.opensearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
@@ -117,10 +116,6 @@ public class AggregationInspectionHelper {
 
     public static boolean hasValue(InternalFilter agg) {
         return agg.getDocCount() > 0;
-    }
-
-    public static boolean hasValue(InternalGeoGrid<?> agg) {
-        return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 
     public static boolean hasValue(InternalGlobal agg) {
