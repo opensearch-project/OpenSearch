@@ -103,6 +103,7 @@ public class DecommissionService implements ClusterStateApplier {
          * 4. Once zone is weighed away -> trigger zone decommission using executor -> status should be set to DECOMMISSIONED on successful response
          * 5. Clear voting config
          */
+        validateAwarenessAttribute(decommissionAttribute, getAwarenessAttributes());
         this.clusterState = state;
         logger.info("initiating awareness attribute [{}] decommissioning", decommissionAttribute.toString());
         excludeDecommissionedClusterManagerNodesFromVotingConfig(decommissionAttribute, listener);
@@ -112,7 +113,7 @@ public class DecommissionService implements ClusterStateApplier {
         DecommissionAttribute decommissionAttribute,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        final Predicate<DiscoveryNode> shouldAbdicatePredicate = discoveryNode -> nodeHasDecommissionedAttribute(
+        final Predicate<DiscoveryNode> shouldDecommissionPredicate = discoveryNode -> nodeHasDecommissionedAttribute(
             discoveryNode,
             decommissionAttribute
         );
@@ -120,7 +121,7 @@ public class DecommissionService implements ClusterStateApplier {
         Iterator<DiscoveryNode> clusterManagerNodesIter = clusterState.nodes().getClusterManagerNodes().valuesIt();
         while (clusterManagerNodesIter.hasNext()) {
             final DiscoveryNode node = clusterManagerNodesIter.next();
-            if (shouldAbdicatePredicate.test(node)) {
+            if (shouldDecommissionPredicate.test(node)) {
                 clusterManagerNodesToBeDecommissioned.add(node.getName());
             }
         }
@@ -210,7 +211,7 @@ public class DecommissionService implements ClusterStateApplier {
         assert transportService.getLocalNode().isClusterManagerNode()
             && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)
             : "cannot register decommission attribute, as local node is not master or is going to be decommissioned";
-        validateAwarenessAttribute(decommissionAttribute, getAwarenessAttributes());
+
         clusterService.submitStateUpdateTask(
             "put_decommission [" + decommissionAttribute + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
