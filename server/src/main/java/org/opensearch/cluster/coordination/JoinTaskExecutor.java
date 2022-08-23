@@ -482,7 +482,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             if (decommissionAttribute != null) {
                 if (node.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue())) {
                     throw new NodeDecommissionedException(
-                        "node [{}] has decommissioned attribute [{}].", node.getId(), decommissionAttribute.toString()
+                        "node [{}] has decommissioned attribute [{}].", node.toString(), decommissionAttribute.toString()
                     );
                 }
             }
