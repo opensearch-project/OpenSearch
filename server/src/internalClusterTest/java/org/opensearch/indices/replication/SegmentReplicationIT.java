@@ -16,6 +16,8 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.update.UpdateResponse;
+import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -46,8 +48,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationIT extends OpenSearchIntegTestCase {
@@ -416,6 +420,60 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                     .getTotalHits().value;
                 assertEquals(expectedHitCount - 1, nodeB_Count);
             }, 5, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testUpdateOperations() throws Exception {
+        final String primary = internalCluster().startNode();
+        createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
+        final String replica = internalCluster().startNode();
+
+        final int initialDocCount = scaledRandomIntBetween(0, 200);
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(initialDocCount);
+            waitForDocs(initialDocCount, indexer);
+            refresh(INDEX_NAME);
+            waitForReplicaUpdate();
+
+            // wait a short amount of time to give replication a chance to complete.
+            assertHitCount(client(primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+            assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+
+            final int additionalDocCount = scaledRandomIntBetween(0, 200);
+            final int expectedHitCount = initialDocCount + additionalDocCount;
+            indexer.start(additionalDocCount);
+            waitForDocs(expectedHitCount, indexer);
+            waitForReplicaUpdate();
+
+            assertHitCount(client(primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+            assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+
+            Set<String> ids = indexer.getIds();
+            String id = ids.toArray()[0].toString();
+            UpdateResponse updateResponse = client(primary).prepareUpdate(INDEX_NAME, id)
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                .get();
+            assertFalse("request shouldn't have forced a refresh", updateResponse.forcedRefresh());
+            assertEquals(2, updateResponse.getVersion());
+
+            refresh(INDEX_NAME);
+            waitForReplicaUpdate();
+
+            assertSearchHits(client(primary).prepareSearch(INDEX_NAME).setQuery(matchQuery("foo", "baz")).get(), id);
+            assertSearchHits(client(replica).prepareSearch(INDEX_NAME).setQuery(matchQuery("foo", "baz")).get(), id);
+
         }
     }
 
