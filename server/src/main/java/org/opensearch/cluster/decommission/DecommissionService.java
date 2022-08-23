@@ -21,7 +21,6 @@ import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclus
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
-import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -49,7 +48,7 @@ import java.util.function.Predicate;
 
 /**
  * Service responsible for entire lifecycle of decommissioning and recommissioning an awareness attribute.
- *
+ * <p>
  * Whenever a cluster manager initiates operation to decommission an awareness attribute,
  * the service makes the best attempt to perform the following task -
  * <p>
@@ -271,14 +270,14 @@ public class DecommissionService implements ClusterStateApplier {
                     assert !newState.equals(oldState) : "no update in cluster state after initiating decommission request.";
                     // Do we attach a listener here with failed acknowledgement to the request?
                     listener.onResponse(new ClusterStateUpdateResponse(true));
-                    initiateGracefulDecommission(newState, listener);
+                    initiateGracefulDecommission(newState);
                 }
             }
         );
     }
 
-    private void initiateGracefulDecommission(ClusterState clusterState, ActionListener<ClusterStateUpdateResponse> listener) {
-        failDecommissionedNodes(clusterState, listener);
+    private void initiateGracefulDecommission(ClusterState clusterState) {
+        failDecommissionedNodes(clusterState);
     }
 
     // To Do - Can we add a consumer here such that whenever this succeeds we call the next method in on cluster state processed
@@ -295,6 +294,7 @@ public class DecommissionService implements ClusterStateApplier {
                     assert decommissionAttributeMetadata != null
                         && decommissionAttributeMetadata.decommissionAttribute() != null
                         : "failed to update status for decommission. metadata doesn't exist or invalid";
+                    assert assertIncrementalStatusOrFailed(decommissionAttributeMetadata.status(), decommissionStatus);
                     Metadata.Builder mdBuilder = Metadata.builder(metadata);
                     DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
                     mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, newMetadata);
@@ -336,7 +336,7 @@ public class DecommissionService implements ClusterStateApplier {
         }
     }
 
-    private void failDecommissionedNodes(ClusterState state, ActionListener<ClusterStateUpdateResponse> listener) {
+    private void failDecommissionedNodes(ClusterState state) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
         // TODO update the status check to DECOMMISSIONING once graceful decommission is implemented
         assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_INIT)
@@ -357,6 +357,16 @@ public class DecommissionService implements ClusterStateApplier {
         // TODO - check for response from decommission request and then clear voting config?
         decommissionHelper.handleNodesDecommissionRequest(nodesToBeDecommissioned, "nodes-decommissioned");
         clearVotingConfigAfterSuccessfulDecommission();
+    }
+
+    private static boolean assertIncrementalStatusOrFailed(DecommissionStatus oldStatus, DecommissionStatus newStatus) {
+        if (oldStatus == null || newStatus.equals(DecommissionStatus.DECOMMISSION_FAILED)) return true;
+        else if (newStatus.equals(DecommissionStatus.DECOMMISSION_SUCCESSFUL)) {
+            return oldStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS);
+        } else if (newStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS)) {
+            return oldStatus.equals(DecommissionStatus.DECOMMISSION_INIT);
+        }
+        return true;
     }
 
     private static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
