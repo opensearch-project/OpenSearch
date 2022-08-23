@@ -69,6 +69,12 @@ public class NRTReplicationEngine extends Engine {
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager = readerManager;
             this.readerManager.addListener(completionStatsCache);
+            for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
+                this.readerManager.addListener(listener);
+            }
+            for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
+                this.readerManager.addListener(listener);
+            }
             final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
             final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             translogManagerRef = new WriteOnlyTranslogManager(
@@ -95,7 +101,8 @@ public class NRTReplicationEngine extends Engine {
                         }
                     }
                 },
-                this
+                this,
+                engineConfig.getTranslogFactory()
             );
             this.translogManager = translogManagerRef;
         } catch (IOException e) {
@@ -120,6 +127,23 @@ public class NRTReplicationEngine extends Engine {
             translogManager.rollTranslogGeneration();
         }
         localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
+    }
+
+    /**
+     * Persist the latest live SegmentInfos.
+     *
+     * This method creates a commit point from the latest SegmentInfos. It is intended to be used when this shard is about to be promoted as the new primary.
+     *
+     * TODO: If this method is invoked while the engine is currently updating segments on its reader, wait for that update to complete so the updated segments are used.
+     *
+     *
+     * @throws IOException - When there is an IO error committing the SegmentInfos.
+     */
+    public void commitSegmentInfos() throws IOException {
+        // TODO: This method should wait for replication events to finalize.
+        final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+        store.commitSegmentInfos(latestSegmentInfos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+        translogManager.syncTranslog();
     }
 
     @Override
@@ -191,6 +215,18 @@ public class NRTReplicationEngine extends Engine {
     @Override
     protected ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
+    }
+
+    /**
+     * Refreshing of this engine will only happen internally when a new set of segments is received.  The engine will ignore external
+     * refresh attempts so we can return false here.  Further Engine's existing implementation reads DirectoryReader.isCurrent after acquiring a searcher.
+     * With this Engine's NRTReplicationReaderManager, This will use StandardDirectoryReader's implementation which determines if the reader is current by
+     * comparing the on-disk SegmentInfos version against the one in the reader, which at refresh points will always return isCurrent false and then refreshNeeded true.
+     * Even if this method returns refresh as needed, we ignore it and only ever refresh with incoming SegmentInfos.
+     */
+    @Override
+    public boolean refreshNeeded() {
+        return false;
     }
 
     @Override

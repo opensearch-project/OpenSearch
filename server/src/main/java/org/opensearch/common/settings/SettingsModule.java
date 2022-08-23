@@ -88,9 +88,9 @@ public class SettingsModule implements Module {
             registerSetting(setting);
         }
 
-        for (Map.Entry<String, Setting> featureFlaggedSetting : IndexScopedSettings.FEATURE_FLAGGED_INDEX_SETTINGS.entrySet()) {
+        for (Map.Entry<String, List<Setting>> featureFlaggedSetting : IndexScopedSettings.FEATURE_FLAGGED_INDEX_SETTINGS.entrySet()) {
             if (FeatureFlags.isEnabled(featureFlaggedSetting.getKey())) {
-                registerSetting(featureFlaggedSetting.getValue());
+                featureFlaggedSetting.getValue().forEach(feature -> registerSetting(feature));
             }
         }
 

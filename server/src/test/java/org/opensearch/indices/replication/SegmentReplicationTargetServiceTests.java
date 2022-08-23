@@ -13,6 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexShard;
@@ -50,7 +51,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        final Settings settings = Settings.builder().put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName()).build();
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
+            .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
+            .build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
         final TransportService transportService = mock(TransportService.class);
@@ -96,8 +100,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         final SegmentReplicationTarget spy = Mockito.spy(target);
         doAnswer(invocation -> {
-            // setting stage to REPLICATING so transition in markAsDone succeeds on listener completion
-            target.state().setStage(SegmentReplicationState.Stage.REPLICATING);
+            // set up stage correctly so the transition in markAsDone succeeds on listener completion
+            moveTargetToFinalStage(target);
             final ActionListener<Void> listener = invocation.getArgument(0);
             listener.onResponse(null);
             return null;
@@ -119,7 +123,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
-                    assertEquals(SegmentReplicationState.Stage.REPLICATING, state.getStage());
+                    assertEquals(SegmentReplicationState.Stage.INIT, state.getStage());
                     assertEquals(expectedError, e.getCause());
                     assertTrue(sendShardFailure);
                 }
@@ -127,8 +131,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         final SegmentReplicationTarget spy = Mockito.spy(target);
         doAnswer(invocation -> {
-            // setting stage to REPLICATING so transition in markAsDone succeeds on listener completion
-            target.state().setStage(SegmentReplicationState.Stage.REPLICATING);
             final ActionListener<Void> listener = invocation.getArgument(0);
             listener.onFailure(expectedError);
             return null;
@@ -204,6 +206,23 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         closeShard(indexShard, false);
     }
 
+    /**
+     * here we are starting a new shard in PrimaryMode and testing that we don't process a checkpoint on shard when it is in PrimaryMode.
+     */
+    public void testRejectCheckpointOnShardPrimaryMode() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+
+        // Starting a new shard in PrimaryMode.
+        IndexShard primaryShard = newStartedShard(true);
+        IndexShard spyShard = spy(primaryShard);
+        doNothing().when(spy).startReplication(any(), any(), any());
+        spy.onNewCheckpoint(aheadCheckpoint, spyShard);
+
+        // Verify that checkpoint is not processed as shard is in PrimaryMode.
+        verify(spy, times(0)).startReplication(any(), any(), any());
+        closeShards(primaryShard);
+    }
+
     public void testReplicationOnDone() throws IOException {
         SegmentReplicationTargetService spy = spy(sut);
         IndexShard spyShard = spy(indexShard);
@@ -249,5 +268,18 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         sut.startReplication(spy);
         sut.beforeIndexShardClosed(indexShard.shardId(), indexShard, Settings.EMPTY);
         verify(spy, times(1)).cancel(any());
+    }
+
+    /**
+     * Move the {@link SegmentReplicationTarget} object through its {@link SegmentReplicationState.Stage} values in order
+     * until the final, non-terminal stage.
+     */
+    private void moveTargetToFinalStage(SegmentReplicationTarget target) {
+        SegmentReplicationState.Stage[] stageValues = SegmentReplicationState.Stage.values();
+        assertEquals(target.state().getStage(), SegmentReplicationState.Stage.INIT);
+        // Skip the first two stages (DONE and INIT) and iterate until the last value
+        for (int i = 2; i < stageValues.length; i++) {
+            target.state().setStage(stageValues[i]);
+        }
     }
 }

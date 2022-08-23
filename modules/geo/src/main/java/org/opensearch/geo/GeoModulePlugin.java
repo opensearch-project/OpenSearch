@@ -32,18 +32,74 @@
 
 package org.opensearch.geo;
 
+import org.opensearch.geo.search.aggregations.bucket.composite.GeoTileGridValuesSourceBuilder;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregator;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
+import org.opensearch.geo.search.aggregations.metrics.GeoBounds;
+import org.opensearch.geo.search.aggregations.metrics.GeoBoundsAggregationBuilder;
+import org.opensearch.geo.search.aggregations.metrics.InternalGeoBounds;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.aggregations.bucket.composite.CompositeAggregation;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
-public class GeoModulePlugin extends Plugin implements MapperPlugin {
+public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
+    }
+
+    /**
+     * Registering {@link GeoBounds} aggregation on GeoPoint field.
+     */
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        final AggregationSpec geoBounds = new AggregationSpec(
+            GeoBoundsAggregationBuilder.NAME,
+            GeoBoundsAggregationBuilder::new,
+            GeoBoundsAggregationBuilder.PARSER
+        ).addResultReader(InternalGeoBounds::new).setAggregatorRegistrar(GeoBoundsAggregationBuilder::registerAggregators);
+
+        final AggregationSpec geoHashGrid = new AggregationSpec(
+            GeoHashGridAggregationBuilder.NAME,
+            GeoHashGridAggregationBuilder::new,
+            GeoHashGridAggregationBuilder.PARSER
+        ).addResultReader(InternalGeoHashGrid::new).setAggregatorRegistrar(GeoHashGridAggregationBuilder::registerAggregators);
+
+        final AggregationSpec geoTileGrid = new AggregationSpec(
+            GeoTileGridAggregationBuilder.NAME,
+            GeoTileGridAggregationBuilder::new,
+            GeoTileGridAggregationBuilder.PARSER
+        ).addResultReader(InternalGeoTileGrid::new).setAggregatorRegistrar(GeoTileGridAggregationBuilder::registerAggregators);
+        return List.of(geoBounds, geoHashGrid, geoTileGrid);
+    }
+
+    /**
+     * Registering the {@link GeoTileGridAggregator} in the {@link CompositeAggregation}.
+     *
+     * @return a {@link List} of {@link CompositeAggregationSpec}
+     */
+    @Override
+    public List<CompositeAggregationSpec> getCompositeAggregations() {
+        return Collections.singletonList(
+            new CompositeAggregationSpec(
+                GeoTileGridValuesSourceBuilder::register,
+                GeoTileGridValuesSourceBuilder.class,
+                GeoTileGridValuesSourceBuilder.COMPOSITE_AGGREGATION_SERIALISATION_BYTE_CODE,
+                GeoTileGridValuesSourceBuilder::new,
+                GeoTileGridValuesSourceBuilder::parse,
+                GeoTileGridValuesSourceBuilder.TYPE
+            )
+        );
     }
 }

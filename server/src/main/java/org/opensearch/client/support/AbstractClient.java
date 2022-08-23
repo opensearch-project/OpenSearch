@@ -77,6 +77,9 @@ import org.opensearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreAction;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
@@ -237,6 +240,8 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
+import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
+import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
@@ -588,6 +593,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public void deletePits(final DeletePitRequest deletePITRequest, final ActionListener<DeletePitResponse> listener) {
         execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
+    }
+
+    @Override
+    public void pitSegments(final PitSegmentsRequest request, final ActionListener<IndicesSegmentResponse> listener) {
+        execute(PitSegmentsAction.INSTANCE, request, listener);
     }
 
     @Override
@@ -1107,6 +1117,11 @@ public abstract class AbstractClient implements Client {
         @Override
         public void restoreSnapshot(RestoreSnapshotRequest request, ActionListener<RestoreSnapshotResponse> listener) {
             execute(RestoreSnapshotAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public void restoreRemoteStore(RestoreRemoteStoreRequest request, ActionListener<RestoreRemoteStoreResponse> listener) {
+            execute(RestoreRemoteStoreAction.INSTANCE, request, listener);
         }
 
         @Override

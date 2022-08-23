@@ -127,6 +127,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * Returns the number of data and cluster-manager eligible nodes in the cluster.
      */
+    // TODO: Add abstract keyword after removing the deprecated numDataAndMasterNodes()
     public int numDataAndClusterManagerNodes() {
         return numDataAndMasterNodes();
     }
