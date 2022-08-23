@@ -28,6 +28,10 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
     private final DecommissionAttribute decommissionedAttribute;
     private final DecommissionStatus status;
 
+    GetDecommissionResponse() {
+        this(null, null);
+    }
+
     GetDecommissionResponse(DecommissionAttribute decommissionedAttribute, DecommissionStatus status) {
         this.decommissionedAttribute = decommissionedAttribute;
         this.status = status;
@@ -56,9 +60,13 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject("awareness");
-        builder.field(decommissionedAttribute.attributeName(), decommissionedAttribute.attributeValue());
+        if (decommissionedAttribute != null) {
+            builder.field(decommissionedAttribute.attributeName(), decommissionedAttribute.attributeValue());
+        }
         builder.endObject();
-        builder.field("status", status);
+        if (status!=null) {
+            builder.field("status", status);
+        }
         builder.endObject();
         return builder;
     }

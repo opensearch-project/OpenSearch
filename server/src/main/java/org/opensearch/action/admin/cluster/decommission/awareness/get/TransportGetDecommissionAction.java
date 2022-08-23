@@ -66,7 +66,16 @@ public class TransportGetDecommissionAction extends TransportClusterManagerNodeR
         Metadata metadata = state.metadata();
         // DecommissionAttributeMetadata decommissionedAttributes = metadata.custom(DecommissionAttributeMetadata.TYPE);
         // TODO - update once service layer changes are merged
+//<<<<<<< HEAD
         listener.onResponse(new GetDecommissionResponse(new DecommissionAttribute("zone", "zone-1"), DecommissionStatus.DECOMMISSIONED));
+//=======
+//        if (decommissionedAttributes!=null) {
+//            listener.onResponse(new GetDecommissionResponse(decommissionedAttributes.decommissionAttribute(), decommissionedAttributes.status()));
+//        }
+//        else {
+//            listener.onResponse(new GetDecommissionResponse());
+//        }
+//>>>>>>> 1025b6e3e3e (Fix GET without PUT)
     }
 
     @Override
