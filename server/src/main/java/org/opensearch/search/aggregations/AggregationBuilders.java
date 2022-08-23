@@ -43,10 +43,6 @@ import org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder
 import org.opensearch.search.aggregations.bucket.filter.Filters;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
-import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -259,20 +255,6 @@ public class AggregationBuilders {
      */
     public static HistogramAggregationBuilder histogram(String name) {
         return new HistogramAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link InternalGeoHashGrid} aggregation with the given name.
-     */
-    public static GeoHashGridAggregationBuilder geohashGrid(String name) {
-        return new GeoHashGridAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link InternalGeoTileGrid} aggregation with the given name.
-     */
-    public static GeoTileGridAggregationBuilder geotileGrid(String name) {
-        return new GeoTileGridAggregationBuilder(name);
     }
 
     /**

@@ -8,7 +8,10 @@
 
 package org.opensearch.geo.tests.common;
 
+import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.geo.GeometryTestUtils;
+import org.opensearch.geometry.Rectangle;
 
 import java.util.Random;
 
@@ -82,5 +85,13 @@ public class RandomGeoGenerator {
         } else {
             return -180 + off;
         }
+    }
+
+    public static GeoBoundingBox randomBBox() {
+        Rectangle rectangle = GeometryTestUtils.randomRectangle();
+        return new GeoBoundingBox(
+            new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+        );
     }
 }
