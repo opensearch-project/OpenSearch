@@ -34,6 +34,8 @@ package org.opensearch.client;
 
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.bulk.BulkResponse;
@@ -331,6 +333,11 @@ public interface Client extends OpenSearchClient, Releasable {
      * Create point in time for one or more indices
      */
     void createPit(CreatePitRequest createPITRequest, ActionListener<CreatePitResponse> listener);
+
+    /**
+     * Get information of segments of one or more PITs
+     */
+    void pitSegments(PitSegmentsRequest pitSegmentsRequest, ActionListener<IndicesSegmentResponse> listener);
 
     /**
      * Performs multiple search requests.
