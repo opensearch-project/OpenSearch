@@ -201,8 +201,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     @Override
     protected void onDone() {
         assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
-        // this might still throw an exception ie. if the shard is CLOSED due to some other event.
-        // it's safer to decrement the reference in a try finally here.
         indexShard.postRecovery("peer recovery done");
     }
 
