@@ -2131,19 +2131,31 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Fetch the latest {@link SegmentInfos} object via {@link #getLatestSegmentInfos()}
-     * but also increment the ref-count to ensure that these segment files are retained
-     * until the reference is closed. On close, the ref-count is decremented.
+     * Fetch the latest {@link SegmentInfos} object. The method uses reads in-memory SegmentInfos via {@link #getLatestSegmentInfos()}
+     * and on-disk SegmentInfos and returns instance which has the highest segment generation. This method also
+     * increment the ref-count to ensure that these segment files are retained until the reference is closed. On close,
+     * the ref-count is decremented.
      */
     @Override
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-        final SegmentInfos segmentInfos = getLatestSegmentInfos();
+        final SegmentInfos inMemorySegInfos = getLatestSegmentInfos();
+        SegmentInfos result;
         try {
-            indexWriter.incRefDeleter(segmentInfos);
+            final long lastCommitGeneration = store.getLastCommitGeneration();
+            final long generation = inMemorySegInfos.getGeneration();
+            logger.info("Latest gen {} - {}", generation, lastCommitGeneration);
+            if (generation < lastCommitGeneration) {
+                // the latest in memory infos is behind disk, read the latest SegmentInfos from disk and return that.
+                final SegmentInfos latestCommit = store.readLastCommittedSegmentsInfo();
+                result = latestCommit;
+            } else {
+                result = inMemorySegInfos;
+            }
+            indexWriter.incRefDeleter(result);
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
         }
-        return new GatedCloseable<>(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
+        return new GatedCloseable<>(result, () -> indexWriter.decRefDeleter(result));
     }
 
     @Override

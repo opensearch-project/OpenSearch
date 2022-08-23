@@ -7546,6 +7546,89 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
     }
 
+    // This test performs indexing ops and verifies engine.getSegmentInfosSnapshot() returns SegmentInfos having highest
+    // generation
+    public void testGetSegmentInfosSnapshotWithIndexing() throws IOException {
+        final int numDocs = randomIntBetween(10, 100);
+        for (int docId = 0; docId < numDocs; docId++) {
+            index(engine, docId);
+            if (randomBoolean()) {
+                engine.refresh("test");
+            }
+        }
+        engine.flush(true, true);
+
+        // Fetch SegmentInfos from memory & disk
+        final SegmentInfos inMemorySegInfos = engine.getLatestSegmentInfos();
+        final long generation = inMemorySegInfos.getGeneration();
+        final long lastCommitGeneration = SegmentInfos.getLastCommitGeneration(store.directory());
+
+        // Verify largest (generation file) of two is returned in engine.getSegmentInfosSnapshot
+        SegmentInfos segmentInfos = engine.getSegmentInfosSnapshot().get();
+        assertEquals(segmentInfos.getGeneration(), lastCommitGeneration > generation ? lastCommitGeneration : generation);
+        assertEquals(segmentInfos, lastCommitGeneration > generation ? SegmentInfos.readLatestCommit(store.directory()) : inMemorySegInfos);
+    }
+
+    // This method simulates behaviour of on-disk SegmentInfos having higher segment generation number compared to
+    // actual in-memory SegmentInfos and verified that engine.getSegmentInfosSnapshot returns on-disk SegmentInfos
+    public void testGetSegmentInfosWithHighestGenOnDisk() throws IOException {
+        IOUtils.close(store, engine);
+        Store store = spy(createStore());
+        InternalEngine engine = createEngine(store, createTempDir());
+        final int numDocs = randomIntBetween(10, 100);
+        for (int docId = 0; docId < numDocs; docId++) {
+            index(engine, docId);
+            if (randomBoolean()) {
+                engine.refresh("test");
+            }
+        }
+        engine.flush(true, true);
+
+        SegmentInfos sisInMemory = engine.getLatestSegmentInfos();
+        long memoryGen = sisInMemory.getGeneration();
+        SegmentInfos sisDisk = new SegmentInfos(org.apache.lucene.util.Version.LATEST.major);
+        sisDisk.setNextWriteGeneration(memoryGen + 1);
+
+        when(store.getLastCommitGeneration()).thenReturn(sisDisk.getGeneration());
+        when(store.readLastCommittedSegmentsInfo()).thenReturn(sisDisk);
+
+        SegmentInfos segmentInfos = engine.getSegmentInfosSnapshot().get();
+        assertEquals(segmentInfos, sisDisk);
+        assertEquals(segmentInfos.getGeneration(), sisDisk.getGeneration());
+        store.close();
+        engine.close();
+    }
+
+    // This method simulates behaviour of on-disk SegmentInfos having lower segment generation number compared to
+    // actual in-memory SegmentInfos and verified that engine.getSegmentInfosSnapshot returns in-memory SegmentInfos
+    public void testGetSegmentInfosWithHighestGenInMemory() throws IOException {
+        IOUtils.close(store, engine);
+        Store store = spy(createStore());
+        InternalEngine engine = createEngine(store, createTempDir());
+        final int numDocs = randomIntBetween(10, 100);
+        for (int docId = 0; docId < numDocs; docId++) {
+            index(engine, docId);
+            if (randomBoolean()) {
+                engine.refresh("test");
+            }
+        }
+        engine.flush(true, true);
+
+        SegmentInfos sisInMemory = engine.getLatestSegmentInfos();
+        long memoryGen = sisInMemory.getGeneration();
+        SegmentInfos sisDisk = new SegmentInfos(org.apache.lucene.util.Version.LATEST.major);
+        sisDisk.setNextWriteGeneration(memoryGen - 1);
+
+        when(store.getLastCommitGeneration()).thenReturn(sisDisk.getGeneration());
+        when(store.readLastCommittedSegmentsInfo()).thenReturn(sisDisk);
+
+        SegmentInfos segmentInfos = engine.getSegmentInfosSnapshot().get();
+        assertEquals(segmentInfos, sisInMemory);
+        assertEquals(segmentInfos.getGeneration(), sisInMemory.getGeneration());
+        store.close();
+        engine.close();
+    }
+
     public void testGetProcessedLocalCheckpoint() throws IOException {
         final long expectedLocalCheckpoint = 1L;
         IOUtils.close(store, engine);

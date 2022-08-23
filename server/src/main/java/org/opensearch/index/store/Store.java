@@ -335,6 +335,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * Returns generation number (_N in segment_N) from last commit on disk.
+     */
+    public long getLastCommitGeneration() throws IOException {
+        return SegmentInfos.getLastCommitGeneration(directory());
+    }
+
+    /**
      * Renames all the given files from the key of the map to the
      * value of the map. All successfully renamed files are removed from the map in-place.
      */
