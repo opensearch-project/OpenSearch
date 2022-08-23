@@ -319,15 +319,14 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.initializeRestActionsRequestHandler(restController, transportService);
-        String nodeIdStr = "uniqueid1";
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, uniqueIdStr, actionsList);
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
         TransportResponse response = extensionsOrchestrator.restActionsRequestHandler.handleRegisterRestActionsRequest(
             registerActionsRequest
         );
         assertEquals(RegisterRestActionsResponse.class, response.getClass());
-        assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(nodeIdStr));
+        assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(uniqueIdStr));
         assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(actionsList.toString()));
     }
 
@@ -338,10 +337,9 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.initializeRestActionsRequestHandler(restController, transportService);
-        String nodeIdStr = "uniqueid1";
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, uniqueIdStr, actionsList);
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
         expectThrows(
             IllegalArgumentException.class,
             () -> extensionsOrchestrator.restActionsRequestHandler.handleRegisterRestActionsRequest(registerActionsRequest)
@@ -355,10 +353,9 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.initializeRestActionsRequestHandler(restController, transportService);
-        String nodeIdStr = "uniqueid1";
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(nodeIdStr, uniqueIdStr, actionsList);
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
         expectThrows(
             IllegalArgumentException.class,
             () -> extensionsOrchestrator.restActionsRequestHandler.handleRegisterRestActionsRequest(registerActionsRequest)

@@ -53,17 +53,10 @@ public class RestActionsRequestHandler {
      */
     public TransportResponse handleRegisterRestActionsRequest(RegisterRestActionsRequest restActionsRequest) throws Exception {
         DiscoveryExtension discoveryExtension = extensionIdMap.get(restActionsRequest.getUniqueId());
-        // TODO multiple names/API lists?
-        // don't believe connectToNode is necessary as this was already done in EO
         RestHandler handler = new RestSendToExtensionAction(restActionsRequest, discoveryExtension, transportService);
         restController.registerHandler(handler);
         return new RegisterRestActionsResponse(
-            "Registered node "
-                + restActionsRequest.getNodeId()
-                + ", extension "
-                + restActionsRequest.getUniqueId()
-                + " to handle REST Actions "
-                + restActionsRequest.getRestActions()
+            "Registered extension " + restActionsRequest.getUniqueId() + " to handle REST Actions " + restActionsRequest.getRestActions()
         );
     }
 }

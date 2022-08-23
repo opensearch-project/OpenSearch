@@ -142,7 +142,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     /**
      * Initializes the {@link RestActionsRequestHandler} and {@link TransportService}. This is called during Node bootstrap.
-     * Lists/maps of extensions have already been initialized.
+     * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
      * @param transportService  The Node's transport service.
