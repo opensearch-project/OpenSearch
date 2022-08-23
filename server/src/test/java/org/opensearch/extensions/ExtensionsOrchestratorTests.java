@@ -310,7 +310,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         }
     }
 
-    public void testHandleRegisterActionsRequest() throws Exception {
+    public void testHandleRegisterRestActionsRequest() throws Exception {
 
         Path extensionDir = createTempDir();
 
@@ -330,7 +330,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(actionsList.toString()));
     }
 
-    public void testHandleRegisterActionsRequestWithInvalidMethod() throws Exception {
+    public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
 
         Path extensionDir = createTempDir();
 
@@ -346,7 +346,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
     }
 
-    public void testHandleRegisterActionsRequestWithInvalidUri() throws Exception {
+    public void testHandleRegisterRestActionsRequestWithInvalidUri() throws Exception {
 
         Path extensionDir = createTempDir();
 

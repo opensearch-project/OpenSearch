@@ -34,7 +34,11 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
 
     public RestExecuteOnExtensionRequest(StreamInput in) throws IOException {
         super(in);
-        method = RestRequest.Method.valueOf(in.readString());
+        try {
+            method = RestRequest.Method.valueOf(in.readString());
+        } catch (IllegalArgumentException e) {
+            throw new IOException(e);
+        }
         uri = in.readString();
     }
 
@@ -55,7 +59,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "RestActionsRequest{method=" + method + ", uri=" + uri + "}";
+        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + "}";
     }
 
     @Override
