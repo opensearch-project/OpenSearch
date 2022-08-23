@@ -62,7 +62,7 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public class DecommissionService implements ClusterStateApplier {
+public class DecommissionService {
 
     private static final Logger logger = LogManager.getLogger(DecommissionService.class);
 
@@ -70,7 +70,6 @@ public class DecommissionService implements ClusterStateApplier {
     private final TransportService transportService;
     private final ThreadPool threadPool;
     private final DecommissionHelper decommissionHelper;
-    private ClusterState clusterState;
     private volatile List<String> awarenessAttributes;
 
     @Inject
@@ -107,7 +106,6 @@ public class DecommissionService implements ClusterStateApplier {
         ClusterState state
     ) {
         validateAwarenessAttribute(decommissionAttribute, getAwarenessAttributes());
-        this.clusterState = state;
         logger.info("initiating awareness attribute [{}] decommissioning", decommissionAttribute.toString());
         excludeDecommissionedClusterManagerNodesFromVotingConfig(decommissionAttribute);
         registerDecommissionAttribute(decommissionAttribute, listener);
@@ -121,7 +119,7 @@ public class DecommissionService implements ClusterStateApplier {
             decommissionAttribute
         );
         List<String> clusterManagerNodesToBeDecommissioned = new ArrayList<>();
-        Iterator<DiscoveryNode> clusterManagerNodesIter = clusterState.nodes().getClusterManagerNodes().valuesIt();
+        Iterator<DiscoveryNode> clusterManagerNodesIter = clusterService.state().nodes().getClusterManagerNodes().valuesIt();
         while (clusterManagerNodesIter.hasNext()) {
             final DiscoveryNode node = clusterManagerNodesIter.next();
             if (shouldDecommissionPredicate.test(node)) {
@@ -209,7 +207,6 @@ public class DecommissionService implements ClusterStateApplier {
         final DecommissionAttribute decommissionAttribute,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        logger.info("Node is - " + transportService.getLocalNode());
         if (!transportService.getLocalNode().isClusterManagerNode()
             || nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute))
         {
@@ -374,10 +371,5 @@ public class DecommissionService implements ClusterStateApplier {
 
     private static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
         return discoveryNode.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue());
-    }
-
-    @Override
-    public void applyClusterState(ClusterChangedEvent event) {
-        clusterState = event.state();
     }
 }
