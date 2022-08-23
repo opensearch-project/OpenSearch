@@ -136,10 +136,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     }
 
-    void setTransportService(TransportService transportService) {
-        this.transportService = transportService;
-    }
-
     public void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
@@ -152,7 +148,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * @param transportService  The Node's transport service.
      */
     public void initializeRestActionsRequestHandler(RestController restController, TransportService transportService) {
-        setTransportService(transportService);
+        this.transportService = transportService;
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         registerRequestHandler();
     }
