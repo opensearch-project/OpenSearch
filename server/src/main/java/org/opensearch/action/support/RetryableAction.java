@@ -36,8 +36,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.opensearch.action.bulk.BackoffPolicy;
-import org.opensearch.common.Randomness;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.Scheduler;
@@ -66,7 +64,7 @@ public abstract class RetryableAction<Response> {
     private final long startMillis;
     private final ActionListener<Response> finalListener;
     private final String executor;
-    private final BackoffPolicy backoffPolicy;
+    private final RetryPolicy retryPolicy;
 
     private volatile Scheduler.ScheduledCancellable retryTask;
 
@@ -77,7 +75,15 @@ public abstract class RetryableAction<Response> {
         TimeValue timeoutValue,
         ActionListener<Response> listener
     ) {
-        this(logger, threadPool, initialDelay, timeoutValue, listener, null, ThreadPool.Names.SAME);
+        this(
+            logger,
+            threadPool,
+            initialDelay,
+            timeoutValue,
+            listener,
+            RetryPolicy.exponentialBackoff(initialDelay.getMillis()),
+            ThreadPool.Names.SAME
+        );
     }
 
     public RetryableAction(
@@ -86,7 +92,7 @@ public abstract class RetryableAction<Response> {
         TimeValue initialDelay,
         TimeValue timeoutValue,
         ActionListener<Response> listener,
-        BackoffPolicy backoffPolicy,
+        RetryPolicy retryPolicy,
         String executor
     ) {
         this.logger = logger;
@@ -99,13 +105,11 @@ public abstract class RetryableAction<Response> {
         this.startMillis = threadPool.relativeTimeInMillis();
         this.finalListener = listener;
         this.executor = executor;
-        this.backoffPolicy = backoffPolicy;
+        this.retryPolicy = retryPolicy;
     }
 
     public void run() {
-        final RetryingListener retryingListener = backoffPolicy == null
-            ? new DefaultRetryingListener(initialDelayMillis, null)
-            : new CustomRetryingListener(backoffPolicy.iterator(), null);
+        final RetryingListener retryingListener = new RetryingListener(retryPolicy.iterator(), null);
         final Runnable runnable = createRunnable(retryingListener);
         threadPool.executor(executor).execute(runnable);
     }
@@ -149,57 +153,16 @@ public abstract class RetryableAction<Response> {
 
     public void onFinished() {}
 
-    private class CustomRetryingListener extends RetryingListener {
-
-        private Iterator<TimeValue> backoffDelayIterator;
-        private ArrayDeque<Exception> caughtExceptions;
-
-        private CustomRetryingListener(Iterator<TimeValue> backoffDelayIterator, ArrayDeque<Exception> caughtExceptions) {
-            super(caughtExceptions);
-            this.backoffDelayIterator = backoffDelayIterator;
-            this.caughtExceptions = caughtExceptions;
-        }
-
-        public RetryingListener getRetryingListenerForNextRetry() {
-            return this;
-        }
-
-        public long getRetryDelay() {
-            return backoffDelayIterator.next().millis();
-        }
-
-    }
-
-    private class DefaultRetryingListener extends RetryingListener {
-
-        private final long delayMillisBound;
-        private ArrayDeque<Exception> caughtExceptions;
-
-        private DefaultRetryingListener(long delayMillisBound, ArrayDeque<Exception> caughtExceptions) {
-            super(caughtExceptions);
-            this.delayMillisBound = delayMillisBound;
-            this.caughtExceptions = caughtExceptions;
-        }
-
-        public RetryingListener getRetryingListenerForNextRetry() {
-            final long nextDelayMillisBound = Math.min(delayMillisBound * 2, Integer.MAX_VALUE);
-            final RetryingListener retryingListener = new DefaultRetryingListener(nextDelayMillisBound, caughtExceptions);
-            return retryingListener;
-        }
-
-        public long getRetryDelay() {
-            return Randomness.get().nextInt(Math.toIntExact(delayMillisBound)) + 1;
-        }
-    }
-
-    private abstract class RetryingListener implements ActionListener<Response> {
+    private class RetryingListener implements ActionListener<Response> {
 
         private static final int MAX_EXCEPTIONS = 4;
 
         private ArrayDeque<Exception> caughtExceptions;
+        private Iterator<TimeValue> backoffDelayIterator;
 
-        private RetryingListener(ArrayDeque<Exception> caughtExceptions) {
+        private RetryingListener(Iterator<TimeValue> backoffDelayIterator, ArrayDeque<Exception> caughtExceptions) {
             this.caughtExceptions = caughtExceptions;
+            this.backoffDelayIterator = backoffDelayIterator;
         }
 
         @Override
@@ -209,10 +172,6 @@ public abstract class RetryableAction<Response> {
                 finalListener.onResponse(response);
             }
         }
-
-        public abstract RetryingListener getRetryingListenerForNextRetry();
-
-        public abstract long getRetryDelay();
 
         @Override
         public void onFailure(Exception e) {
@@ -227,11 +186,9 @@ public abstract class RetryableAction<Response> {
                 } else {
                     addException(e);
 
-                    final long delayMillis = getRetryDelay();
-                    final RetryingListener retryingListener = getRetryingListenerForNextRetry();
-                    final Runnable runnable = createRunnable(retryingListener);
+                    final TimeValue delay = backoffDelayIterator.next();
+                    final Runnable runnable = createRunnable(this);
                     if (isDone.get() == false) {
-                        final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
                         logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);
                         try {
                             retryTask = threadPool.schedule(runnable, delay, executor);

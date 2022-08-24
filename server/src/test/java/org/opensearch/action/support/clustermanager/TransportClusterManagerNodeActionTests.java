@@ -67,7 +67,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.threadpool.Scheduler;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
@@ -85,7 +84,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
@@ -101,7 +99,6 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     private DiscoveryNode localNode;
     private DiscoveryNode remoteNode;
     private DiscoveryNode[] allNodes;
-    private static ScheduledThreadPoolExecutor throttlingRetryScheduler = Scheduler.initScheduler(Settings.EMPTY);
 
     @BeforeClass
     public static void beforeClass() {
@@ -139,7 +136,6 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             Version.CURRENT
         );
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
-        MasterThrottlingRetryListener.setThrottlingRetryScheduler(throttlingRetryScheduler);
     }
 
     @After
@@ -152,7 +148,6 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     @AfterClass
     public static void afterClass() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        Scheduler.terminate(throttlingRetryScheduler, 30, TimeUnit.SECONDS);
         threadPool = null;
     }
 
@@ -647,5 +642,54 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertTrue(listener.isDone());
         listener.get();
+    }
+
+    public void testRetryForDifferentException() throws InterruptedException, BrokenBarrierException {
+        Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        AtomicBoolean exception = new AtomicBoolean(true);
+        AtomicBoolean retried = new AtomicBoolean(false);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, new DiscoveryNode[] { localNode }));
+
+        TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
+                throws Exception {
+                if (exception.getAndSet(false)) {
+                    throw new Exception("Different excetion");
+                } else {
+                    // If called second time due to retry, throw exception
+                    retried.set(true);
+                    throw new AssertionError("Should not retry for other exception");
+                }
+            }
+        };
+        action.execute(request, listener);
+
+        assertFalse(retried.get());
+        assertFalse(exception.get());
+    }
+
+    public void testShouldRetry() {
+        AtomicBoolean exception = new AtomicBoolean(true);
+        AtomicBoolean retried = new AtomicBoolean(false);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+                if (exception.getAndSet(false)) {
+                    throw new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for test");
+                } else {
+                    try {
+                        retried.set(true);
+                        barrier.await();
+                    } catch (Exception e) {
+                        throw new AssertionError();
+                    }
+                }
+            }
+        };
+
     }
 }

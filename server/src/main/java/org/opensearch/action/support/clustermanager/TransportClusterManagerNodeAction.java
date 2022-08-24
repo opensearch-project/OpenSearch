@@ -41,6 +41,7 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.RetryPolicy;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -155,9 +156,19 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         private final long startTime;
         private final Task task;
         private boolean localRequest;
+        private static final int BASE_DELAY_MILLIS = 10;
+        private static final int MAX_DELAY_MILLIS = 5000;
 
         AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
-            super(logger, threadPool, TimeValue.timeValueMillis(10), request.clusterManagerNodeTimeout, listener);
+            super(
+                logger,
+                threadPool,
+                TimeValue.timeValueMillis(BASE_DELAY_MILLIS),
+                request.clusterManagerNodeTimeout,
+                listener,
+                RetryPolicy.exponentialEqualJitterBackoff(BASE_DELAY_MILLIS, MAX_DELAY_MILLIS),
+                ThreadPool.Names.SAME
+            );
             this.task = task;
             this.request = request;
             this.startTime = threadPool.relativeTimeInMillis();
