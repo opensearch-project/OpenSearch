@@ -11,6 +11,7 @@ package org.opensearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
@@ -51,7 +52,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
     }
 
     public void testNewDirectory() throws IOException {
-        Settings settings = Settings.builder().build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "uuid_1").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
         ShardPath shardPath = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
@@ -59,6 +60,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
         BlobStore blobStore = mock(BlobStore.class);
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(repository.blobStore()).thenReturn(blobStore);
+        when(repository.basePath()).thenReturn(new BlobPath().add("base_path"));
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
         when(blobContainer.listBlobs()).thenReturn(Collections.emptyMap());
 
@@ -69,8 +71,8 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
             ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);
             verify(blobStore, times(2)).blobContainer(blobPathCaptor.capture());
             List<BlobPath> blobPaths = blobPathCaptor.getAllValues();
-            assertEquals("foo/0/segments/data/", blobPaths.get(0).buildAsString());
-            assertEquals("foo/0/segments/metadata/", blobPaths.get(1).buildAsString());
+            assertEquals("base_path/uuid_1/0/segments/data/", blobPaths.get(0).buildAsString());
+            assertEquals("base_path/uuid_1/0/segments/metadata/", blobPaths.get(1).buildAsString());
 
             verify(blobContainer).listBlobsByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX);
             verify(repositoriesService).repository("remote_store_repository");

@@ -58,13 +58,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
         this.primaryTerm = indexShard.getOperationPrimaryTerm();
-        if (indexShard.shardRouting.primary()) {
-            try {
-                this.remoteDirectory.init();
-            } catch (IOException e) {
-                logger.error("Exception while initialising RemoteSegmentStoreDirectory", e);
-            }
-        }
         localSegmentChecksumMap = new HashMap<>();
     }
 
