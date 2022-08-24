@@ -482,8 +482,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
             DecommissionStatus status = decommissionAttributeMetadata.status();
             if (decommissionAttribute != null && status != null) {
-                // We will let the node join the cluster if the current status is INIT or FAILED
-                if(status.equals(DecommissionStatus.DECOMMISSION_FAILED) || status.equals(DecommissionStatus.DECOMMISSION_INIT)) return;
+                // We will let the node join the cluster if the current status is not IN_PROGRESS or SUCCESSFUL
                 if (node.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue())
                     && (
                         status.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS)
