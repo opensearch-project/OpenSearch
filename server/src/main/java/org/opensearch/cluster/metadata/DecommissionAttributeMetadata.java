@@ -137,7 +137,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         XContentParser.Token token;
         DecommissionAttribute decommissionAttribute = null;
         DecommissionStatus status = null;
-        if ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String currentFieldName = parser.currentName();
                 if (attributeType.equals(currentFieldName)) {
@@ -162,6 +162,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                                 );
                             }
                             decommissionAttribute = new DecommissionAttribute(fieldName, value);
+                            token = parser.nextToken();
                         } else {
                             throw new OpenSearchParseException("failed to parse attribute type [{}], unexpected type", attributeType);
                         }

@@ -69,6 +69,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_3_0;
+import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
