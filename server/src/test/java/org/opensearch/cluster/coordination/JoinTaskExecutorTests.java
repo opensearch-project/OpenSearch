@@ -36,9 +36,15 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionFailedException;
+import org.opensearch.cluster.decommission.DecommissionStatus;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -48,8 +54,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
@@ -215,5 +224,82 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertThat(joinTaskOfMaster.isBecomeClusterManagerTask(), is(true));
         JoinTaskExecutor.Task joinTaskOfClusterManager = JoinTaskExecutor.newBecomeClusterManagerTask();
         assertThat(joinTaskOfClusterManager.isBecomeClusterManagerTask(), is(true));
+    }
+
+    public void testJoinClusterWithNoDecommission() {
+        Settings.builder().build();
+        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata metadata = metaBuilder.build();
+        DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-2"));
+        JoinTaskExecutor.ensureNodeNotDecommissioned(discoveryNode, metadata);
+    }
+
+    public void testPreventJoinClusterWithDecommission() {
+        Settings.builder().build();
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
+        DecommissionStatus decommissionStatus = randomFrom(
+            DecommissionStatus.DECOMMISSION_IN_PROGRESS,
+            DecommissionStatus.DECOMMISSION_SUCCESSFUL
+        );
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            decommissionStatus
+        );
+        Metadata.Builder metaBuilder = Metadata.builder();
+        metaBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
+        Metadata metadata = metaBuilder.build();
+
+        DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-1"));
+        expectThrows(
+            NodeDecommissionedException.class,
+            () -> JoinTaskExecutor.ensureNodeNotDecommissioned(discoveryNode, metadata)
+        );
+    }
+
+    public void testJoinClusterWithDifferentDecommission() {
+        Settings.builder().build();
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
+        DecommissionStatus decommissionStatus = randomFrom(DecommissionStatus.values());
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            decommissionStatus
+        );
+        Metadata.Builder metaBuilder = Metadata.builder();
+        metaBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
+        Metadata metadata = metaBuilder.build();
+
+        DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-2"));
+        JoinTaskExecutor.ensureNodeNotDecommissioned(discoveryNode, metadata);
+    }
+
+    public void testJoinClusterWithDecommissionFailedOrInitOrRecommission() {
+        Settings.builder().build();
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
+        DecommissionStatus decommissionStatus = randomFrom(
+            DecommissionStatus.DECOMMISSION_INIT,
+            DecommissionStatus.DECOMMISSION_FAILED,
+            DecommissionStatus.RECOMMISSION_IN_PROGRESS
+        );
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            decommissionStatus
+        );
+        Metadata.Builder metaBuilder = Metadata.builder();
+        metaBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
+        Metadata metadata = metaBuilder.build();
+
+        DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-1"));
+        JoinTaskExecutor.ensureNodeNotDecommissioned(discoveryNode, metadata);
+    }
+
+    private DiscoveryNode newDiscoveryNode(Map<String, String> attributes) {
+        return new DiscoveryNode(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            buildNewFakeTransportAddress(),
+            attributes,
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
     }
 }
