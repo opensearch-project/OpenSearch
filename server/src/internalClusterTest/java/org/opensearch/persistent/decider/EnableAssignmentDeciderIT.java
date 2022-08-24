@@ -87,7 +87,7 @@ public class EnableAssignmentDeciderIT extends OpenSearchIntegTestCase {
         }
         latch.await();
 
-        ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
+        ClusterService clusterService = internalCluster().clusterService(internalCluster().getClusterManagerName());
         PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertEquals(numberOfTasks, tasks.tasks().stream().filter(t -> TestPersistentTasksExecutor.NAME.equals(t.getTaskName())).count());
 

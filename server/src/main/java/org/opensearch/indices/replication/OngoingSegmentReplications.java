@@ -24,7 +24,10 @@ import org.opensearch.indices.replication.common.CopyState;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Manages references to ongoing segrep events on a node.
@@ -38,7 +41,7 @@ class OngoingSegmentReplications {
     private final RecoverySettings recoverySettings;
     private final IndicesService indicesService;
     private final Map<ReplicationCheckpoint, CopyState> copyStateMap;
-    private final Map<DiscoveryNode, SegmentReplicationSourceHandler> nodesToHandlers;
+    private final Map<String, SegmentReplicationSourceHandler> allocationIdToHandlers;
 
     /**
      * Constructor.
@@ -50,7 +53,7 @@ class OngoingSegmentReplications {
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
         this.copyStateMap = Collections.synchronizedMap(new HashMap<>());
-        this.nodesToHandlers = ConcurrentCollections.newConcurrentMap();
+        this.allocationIdToHandlers = ConcurrentCollections.newConcurrentMap();
     }
 
     /**
@@ -96,8 +99,7 @@ class OngoingSegmentReplications {
      * @param listener {@link ActionListener} that resolves when sending files is complete.
      */
     void startSegmentCopy(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
-        final DiscoveryNode node = request.getTargetNode();
-        final SegmentReplicationSourceHandler handler = nodesToHandlers.get(node);
+        final SegmentReplicationSourceHandler handler = allocationIdToHandlers.get(request.getTargetAllocationId());
         if (handler != null) {
             if (handler.isReplicating()) {
                 throw new OpenSearchException(
@@ -108,27 +110,18 @@ class OngoingSegmentReplications {
             }
             // update the given listener to release the CopyState before it resolves.
             final ActionListener<GetSegmentFilesResponse> wrappedListener = ActionListener.runBefore(listener, () -> {
-                final SegmentReplicationSourceHandler sourceHandler = nodesToHandlers.remove(node);
+                final SegmentReplicationSourceHandler sourceHandler = allocationIdToHandlers.remove(request.getTargetAllocationId());
                 if (sourceHandler != null) {
                     removeCopyState(sourceHandler.getCopyState());
                 }
             });
-            handler.sendFiles(request, wrappedListener);
+            if (request.getFilesToFetch().isEmpty()) {
+                wrappedListener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+            } else {
+                handler.sendFiles(request, wrappedListener);
+            }
         } else {
             listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
-        }
-    }
-
-    /**
-     * Cancel any ongoing replications for a given {@link DiscoveryNode}
-     *
-     * @param node {@link DiscoveryNode} node for which to cancel replication events.
-     */
-    void cancelReplication(DiscoveryNode node) {
-        final SegmentReplicationSourceHandler handler = nodesToHandlers.remove(node);
-        if (handler != null) {
-            handler.cancel("Cancel on node left");
-            removeCopyState(handler.getCopyState());
         }
     }
 
@@ -145,9 +138,9 @@ class OngoingSegmentReplications {
      */
     CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
-        if (nodesToHandlers.putIfAbsent(
-            request.getTargetNode(),
-            createTargetHandler(request.getTargetNode(), copyState, fileChunkWriter)
+        if (allocationIdToHandlers.putIfAbsent(
+            request.getTargetAllocationId(),
+            createTargetHandler(request.getTargetNode(), copyState, request.getTargetAllocationId(), fileChunkWriter)
         ) != null) {
             throw new OpenSearchException(
                 "Shard copy {} on node {} already replicating",
@@ -159,18 +152,23 @@ class OngoingSegmentReplications {
     }
 
     /**
-     * Cancel all Replication events for the given shard, intended to be called when the current primary is shutting down.
+     * Cancel all Replication events for the given shard, intended to be called when a primary is shutting down.
      *
      * @param shard  {@link IndexShard}
      * @param reason {@link String} - Reason for the cancel
      */
     synchronized void cancel(IndexShard shard, String reason) {
-        for (SegmentReplicationSourceHandler entry : nodesToHandlers.values()) {
-            if (entry.getCopyState().getShard().equals(shard)) {
-                entry.cancel(reason);
-            }
-        }
-        copyStateMap.clear();
+        cancelHandlers(handler -> handler.getCopyState().getShard().shardId().equals(shard.shardId()), reason);
+    }
+
+    /**
+     * Cancel any ongoing replications for a given {@link DiscoveryNode}
+     *
+     * @param node {@link DiscoveryNode} node for which to cancel replication events.
+     */
+    void cancelReplication(DiscoveryNode node) {
+        cancelHandlers(handler -> handler.getTargetNode().equals(node), "Node left");
+
     }
 
     /**
@@ -182,19 +180,25 @@ class OngoingSegmentReplications {
     }
 
     int size() {
-        return nodesToHandlers.size();
+        return allocationIdToHandlers.size();
     }
 
     int cachedCopyStateSize() {
         return copyStateMap.size();
     }
 
-    private SegmentReplicationSourceHandler createTargetHandler(DiscoveryNode node, CopyState copyState, FileChunkWriter fileChunkWriter) {
+    private SegmentReplicationSourceHandler createTargetHandler(
+        DiscoveryNode node,
+        CopyState copyState,
+        String allocationId,
+        FileChunkWriter fileChunkWriter
+    ) {
         return new SegmentReplicationSourceHandler(
             node,
             fileChunkWriter,
             copyState.getShard().getThreadPool(),
             copyState,
+            allocationId,
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
             recoverySettings.getMaxConcurrentFileChunks()
         );
@@ -225,6 +229,25 @@ class OngoingSegmentReplications {
     private synchronized void removeCopyState(CopyState copyState) {
         if (copyState.decRef() == true) {
             copyStateMap.remove(copyState.getRequestedReplicationCheckpoint());
+        }
+    }
+
+    /**
+     * Remove handlers from allocationIdToHandlers map based on a filter predicate.
+     * This will also decref the handler's CopyState reference.
+     */
+    private void cancelHandlers(Predicate<? super SegmentReplicationSourceHandler> predicate, String reason) {
+        final List<String> allocationIds = allocationIdToHandlers.values()
+            .stream()
+            .filter(predicate)
+            .map(SegmentReplicationSourceHandler::getAllocationId)
+            .collect(Collectors.toList());
+        for (String allocationId : allocationIds) {
+            final SegmentReplicationSourceHandler handler = allocationIdToHandlers.remove(allocationId);
+            if (handler != null) {
+                handler.cancel(reason);
+                removeCopyState(handler.getCopyState());
+            }
         }
     }
 }

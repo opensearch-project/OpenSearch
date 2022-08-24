@@ -174,7 +174,7 @@ public abstract class PeerFinder {
             final List<DiscoveryNode> knownPeers;
             if (active) {
                 assert leader.isPresent() == false : leader;
-                if (peersRequest.getSourceNode().isMasterNode()) {
+                if (peersRequest.getSourceNode().isClusterManagerNode()) {
                     startProbe(peersRequest.getSourceNode().getAddress());
                 }
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);
@@ -291,7 +291,7 @@ public abstract class PeerFinder {
         }
 
         logger.trace("probing cluster-manager nodes from cluster state: {}", lastAcceptedNodes);
-        for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getMasterNodes().values()) {
+        for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getClusterManagerNodes().values()) {
             startProbe(discoveryNodeObjectCursor.value.getAddress());
         }
 
@@ -396,7 +396,7 @@ public abstract class PeerFinder {
             transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<DiscoveryNode>() {
                 @Override
                 public void onResponse(DiscoveryNode remoteNode) {
-                    assert remoteNode.isMasterNode() : remoteNode + " is not cluster-manager-eligible";
+                    assert remoteNode.isClusterManagerNode() : remoteNode + " is not cluster-manager-eligible";
                     assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
                     synchronized (mutex) {
                         if (active == false) {
@@ -457,11 +457,11 @@ public abstract class PeerFinder {
 
                         peersRequestInFlight = false;
 
-                        response.getMasterNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
+                        response.getClusterManagerNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
                         response.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(PeerFinder.this::startProbe);
                     }
 
-                    if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
+                    if (response.getClusterManagerNode().equals(Optional.of(discoveryNode))) {
                         // Must not hold lock here to avoid deadlock
                         assert holdsLock() == false : "PeerFinder mutex is held in error";
                         onActiveClusterManagerFound(discoveryNode, response.getTerm());

@@ -302,7 +302,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                          * It is possible to run into connection exceptions here because we are getting the connection early and might
                          * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
                          */
-                        fork(() -> onShardFailure(shardIndex, shard, shardIt, e));
+                        fork(() -> {
+                            // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                            // In this case calling onShardFailure() would overflow the operations counter, so the best we could do
+                            // here is to fail the phase and move on to the next one.
+                            if (totalOps.get() == expectedTotalOps) {
+                                onPhaseFailure(this, "The phase has failed", e);
+                            } else {
+                                onShardFailure(shardIndex, shard, shardIt, e);
+                            }
+                        });
                     } finally {
                         executeNext(pendingExecutions, thread);
                     }

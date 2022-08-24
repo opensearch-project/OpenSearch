@@ -391,7 +391,7 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
 
         // The tasks can be re-ordered, so we need to check out-of-order
         Set<String> controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
-        List<PendingClusterTask> pendingClusterTasks = clusterService.getMasterService().pendingTasks();
+        List<PendingClusterTask> pendingClusterTasks = clusterService.getClusterManagerService().pendingTasks();
         assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(10));
         assertThat(pendingClusterTasks.get(0).getSource().string(), equalTo("1"));
         assertThat(pendingClusterTasks.get(0).isExecuting(), equalTo(true));
@@ -413,7 +413,7 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
         invoked2.await();
 
         // whenever we test for no tasks, we need to wait since this is a live node
-        assertBusy(() -> assertTrue("Pending tasks not empty", clusterService.getMasterService().pendingTasks().isEmpty()));
+        assertBusy(() -> assertTrue("Pending tasks not empty", clusterService.getClusterManagerService().pendingTasks().isEmpty()));
         waitNoPendingTasksOnAll();
 
         final CountDownLatch block2 = new CountDownLatch(1);
@@ -453,7 +453,7 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
         }
         Thread.sleep(100);
 
-        pendingClusterTasks = clusterService.getMasterService().pendingTasks();
+        pendingClusterTasks = clusterService.getClusterManagerService().pendingTasks();
         assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(5));
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
         for (PendingClusterTask task : pendingClusterTasks) {

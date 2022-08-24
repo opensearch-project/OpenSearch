@@ -10,6 +10,7 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
@@ -25,6 +26,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.common.CopyState;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -86,6 +88,8 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
     private class CheckpointInfoRequestHandler implements TransportRequestHandler<CheckpointInfoRequest> {
         @Override
         public void messageReceived(CheckpointInfoRequest request, TransportChannel channel, Task task) throws Exception {
+            final ReplicationTimer timer = new ReplicationTimer();
+            timer.start();
             final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = new RemoteSegmentFileChunkWriter(
                 request.getReplicationId(),
                 recoverySettings,
@@ -107,6 +111,16 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
                     copyState.getMetadataSnapshot(),
                     copyState.getInfosBytes(),
                     copyState.getPendingDeleteFiles()
+                )
+            );
+            timer.stop();
+            logger.trace(
+                new ParameterizedMessage(
+                    "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
+                    request.getReplicationId(),
+                    copyState.getCheckpoint(),
+                    request.getTargetNode().getId(),
+                    timer.time()
                 )
             );
         }

@@ -49,7 +49,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Netty4Plugin;
+import org.opensearch.transport.Netty4ModulePlugin;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -84,7 +84,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(ReindexModulePlugin.class, Netty4ModulePlugin.class);
     }
 
     /**
@@ -123,7 +123,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
              */
             NodeInfo clusterManagerNode = null;
             for (NodeInfo candidate : client.admin().cluster().prepareNodesInfo().get().getNodes()) {
-                if (candidate.getNode().isMasterNode()) {
+                if (candidate.getNode().isClusterManagerNode()) {
                     clusterManagerNode = candidate;
                 }
             }
@@ -206,7 +206,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
 
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
+        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().clusterManagerClient());
         // Make sure we use more than one batch so we have to scroll
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 

@@ -70,7 +70,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
     }
 
     public void testFilteredRepoMetadataIsUsed() {
-        final String clusterManagerName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getClusterManagerName();
         final String repoName = "test-repo";
         assertAcked(
             client().admin()

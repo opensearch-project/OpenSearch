@@ -338,7 +338,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     // simulate handling of sending shard failure during an isolation
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3);
-        String clusterManagerNode = internalCluster().getMasterName();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
         List<String> nonClusterManagerNodes = nodes.stream().filter(node -> !node.equals(clusterManagerNode)).collect(Collectors.toList());
         String nonClusterManagerNode = randomFrom(nonClusterManagerNodes);
         assertAcked(
@@ -463,12 +463,12 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testIndicesDeleted() throws Exception {
         final String idxName = "test";
-        final List<String> allClusterManagerEligibleNodes = internalCluster().startMasterOnlyNodes(2);
+        final List<String> allClusterManagerEligibleNodes = internalCluster().startClusterManagerOnlyNodes(2);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
 
-        final String clusterManagerNode1 = internalCluster().getMasterName();
+        final String clusterManagerNode1 = internalCluster().getClusterManagerName();
         NetworkDisruption networkDisruption = new NetworkDisruption(
             new TwoPartitions(clusterManagerNode1, dataNode),
             NetworkDisruption.UNRESPONSIVE

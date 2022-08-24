@@ -31,6 +31,8 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -48,6 +50,29 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
     private final SegmentReplicationSourceFactory sourceFactory;
+
+    private final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = new HashMap<>();
+
+    // Empty Implementation, only required while Segment Replication is under feature flag.
+    public static final SegmentReplicationTargetService NO_OP = new SegmentReplicationTargetService() {
+        @Override
+        public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+            // NoOp;
+        }
+
+        @Override
+        public synchronized void onNewCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
+            // noOp;
+        }
+    };
+
+    // Used only for empty implementation.
+    private SegmentReplicationTargetService() {
+        threadPool = null;
+        recoverySettings = null;
+        onGoingReplications = null;
+        sourceFactory = null;
+    }
 
     /**
      * The internal actions
@@ -91,6 +116,15 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * @param replicaShard      replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
+        logger.trace(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
+        // Checks if received checkpoint is already present and ahead then it replaces old received checkpoint
+        if (latestReceivedCheckpoint.get(replicaShard.shardId()) != null) {
+            if (receivedCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId()))) {
+                latestReceivedCheckpoint.replace(replicaShard.shardId(), receivedCheckpoint);
+            }
+        } else {
+            latestReceivedCheckpoint.put(replicaShard.shardId(), receivedCheckpoint);
+        }
         if (onGoingReplications.isShardReplicating(replicaShard.shardId())) {
             logger.trace(
                 () -> new ParameterizedMessage(
@@ -100,13 +134,42 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             );
             return;
         }
+        final Thread thread = Thread.currentThread();
         if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
             startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
                 @Override
-                public void onReplicationDone(SegmentReplicationState state) {}
+                public void onReplicationDone(SegmentReplicationState state) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                            replicaShard.shardId().getId(),
+                            state.getReplicationId(),
+                            state.getTimingData()
+                        )
+                    );
+                    // if we received a checkpoint during the copy event that is ahead of this
+                    // try and process it.
+                    if (latestReceivedCheckpoint.get(replicaShard.shardId()).isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
+                        Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+                        // Checks if we are using same thread and forks if necessary.
+                        if (thread == Thread.currentThread()) {
+                            threadPool.generic().execute(runnable);
+                        } else {
+                            runnable.run();
+                        }
+                    }
+                }
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[shardId {}] [replication id {}] Replication failed, timing data: {}",
+                            replicaShard.shardId().getId(),
+                            state.getReplicationId(),
+                            state.getTimingData()
+                        )
+                    );
                     if (sendShardFailure == true) {
                         logger.error("replication failure", e);
                         replicaShard.failShard("replication failure", e);
@@ -125,9 +188,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         startReplication(new SegmentReplicationTarget(checkpoint, indexShard, sourceFactory.get(indexShard), listener));
     }
 
-    public void startReplication(final SegmentReplicationTarget target) {
+    // pkg-private for integration tests
+    void startReplication(final SegmentReplicationTarget target) {
         final long replicationId = onGoingReplications.start(target, recoverySettings.activityTimeout());
-        logger.trace(() -> new ParameterizedMessage("Starting replication {}", replicationId));
         threadPool.generic().execute(new ReplicationRunner(replicationId));
     }
 
@@ -172,6 +235,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private void start(final long replicationId) {
         try (ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)) {
+            // This check is for handling edge cases where the reference is removed before the ReplicationRunner is started by the
+            // threadpool.
+            if (replicationRef == null) {
+                return;
+            }
             replicationRef.get().startReplication(new ActionListener<>() {
                 @Override
                 public void onResponse(Void o) {

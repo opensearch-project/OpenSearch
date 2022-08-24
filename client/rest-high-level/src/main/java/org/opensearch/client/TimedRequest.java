@@ -44,10 +44,13 @@ import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 public abstract class TimedRequest implements Validatable {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
-    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+    public static final TimeValue DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT} */
+    @Deprecated
+    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
     private TimeValue timeout = DEFAULT_ACK_TIMEOUT;
-    private TimeValue clusterManagerTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
+    private TimeValue clusterManagerTimeout = DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
     /**
      * Sets the timeout to wait for the all the nodes to acknowledge
@@ -61,8 +64,18 @@ public abstract class TimedRequest implements Validatable {
      * Sets the timeout to connect to the cluster-manager node
      * @param clusterManagerTimeout timeout as a {@link TimeValue}
      */
-    public void setMasterTimeout(TimeValue clusterManagerTimeout) {
+    public void setClusterManagerTimeout(TimeValue clusterManagerTimeout) {
         this.clusterManagerTimeout = clusterManagerTimeout;
+    }
+
+    /**
+     * Sets the timeout to connect to the cluster-manager node
+     * @param clusterManagerTimeout timeout as a {@link TimeValue}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #setClusterManagerTimeout(TimeValue)}
+     */
+    @Deprecated
+    public void setMasterTimeout(TimeValue clusterManagerTimeout) {
+        setClusterManagerTimeout(clusterManagerTimeout);
     }
 
     /**
@@ -75,7 +88,16 @@ public abstract class TimedRequest implements Validatable {
     /**
      * Returns the timeout for the request to be completed on the cluster-manager node
      */
-    public TimeValue masterNodeTimeout() {
+    public TimeValue clusterManagerNodeTimeout() {
         return clusterManagerTimeout;
+    }
+
+    /**
+     * Returns the timeout for the request to be completed on the cluster-manager node
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout()}
+     */
+    @Deprecated
+    public TimeValue masterNodeTimeout() {
+        return clusterManagerNodeTimeout();
     }
 }
