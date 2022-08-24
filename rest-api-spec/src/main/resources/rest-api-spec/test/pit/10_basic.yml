@@ -26,7 +26,7 @@
         index: test_pit
         keep_alive: 23h
 
-  - set: {id: pit_id}
+  - set: {pit_id: pit_id}
   - match:   { _shards.failed: 0}
   - do:
       search:
@@ -84,7 +84,7 @@
         body:
           "pit_id": [$pit_id]
 
-  - match: {pits.0.pitId: $pit_id}
+  - match: {pits.0.pit_id: $pit_id}
   - match: {pits.0.successful: true }
 
 ---
@@ -116,13 +116,13 @@
         index: test_pit
         keep_alive: 23h
 
-  - set: {id: pit_id}
+  - set: {pit_id: pit_id}
   - match:   { _shards.failed: 0}
 
   - do:
       delete_all_pits: {}
 
-  - match: {pits.0.pitId: $pit_id}
+  - match: {pits.0.pit_id: $pit_id}
   - match: {pits.0.successful: true }
 
   - do:
