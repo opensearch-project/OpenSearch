@@ -7576,8 +7576,8 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
     }
 
-    // This method simulates behaviour of on-disk SegmentInfos having lower segment generation number compared to
-    // actual in-memory SegmentInfos and verified that engine.getSegmentInfosSnapshot returns in-memory SegmentInfos
+    // This method verifies that when on-disk segment generation is not higher compared to memory copy, then
+    // engine.getSegmentInfosSnapsho returns in-memory SegmentInfos
     public void testGetSegmentInfosWithHighestGenInMemory() throws IOException {
         IOUtils.close(store, engine);
         Store store = spy(createStore());
@@ -7592,9 +7592,6 @@ public class InternalEngineTests extends EngineTestCase {
         engine.flush(true, true);
 
         SegmentInfos sisInMemory = engine.getLatestSegmentInfos();
-        SegmentInfos sisDisk = store.readLastCommittedSegmentsInfo();
-
-        when(store.getLastCommitGeneration()).thenReturn(sisDisk.getGeneration());
 
         GatedCloseable<SegmentInfos> segmentInfosSnapshot = engine.getSegmentInfosSnapshot();
         assertEquals(segmentInfosSnapshot.get(), sisInMemory);
