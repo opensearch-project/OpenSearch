@@ -2143,7 +2143,6 @@ public class InternalEngine extends Engine {
         try {
             final long lastCommitGeneration = store.getLastCommitGeneration();
             final long generation = inMemorySegInfos.getGeneration();
-            logger.info("Latest gen {} - {}", generation, lastCommitGeneration);
             if (generation < lastCommitGeneration) {
                 // the latest in memory infos is behind disk, read the latest SegmentInfos from disk and return that.
                 final SegmentInfos latestCommit = store.readLastCommittedSegmentsInfo();
