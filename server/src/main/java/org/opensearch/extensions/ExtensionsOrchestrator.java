@@ -136,10 +136,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     }
 
-    public void setClusterService(ClusterService clusterService) {
-        this.clusterService = clusterService;
-    }
-
     /**
      * Initializes the {@link RestActionsRequestHandler} and {@link TransportService}. This is called during Node bootstrap.
      * Lists/maps of extensions have already been initialized but not yet populated.
@@ -151,6 +147,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.transportService = transportService;
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         registerRequestHandler();
+    }
+
+    public void setClusterService(ClusterService clusterService) {
+        this.clusterService = clusterService;
     }
 
     public void setNamedWriteableRegistry() {
