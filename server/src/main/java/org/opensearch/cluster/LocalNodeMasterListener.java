@@ -36,27 +36,38 @@ package org.opensearch.cluster;
  * node cease being a cluster-manager).
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link LocalNodeClusterManagerListener}
  */
-public interface LocalNodeMasterListener extends ClusterStateListener {
+@Deprecated
+public interface LocalNodeMasterListener extends LocalNodeClusterManagerListener {
 
     /**
-     * Called when local node is elected to be the cluster-manager
+     * Called when local node is elected to be the cluster-manager.
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #onClusterManager()}
      */
+    @Deprecated
     void onMaster();
 
     /**
      * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #offClusterManager()}
      */
+    @Deprecated
     void offMaster();
 
+    /**
+     * Called when local node is elected to be the cluster-manager.
+     */
     @Override
-    default void clusterChanged(ClusterChangedEvent event) {
-        final boolean wasClusterManager = event.previousState().nodes().isLocalNodeElectedMaster();
-        final boolean isClusterManager = event.localNodeMaster();
-        if (wasClusterManager == false && isClusterManager) {
-            onMaster();
-        } else if (wasClusterManager && isClusterManager == false) {
-            offMaster();
-        }
+    default void onClusterManager() {
+        onMaster();
+    }
+
+    /**
+     * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
+     */
+    @Override
+    default void offClusterManager() {
+        offMaster();
     }
 }

@@ -92,6 +92,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 
 public class MasterServiceTests extends OpenSearchTestCase {
 
@@ -121,9 +122,9 @@ public class MasterServiceTests extends OpenSearchTestCase {
         relativeTimeInMillis = randomLongBetween(0L, 1L << 62);
     }
 
-    private MasterService createClusterManagerService(boolean makeClusterManager) {
+    private ClusterManagerService createClusterManagerService(boolean makeClusterManager) {
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        final MasterService clusterManagerService = new MasterService(
+        final ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
                 .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
@@ -136,7 +137,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 DiscoveryNodes.builder()
                     .add(localNode)
                     .localNodeId(localNode.getId())
-                    .masterNodeId(makeClusterManager ? localNode.getId() : null)
+                    .clusterManagerNodeId(makeClusterManager ? localNode.getId() : null)
             )
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
@@ -151,7 +152,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     public void testClusterManagerAwareExecution() throws Exception {
-        final MasterService nonClusterManager = createClusterManagerService(false);
+        final ClusterManagerService nonClusterManager = createClusterManagerService(false);
 
         final boolean[] taskFailed = { false };
         final CountDownLatch latch1 = new CountDownLatch(1);
@@ -194,7 +195,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     public void testThreadContext() throws InterruptedException {
-        final MasterService clusterManager = createClusterManagerService(true);
+        final ClusterManagerService clusterManagerService = createClusterManagerService(true);
         final CountDownLatch latch = new CountDownLatch(1);
 
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
@@ -208,7 +209,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
             final TimeValue clusterManagerTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
 
-            clusterManager.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            clusterManagerService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assertTrue(threadPool.getThreadContext().isSystemContext());
@@ -280,7 +281,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
         latch.await();
 
-        clusterManager.close();
+        clusterManagerService.close();
     }
 
     /*
@@ -292,7 +293,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean published = new AtomicBoolean();
 
-        try (MasterService clusterManagerService = createClusterManagerService(true)) {
+        try (ClusterManagerService clusterManagerService = createClusterManagerService(true)) {
             clusterManagerService.submitStateUpdateTask(
                 "testClusterStateTaskListenerThrowingExceptionIsOkay",
                 new Object(),
@@ -421,7 +422,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 )
             );
 
-            try (MasterService clusterManagerService = createClusterManagerService(true)) {
+            try (ClusterManagerService clusterManagerService = createClusterManagerService(true)) {
                 clusterManagerService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -617,7 +618,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             }
         };
 
-        try (MasterService clusterManagerService = createClusterManagerService(true)) {
+        try (ClusterManagerService clusterManagerService = createClusterManagerService(true)) {
             final ConcurrentMap<String, AtomicInteger> submittedTasksPerThread = new ConcurrentHashMap<>();
             CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
             for (int i = 0; i < numberOfThreads; i++) {
@@ -955,7 +956,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<AssertionError> assertionRef = new AtomicReference<>();
 
-        try (MasterService clusterManagerService = createClusterManagerService(true)) {
+        try (ClusterManagerService clusterManagerService = createClusterManagerService(true)) {
             clusterManagerService.submitStateUpdateTask(
                 "testBlockingCallInClusterStateTaskListenerFails",
                 new Object(),
@@ -1047,7 +1048,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             );
 
             try (
-                MasterService clusterManagerService = new MasterService(
+                ClusterManagerService clusterManagerService = new ClusterManagerService(
                     Settings.builder()
                         .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
                         .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
@@ -1071,12 +1072,12 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
                 clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
                     if (event.source().contains("test5")) {
-                        relativeTimeInMillis += MasterService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                     }
                     if (event.source().contains("test6")) {
-                        relativeTimeInMillis += MasterService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                         throw new OpenSearchException("simulated error during slow publication which should trigger logging");
@@ -1094,7 +1095,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     public ClusterState execute(ClusterState currentState) {
                         relativeTimeInMillis += randomLongBetween(
                             0L,
-                            MasterService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
+                            ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         );
                         return currentState;
                     }
@@ -1115,7 +1116,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += MasterService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                         throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
@@ -1134,7 +1135,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += MasterService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                         return ClusterState.builder(currentState).incrementVersion().build();
@@ -1153,7 +1154,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test4", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += MasterService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                         return currentState;
@@ -1230,7 +1231,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         try (
-            MasterService clusterManagerService = new MasterService(
+            ClusterManagerService clusterManagerService = new ClusterManagerService(
                 Settings.builder()
                     .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
                     .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
@@ -1357,10 +1358,22 @@ public class MasterServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testDeprecatedMasterServiceUpdateTaskThreadName() {
+        Thread.currentThread().setName(MasterService.MASTER_UPDATE_THREAD_NAME);
+        assertThat(MasterService.assertClusterManagerUpdateThread(), is(Boolean.TRUE));
+        assertThrows(AssertionError.class, () -> MasterService.assertNotClusterManagerUpdateThread("test"));
+        Thread.currentThread().setName(MasterService.CLUSTER_MANAGER_UPDATE_THREAD_NAME);
+        assertThat(MasterService.assertClusterManagerUpdateThread(), is(Boolean.TRUE));
+        assertThrows(AssertionError.class, () -> MasterService.assertNotClusterManagerUpdateThread("test"));
+        Thread.currentThread().setName("test not cluster manager update thread");
+        assertThat(MasterService.assertNotClusterManagerUpdateThread("test"), is(Boolean.TRUE));
+        assertThrows(AssertionError.class, () -> MasterService.assertClusterManagerUpdateThread());
+    }
+
     /**
      * Returns the cluster state that the cluster-manager service uses (and that is provided by the discovery layer)
      */
-    public static ClusterState discoveryState(MasterService clusterManagerService) {
+    public static ClusterState discoveryState(ClusterManagerService clusterManagerService) {
         return clusterManagerService.state();
     }
 

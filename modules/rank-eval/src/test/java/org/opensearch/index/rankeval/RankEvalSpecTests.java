@@ -71,7 +71,7 @@ public class RankEvalSpecTests extends OpenSearchTestCase {
     @SuppressWarnings("resource")
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new RankEvalPlugin().getNamedXContent());
+        return new NamedXContentRegistry(new RankEvalModulePlugin().getNamedXContent());
     }
 
     private static <T> List<T> randomList(Supplier<T> randomSupplier) {

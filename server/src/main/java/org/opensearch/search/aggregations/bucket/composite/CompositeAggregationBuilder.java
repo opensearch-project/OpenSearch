@@ -35,9 +35,11 @@ package org.opensearch.search.aggregations.bucket.composite;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -47,11 +49,14 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -82,12 +87,53 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         PARSER.declareObject(CompositeAggregationBuilder::aggregateAfter, (p, context) -> p.map(), AFTER_FIELD_NAME);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+    static final Map<Class<?>, Byte> BUILDER_CLASS_TO_BYTE_CODE = new HashMap<>();
+    static final Map<String, CompositeAggregationParsingFunction> BUILDER_TYPE_TO_PARSER = new HashMap<>();
+    static final Map<Integer, Writeable.Reader<? extends CompositeValuesSourceBuilder<?>>> BYTE_CODE_TO_COMPOSITE_VALUE_SOURCE_READER =
+        new HashMap<>();
+    static final Map<
+        String,
+        Writeable.Reader<? extends CompositeValuesSourceBuilder<?>>> AGGREGATION_TYPE_TO_COMPOSITE_VALUE_SOURCE_READER = new HashMap<>();
+    static final Map<Class<?>, String> BUILDER_CLASS_TO_AGGREGATION_TYPE = new HashMap<>();
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder, final List<SearchPlugin> plugins) {
         DateHistogramValuesSourceBuilder.register(builder);
         HistogramValuesSourceBuilder.register(builder);
-        GeoTileGridValuesSourceBuilder.register(builder);
         TermsValuesSourceBuilder.register(builder);
+        // Register All other aggregations that wants to be part of Composite Aggregation which are provided in
+        // Plugins along with their parsers and serialisation codes
+        registerCompositeAggregatorsPlugins(plugins, SearchPlugin::getCompositeAggregations, (compositeAggregationSpec) -> {
+            compositeAggregationSpec.getAggregatorRegistrar().accept(builder);
+            BUILDER_TYPE_TO_PARSER.put(compositeAggregationSpec.getAggregationType(), compositeAggregationSpec.getParsingFunction());
+            // This is added for backward compatibility, so that we can move away from byte code in the serialisation
+            if (compositeAggregationSpec.getByteCode() != null) {
+                BYTE_CODE_TO_COMPOSITE_VALUE_SOURCE_READER.put(
+                    (int) compositeAggregationSpec.getByteCode(),
+                    compositeAggregationSpec.getReader()
+                );
+                BUILDER_CLASS_TO_BYTE_CODE.put(
+                    compositeAggregationSpec.getValueSourceBuilderClass(),
+                    compositeAggregationSpec.getByteCode()
+                );
+            }
+            AGGREGATION_TYPE_TO_COMPOSITE_VALUE_SOURCE_READER.put(
+                compositeAggregationSpec.getAggregationType(),
+                compositeAggregationSpec.getReader()
+            );
+            BUILDER_CLASS_TO_AGGREGATION_TYPE.put(
+                compositeAggregationSpec.getValueSourceBuilderClass(),
+                compositeAggregationSpec.getAggregationType()
+            );
+        });
         builder.registerUsage(NAME);
+    }
+
+    private static void registerCompositeAggregatorsPlugins(
+        final List<SearchPlugin> plugins,
+        final Function<SearchPlugin, List<SearchPlugin.CompositeAggregationSpec>> producer,
+        final Consumer<SearchPlugin.CompositeAggregationSpec> consumer
+    ) {
+        plugins.forEach(searchPlugin -> producer.apply(searchPlugin).forEach(consumer));
     }
 
     private List<CompositeValuesSourceBuilder<?>> sources;

@@ -8,9 +8,13 @@ services:
         accessKey: "access_key"
         secretKey: "secret_key"
       dockerfile: Dockerfile
+    ulimits:
+      nofile:
+        hard: 4096
+        soft: 4096
     ports:
       - "9000"
-    command: ["server", "/minio/data"]
+    command: ["server", "--console-address", ":9001", "/minio/data"]
   minio-fixture-other:
     build:
       context: .
@@ -19,17 +23,25 @@ services:
         accessKey: "access_key"
         secretKey: "secret_key"
       dockerfile: Dockerfile
+    ulimits:
+      nofile:
+        hard: 4096
+        soft: 4096
     ports:
       - "9000"
-    command: ["server", "/minio/data"]
+    command: ["server", "--console-address", ":9001", "/minio/data"]
   minio-fixture-for-snapshot-tool:
-      build:
-        context: .
-        args:
-          bucket: "bucket"
-          accessKey: "sn_tool_access_key"
-          secretKey: "sn_tool_secret_key"
-        dockerfile: Dockerfile
-      ports:
-        - "9000"
-      command: ["server", "/minio/data"]
+    build:
+      context: .
+      args:
+        bucket: "bucket"
+        accessKey: "sn_tool_access_key"
+        secretKey: "sn_tool_secret_key"
+      dockerfile: Dockerfile
+    ulimits:
+      nofile:
+        hard: 4096
+        soft: 4096
+    ports:
+      - "9000"
+    command: ["server", "--console-address", ":9001", "/minio/data"]

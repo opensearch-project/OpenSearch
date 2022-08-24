@@ -192,8 +192,8 @@ public class BuildParams {
             BuildParams.runtimeJavaHome = requireNonNull(runtimeJavaHome);
         }
 
-        public void setIsRutimeJavaHomeSet(boolean isRutimeJavaHomeSet) {
-            BuildParams.isRuntimeJavaHomeSet = isRutimeJavaHomeSet;
+        public void setIsRuntimeJavaHomeSet(boolean isRuntimeJavaHomeSet) {
+            BuildParams.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet;
         }
 
         public void setJavaVersions(List<JavaHome> javaVersions) {

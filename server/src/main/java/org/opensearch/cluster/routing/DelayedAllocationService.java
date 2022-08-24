@@ -150,7 +150,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+        if (DiscoveryNode.isClusterManagerNode(clusterService.getSettings())) {
             clusterService.addListener(this);
         }
     }
@@ -174,7 +174,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) {
+        if (event.localNodeClusterManager()) {
             long currentNanoTime = currentNanoTime();
             scheduleIfNeeded(currentNanoTime, event.state());
         }
@@ -196,7 +196,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
      * Figure out if an existing scheduled reroute is good enough or whether we need to cancel and reschedule.
      */
     private synchronized void scheduleIfNeeded(long currentNanoTime, ClusterState state) {
-        assertClusterOrMasterStateThread();
+        assertClusterOrClusterManagerStateThread();
         long nextDelayNanos = UnassignedInfo.findNextDelayedAllocation(currentNanoTime, state);
         if (nextDelayNanos < 0) {
             logger.trace("no need to schedule reroute - no delayed unassigned shards");
@@ -236,7 +236,14 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     }
 
     // protected so that it can be overridden (and disabled) by unit tests
+    protected void assertClusterOrClusterManagerStateThread() {
+        assert ClusterService.assertClusterOrClusterManagerStateThread();
+    }
+
+    // protected so that it can be overridden (and disabled) by unit tests
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #assertClusterOrClusterManagerStateThread()} */
+    @Deprecated
     protected void assertClusterOrMasterStateThread() {
-        assert ClusterService.assertClusterOrMasterStateThread();
+        assertClusterOrClusterManagerStateThread();
     }
 }

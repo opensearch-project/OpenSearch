@@ -15,18 +15,23 @@ import org.junit.Before;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.collect.Set;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 
 public class RemoteDirectoryTests extends OpenSearchTestCase {
     private BlobContainer blobContainer;
@@ -62,6 +67,24 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         when(blobContainer.listBlobs()).thenThrow(new IOException("Error reading blob store"));
 
         assertThrows(IOException.class, () -> remoteDirectory.listAll());
+    }
+
+    public void testListFilesByPrefix() throws IOException {
+        Map<String, BlobMetadata> fileNames = Stream.of("abc", "abd", "abe", "abf", "abg")
+            .collect(Collectors.toMap(filename -> filename, filename -> new PlainBlobMetadata(filename, 100)));
+
+        when(blobContainer.listBlobsByPrefix("ab")).thenReturn(fileNames);
+
+        Collection<String> actualFileNames = remoteDirectory.listFilesByPrefix("ab");
+        Collection<String> expectedFileName = Set.of("abc", "abd", "abe", "abf", "abg");
+        assertEquals(expectedFileName, actualFileNames);
+    }
+
+    public void testListFilesByPrefixException() throws IOException {
+        when(blobContainer.listBlobsByPrefix("abc")).thenThrow(new IOException("Error reading blob store"));
+
+        assertThrows(IOException.class, () -> remoteDirectory.listFilesByPrefix("abc"));
+        verify(blobContainer).listBlobsByPrefix("abc");
     }
 
     public void testDeleteFile() throws IOException {

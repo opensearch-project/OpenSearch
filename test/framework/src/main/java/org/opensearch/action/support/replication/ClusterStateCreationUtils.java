@@ -107,7 +107,7 @@ public class ClusterStateCreationUtils {
             unassignedNodes.add(node.getId());
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local cluster-manager to test shard failures
+        discoBuilder.clusterManagerNodeId(newNode(1).getId()); // we need a non-local cluster-manager to test shard failures
         final int primaryTerm = 1 + randomInt(200);
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(
@@ -198,7 +198,7 @@ public class ClusterStateCreationUtils {
             nodes.add(node.getId());
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(randomFrom(nodes));
+        discoBuilder.clusterManagerNodeId(randomFrom(nodes));
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(
                 Settings.builder()
@@ -240,7 +240,7 @@ public class ClusterStateCreationUtils {
             nodes.add(node.getId());
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(0).getId());
+        discoBuilder.clusterManagerNodeId(newNode(0).getId());
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         List<String> nodesList = new ArrayList<>(nodes);
@@ -291,7 +291,7 @@ public class ClusterStateCreationUtils {
             discoBuilder = discoBuilder.add(node);
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local cluster-manager to test shard failures
+        discoBuilder.clusterManagerNodeId(newNode(1).getId()); // we need a non-local cluster-manager to test shard failures
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(
                 Settings.builder()
@@ -332,7 +332,7 @@ public class ClusterStateCreationUtils {
             discoBuilder = discoBuilder.add(node);
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(numberOfDataNodes + 1).getId());
+        discoBuilder.clusterManagerNodeId(newNode(numberOfDataNodes + 1).getId());
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         Builder routingTableBuilder = RoutingTable.builder();
@@ -417,7 +417,7 @@ public class ClusterStateCreationUtils {
     public static ClusterState stateWithNoShard() {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(1).getId());
+        discoBuilder.clusterManagerNodeId(newNode(1).getId());
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         state.metadata(Metadata.builder().generateClusterUuidIfNeeded());
@@ -439,7 +439,7 @@ public class ClusterStateCreationUtils {
             discoBuilder.add(node);
         }
         if (clusterManagerNode != null) {
-            discoBuilder.masterNodeId(clusterManagerNode.getId());
+            discoBuilder.clusterManagerNodeId(clusterManagerNode.getId());
         }
         discoBuilder.localNodeId(localNode.getId());
 

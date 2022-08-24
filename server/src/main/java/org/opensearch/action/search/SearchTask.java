@@ -80,6 +80,11 @@ public class SearchTask extends CancellableTask {
         return descriptionSupplier.get();
     }
 
+    @Override
+    public boolean supportsResourceTracking() {
+        return true;
+    }
+
     /**
      * Attach a {@link SearchProgressListener} to this task.
      */

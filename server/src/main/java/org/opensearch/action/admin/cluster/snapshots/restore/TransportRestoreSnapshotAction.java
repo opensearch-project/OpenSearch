@@ -102,14 +102,19 @@ public class TransportRestoreSnapshotAction extends TransportClusterManagerNodeA
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final RestoreSnapshotRequest request,
         final ClusterState state,
         final ActionListener<RestoreSnapshotResponse> listener
     ) {
         restoreService.restoreSnapshot(request, ActionListener.delegateFailure(listener, (delegatedListener, restoreCompletionResponse) -> {
             if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, delegatedListener);
+                RestoreClusterStateListener.createAndRegisterListener(
+                    clusterService,
+                    restoreCompletionResponse,
+                    delegatedListener,
+                    RestoreSnapshotResponse::new
+                );
             } else {
                 delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
             }

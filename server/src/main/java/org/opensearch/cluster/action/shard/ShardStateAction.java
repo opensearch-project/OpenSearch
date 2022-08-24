@@ -39,13 +39,13 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
-import org.opensearch.cluster.MasterNodeChangePredicate;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -182,8 +182,8 @@ public class ShardStateAction {
         final ActionListener<Void> listener
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
-        DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
-        Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
+        DiscoveryNode clusterManagerNode = currentState.nodes().getClusterManagerNode();
+        Predicate<ClusterState> changePredicate = ClusterManagerNodeChangePredicate.build(currentState);
         if (clusterManagerNode == null) {
             logger.warn("no cluster-manager known for action [{}] for shard entry [{}]", actionName, request);
             waitForNewClusterManagerAndRetry(actionName, observer, request, listener, changePredicate);
@@ -223,7 +223,7 @@ public class ShardStateAction {
     }
 
     private static Class[] CLUSTER_MANAGER_CHANNEL_EXCEPTIONS = new Class[] {
-        NotMasterException.class,
+        NotClusterManagerException.class,
         ConnectTransportException.class,
         FailedToCommitClusterStateException.class };
 
@@ -385,10 +385,10 @@ public class ShardStateAction {
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         logger.error("{} no longer cluster-manager while failing shard [{}]", request.shardId, request);
                         try {
-                            channel.sendResponse(new NotMasterException(source));
+                            channel.sendResponse(new NotClusterManagerException(source));
                         } catch (Exception channelException) {
                             logger.warn(
                                 () -> new ParameterizedMessage(
@@ -817,7 +817,7 @@ public class ShardStateAction {
 
         @Override
         public void onFailure(String source, Exception e) {
-            if (e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException) {
+            if (e instanceof FailedToCommitClusterStateException || e instanceof NotClusterManagerException) {
                 logger.debug(() -> new ParameterizedMessage("failure during [{}]", source), e);
             } else {
                 logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);

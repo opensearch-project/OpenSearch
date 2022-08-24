@@ -354,12 +354,12 @@ public final class NodeEnvironment implements Closeable {
             applySegmentInfosTrace(settings);
             assertCanWrite();
 
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+            if (DiscoveryNode.isClusterManagerNode(settings) || DiscoveryNode.isDataNode(settings)) {
                 ensureAtomicMoveSupported(nodePaths);
             }
 
             if (DiscoveryNode.isDataNode(settings) == false) {
-                if (DiscoveryNode.isMasterNode(settings) == false) {
+                if (DiscoveryNode.isClusterManagerNode(settings) == false) {
                     ensureNoIndexMetadata(nodePaths);
                 }
 
