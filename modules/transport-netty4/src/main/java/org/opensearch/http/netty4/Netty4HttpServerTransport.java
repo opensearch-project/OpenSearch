@@ -45,10 +45,12 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.nio.NioChannelOption;
+import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.HttpServerUpgradeHandler;
@@ -362,13 +364,24 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("byte_buf_sizer", byteBufSizer);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
 
+            configureDefaultPipeline(ch);
+            transport.serverAcceptedChannel(nettyHttpChannel);
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
+            super.exceptionCaught(ctx, cause);
+        }
+
+        protected void configureDefaultPipeline(Channel ch) {
             final UpgradeCodecFactory upgradeCodecFactory = new UpgradeCodecFactory() {
                 @Override
                 public UpgradeCodec newUpgradeCodec(CharSequence protocol) {
                     if (AsciiString.contentEquals(Http2CodecUtil.HTTP_UPGRADE_PROTOCOL_NAME, protocol)) {
                         return new Http2ServerUpgradeCodec(
                             Http2FrameCodecBuilder.forServer().build(),
-                            new Http2MultiplexHandler(createHttp2ChannelInitializer())
+                            new Http2MultiplexHandler(createHttp2ChannelInitializer(ch.pipeline()))
                         );
                     } else {
                         return null;
@@ -414,19 +427,33 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     ctx.fireChannelRead(ReferenceCountUtil.retain(msg));
                 }
             });
-
-            transport.serverAcceptedChannel(nettyHttpChannel);
         }
 
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            ExceptionsHelper.maybeDieOnAnotherThread(cause);
-            super.exceptionCaught(ctx, cause);
+        protected void configureDefaultHttpPipeline(ChannelPipeline pipeline) {
+            final HttpRequestDecoder decoder = new HttpRequestDecoder(
+                handlingSettings.getMaxInitialLineLength(),
+                handlingSettings.getMaxHeaderSize(),
+                handlingSettings.getMaxChunkSize()
+            );
+            decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
+            pipeline.addLast("decoder", decoder);
+            pipeline.addLast("decoder_compress", new HttpContentDecompressor());
+            pipeline.addLast("encoder", new HttpResponseEncoder());
+            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+            pipeline.addLast("aggregator", aggregator);
+            if (handlingSettings.isCompression()) {
+                pipeline.addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+            }
+            pipeline.addLast("request_creator", requestCreator);
+            pipeline.addLast("response_creator", responseCreator);
+            pipeline.addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
+            pipeline.addLast("handler", requestHandler);
         }
 
-        private void configureDefaultHttp2Pipeline(ChannelPipeline pipeline) {
+        protected void configureDefaultHttp2Pipeline(ChannelPipeline pipeline) {
             pipeline.addLast(Http2FrameCodecBuilder.forServer().build())
-                .addLast(new Http2MultiplexHandler(createHttp2ChannelInitializer()));
+                .addLast(new Http2MultiplexHandler(createHttp2ChannelInitializer(pipeline)));
         }
 
         private ChannelInitializer<Channel> createHttp2ChannelInitializerPriorKnowledge() {
@@ -438,11 +465,15 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             };
         }
 
-        private ChannelInitializer<Channel> createHttp2ChannelInitializer() {
+        /**
+         * Http2MultiplexHandler creates new pipeline, we are preserving the old one in case some handlers need to be
+         * access (like for example opensearch-security plugin which accesses SSL handlers).
+         */
+        private ChannelInitializer<Channel> createHttp2ChannelInitializer(ChannelPipeline inboundPipeline) {
             return new ChannelInitializer<Channel>() {
                 @Override
                 protected void initChannel(Channel childChannel) throws Exception {
-                    final Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(childChannel);
+                    final Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(childChannel, inboundPipeline);
                     childChannel.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
 
                     final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
