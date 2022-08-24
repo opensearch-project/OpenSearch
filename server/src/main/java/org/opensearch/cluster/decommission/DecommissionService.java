@@ -205,10 +205,12 @@ public class DecommissionService {
         final DecommissionAttribute decommissionAttribute,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        if (!transportService.getLocalNode().isClusterManagerNode() || nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute))
-        {
+        if (!transportService.getLocalNode().isClusterManagerNode()
+            || nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)) {
             throw new NotClusterManagerException(
-                "node [" + transportService.getLocalNode().toString() + "] not eligible to execute decommission request. Will retry until timeout."
+                "node ["
+                    + transportService.getLocalNode().toString()
+                    + "] not eligible to execute decommission request. Will retry until timeout."
             );
         }
         clusterService.submitStateUpdateTask(
@@ -234,9 +236,7 @@ public class DecommissionService {
                 public void onFailure(String source, Exception e) {
                     if (e instanceof DecommissionFailedException) {
                         logger.error(
-                            () -> new ParameterizedMessage(
-                                "failed to decommission attribute [{}]",
-                                decommissionAttribute.toString()),
+                            () -> new ParameterizedMessage("failed to decommission attribute [{}]", decommissionAttribute.toString()),
                             e
                         );
                         listener.onFailure(e);
@@ -262,7 +262,8 @@ public class DecommissionService {
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().custom(DecommissionAttributeMetadata.TYPE);
+                    DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
+                        .custom(DecommissionAttributeMetadata.TYPE);
                     assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
                     assert DecommissionStatus.DECOMMISSION_INIT.equals(decommissionAttributeMetadata.status());
                     listener.onResponse(new ClusterStateUpdateResponse(true));
@@ -277,22 +278,26 @@ public class DecommissionService {
         ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                logger.info("updated decommission status to [{}], weighing away awareness attribute for graceful shutdown",
-                    DecommissionStatus.DECOMMISSION_IN_PROGRESS);
+                logger.info(
+                    "updated decommission status to [{}], weighing away awareness attribute for graceful shutdown",
+                    DecommissionStatus.DECOMMISSION_IN_PROGRESS
+                );
                 failDecommissionedNodes(clusterService.state());
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage( "failed to update decommission status to [{}], will not proceed with decommission"
-                        , DecommissionStatus.DECOMMISSION_IN_PROGRESS),
+                    () -> new ParameterizedMessage(
+                        "failed to update decommission status to [{}], will not proceed with decommission",
+                        DecommissionStatus.DECOMMISSION_IN_PROGRESS
+                    ),
                     e
                 );
             }
         };
         updateMetadataWithDecommissionStatus(DecommissionStatus.DECOMMISSION_IN_PROGRESS, listener);
-        //TODO - code for graceful decommission
+        // TODO - code for graceful decommission
     }
 
     private void failDecommissionedNodes(ClusterState state) {
@@ -304,9 +309,7 @@ public class DecommissionService {
         ActionListener<ClusterStateUpdateResponse> statusUpdateListener = new ActionListener<>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                logger.info(
-                    "successfully updated decommission status"
-                );
+                logger.info("successfully updated decommission status");
             }
 
             @Override
@@ -359,42 +362,31 @@ public class DecommissionService {
         DecommissionStatus decommissionStatus,
         ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
-            decommissionStatus.status(),
-            new ClusterStateUpdateTask(Priority.URGENT) {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    Metadata metadata = currentState.metadata();
-                    DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
-                    assert decommissionAttributeMetadata != null
-                        && decommissionAttributeMetadata.decommissionAttribute() != null
-                        : "failed to update status for decommission. metadata doesn't exist or invalid";
-                    assert assertIncrementalStatusOrFailed(decommissionAttributeMetadata.status(), decommissionStatus);
-                    Metadata.Builder mdBuilder = Metadata.builder(metadata);
-                    DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
-                    mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, newMetadata);
-                    return ClusterState.builder(currentState).metadata(mdBuilder).build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error(
-                        () -> new ParameterizedMessage(
-                            "failed to mark status as [{}]",
-                            decommissionStatus.status()
-                        ),
-                        e
-                    );
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new ClusterStateUpdateResponse(true));
-                }
-
-
+        clusterService.submitStateUpdateTask(decommissionStatus.status(), new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                Metadata metadata = currentState.metadata();
+                DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+                assert decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute() != null
+                    : "failed to update status for decommission. metadata doesn't exist or invalid";
+                assert assertIncrementalStatusOrFailed(decommissionAttributeMetadata.status(), decommissionStatus);
+                Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
+                mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, newMetadata);
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
             }
-        );
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error(() -> new ParameterizedMessage("failed to mark status as [{}]", decommissionStatus.status()), e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+
+        });
     }
 
     private List<DiscoveryNode> nodesWithDecommissionAttribute(ClusterState clusterState, DecommissionAttribute decommissionAttribute) {
@@ -410,7 +402,7 @@ public class DecommissionService {
                 nodesWithDecommissionAttribute.add(node);
             }
         }
-        return  nodesWithDecommissionAttribute;
+        return nodesWithDecommissionAttribute;
     }
 
     private static boolean assertIncrementalStatusOrFailed(DecommissionStatus oldStatus, DecommissionStatus newStatus) {
