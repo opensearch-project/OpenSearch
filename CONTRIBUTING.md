@@ -121,8 +121,6 @@ As a contributor, you must ensure that every pull request has the changes listed
 Adding in the change is two step process -
 1. Add your changes to the corresponding section within the CHANGELOG file with dummy pull request information, publish the PR
 
-  `Your change here ([#PR_NUMBER](PR_URL))`
-
 2. Update the entry for your change in [`CHANGELOG.md`](CHANGELOG.md) and make sure that you reference the pull request there.
 
 
