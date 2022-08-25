@@ -60,7 +60,7 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
             builder.field(decommissionedAttribute.attributeName(), decommissionedAttribute.attributeValue());
         }
         builder.endObject();
-        if (status!=null) {
+        if (status != null) {
             builder.field("status", status);
         }
         builder.endObject();
