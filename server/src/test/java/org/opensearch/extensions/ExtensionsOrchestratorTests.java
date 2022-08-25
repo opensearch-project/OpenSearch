@@ -465,11 +465,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                     "OpenSearchRequest failed"
                 )
             );
-
-            extensionsOrchestrator.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(
-                extensionsOrchestrator.extensionsInitializedList,
-                transportService
-            );
+            List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
+            extensionsOrchestrator.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsList, transportService);
             extensionsOrchestrator.namedWriteableRegistry.getNamedWriteables();
             mockLogAppender.assertAllExpectationsMatched();
         }
@@ -482,7 +479,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
 
-        DiscoveryNode extensionNode = extensionsOrchestrator.extensionsInitializedList.get(0);
+        List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
+        DiscoveryNode extensionNode = extensionsList.get(0);
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY;
 
         // Create response to pass to response handler
@@ -535,7 +533,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
 
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
-        DiscoveryNode extensionNode = extensionsOrchestrator.extensionsInitializedList.get(0);
+        List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
+        DiscoveryNode extensionNode = extensionsList.get(0);
         Class categoryClass = Example.class;
 
         // convert context into an input stream then stream input for mock
