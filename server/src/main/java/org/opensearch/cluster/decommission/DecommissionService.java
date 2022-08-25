@@ -332,7 +332,7 @@ public class DecommissionService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("failed to update the decommission status");
+                logger.error("error while waiting for decommissioned nodes to be removed", e);
             }
         };
 
@@ -341,7 +341,7 @@ public class DecommissionService {
             return nodesWithDecommissionAttribute.size() == 0;
         };
 
-       //  execute decommissioning
+        // execute nodes decommissioning and wait for it to complete
         decommissionHelper.handleNodesDecommissionRequest(
             nodesWithDecommissionAttribute(state, decommissionAttribute),
             "nodes-decommissioned",
