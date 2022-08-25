@@ -1794,6 +1794,41 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * The method figures out the sequence number basis the last commit.
+     *
+     * @return the starting sequence number from which the recovery should start.
+     */
+    public long fetchStartSeqNoFromLastCommit() {
+        long seqNo;
+        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
+        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+
+        try {
+            seqNo = Long.parseLong(store.readLastCommittedSegmentsInfo().getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+            logger.trace("skip local recovery as no index commit found");
+            return UNASSIGNED_SEQ_NO;
+        } catch (Exception e) {
+            logger.debug("skip local recovery as failed to find the safe commit", e);
+            return UNASSIGNED_SEQ_NO;
+        }
+
+        try {
+            maybeCheckIndex();
+            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            recoveryState.getTranslog().totalLocal(0);
+        } catch (Exception e) {
+            logger.debug("check index failed during fetch seqNo", e);
+            return UNASSIGNED_SEQ_NO;
+        }
+        return seqNo;
+    }
+
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
         getEngine().translogManager().trimOperationsFromTranslog(getOperationPrimaryTerm(), aboveSeqNo);
     }
