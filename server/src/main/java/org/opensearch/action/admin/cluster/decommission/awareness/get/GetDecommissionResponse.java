@@ -28,10 +28,6 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
     private final DecommissionAttribute decommissionedAttribute;
     private final DecommissionStatus status;
 
-    GetDecommissionResponse() {
-        this(null, null);
-    }
-
     GetDecommissionResponse(DecommissionAttribute decommissionedAttribute, DecommissionStatus status) {
         this.decommissionedAttribute = decommissionedAttribute;
         this.status = status;
