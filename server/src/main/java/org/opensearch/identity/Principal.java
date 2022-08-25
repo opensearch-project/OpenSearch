@@ -11,6 +11,9 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.common.io.stream.NamedWriteable;
+
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -20,8 +23,9 @@ import java.util.UUID;
  * The implementation should be serializable/deserializable
 */
 
-// TODO: Determine how this principal can be shared between threads
-public interface Principal {
+// TODO: Determine how this principal can be shared between threads and
+//  the effects of extending NamedWriteable class
+public interface Principal extends Serializable, NamedWriteable {
     // TODO: Determine how to handle blank or null users/groups (if there is such possibility)
     /* A unique identifier for each entity */
     UUID getId();
