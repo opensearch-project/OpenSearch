@@ -49,6 +49,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -81,6 +82,11 @@ public abstract class TransportWriteAction<
     protected final SystemIndices systemIndices;
 
     private final Function<IndexShard, String> executorFunction;
+
+    public static final Function<IndexShard, Boolean> IS_REMOTE_TXLOG_ENABLED = shard -> {
+        IndexSettings indexSettings = shard.indexSettings();
+        return indexSettings.isSegRepEnabled() && indexSettings.isRemoteStoreEnabled() && indexSettings.isRemoteTranslogStoreEnabled();
+    };
 
     protected TransportWriteAction(
         Settings settings,
@@ -244,6 +250,11 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        // The call should finish here for cases where the replication call is NoOp
+        if (isNoOp(request, replica)) {
+            ActionListener.completeWith(listener, ReplicaResult::new);
+            return;
+        }
         threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<ReplicaResult>(listener) {
             @Override
             protected void doRun() {
@@ -255,6 +266,10 @@ public abstract class TransportWriteAction<
                 return true;
             }
         });
+    }
+
+    protected boolean isNoOp(ReplicaRequest request, IndexShard replica) {
+        return false;
     }
 
     protected abstract void dispatchedShardOperationOnReplica(

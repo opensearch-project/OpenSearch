@@ -544,6 +544,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
+    protected boolean isNoOp(BulkShardRequest request, IndexShard replica) {
+        return TransportWriteAction.IS_REMOTE_TXLOG_ENABLED.apply(replica);
+    }
+
+    @Override
     protected long replicaOperationSize(BulkShardRequest request) {
         return request.ramBytesUsed();
     }

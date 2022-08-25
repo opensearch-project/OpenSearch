@@ -174,6 +174,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
     }
 
     @Override
+    protected boolean isNoOp(ResyncReplicationRequest request, IndexShard replica) {
+        return TransportWriteAction.IS_REMOTE_TXLOG_ENABLED.apply(replica);
+    }
+
+    @Override
     protected long replicaOperationSize(ResyncReplicationRequest request) {
         return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
     }
