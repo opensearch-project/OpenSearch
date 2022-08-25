@@ -96,7 +96,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         logger.info(message);
         try {
             // Notify user the request was acted on.
-            // TODO: should we wait and exeute the response and return the final response from extension?
             return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.ACCEPTED, message));
         } finally {
             final TransportResponseHandler<RestExecuteOnExtensionResponse> restExecuteOnExtensionResponseHandler =
@@ -109,7 +108,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
                     @Override
                     public void handleResponse(RestExecuteOnExtensionResponse response) {
-                        // TODO send to client somehow
                         logger.info("Received response from extension: {}", response.getResponse());
                     }
 
