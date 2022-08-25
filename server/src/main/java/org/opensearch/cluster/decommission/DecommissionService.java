@@ -84,7 +84,11 @@ public class DecommissionService {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.decommissionHelper = new DecommissionHelper(clusterService, allocationService);
+        this.decommissionHelper = new DecommissionHelper(
+            clusterService,
+            allocationService,
+            threadPool
+        );
         this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
@@ -318,44 +322,34 @@ public class DecommissionService {
             }
         };
 
-        // execute decommissioning
-        decommissionHelper.handleNodesDecommissionRequest(
-            nodesWithDecommissionAttribute(state, decommissionAttribute),
-            "nodes-decommissioned"
-        );
+        ActionListener<ClusterStateUpdateResponse> nodesRemovalListener = new ActionListener<>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                DecommissionStatus updateStatusTo = clusterStateUpdateResponse.isAcknowledged() ?
+                    DecommissionStatus.DECOMMISSION_SUCCESSFUL : DecommissionStatus.DECOMMISSION_FAILED;
+                updateMetadataWithDecommissionStatus(updateStatusTo, statusUpdateListener);
+            }
 
-        final ClusterStateObserver observer = new ClusterStateObserver(
-            clusterService,
-            TimeValue.timeValueSeconds(30L), // should this be a setting?
-            logger,
-            threadPool.getThreadContext()
-        );
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("failed to update the decommission status");
+            }
+        };
 
         final Predicate<ClusterState> allDecommissionedNodesRemoved = clusterState -> {
             List<DiscoveryNode> nodesWithDecommissionAttribute = nodesWithDecommissionAttribute(clusterState, decommissionAttribute);
             return nodesWithDecommissionAttribute.size() == 0;
         };
 
-        observer.waitForNextChange(new ClusterStateObserver.Listener() {
-            @Override
-            public void onNewClusterState(ClusterState state) {
-                logger.info("successfully removed all decommissioned nodes from the cluster");
-                clearVotingConfigAfterSuccessfulDecommission();
-                updateMetadataWithDecommissionStatus(DecommissionStatus.DECOMMISSION_SUCCESSFUL, statusUpdateListener);
-            }
-
-            @Override
-            public void onClusterServiceClose() {
-                logger.debug("cluster service closed while waiting for removal of decommissioned nodes.");
-            }
-
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                logger.info("timed out while waiting for removal of decommissioned nodes");
-                clearVotingConfigAfterSuccessfulDecommission();
-                updateMetadataWithDecommissionStatus(DecommissionStatus.DECOMMISSION_FAILED, statusUpdateListener);
-            }
-        }, allDecommissionedNodesRemoved);
+       //  execute decommissioning
+        decommissionHelper.handleNodesDecommissionRequest(
+            nodesWithDecommissionAttribute(state, decommissionAttribute),
+            "nodes-decommissioned",
+            TimeValue.timeValueSeconds(30L),
+            allDecommissionedNodesRemoved,
+            nodesRemovalListener
+        );
+        clearVotingConfigAfterSuccessfulDecommission();
     }
 
     private void updateMetadataWithDecommissionStatus(
