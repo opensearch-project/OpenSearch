@@ -210,37 +210,36 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 throw new IOException("Could not read from extensions.yml", e);
             }
             for (Extension extension : extensions) {
-                try {
-                    DiscoveryExtension discoveryExtension = new DiscoveryExtension(
-                        extension.getName(),
-                        extension.getUniqueId(),
-                        // placeholder for ephemeral id, will change with POC discovery
-                        extension.getUniqueId(),
-                        extension.getHostName(),
-                        extension.getHostAddress(),
-                        new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                        new HashMap<String, String>(),
-                        Version.fromString(extension.getOpensearchVersion()),
-                        new PluginInfo(
+                if (extensionIdMap.containsKey(extension.getUniqueId())) {
+                    logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
+                } else {
+                    try {
+                        DiscoveryExtension discoveryExtension = new DiscoveryExtension(
                             extension.getName(),
-                            extension.getDescription(),
-                            extension.getVersion(),
+                            extension.getUniqueId(),
+                            // placeholder for ephemeral id, will change with POC discovery
+                            extension.getUniqueId(),
+                            extension.getHostName(),
+                            extension.getHostAddress(),
+                            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
+                            new HashMap<String, String>(),
                             Version.fromString(extension.getOpensearchVersion()),
-                            extension.getJavaVersion(),
-                            extension.getClassName(),
-                            new ArrayList<String>(),
-                            Boolean.parseBoolean(extension.hasNativeController())
-                        )
-                    );
-                    if (extensionIdMap.containsKey(extension.getUniqueId())) {
-                        logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
-
-                    } else {
+                            new PluginInfo(
+                                extension.getName(),
+                                extension.getDescription(),
+                                extension.getVersion(),
+                                Version.fromString(extension.getOpensearchVersion()),
+                                extension.getJavaVersion(),
+                                extension.getClassName(),
+                                new ArrayList<String>(),
+                                Boolean.parseBoolean(extension.hasNativeController())
+                            )
+                        );
                         extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
                         logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+                    } catch (IllegalArgumentException e) {
+                        logger.error(e.toString());
                     }
-                } catch (IllegalArgumentException e) {
-                    logger.error(e.toString());
                 }
             }
             if (!extensionIdMap.isEmpty()) {
