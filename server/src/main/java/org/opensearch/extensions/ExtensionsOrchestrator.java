@@ -102,15 +102,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     private final Path extensionsPath;
-    final List<DiscoveryExtension> extensionsList;
-    // A list of extensions, may be duplicated by valueset of map below
+    // A list of initialized extensions, a subset of the values of map below which includes all extensions
     List<DiscoveryExtension> extensionsInitializedList;
     // A map of extension uniqueId to full extension details used for node transport here and in the RestActionsRequestHandler
     Map<String, DiscoveryExtension> extensionIdMap;
+    RestActionsRequestHandler restActionsRequestHandler;
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
-    RestActionsRequestHandler restActionsRequestHandler;
 
     /**
      * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -123,7 +122,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
         this.transportService = null;
-        this.extensionsList = new ArrayList<DiscoveryExtension>();
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
         this.clusterService = null;
@@ -137,24 +135,22 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     /**
-     * Initializes the {@link RestActionsRequestHandler} and {@link TransportService}. This is called during Node bootstrap.
+     * Initializes the {@link RestActionsRequestHandler}, {@link TransportService} and {@link ClusterService}. This is called during Node bootstrap.
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
      * @param transportService  The Node's transport service.
+     * @param clusterService  The Node's cluster service.
      */
-    public void initializeRestActionsRequestHandler(RestController restController, TransportService transportService) {
-        this.transportService = transportService;
+    public void initializeServicesAndRestHandler(
+        RestController restController,
+        TransportService transportService,
+        ClusterService clusterService
+    ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
-        registerRequestHandler();
-    }
-
-    public void setClusterService(ClusterService clusterService) {
+        this.transportService = transportService;
         this.clusterService = clusterService;
-    }
-
-    public void setNamedWriteableRegistry() {
-        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsInitializedList, transportService);
+        registerRequestHandler();
     }
 
     private void registerRequestHandler() {
@@ -236,14 +232,18 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                             Boolean.parseBoolean(extension.hasNativeController())
                         )
                     );
-                    extensionsList.add(discoveryExtension);
-                    extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
-                    logger.info("Loaded extension: " + extension + " with id " + extension.getUniqueId());
+                    if (extensionIdMap.containsKey(extension.getUniqueId())) {
+                        logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
+
+                    } else {
+                        extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
+                        logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+                    }
                 } catch (IllegalArgumentException e) {
                     logger.error(e.toString());
                 }
             }
-            if (!extensionsList.isEmpty()) {
+            if (!extensionIdMap.isEmpty()) {
                 logger.info("Loaded all extensions");
             }
         } else {
@@ -251,10 +251,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
+    /**
+     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensionsInitializedList}, and the {@link #namedWriteableRegistry} will be initialized.
+     */
     public void extensionsInitialize() {
-        for (DiscoveryNode extensionNode : extensionsList) {
+        for (DiscoveryNode extensionNode : extensionIdMap.values()) {
             extensionInitialize(extensionNode);
         }
+        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsInitializedList, transportService);
     }
 
     private void extensionInitialize(DiscoveryNode extensionNode) {
@@ -269,7 +273,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleResponse(InitializeExtensionsResponse response) {
-                for (DiscoveryExtension extension : extensionsList) {
+                for (DiscoveryExtension extension : extensionIdMap.values()) {
                     if (extension.getName().equals(response.getName())) {
                         extensionsInitializedList.add(extension);
                         logger.info("Initialized extension: " + extension.getName());
@@ -296,7 +300,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new InitializeExtensionsRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
+                new InitializeExtensionsRequest(
+                    transportService.getLocalNode(),
+                    new ArrayList<DiscoveryExtension>(extensionIdMap.values())
+                ),
                 extensionResponseHandler
             );
             inProgressLatch.await(100, TimeUnit.SECONDS);
@@ -326,7 +333,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
-        for (DiscoveryNode extensionNode : extensionsList) {
+        for (DiscoveryNode extensionNode : extensionIdMap.values()) {
             onIndexModule(indexModule, extensionNode);
         }
     }
@@ -425,7 +432,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 indicesModuleResponseHandler
             );
             /*
-             * Making async synchronous for now.
+             * Making asynchronous for now.
              */
             inProgressLatch.await(100, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
