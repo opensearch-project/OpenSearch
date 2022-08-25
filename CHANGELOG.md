@@ -6,6 +6,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Github workflow for changelog verification ([#4085](https://github.com/opensearch-project/OpenSearch/pull/4085))
 
 ### Changed
+- Update SegmentReplicationTargetService to keep track of last primary term used during replication ([4304](https://github.com/opensearch-project/OpenSearch/pull/4304))
 
 ### Deprecated
 

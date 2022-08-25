@@ -35,6 +35,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+
 /**
  * Service class that orchestrates replication events on replicas.
  *
@@ -52,6 +54,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final SegmentReplicationSourceFactory sourceFactory;
 
     private final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = new HashMap<>();
+
+    // Captures the primary term which was received for copying existing files
+    private long pTermLinkedToCopiedFiles;
 
     // Empty Implementation, only required while Segment Replication is under feature flag.
     public static final SegmentReplicationTargetService NO_OP = new SegmentReplicationTargetService() {
@@ -93,6 +98,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         this.recoverySettings = recoverySettings;
         this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
         this.sourceFactory = sourceFactory;
+        this.pTermLinkedToCopiedFiles = UNASSIGNED_PRIMARY_TERM;
 
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
@@ -134,9 +140,20 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             );
             return;
         }
+        boolean checkpointFromNewPrimary = false;
+
+        if (receivedCheckpoint.getPrimaryTerm() > pTermLinkedToCopiedFiles) {
+            logger.info(
+                "Incoming checkpoint primary term {} higher compared to existing primary term {}",
+                receivedCheckpoint.getPrimaryTerm(),
+                pTermLinkedToCopiedFiles
+            );
+            pTermLinkedToCopiedFiles = receivedCheckpoint.getPrimaryTerm();
+            checkpointFromNewPrimary = true;
+        }
         final Thread thread = Thread.currentThread();
         if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
-            startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
+            startReplication(receivedCheckpoint, replicaShard, checkpointFromNewPrimary, new SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {
                     logger.trace(
@@ -183,9 +200,12 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     public void startReplication(
         final ReplicationCheckpoint checkpoint,
         final IndexShard indexShard,
+        final boolean checkpointFromNewPrimary,
         final SegmentReplicationListener listener
     ) {
-        startReplication(new SegmentReplicationTarget(checkpoint, indexShard, sourceFactory.get(indexShard), listener));
+        startReplication(
+            new SegmentReplicationTarget(checkpoint, indexShard, sourceFactory.get(indexShard), checkpointFromNewPrimary, listener)
+        );
     }
 
     // pkg-private for integration tests

@@ -55,16 +55,21 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private final SegmentReplicationState state;
     protected final MultiFileWriter multiFileWriter;
 
+    // Used during get files operation to ignore recoveryDiff.different files which will conflict due to new primary
+    protected final boolean checkpointFromNewPrimary;
+
     public SegmentReplicationTarget(
         ReplicationCheckpoint checkpoint,
         IndexShard indexShard,
         SegmentReplicationSource source,
+        boolean checkpointFromNewPrimary,
         ReplicationListener listener
     ) {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
         this.state = new SegmentReplicationState(stateIndex, getId());
+        this.checkpointFromNewPrimary = checkpointFromNewPrimary;
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);
     }
 
@@ -93,7 +98,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     public SegmentReplicationTarget retryCopy() {
-        return new SegmentReplicationTarget(checkpoint, indexShard, source, listener);
+        return new SegmentReplicationTarget(checkpoint, indexShard, source, checkpointFromNewPrimary, listener);
     }
 
     @Override
@@ -164,7 +169,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
          * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
          * IllegalStateException to fail the shard
          */
-        if (diff.different.isEmpty() == false) {
+
+        if (checkpointFromNewPrimary == false && diff.different.isEmpty() == false) {
             getFilesListener.onFailure(
                 new IllegalStateException(
                     new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId())
@@ -172,8 +178,12 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 )
             );
         }
-        final List<StoreFileMetadata> filesToFetch = new ArrayList<StoreFileMetadata>(diff.missing);
 
+        final List<StoreFileMetadata> filesToFetch = new ArrayList<StoreFileMetadata>(diff.missing);
+        if (checkpointFromNewPrimary && diff.different.isEmpty() == false) {
+            logger.trace("Fetching Replication diff.different files after new primary promotion");
+            filesToFetch.addAll(diff.different);
+        }
         Set<String> storeFiles = new HashSet<>(Arrays.asList(store.directory().listAll()));
         final Set<StoreFileMetadata> pendingDeleteFiles = checkpointInfo.getPendingDeleteFiles()
             .stream()

@@ -1211,6 +1211,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ReplicationCheckpoint.empty(replica.shardId),
                 replica,
                 source,
+                false,
                 new ReplicationListener() {
                     @Override
                     public void onDone(ReplicationState state) {
