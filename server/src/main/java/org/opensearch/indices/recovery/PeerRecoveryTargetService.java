@@ -36,12 +36,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.support.replication.TransportWriteAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -238,10 +239,20 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
-                    final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
+                    boolean isRecoveringReplicaWithRemoteTxLogEnabledIndex = recoveryTarget.state().getPrimary() == false
+                        && TransportWriteAction.IS_REMOTE_TXLOG_ENABLED.apply(indexShard);
+                    final long startingSeqNo = isRecoveringReplicaWithRemoteTxLogEnabledIndex
+                        ? indexShard.fetchStartSeqNoFromLastCommit()
+                        : indexShard.recoverLocallyUpToGlobalCheckpoint();
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
-                    startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
+                    startRequest = getStartRecoveryRequest(
+                        logger,
+                        clusterService.localNode(),
+                        recoveryTarget,
+                        startingSeqNo,
+                        !isRecoveringReplicaWithRemoteTxLogEnabledIndex
+                    );
                     requestToSend = startRequest;
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
                 } catch (final Exception e) {
@@ -271,7 +282,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     /**
-     * Prepare the start recovery request.
+     * Prepare the start recovery request for replicas whose underlying index is having remote translog enabled.
      *
      * @param logger         the logger
      * @param localNode      the local node of the recovery target
@@ -280,7 +291,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      *                       This is the first operation after the local checkpoint of the safe commit if exists.
      * @return a start recovery request
      */
-    public static StartRecoveryRequest getStartRecoveryRequest(
+    public static StartRecoveryRequest createStartRecoveryRequest(
         Logger logger,
         DiscoveryNode localNode,
         RecoveryTarget recoveryTarget,
@@ -288,26 +299,96 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     ) {
         final StartRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
-
         Store.MetadataSnapshot metadataSnapshot;
         try {
             metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
-            // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene index.
-            try {
-                final String expectedTranslogUUID = metadataSnapshot.getCommitUserData().get(Translog.TRANSLOG_UUID_KEY);
-                final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
-                assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
-            } catch (IOException | TranslogCorruptedException e) {
+        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
+            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        } catch (final IOException e) {
+            if (startingSeqNo != UNASSIGNED_SEQ_NO) {
                 logger.warn(
                     new ParameterizedMessage(
-                        "error while reading global checkpoint from translog, "
-                            + "resetting the starting sequence number from {} to unassigned and recovering as if there are none",
+                        "error while listing local files, resetting the starting sequence number from {} "
+                            + "to unassigned and recovering as if there are none",
                         startingSeqNo
                     ),
                     e
                 );
-                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
                 startingSeqNo = UNASSIGNED_SEQ_NO;
+            } else {
+                logger.warn("error while listing local files, recovering as if there are none", e);
+            }
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        }
+        logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
+        request = new StartRecoveryRequest(
+            recoveryTarget.shardId(),
+            recoveryTarget.indexShard().routingEntry().allocationId().getId(),
+            recoveryTarget.sourceNode(),
+            localNode,
+            metadataSnapshot,
+            recoveryTarget.state().getPrimary(),
+            recoveryTarget.getId(),
+            startingSeqNo
+        );
+        return request;
+    }
+
+    public static StartRecoveryRequest getStartRecoveryRequest(
+        Logger logger,
+        DiscoveryNode localNode,
+        RecoveryTarget recoveryTarget,
+        long startingSeqNo
+    ) {
+        return getStartRecoveryRequest(logger, localNode, recoveryTarget, startingSeqNo, true);
+    }
+
+    /**
+     * Prepare the start recovery request.
+     *
+     * @param logger           the logger
+     * @param localNode        the local node of the recovery target
+     * @param recoveryTarget   the target of the recovery
+     * @param startingSeqNo    a sequence number that an operation-based peer recovery can start with.
+     *                         This is the first operation after the local checkpoint of the safe commit if exists.
+     * @param validateTranslog should the recovery request validate translog consistency with snapshot store metadata.
+     * @return a start recovery request
+     */
+    public static StartRecoveryRequest getStartRecoveryRequest(
+        Logger logger,
+        DiscoveryNode localNode,
+        RecoveryTarget recoveryTarget,
+        long startingSeqNo,
+        boolean validateTranslog
+    ) {
+        final StartRecoveryRequest request;
+        logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+
+        Store.MetadataSnapshot metadataSnapshot;
+        try {
+            metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+            if (validateTranslog) {
+                // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene
+                // index.
+                try {
+                    final String expectedTranslogUUID = metadataSnapshot.getCommitUserData().get(Translog.TRANSLOG_UUID_KEY);
+                    final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
+                    assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
+                } catch (IOException | TranslogCorruptedException e) {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "error while reading global checkpoint from translog, "
+                                + "resetting the starting sequence number from {} to unassigned and recovering as if there are none",
+                            startingSeqNo
+                        ),
+                        e
+                    );
+                    metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+                    startingSeqNo = UNASSIGNED_SEQ_NO;
+                }
             }
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
             // happens on an empty folder. no need to log
