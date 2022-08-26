@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -117,14 +118,21 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
 
         assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
         List<Route> expected = new ArrayList<>();
-        expected.add(new Route(Method.GET, "/foo"));
-        expected.add(new Route(Method.PUT, "/bar"));
-        expected.add(new Route(Method.POST, "/baz"));
+        String uriPrefix = "/_extensions/_uniqueid1";
+        expected.add(new Route(Method.GET, uriPrefix + "/foo"));
+        expected.add(new Route(Method.PUT, uriPrefix + "/bar"));
+        expected.add(new Route(Method.POST, uriPrefix + "/baz"));
 
         List<Route> routes = restSendToExtensionAction.routes();
         assertEquals(expected.size(), routes.size());
-        assertTrue(routes.containsAll(expected));
-        assertTrue(expected.containsAll(routes));
+        List<String> expectedPaths = expected.stream().map(Route::getPath).collect(Collectors.toList());
+        List<String> paths = routes.stream().map(Route::getPath).collect(Collectors.toList());
+        List<Method> expectedMethods = expected.stream().map(Route::getMethod).collect(Collectors.toList());
+        List<Method> methods = routes.stream().map(Route::getMethod).collect(Collectors.toList());
+        assertTrue(paths.containsAll(expectedPaths));
+        assertTrue(expectedPaths.containsAll(paths));
+        assertTrue(methods.containsAll(expectedMethods));
+        assertTrue(expectedMethods.containsAll(methods));
     }
 
     public void testRestSendToExtensionActionBadMethod() throws Exception {
