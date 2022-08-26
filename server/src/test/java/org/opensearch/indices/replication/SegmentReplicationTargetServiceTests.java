@@ -28,6 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
@@ -143,7 +144,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     public void testAlreadyOnNewCheckpoint() {
         SegmentReplicationTargetService spy = spy(sut);
         spy.onNewCheckpoint(indexShard.getLatestReplicationCheckpoint(), indexShard);
-        verify(spy, times(0)).startReplication(any(), any(), any(), any());
+        verify(spy, times(0)).startReplication(any(), any(), anyBoolean(), any());
     }
 
     public void testShardAlreadyReplicating() throws InterruptedException {
@@ -176,20 +177,20 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
         // wait for the new checkpoint to arrive, before the listener completes.
         latch.await(30, TimeUnit.SECONDS);
-        verify(serviceSpy, times(0)).startReplication(eq(aheadCheckpoint), eq(indexShard), any(), any());
+        verify(serviceSpy, times(0)).startReplication(eq(aheadCheckpoint), eq(indexShard), anyBoolean(), any());
     }
 
     public void testNewCheckpointBehindCurrentCheckpoint() {
         SegmentReplicationTargetService spy = spy(sut);
         spy.onNewCheckpoint(checkpoint, indexShard);
-        verify(spy, times(0)).startReplication(any(), any(), any(), any());
+        verify(spy, times(0)).startReplication(any(), any(), anyBoolean(), any());
     }
 
     public void testShardNotStarted() throws IOException {
         SegmentReplicationTargetService spy = spy(sut);
         IndexShard shard = newShard(false);
         spy.onNewCheckpoint(checkpoint, shard);
-        verify(spy, times(0)).startReplication(any(), any(), any(), any());
+        verify(spy, times(0)).startReplication(any(), any(), anyBoolean(), any());
         closeShards(shard);
     }
 
@@ -200,9 +201,9 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         ArgumentCaptor<SegmentReplicationTargetService.SegmentReplicationListener> captor = ArgumentCaptor.forClass(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
-        doNothing().when(spy).startReplication(any(), any(), any(), any());
+        doNothing().when(spy).startReplication(any(), any(), anyBoolean(), any());
         spy.onNewCheckpoint(aheadCheckpoint, spyShard);
-        verify(spy, times(1)).startReplication(any(), any(), any(), captor.capture());
+        verify(spy, times(1)).startReplication(any(), any(), anyBoolean(), captor.capture());
         SegmentReplicationTargetService.SegmentReplicationListener listener = captor.getValue();
         listener.onFailure(new SegmentReplicationState(new ReplicationLuceneIndex()), new OpenSearchException("testing"), true);
         verify(spyShard).failShard(any(), any());
@@ -218,11 +219,11 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         // Starting a new shard in PrimaryMode.
         IndexShard primaryShard = newStartedShard(true);
         IndexShard spyShard = spy(primaryShard);
-        doNothing().when(spy).startReplication(any(), any(), any(), any());
+        doNothing().when(spy).startReplication(any(), any(), anyBoolean(), any());
         spy.onNewCheckpoint(aheadCheckpoint, spyShard);
 
         // Verify that checkpoint is not processed as shard is in PrimaryMode.
-        verify(spy, times(0)).startReplication(any(), any(), any(), any());
+        verify(spy, times(0)).startReplication(any(), any(), anyBoolean(), any());
         closeShards(primaryShard);
     }
 
@@ -247,10 +248,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         ArgumentCaptor<SegmentReplicationTargetService.SegmentReplicationListener> captor = ArgumentCaptor.forClass(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
-        doNothing().when(spy).startReplication(any(), any(), any(), any());
+        doNothing().when(spy).startReplication(any(), any(), anyBoolean(), any());
         spy.onNewCheckpoint(newCheckpoint, spyShard);
         spy.onNewCheckpoint(anotherNewCheckpoint, spyShard);
-        verify(spy, times(1)).startReplication(eq(newCheckpoint), any(), any(), captor.capture());
+        verify(spy, times(1)).startReplication(eq(newCheckpoint), any(), anyBoolean(), captor.capture());
         verify(spy, times(1)).onNewCheckpoint(eq(anotherNewCheckpoint), any());
         SegmentReplicationTargetService.SegmentReplicationListener listener = captor.getValue();
         listener.onDone(new SegmentReplicationState(new ReplicationLuceneIndex()));

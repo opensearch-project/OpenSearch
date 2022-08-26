@@ -167,9 +167,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
          * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
-         * IllegalStateException to fail the shard
+         * IllegalStateException to fail the shard. With one exception when request is coming from new primary which can
+         * conflict with existing files on this replica store
          */
-
         if (checkpointFromNewPrimary == false && diff.different.isEmpty() == false) {
             getFilesListener.onFailure(
                 new IllegalStateException(
@@ -180,6 +180,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }
 
         final List<StoreFileMetadata> filesToFetch = new ArrayList<StoreFileMetadata>(diff.missing);
+
+        // If update from new primary, then include diff.different files as well which can potentially conflict with
+        // in memory SegmentInfos copied from this new primary
         if (checkpointFromNewPrimary && diff.different.isEmpty() == false) {
             logger.trace("Fetching Replication diff.different files after new primary promotion");
             filesToFetch.addAll(diff.different);
