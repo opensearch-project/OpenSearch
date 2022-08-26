@@ -281,62 +281,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
     }
 
-    /**
-     * Prepare the start recovery request for replicas whose underlying index is having remote translog enabled.
-     *
-     * @param logger         the logger
-     * @param localNode      the local node of the recovery target
-     * @param recoveryTarget the target of the recovery
-     * @param startingSeqNo  a sequence number that an operation-based peer recovery can start with.
-     *                       This is the first operation after the local checkpoint of the safe commit if exists.
-     * @return a start recovery request
-     */
-    public static StartRecoveryRequest createStartRecoveryRequest(
-        Logger logger,
-        DiscoveryNode localNode,
-        RecoveryTarget recoveryTarget,
-        long startingSeqNo
-    ) {
-        final StartRecoveryRequest request;
-        logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
-        Store.MetadataSnapshot metadataSnapshot;
-        try {
-            metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
-        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
-            // happens on an empty folder. no need to log
-            assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
-            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
-            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-        } catch (final IOException e) {
-            if (startingSeqNo != UNASSIGNED_SEQ_NO) {
-                logger.warn(
-                    new ParameterizedMessage(
-                        "error while listing local files, resetting the starting sequence number from {} "
-                            + "to unassigned and recovering as if there are none",
-                        startingSeqNo
-                    ),
-                    e
-                );
-                startingSeqNo = UNASSIGNED_SEQ_NO;
-            } else {
-                logger.warn("error while listing local files, recovering as if there are none", e);
-            }
-            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-        }
-        logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
-        request = new StartRecoveryRequest(
-            recoveryTarget.shardId(),
-            recoveryTarget.indexShard().routingEntry().allocationId().getId(),
-            recoveryTarget.sourceNode(),
-            localNode,
-            metadataSnapshot,
-            recoveryTarget.state().getPrimary(),
-            recoveryTarget.getId(),
-            startingSeqNo
-        );
-        return request;
-    }
-
     public static StartRecoveryRequest getStartRecoveryRequest(
         Logger logger,
         DiscoveryNode localNode,
