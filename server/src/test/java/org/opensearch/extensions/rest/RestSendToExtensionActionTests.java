@@ -134,7 +134,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             List.of("/foo", "PUT /bar", "POST /baz")
         );
         expectThrows(
-            IOException.class,
+            IllegalArgumentException.class,
             () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtension, transportService)
         );
     }
@@ -145,7 +145,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             List.of("GET", "PUT /bar", "POST /baz")
         );
         expectThrows(
-            IOException.class,
+            IllegalArgumentException.class,
             () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtension, transportService)
         );
     }
