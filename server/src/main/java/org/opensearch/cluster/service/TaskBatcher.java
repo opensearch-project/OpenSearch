@@ -116,6 +116,7 @@ public abstract class TaskBatcher {
             }
         } catch (Exception e) {
             taskBatcherListener.onSubmitFailure(tasks);
+            throw e;
         }
 
         if (timeout != null) {
