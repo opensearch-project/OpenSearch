@@ -24,9 +24,10 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -54,10 +55,9 @@ public class DecommissionHelper {
     }
 
     public void handleNodesDecommissionRequest(
-        List<DiscoveryNode> nodesToBeDecommissioned,
+        Set<DiscoveryNode> nodesToBeDecommissioned,
         String reason,
         TimeValue timeout,
-        Predicate<ClusterState> allDecommissionedNodesRemoved,
         ActionListener<ClusterStateUpdateResponse> nodesRemovedListener
     ) {
         final Map<NodeRemovalClusterStateTaskExecutor.Task, ClusterStateTaskListener> nodesDecommissionTasks = new LinkedHashMap<>();
@@ -71,6 +71,18 @@ public class DecommissionHelper {
             ClusterStateTaskConfig.build(Priority.IMMEDIATE),
             nodeRemovalExecutor
         );
+
+        Predicate<ClusterState> allDecommissionedNodesRemovedPredicate = clusterState -> {
+            Iterator<DiscoveryNode> nodesIter = clusterState.nodes().getNodes().valuesIt();
+            while (nodesIter.hasNext()) {
+                final DiscoveryNode node = nodesIter.next();
+                // check if the node is part of node decommissioned list
+                if (nodesToBeDecommissioned.contains(node)) {
+                    return false;
+                }
+            }
+            return true;
+        };
 
         final ClusterStateObserver observer = new ClusterStateObserver(
             clusterService,
@@ -96,6 +108,6 @@ public class DecommissionHelper {
                 logger.info("timed out while waiting for removal of decommissioned nodes");
                 nodesRemovedListener.onResponse(new ClusterStateUpdateResponse(false));
             }
-        }, allDecommissionedNodesRemoved);
+        }, allDecommissionedNodesRemovedPredicate);
     }
 }

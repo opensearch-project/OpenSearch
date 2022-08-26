@@ -42,8 +42,10 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -336,17 +338,11 @@ public class DecommissionService {
             }
         };
 
-        final Predicate<ClusterState> allDecommissionedNodesRemoved = clusterState -> {
-            List<DiscoveryNode> nodesWithDecommissionAttribute = nodesWithDecommissionAttribute(clusterState, decommissionAttribute);
-            return nodesWithDecommissionAttribute.size() == 0;
-        };
-
         // execute nodes decommissioning and wait for it to complete
         decommissionHelper.handleNodesDecommissionRequest(
             nodesWithDecommissionAttribute(state, decommissionAttribute),
             "nodes-decommissioned",
             TimeValue.timeValueSeconds(30L),
-            allDecommissionedNodesRemoved,
             nodesRemovalListener
         );
         clearVotingConfigAfterSuccessfulDecommission();
@@ -383,8 +379,8 @@ public class DecommissionService {
         });
     }
 
-    private List<DiscoveryNode> nodesWithDecommissionAttribute(ClusterState clusterState, DecommissionAttribute decommissionAttribute) {
-        List<DiscoveryNode> nodesWithDecommissionAttribute = new ArrayList<>();
+    private Set<DiscoveryNode> nodesWithDecommissionAttribute(ClusterState clusterState, DecommissionAttribute decommissionAttribute) {
+        Set<DiscoveryNode> nodesWithDecommissionAttribute = new HashSet<>();
         final Predicate<DiscoveryNode> shouldRemoveNodePredicate = discoveryNode -> nodeHasDecommissionedAttribute(
             discoveryNode,
             decommissionAttribute
