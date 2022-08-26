@@ -229,7 +229,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             listener.onResponse(new Response()); // default implementation, overridden in specific tests
         }
 
@@ -240,6 +240,43 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     }
 
     public void testLocalOperationWithoutBlocks() throws ExecutionException, InterruptedException {
+        final boolean clusterManagerOperationFailure = randomBoolean();
+
+        Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        final Exception exception = new Exception();
+        final Response response = new Response();
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+                if (clusterManagerOperationFailure) {
+                    listener.onFailure(exception);
+                } else {
+                    listener.onResponse(response);
+                }
+            }
+        }.execute(request, listener);
+        assertTrue(listener.isDone());
+
+        if (clusterManagerOperationFailure) {
+            try {
+                listener.get();
+                fail("Expected exception but returned proper result");
+            } catch (ExecutionException ex) {
+                assertThat(ex.getCause(), equalTo(exception));
+            }
+        } else {
+            assertThat(listener.get(), equalTo(response));
+        }
+    }
+
+    /* The test is copied from testLocalOperationWithoutBlocks()
+    to validate the backwards compatibility for the deprecated method masterOperation(with task parameter). */
+    public void testDeprecatedMasterOperationWithTaskParameterCanBeCalled() throws ExecutionException, InterruptedException {
         final boolean clusterManagerOperationFailure = randomBoolean();
 
         Request request = new Request();
@@ -511,7 +548,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+                throws Exception {
                 // The other node has become cluster-manager, simulate failures of this node while publishing cluster state through
                 // ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));

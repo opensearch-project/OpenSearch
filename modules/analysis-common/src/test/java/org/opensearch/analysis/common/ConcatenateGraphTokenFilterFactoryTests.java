@@ -29,7 +29,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
     public void testSimpleTokenizerAndConcatenate() throws IOException {
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("concatenate_graph");
@@ -47,7 +47,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
                 .put("index.analysis.filter.my_concatenate_graph.token_separator", "+")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
@@ -65,7 +65,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
                 .put("index.analysis.filter.my_concatenate_graph.token_separator", "")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
@@ -83,7 +83,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
                 .put("index.analysis.filter.my_concatenate_graph.token_separator", "+")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
@@ -106,7 +106,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.filter.my_concatenate_graph.token_separator", "+")
                 .put("index.analysis.filter.my_concatenate_graph.preserve_position_increments", "true")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
@@ -132,7 +132,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "whitespace")
                 .put("index.analysis.analyzer.my_analyzer.filter", "my_word_delimiter, my_concatenate_graph")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         String source = "PowerShot Is AweSome";
@@ -166,7 +166,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                     .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
                     .put("index.analysis.filter.my_concatenate_graph.token_separator", "11")
                     .build(),
-                new CommonAnalysisPlugin()
+                new CommonAnalysisModulePlugin()
             )
         );
     }
@@ -187,7 +187,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "whitespace")
                 .put("index.analysis.analyzer.my_analyzer.filter", "my_word_delimiter, my_concatenate_graph")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         String source = "PowerShot Is AweSome";

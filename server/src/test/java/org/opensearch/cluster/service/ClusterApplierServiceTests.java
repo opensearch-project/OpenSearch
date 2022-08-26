@@ -299,12 +299,12 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         AtomicBoolean isClusterManager = new AtomicBoolean();
         timedClusterApplierService.addLocalNodeClusterManagerListener(new LocalNodeClusterManagerListener() {
             @Override
-            public void onMaster() {
+            public void onClusterManager() {
                 isClusterManager.set(true);
             }
 
             @Override
-            public void offMaster() {
+            public void offClusterManager() {
                 isClusterManager.set(false);
             }
         });
@@ -319,7 +319,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         nodes = state.nodes();
         nodesBuilder = DiscoveryNodes.builder(nodes).clusterManagerNodeId(null);
         state = ClusterState.builder(state)
-            .blocks(ClusterBlocks.builder().addGlobalBlock(NoClusterManagerBlockService.NO_MASTER_BLOCK_WRITES))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES))
             .nodes(nodesBuilder)
             .build();
         setState(timedClusterApplierService, state);

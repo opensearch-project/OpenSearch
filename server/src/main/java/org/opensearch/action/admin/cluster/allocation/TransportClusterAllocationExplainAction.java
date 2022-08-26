@@ -125,7 +125,7 @@ public class TransportClusterAllocationExplainAction extends TransportClusterMan
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ClusterAllocationExplainRequest request,
         final ClusterState state,
         final ActionListener<ClusterAllocationExplainResponse> listener

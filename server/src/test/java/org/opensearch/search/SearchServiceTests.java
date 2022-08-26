@@ -41,6 +41,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.PitSearchContextIdForNode;
+import org.opensearch.action.search.SearchContextIdForNode;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -1411,6 +1414,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
     }
 
@@ -1423,6 +1427,32 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             randomNonNegativeLong(),
             false
         );
+    }
+
+    public void testDeletePitReaderContext() throws ExecutionException, InterruptedException {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        List<PitSearchContextIdForNode> contextIds = new ArrayList<>();
+        ShardSearchContextId shardSearchContextId = future.actionGet();
+        PitSearchContextIdForNode pitSearchContextIdForNode = new PitSearchContextIdForNode(
+            "1",
+            new SearchContextIdForNode(null, "node1", shardSearchContextId)
+        );
+        contextIds.add(pitSearchContextIdForNode);
+
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(1));
+        validatePitStats("index", 1, 0, 0);
+        DeletePitResponse deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
+        // assert true for reader context not found
+        deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
+        // adding this assert to showcase behavior difference
+        assertFalse(searchService.freeReaderContext(future.actionGet()));
+        validatePitStats("index", 0, 1, 0);
     }
 
     public void testPitContextMaxKeepAlive() {
@@ -1445,9 +1475,10 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             ex.getMessage()
         );
         assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(0));
     }
 
-    public void testUpdatePitId() {
+    public void testUpdatePitId() throws ExecutionException, InterruptedException {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);
         PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
@@ -1467,7 +1498,10 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(updateResponse.getKeepAlive() == updateRequest.getKeepAlive());
         assertTrue(updateResponse.getPitId().equalsIgnoreCase("pitId"));
         assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(1));
+        validatePitStats("index", 1, 0, 0);
         assertTrue(searchService.freeReaderContext(future.actionGet()));
+        validatePitStats("index", 0, 1, 0);
     }
 
     public void testUpdatePitIdMaxKeepAlive() {
@@ -1499,6 +1533,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             ex.getMessage()
         );
         assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
     }
 
@@ -1519,5 +1554,15 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
         assertEquals("No search context found for id [" + id.getId() + "]", ex.getMessage());
         assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(searchService.getAllPITReaderContexts().size(), equalTo(0));
+    }
+
+    public void validatePitStats(String index, long expectedPitCurrent, long expectedPitCount, int shardId) throws ExecutionException,
+        InterruptedException {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex(index));
+        IndexShard indexShard = indexService.getShard(shardId);
+        assertEquals(expectedPitCurrent, indexShard.searchStats().getTotal().getPitCurrent());
+        assertEquals(expectedPitCount, indexShard.searchStats().getTotal().getPitCount());
     }
 }

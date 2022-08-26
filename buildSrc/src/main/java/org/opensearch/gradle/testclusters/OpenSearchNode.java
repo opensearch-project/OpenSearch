@@ -32,6 +32,7 @@
 package org.opensearch.gradle.testclusters;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.StringUtils;
 import org.opensearch.gradle.Architecture;
 import org.opensearch.gradle.DistributionDownloadPlugin;
 import org.opensearch.gradle.OpenSearchDistribution;
@@ -175,6 +176,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Config legacyESConfig;
     private Config currentConfig;
 
+    private String zone;
+
     OpenSearchNode(
         String path,
         String name,
@@ -183,7 +186,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         File workingDirBase,
-        Jdk bwcJdk
+        Jdk bwcJdk,
+        String zone
     ) {
         this.path = path;
         this.name = name;
@@ -205,6 +209,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         opensearchConfig = Config.getOpenSearchConfig(workingDir);
         legacyESConfig = Config.getLegacyESConfig(workingDir);
         currentConfig = opensearchConfig;
+        this.zone = zone;
     }
 
     /*
@@ -1239,6 +1244,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
         baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
         baseConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
         baseConfig.put("node.attr.testattr", "test");
+        if (StringUtils.isNotBlank(zone)) {
+            baseConfig.put("cluster.routing.allocation.awareness.attributes", "zone");
+            baseConfig.put("node.attr.zone", zone);
+        }
         baseConfig.put("node.portsfile", "true");
         baseConfig.put("http.port", httpPort);
         if (getVersion().onOrAfter(Version.fromString("6.7.0"))) {

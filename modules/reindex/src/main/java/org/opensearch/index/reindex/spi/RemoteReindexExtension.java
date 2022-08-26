@@ -7,10 +7,11 @@ package org.opensearch.index.reindex.spi;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.index.reindex.BulkByScrollResponse;
+import org.opensearch.index.reindex.ReindexModulePlugin;
 import org.opensearch.index.reindex.ReindexRequest;
 
 /**
- * This interface provides an extension point for {@link org.opensearch.index.reindex.ReindexPlugin}.
+ * This interface provides an extension point for {@link ReindexModulePlugin}.
  * This interface can be implemented to provide a custom Rest interceptor and {@link ActionListener}
  * The Rest interceptor can be used to pre-process any reindex request and perform any action
  * on the response. The ActionListener listens to the success and failure events on every reindex request

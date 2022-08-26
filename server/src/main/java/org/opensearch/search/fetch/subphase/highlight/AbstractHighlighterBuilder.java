@@ -189,7 +189,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
         requireFieldMatch(in.readOptionalBoolean());
 
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
             maxAnalyzerOffset(in.readOptionalVInt());
         }
 
@@ -234,7 +234,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
             out.writeOptionalVInt(maxAnalyzerOffset);
         }
         doWriteTo(out);
